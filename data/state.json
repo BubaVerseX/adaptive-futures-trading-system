@@ -1,0 +1,505 @@
+{
+  "version": 1,
+  "exchange": "BYBIT_V5_LINEAR",
+  "strategyProfile": "BYBIT_ADAPTIVE_STAT_SCALP_V2",
+  "updatedAt": "2026-05-27T21:14:16.276Z",
+  "mode": "LIVE",
+  "paused": true,
+  "pauseReason": "adaptive maximum daily trades reached",
+  "equity": {
+    "startingUsdt": 100,
+    "realizedPnlUsdt": -6.107050709000026,
+    "currentUsdt": 51.366228
+  },
+  "daily": {
+    "date": "2026-05-27",
+    "startingEquity": 57.89879,
+    "tradesOpened": 30,
+    "losingTrades": 22,
+    "realizedPnlUsdt": -6.107051014999952,
+    "lossLocked": false,
+    "feesUsdt": 3.5715937225,
+    "closedTrades": 22,
+    "wins": 5
+  },
+  "ladder": {
+    "activeLevel": 1,
+    "highestUnlockedLevel": 1,
+    "levelStartEquity": 100,
+    "riskDowngraded": true
+  },
+  "openPositions": [],
+  "lastPrices": {
+    "EDENUSDT": 0.06603,
+    "LITUSDT": 1.1637,
+    "VVVUSDT": 17.233,
+    "TONUSDT": 1.9038,
+    "PENDLEUSDT": 1.6341,
+    "BTCUSDT": 75027.6,
+    "XLMUSDT": 0.16479,
+    "NEARUSDT": 2.7117,
+    "WIFUSDT": 0.19196,
+    "LABUSDT": 4.3872,
+    "ADAUSDT": 0.2405,
+    "XMRUSDT": 394.35,
+    "JELLYJELLYUSDT": 0.05896,
+    "HYPEUSDT": 60.321,
+    "SUIUSDT": 0.9819,
+    "AZTECUSDT": 0.024556,
+    "PLAYSOUTUSDT": 0.09238,
+    "ZECUSDT": 548.62,
+    "DRIFTUSDT": 0.03264,
+    "STORJUSDT": 0.10738,
+    "ONDOUSDT": 0.3996,
+    "GRTUSDT": 0.0287,
+    "FFUSDT": 0.10558,
+    "HIGHUSDT": 0.14065,
+    "WLDUSDT": 0.3485
+  },
+  "symbolCooldowns": {
+    "XLMUSDT": {
+      "lastClosedAt": "2026-05-27T19:39:03.535Z",
+      "lastPnlUsdt": -0.100956,
+      "reentryUntil": "2026-05-27T19:40:33.535Z",
+      "lossCooldownUntil": "2026-05-27T19:54:03.535Z"
+    },
+    "NEARUSDT": {
+      "lastClosedAt": "2026-05-27T19:42:09.263Z",
+      "lastPnlUsdt": -1.086539,
+      "reentryUntil": "2026-05-27T19:43:39.263Z",
+      "lossCooldownUntil": "2026-05-27T19:57:09.263Z"
+    },
+    "WIFUSDT": {
+      "lastClosedAt": "2026-05-27T19:46:41.837Z",
+      "lastPnlUsdt": -0.314462,
+      "reentryUntil": "2026-05-27T19:48:11.837Z",
+      "lossCooldownUntil": "2026-05-27T20:01:41.837Z"
+    },
+    "LABUSDT": {
+      "lastClosedAt": "2026-05-27T19:50:31.692Z",
+      "lastPnlUsdt": 0.06503,
+      "reentryUntil": "2026-05-27T19:52:01.692Z",
+      "lossCooldownUntil": null
+    },
+    "ADAUSDT": {
+      "lastClosedAt": "2026-05-27T19:52:04.054Z",
+      "lastPnlUsdt": -0.289346,
+      "reentryUntil": "2026-05-27T19:53:34.054Z",
+      "lossCooldownUntil": "2026-05-27T20:07:04.054Z"
+    },
+    "XMRUSDT": {
+      "lastClosedAt": "2026-05-27T20:36:34.566Z",
+      "lastPnlUsdt": -0.250446,
+      "reentryUntil": "2026-05-27T20:38:04.566Z",
+      "lossCooldownUntil": "2026-05-27T20:51:34.566Z"
+    },
+    "JELLYJELLYUSDT": {
+      "lastClosedAt": "2026-05-27T20:01:19.524Z",
+      "lastPnlUsdt": -0.38344,
+      "reentryUntil": "2026-05-27T20:02:49.524Z",
+      "lossCooldownUntil": "2026-05-27T20:16:19.524Z"
+    },
+    "TONUSDT": {
+      "lastClosedAt": "2026-05-27T20:15:50.518Z",
+      "lastPnlUsdt": -0.758568,
+      "reentryUntil": "2026-05-27T20:17:20.518Z",
+      "lossCooldownUntil": "2026-05-27T20:30:50.518Z"
+    },
+    "HYPEUSDT": {
+      "lastClosedAt": "2026-05-27T20:50:43.304Z",
+      "lastPnlUsdt": -0.219236,
+      "reentryUntil": "2026-05-27T20:52:13.304Z",
+      "lossCooldownUntil": "2026-05-27T21:05:43.304Z"
+    },
+    "SUIUSDT": {
+      "lastClosedAt": "2026-05-27T20:21:41.705Z",
+      "lastPnlUsdt": -0.206478,
+      "reentryUntil": "2026-05-27T20:23:11.705Z",
+      "lossCooldownUntil": "2026-05-27T20:36:41.705Z"
+    },
+    "AZTECUSDT": {
+      "lastClosedAt": "2026-05-27T20:27:11.764Z",
+      "lastPnlUsdt": 0.281394,
+      "reentryUntil": "2026-05-27T20:28:41.764Z",
+      "lossCooldownUntil": null
+    },
+    "PLAYSOUTUSDT": {
+      "lastClosedAt": "2026-05-27T20:30:52.215Z",
+      "lastPnlUsdt": 0.150963,
+      "reentryUntil": "2026-05-27T20:32:22.215Z",
+      "lossCooldownUntil": null
+    },
+    "ZECUSDT": {
+      "lastClosedAt": "2026-05-27T20:34:06.842Z",
+      "lastPnlUsdt": 0.07776,
+      "reentryUntil": "2026-05-27T20:35:36.842Z",
+      "lossCooldownUntil": null
+    },
+    "DRIFTUSDT": {
+      "lastClosedAt": "2026-05-27T20:39:02.054Z",
+      "lastPnlUsdt": -0.757507,
+      "reentryUntil": "2026-05-27T20:40:32.054Z",
+      "lossCooldownUntil": "2026-05-27T20:54:02.054Z"
+    },
+    "STORJUSDT": {
+      "lastClosedAt": "2026-05-27T20:42:31.388Z",
+      "lastPnlUsdt": -0.173819,
+      "reentryUntil": "2026-05-27T20:44:01.388Z",
+      "lossCooldownUntil": "2026-05-27T20:57:31.388Z"
+    },
+    "ONDOUSDT": {
+      "lastClosedAt": "2026-05-27T20:46:39.231Z",
+      "lastPnlUsdt": -0.097098,
+      "reentryUntil": "2026-05-27T20:48:09.231Z",
+      "lossCooldownUntil": "2026-05-27T21:01:39.231Z"
+    },
+    "GRTUSDT": {
+      "lastClosedAt": "2026-05-27T20:47:58.305Z",
+      "lastPnlUsdt": 0.074124,
+      "reentryUntil": "2026-05-27T20:49:28.305Z",
+      "lossCooldownUntil": null
+    },
+    "FFUSDT": {
+      "lastClosedAt": "2026-05-27T20:53:54.935Z",
+      "lastPnlUsdt": -0.179397,
+      "reentryUntil": "2026-05-27T20:55:24.935Z",
+      "lossCooldownUntil": "2026-05-27T21:08:54.935Z"
+    },
+    "HIGHUSDT": {
+      "lastClosedAt": "2026-05-27T20:55:00.998Z",
+      "lastPnlUsdt": -0.559471,
+      "reentryUntil": "2026-05-27T20:56:30.998Z",
+      "lossCooldownUntil": "2026-05-27T21:10:00.998Z"
+    },
+    "WLDUSDT": {
+      "lastClosedAt": "2026-05-27T20:57:13.123Z",
+      "lastPnlUsdt": -0.157989,
+      "reentryUntil": "2026-05-27T20:58:43.123Z",
+      "lossCooldownUntil": "2026-05-27T21:12:13.123Z"
+    }
+  },
+  "performance": {
+    "closedTrades": 28,
+    "wins": 6,
+    "losses": 22,
+    "winRatePct": 21.43,
+    "grossPnlUsdt": -2.53546,
+    "realizedPnlUsdt": -6.10705,
+    "totalFeesUsdt": 3.571593,
+    "averageHoldSeconds": 198.62,
+    "bestSymbol": {
+      "symbol": "AZTECUSDT",
+      "realizedPnlUsdt": 0.281394,
+      "winRatePct": 100
+    },
+    "worstSymbol": {
+      "symbol": "NEARUSDT",
+      "realizedPnlUsdt": -1.086539,
+      "winRatePct": 0
+    },
+    "symbols": {
+      "EDENUSDT": {
+        "closedTrades": 1,
+        "wins": 0,
+        "losses": 1,
+        "winRatePct": 0,
+        "grossPnlUsdt": -0.069249,
+        "realizedPnlUsdt": -0.069249,
+        "totalFeesUsdt": 0,
+        "averageHoldSeconds": 152.11,
+        "bestTradePnlUsdt": -0.069249,
+        "worstTradePnlUsdt": -0.069249
+      },
+      "LITUSDT": {
+        "closedTrades": 1,
+        "wins": 0,
+        "losses": 1,
+        "winRatePct": 0,
+        "grossPnlUsdt": -0.3408,
+        "realizedPnlUsdt": -0.3408,
+        "totalFeesUsdt": 0,
+        "averageHoldSeconds": 155.58,
+        "bestTradePnlUsdt": -0.3408,
+        "worstTradePnlUsdt": -0.3408
+      },
+      "VVVUSDT": {
+        "closedTrades": 1,
+        "wins": 0,
+        "losses": 1,
+        "winRatePct": 0,
+        "grossPnlUsdt": -0.42581,
+        "realizedPnlUsdt": -0.42581,
+        "totalFeesUsdt": 0,
+        "averageHoldSeconds": 375.19,
+        "bestTradePnlUsdt": -0.42581,
+        "worstTradePnlUsdt": -0.42581
+      },
+      "TONUSDT": {
+        "closedTrades": 2,
+        "wins": 0,
+        "losses": 2,
+        "winRatePct": 0,
+        "grossPnlUsdt": -0.79125,
+        "realizedPnlUsdt": -0.956568,
+        "totalFeesUsdt": 0.165318,
+        "averageHoldSeconds": 461.92,
+        "bestTradePnlUsdt": -0.198,
+        "worstTradePnlUsdt": -0.758568
+      },
+      "PENDLEUSDT": {
+        "closedTrades": 1,
+        "wins": 1,
+        "losses": 0,
+        "winRatePct": 100,
+        "grossPnlUsdt": 0.073,
+        "realizedPnlUsdt": 0.073,
+        "totalFeesUsdt": 0,
+        "averageHoldSeconds": 220.6,
+        "bestTradePnlUsdt": 0.073,
+        "worstTradePnlUsdt": 0.073
+      },
+      "BTCUSDT": {
+        "closedTrades": 1,
+        "wins": 0,
+        "losses": 1,
+        "winRatePct": 0,
+        "grossPnlUsdt": -0.0005,
+        "realizedPnlUsdt": -0.0005,
+        "totalFeesUsdt": 0,
+        "averageHoldSeconds": 73.95,
+        "bestTradePnlUsdt": -0.0005,
+        "worstTradePnlUsdt": -0.0005
+      },
+      "XLMUSDT": {
+        "closedTrades": 1,
+        "wins": 0,
+        "losses": 1,
+        "winRatePct": 0,
+        "grossPnlUsdt": 0.06349,
+        "realizedPnlUsdt": -0.100956,
+        "totalFeesUsdt": 0.164446,
+        "averageHoldSeconds": 665.08,
+        "bestTradePnlUsdt": -0.100956,
+        "worstTradePnlUsdt": -0.100956
+      },
+      "NEARUSDT": {
+        "closedTrades": 1,
+        "wins": 0,
+        "losses": 1,
+        "winRatePct": 0,
+        "grossPnlUsdt": -0.92232,
+        "realizedPnlUsdt": -1.086539,
+        "totalFeesUsdt": 0.164219,
+        "averageHoldSeconds": 141.24,
+        "bestTradePnlUsdt": -1.086539,
+        "worstTradePnlUsdt": -1.086539
+      },
+      "WIFUSDT": {
+        "closedTrades": 1,
+        "wins": 0,
+        "losses": 1,
+        "winRatePct": 0,
+        "grossPnlUsdt": -0.149632,
+        "realizedPnlUsdt": -0.314462,
+        "totalFeesUsdt": 0.164831,
+        "averageHoldSeconds": 226.38,
+        "bestTradePnlUsdt": -0.314462,
+        "worstTradePnlUsdt": -0.314462
+      },
+      "LABUSDT": {
+        "closedTrades": 1,
+        "wins": 1,
+        "losses": 0,
+        "winRatePct": 100,
+        "grossPnlUsdt": 0.3927,
+        "realizedPnlUsdt": 0.06503,
+        "totalFeesUsdt": 0.32767,
+        "averageHoldSeconds": 181.63,
+        "bestTradePnlUsdt": 0.06503,
+        "worstTradePnlUsdt": 0.06503
+      },
+      "ADAUSDT": {
+        "closedTrades": 1,
+        "wins": 0,
+        "losses": 1,
+        "winRatePct": 0,
+        "grossPnlUsdt": -0.1246,
+        "realizedPnlUsdt": -0.289346,
+        "totalFeesUsdt": 0.164746,
+        "averageHoldSeconds": 87.25,
+        "bestTradePnlUsdt": -0.289346,
+        "worstTradePnlUsdt": -0.289346
+      },
+      "XMRUSDT": {
+        "closedTrades": 2,
+        "wins": 0,
+        "losses": 2,
+        "winRatePct": 0,
+        "grossPnlUsdt": -0.177,
+        "realizedPnlUsdt": -0.463599,
+        "totalFeesUsdt": 0.286599,
+        "averageHoldSeconds": 119.1,
+        "bestTradePnlUsdt": -0.213153,
+        "worstTradePnlUsdt": -0.250446
+      },
+      "JELLYJELLYUSDT": {
+        "closedTrades": 1,
+        "wins": 0,
+        "losses": 1,
+        "winRatePct": 0,
+        "grossPnlUsdt": -0.051118,
+        "realizedPnlUsdt": -0.38344,
+        "totalFeesUsdt": 0.332323,
+        "averageHoldSeconds": 330,
+        "bestTradePnlUsdt": -0.38344,
+        "worstTradePnlUsdt": -0.38344
+      },
+      "HYPEUSDT": {
+        "closedTrades": 2,
+        "wins": 0,
+        "losses": 2,
+        "winRatePct": 0,
+        "grossPnlUsdt": -0.0438,
+        "realizedPnlUsdt": -0.266293,
+        "totalFeesUsdt": 0.222493,
+        "averageHoldSeconds": 123.41,
+        "bestTradePnlUsdt": -0.047057,
+        "worstTradePnlUsdt": -0.219236
+      },
+      "SUIUSDT": {
+        "closedTrades": 1,
+        "wins": 0,
+        "losses": 1,
+        "winRatePct": 0,
+        "grossPnlUsdt": -0.12,
+        "realizedPnlUsdt": -0.206478,
+        "totalFeesUsdt": 0.086478,
+        "averageHoldSeconds": 158.1,
+        "bestTradePnlUsdt": -0.206478,
+        "worstTradePnlUsdt": -0.206478
+      },
+      "AZTECUSDT": {
+        "closedTrades": 1,
+        "wins": 1,
+        "losses": 0,
+        "winRatePct": 100,
+        "grossPnlUsdt": 0.473156,
+        "realizedPnlUsdt": 0.281394,
+        "totalFeesUsdt": 0.191763,
+        "averageHoldSeconds": 283.86,
+        "bestTradePnlUsdt": 0.281394,
+        "worstTradePnlUsdt": 0.281394
+      },
+      "PLAYSOUTUSDT": {
+        "closedTrades": 1,
+        "wins": 1,
+        "losses": 0,
+        "winRatePct": 100,
+        "grossPnlUsdt": 0.342498,
+        "realizedPnlUsdt": 0.150963,
+        "totalFeesUsdt": 0.191535,
+        "averageHoldSeconds": 174.09,
+        "bestTradePnlUsdt": 0.150963,
+        "worstTradePnlUsdt": 0.150963
+      },
+      "ZECUSDT": {
+        "closedTrades": 1,
+        "wins": 1,
+        "losses": 0,
+        "winRatePct": 100,
+        "grossPnlUsdt": 0.1744,
+        "realizedPnlUsdt": 0.07776,
+        "totalFeesUsdt": 0.09664,
+        "averageHoldSeconds": 153.12,
+        "bestTradePnlUsdt": 0.07776,
+        "worstTradePnlUsdt": 0.07776
+      },
+      "DRIFTUSDT": {
+        "closedTrades": 1,
+        "wins": 0,
+        "losses": 1,
+        "winRatePct": 0,
+        "grossPnlUsdt": -0.628388,
+        "realizedPnlUsdt": -0.757507,
+        "totalFeesUsdt": 0.129119,
+        "averageHoldSeconds": 101.01,
+        "bestTradePnlUsdt": -0.757507,
+        "worstTradePnlUsdt": -0.757507
+      },
+      "STORJUSDT": {
+        "closedTrades": 1,
+        "wins": 0,
+        "losses": 1,
+        "winRatePct": 0,
+        "grossPnlUsdt": -0.046628,
+        "realizedPnlUsdt": -0.173819,
+        "totalFeesUsdt": 0.127191,
+        "averageHoldSeconds": 162.6,
+        "bestTradePnlUsdt": -0.173819,
+        "worstTradePnlUsdt": -0.173819
+      },
+      "ONDOUSDT": {
+        "closedTrades": 1,
+        "wins": 0,
+        "losses": 1,
+        "winRatePct": 0,
+        "grossPnlUsdt": 0.0286,
+        "realizedPnlUsdt": -0.097098,
+        "totalFeesUsdt": 0.125698,
+        "averageHoldSeconds": 203.59,
+        "bestTradePnlUsdt": -0.097098,
+        "worstTradePnlUsdt": -0.097098
+      },
+      "GRTUSDT": {
+        "closedTrades": 1,
+        "wins": 1,
+        "losses": 0,
+        "winRatePct": 100,
+        "grossPnlUsdt": 0.201385,
+        "realizedPnlUsdt": 0.074124,
+        "totalFeesUsdt": 0.127261,
+        "averageHoldSeconds": 34.69,
+        "bestTradePnlUsdt": 0.074124,
+        "worstTradePnlUsdt": 0.074124
+      },
+      "FFUSDT": {
+        "closedTrades": 1,
+        "wins": 0,
+        "losses": 1,
+        "winRatePct": 0,
+        "grossPnlUsdt": -0.0528,
+        "realizedPnlUsdt": -0.179397,
+        "totalFeesUsdt": 0.126597,
+        "averageHoldSeconds": 147.81,
+        "bestTradePnlUsdt": -0.179397,
+        "worstTradePnlUsdt": -0.179397
+      },
+      "HIGHUSDT": {
+        "closedTrades": 1,
+        "wins": 0,
+        "losses": 1,
+        "winRatePct": 0,
+        "grossPnlUsdt": -0.308104,
+        "realizedPnlUsdt": -0.559471,
+        "totalFeesUsdt": 0.251367,
+        "averageHoldSeconds": 22.64,
+        "bestTradePnlUsdt": -0.559471,
+        "worstTradePnlUsdt": -0.559471
+      },
+      "WLDUSDT": {
+        "closedTrades": 1,
+        "wins": 0,
+        "losses": 1,
+        "winRatePct": 0,
+        "grossPnlUsdt": -0.03269,
+        "realizedPnlUsdt": -0.157989,
+        "totalFeesUsdt": 0.125299,
+        "averageHoldSeconds": 102.07,
+        "bestTradePnlUsdt": -0.157989,
+        "worstTradePnlUsdt": -0.157989
+      }
+    }
+  },
+  "consecutiveApiErrors": 0,
+  "telegramUpdateOffset": 0
+}
