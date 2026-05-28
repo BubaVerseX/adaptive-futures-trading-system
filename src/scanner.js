@@ -39,6 +39,103 @@ function clampScore(score) {
   return Math.max(0, Math.min(100, score));
 }
 
+function bounded(value, minimum, maximum) {
+  return Math.max(minimum, Math.min(maximum, value));
+}
+
+function liquidityScore(config, volume24hUsdt, spreadPct) {
+  const volumeMultiple = config.min24hVolumeUsdt > 0 ? volume24hUsdt / config.min24hVolumeUsdt : 10;
+  const volumeScore = bounded(Math.log10(Math.max(1, volumeMultiple)) * 35 + Math.min(30, volumeMultiple * 3), 0, 65);
+  const spreadScore = bounded(35 * (1 - spreadPct / config.maxSpreadPct), 0, 35);
+  return Number((volumeScore + spreadScore).toFixed(2));
+}
+
+function trendQualityScore(config, main, fast, supportsTrend, emaAccelerating, momentumPersistenceCandles, direction) {
+  let score = 0;
+  if (supportsTrend) score += 35;
+  if (emaAccelerating) score += 18;
+  if (main.bodyDirection === direction && main.bodyStrength >= config.minDirectionalBodyStrength) score += 15;
+  if (fast.bodyDirection === direction && fast.bodyStrength >= config.minDirectionalBodyStrength) score += 10;
+  if (main.rangeExpansion >= config.minRangeExpansion) score += 10;
+  score += Math.min(12, momentumPersistenceCandles * 4);
+  return bounded(score, 0, 100);
+}
+
+function antiChopScore(config, context) {
+  if (!config.antiChopEnabled) return { score: 0, reasons: [] };
+  const reasons = [];
+  let score = 0;
+  if (context.regime === "CHOPPY") {
+    score += 1;
+    reasons.push("benchmark regime is choppy");
+  }
+  if (context.mainTrend === "CHOPPY") {
+    score += 1;
+    reasons.push("symbol EMA trend is choppy");
+  }
+  if (Math.abs(context.emaGapPct) < 0.035) {
+    score += 1;
+    reasons.push("EMA gap is too compressed");
+  }
+  if (context.rangeExpansion < config.minRangeExpansion) {
+    score += 1;
+    reasons.push("range expansion is weak");
+  }
+  if (context.bodyStrength < config.minDirectionalBodyStrength) {
+    score += 1;
+    reasons.push("candle body is not decisive");
+  }
+  if (!context.hasMomentumPersistence) {
+    score += 1;
+    reasons.push("momentum persistence is weak");
+  }
+  if (context.volumeSpike < config.minVolumeSpike) {
+    score += 1;
+    reasons.push("volume confirmation is weak");
+  }
+  return { score, reasons };
+}
+
+function technicalConvictionScore(config, parts) {
+  const volumeScore = bounded(((parts.volumeSpike - 1) / Math.max(0.1, config.minVolumeSpike)) * 22, 0, 22);
+  const momentumScore = bounded((parts.directedFastMomentum / Math.max(0.01, config.minBurstMomentumPct)) * 18, 0, 18);
+  const btcScore = parts.btcSupportsSide ? 13 : parts.btcContradictsSide ? 0 : 5;
+  const breakoutScore = parts.breakSignal ? 12 : parts.microBreakoutTriggered ? 5 : 0;
+  const edgeScore = bounded((parts.feeEdgeRatio / config.minEdgeToCostRatio) * 15, 0, 15);
+  const trendScore = bounded(parts.trendQualityScore * 0.16, 0, 16);
+  const liquidity = bounded(parts.liquidityScore * 0.14, 0, 14);
+  const chopPenalty = Math.min(18, parts.chop.score * 4);
+  const total = volumeScore + momentumScore + btcScore + breakoutScore + edgeScore + trendScore + liquidity - chopPenalty;
+  return {
+    score: Number(bounded(total, 0, 100).toFixed(2)),
+    components: {
+      volumeScore: Number(volumeScore.toFixed(2)),
+      momentumScore: Number(momentumScore.toFixed(2)),
+      btcScore,
+      breakoutScore,
+      edgeScore: Number(edgeScore.toFixed(2)),
+      trendScore: Number(trendScore.toFixed(2)),
+      liquidityScore: Number(liquidity.toFixed(2)),
+      chopPenalty,
+    },
+  };
+}
+
+function explorationBlockReason(config, signal) {
+  if (!config.explorationModeEnabled) return "exploration mode disabled";
+  if (signal.volatilityRegime === "NEWS_LIKE_ABNORMAL") return "exploration blocked during news-like abnormal volatility";
+  if (signal.volumeCondition === "LOW_VOLUME") return "exploration blocked by low volume condition";
+  if (signal.liquidityScore < config.minLiquidityScore * 0.8) return "exploration blocked by weak liquidity";
+  if (signal.antiChopScore > config.explorationMaxChopScore) return "exploration blocked by excessive chop";
+  if (signal.projectedNetEdgePct < config.explorationMinProjectedEdgePct) return "exploration blocked by insufficient fee-adjusted edge";
+  if (signal.feeEdgeRatio < config.explorationMinEdgeToCostRatio) return "exploration blocked by weak edge-to-cost ratio";
+  if (signal.score < config.explorationMinSignalScore) return "exploration blocked by low adaptive score";
+  if (signal.convictionScore < config.explorationMinConvictionScore) return "exploration blocked by low exploratory conviction";
+  const blacklist = signal.rejected.find((reason) => /blacklist|choppy-market entries disabled/i.test(reason));
+  if (blacklist) return blacklist;
+  return null;
+}
+
 class Scanner {
   constructor(config, client, log, adaptive = null) {
     this.config = config;
@@ -218,7 +315,37 @@ class Scanner {
     const strongBody = body.bodyStrength >= (this.config.fastMode ? 0.42 : 0.5) && body.bodyDirection === direction;
     const volatileEnough = Math.max(fast.atrPct, main.atrPct) >= 0.15;
     const roundTripFeePct = this.config.estimatedFeePctPerSide * 2;
-    const projectedNetEdgePct = this.config.takeProfitPct - roundTripFeePct - item.spreadPct;
+    const estimatedRoundTripCostPct = roundTripFeePct + this.config.estimatedSlippagePct + item.spreadPct;
+    const expectedMovePct = Math.min(
+      this.config.takeProfitPct,
+      Math.max(
+        this.config.minExpectedMovePct,
+        Math.abs(directedFastMomentum) * 2.5,
+        Math.abs(directedMainMomentum) * 1.8,
+        main.atrPct * this.config.expectedMoveAtrMultiplier
+      )
+    );
+    const projectedNetEdgePct = expectedMovePct - estimatedRoundTripCostPct;
+    const feeEdgeRatio = estimatedRoundTripCostPct > 0 ? expectedMovePct / estimatedRoundTripCostPct : 999;
+    const symbolLiquidityScore = liquidityScore(this.config, item.volume, item.spreadPct);
+    const symbolTrendQualityScore = trendQualityScore(
+      this.config,
+      main,
+      fast,
+      supportsTrend,
+      emaAccelerating,
+      momentumPersistenceCandles,
+      direction
+    );
+    const chop = antiChopScore(this.config, {
+      regime,
+      mainTrend,
+      emaGapPct: main.emaGapPct,
+      rangeExpansion: main.rangeExpansion,
+      bodyStrength: body.bodyStrength,
+      hasMomentumPersistence,
+      volumeSpike,
+    });
     const lowLiquidityRandomSpike =
       item.volume < this.config.min24hVolumeUsdt * this.config.lowVolumeMultiple &&
       volumeSpike >= this.config.minVolumeSpike * 2 &&
@@ -279,13 +406,30 @@ class Scanner {
       const penalty = fomoTrigger && hasMomentumPersistence ? Math.ceil(this.config.choppyMarketPenalty / 2) : this.config.choppyMarketPenalty;
       addScore("BTC/ETH choppy context penalty", -penalty);
     }
-    if (projectedNetEdgePct >= this.config.minProjectedEdgePct + 0.5) {
-      addScore("projected edge clears fees/spread", 6);
-    } else if (projectedNetEdgePct < this.config.minProjectedEdgePct) {
-      rejected.push("projected edge after fees and spread is too small");
+    if (projectedNetEdgePct >= this.config.minProjectedEdgePct + 0.5 && feeEdgeRatio >= this.config.minEdgeToCostRatio + 0.75) {
+      addScore("fee-aware expected edge clears costs", 8);
+    } else if (projectedNetEdgePct < this.config.minProjectedEdgePct || feeEdgeRatio < this.config.minEdgeToCostRatio) {
+      rejected.push(
+        `fee inefficiency: expected move ${expectedMovePct.toFixed(3)}% vs cost ${estimatedRoundTripCostPct.toFixed(3)}% ratio ${feeEdgeRatio.toFixed(2)}`
+      );
     }
     if (lowLiquidityRandomSpike) {
       addScore("low-liquidity random spike penalty", -this.config.lowLiquiditySpikePenalty);
+    }
+    if (symbolLiquidityScore < this.config.minLiquidityScore) {
+      rejected.push(`low liquidity quality score ${symbolLiquidityScore.toFixed(1)} below ${this.config.minLiquidityScore}`);
+    }
+    const exceptionalChopBreakout =
+      breakSignal &&
+      supportsTrend &&
+      volumeSpike >= this.config.minVolumeSpike + 0.65 &&
+      feeEdgeRatio >= this.config.minEdgeToCostRatio + 0.75 &&
+      symbolTrendQualityScore >= 65;
+    if (chop.score > this.config.maxChopScore && !exceptionalChopBreakout) {
+      addScore("anti-chop filter penalty", -Math.min(24, chop.score * 5));
+      rejected.push(`anti-chop filter activated: ${chop.reasons.join("; ")}`);
+    } else if (chop.score > 0) {
+      addScore("minor chop-quality penalty", -Math.min(10, chop.score * 2));
     }
 
     if (regime === "CHOPPY" && !this.config.allowChoppyMarket) rejected.push("choppy-market entries disabled by configuration");
@@ -317,8 +461,16 @@ class Scanner {
       momentum1mPct: fast.momentumPct,
       momentum5mPct: main.momentumPct,
       entryMomentumPct: directedFastMomentum,
+      expectedMovePct,
+      estimatedRoundTripCostPct,
       projectedNetEdgePct,
+      feeEdgeRatio,
       roundTripFeePct,
+      estimatedSlippagePct: this.config.estimatedSlippagePct,
+      liquidityScore: symbolLiquidityScore,
+      trendQualityScore: symbolTrendQualityScore,
+      antiChopScore: chop.score,
+      antiChopReasons: chop.reasons,
       btcTrend,
       ethTrend,
       btcTrendAligned: btcSupportsSide,
@@ -338,17 +490,61 @@ class Scanner {
       eligible: false,
     };
     baseSignal.setupType = setupTypeFromSignal(baseSignal);
+    const conviction = technicalConvictionScore(this.config, {
+      volumeSpike,
+      directedFastMomentum,
+      btcSupportsSide,
+      btcContradictsSide,
+      breakSignal,
+      microBreakoutTriggered,
+      feeEdgeRatio,
+      trendQualityScore: symbolTrendQualityScore,
+      liquidityScore: symbolLiquidityScore,
+      chop,
+    });
+    baseSignal.technicalConvictionScore = conviction.score;
+    baseSignal.convictionComponents = conviction.components;
     const signal = this.applyAdaptiveLearning(baseSignal);
     const requiredScore = this.adaptive && this.config.adaptiveLearningEnabled
       ? this.adaptive.currentPolicy().minSignalScore
       : this.config.minSignalScore;
-    signal.eligible = signal.score >= requiredScore && signal.rejected.length === 0;
     signal.requiredScore = requiredScore;
+    signal.tradeCategory = "HIGH_CONVICTION";
+    signal.explorationTrade = false;
+    signal.strictRejectedReasons = [...signal.rejected];
+    const highConvictionEligible = signal.score >= requiredScore && signal.rejected.length === 0;
+    if (highConvictionEligible) {
+      signal.eligible = true;
+    } else {
+      const explorationBlock = explorationBlockReason(this.config, signal);
+      signal.explorationBlockReason = explorationBlock;
+      signal.eligible = false;
+      if (!explorationBlock) {
+        signal.eligible = true;
+        signal.tradeCategory = "EXPLORATION";
+        signal.explorationTrade = true;
+        signal.explorationWaivedRejections = signal.strictRejectedReasons;
+        signal.rejected = [];
+        signal.scoreBreakdown.push("adaptive exploration active +0");
+      }
+    }
     return signal;
   }
 
   applyAdaptiveLearning(signal) {
-    if (!this.adaptive || !this.config.adaptiveLearningEnabled) return signal;
+    if (!this.adaptive || !this.config.adaptiveLearningEnabled) {
+      signal.adaptiveConfidence = 50;
+      signal.adaptiveScoreAdjustment = 0;
+      signal.adaptiveRiskMultiplier = 1;
+      signal.adaptiveLeverageMultiplier = 1;
+      signal.adaptivePolicyMode = "DISABLED";
+      signal.adaptiveReasons = ["adaptive learning disabled"];
+      signal.convictionScore = signal.technicalConvictionScore;
+      if (signal.convictionScore < this.config.minConvictionScore) {
+        signal.rejected.push(`low conviction: ${signal.convictionScore.toFixed(1)} below ${this.config.minConvictionScore}`);
+      }
+      return signal;
+    }
     const adaptation = this.adaptive.evaluateSignal(signal);
     signal.adaptiveScoreAdjustment = adaptation.scoreAdjustment;
     signal.adaptiveConfidence = adaptation.confidence;
@@ -357,11 +553,19 @@ class Scanner {
     signal.adaptivePolicyMode = adaptation.policy && adaptation.policy.mode;
     signal.adaptiveReasons = adaptation.reasons;
     signal.score = clampScore(signal.score + adaptation.scoreAdjustment);
+    signal.convictionScore = Number(
+      bounded(signal.technicalConvictionScore * 0.72 + adaptation.confidence * 0.28, 0, 100).toFixed(2)
+    );
     if (adaptation.rejected) {
       signal.rejected.push(...adaptation.reasons);
     }
     if (adaptation.scoreAdjustment !== 0) {
       signal.scoreBreakdown.push(`adaptive historical confidence ${adaptation.scoreAdjustment >= 0 ? "+" : ""}${adaptation.scoreAdjustment}`);
+    }
+    if (signal.convictionScore < this.config.minConvictionScore) {
+      signal.rejected.push(`low conviction: ${signal.convictionScore.toFixed(1)} below ${this.config.minConvictionScore}`);
+    } else if (signal.convictionScore >= this.config.minConvictionScore + 14 && adaptation.scoreAdjustment > 0) {
+      signal.scoreBreakdown.push(`conviction boost applied +${Math.min(6, Math.round((signal.convictionScore - this.config.minConvictionScore) / 4))}`);
     }
     return signal;
   }
@@ -382,6 +586,10 @@ class Scanner {
         baseScore: item.baseScore,
         requiredScore: item.requiredScore,
         setupType: item.setupType,
+        tradeCategory: item.tradeCategory,
+        explorationTrade: item.explorationTrade,
+        explorationBlockReason: item.explorationBlockReason,
+        explorationWaivedRejections: item.explorationWaivedRejections,
         rsi: item.rsi.toFixed(2),
         spreadPct: item.spreadPct.toFixed(4),
         momentum1mPct: item.momentum1mPct.toFixed(3),
@@ -390,6 +598,16 @@ class Scanner {
         momentumPersistenceCandles: item.momentumPersistenceCandles,
         atrPct: item.atrPct.toFixed(3),
         projectedNetEdgePct: item.projectedNetEdgePct.toFixed(3),
+        expectedMovePct: item.expectedMovePct.toFixed(3),
+        estimatedRoundTripCostPct: item.estimatedRoundTripCostPct.toFixed(3),
+        feeEdgeRatio: item.feeEdgeRatio.toFixed(2),
+        convictionScore: item.convictionScore,
+        technicalConvictionScore: item.technicalConvictionScore,
+        convictionComponents: item.convictionComponents,
+        liquidityScore: item.liquidityScore,
+        trendQualityScore: item.trendQualityScore,
+        antiChopScore: item.antiChopScore,
+        antiChopReasons: item.antiChopReasons,
         volatilityRegime: item.volatilityRegime,
         volumeCondition: item.volumeCondition,
         adaptiveConfidence: item.adaptiveConfidence,
@@ -411,6 +629,7 @@ class Scanner {
       analyzed: analyses.length,
       candidates: analyses.filter((item) => item.eligible).length,
       minimumScore: this.config.minSignalScore,
+      minimumConvictionScore: this.config.minConvictionScore,
       adaptiveMinimumScore: this.adaptive && this.config.adaptiveLearningEnabled ? this.adaptive.currentPolicy().minSignalScore : this.config.minSignalScore,
       adaptiveMode: this.adaptive && this.config.adaptiveLearningEnabled ? this.adaptive.currentPolicy().mode : "DISABLED",
       analysisConcurrency: this.config.scanConcurrency,

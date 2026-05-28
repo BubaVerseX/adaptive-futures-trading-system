@@ -84,6 +84,7 @@ class LadderBot {
     this.positionMode = config.bybitPositionMode;
     this.unmanagedLiveExposure = false;
     this.closingPositionIds = new Set();
+    this.lastAdaptiveMode = null;
   }
 
   async start() {
@@ -194,6 +195,22 @@ class LadderBot {
       const beforeEquity = await this.measureEquity();
       const level = this.risk.updateEquity(beforeEquity);
       const adaptivePolicy = this.adaptive.currentPolicy();
+      if (this.lastAdaptiveMode && this.lastAdaptiveMode !== adaptivePolicy.mode) {
+        this.log("INFO", "Adaptive mode changed.", {
+          from: this.lastAdaptiveMode,
+          to: adaptivePolicy.mode,
+          recoveryWinRatePct: adaptivePolicy.recoveryWinRatePct,
+          recoveryPnlUsdt: adaptivePolicy.recoveryPnlUsdt,
+          explorationEnabled: adaptivePolicy.explorationEnabled,
+        });
+        if (adaptivePolicy.mode === "DEFENSIVE_RECOVERY") {
+          this.log("INFO", "Defensive recovery activated; penalties are decaying while reduced-risk learning continues.", adaptivePolicy);
+        }
+        if (adaptivePolicy.mode === "CONTROLLED_AGGRESSIVE") {
+          this.log("INFO", "Adaptive aggression increased after improved recent performance.", adaptivePolicy);
+        }
+      }
+      this.lastAdaptiveMode = adaptivePolicy.mode;
       this.log("INFO", "Cycle risk status.", {
         equityUsdt: beforeEquity.toFixed(4),
         ladderLevel: level.level,
@@ -207,6 +224,9 @@ class LadderBot {
         adaptiveMaxOpenPositions: adaptivePolicy.maxOpenPositions,
         adaptiveMaxTradesPerDay: adaptivePolicy.maxTradesPerDay,
         adaptiveRiskMultiplier: adaptivePolicy.riskMultiplier,
+        explorationEnabled: adaptivePolicy.explorationEnabled,
+        explorationBudget: adaptivePolicy.explorationBudget,
+        dailyExplorationTrades: this.store.state.daily.explorationTrades || 0,
         winRatePct: this.store.state.performance.winRatePct,
         realizedPnlUsdt: this.store.state.performance.realizedPnlUsdt,
         feesUsdt: this.store.state.performance.totalFeesUsdt,
@@ -317,8 +337,30 @@ class LadderBot {
     }
 
     let opened = 0;
+    let explorationOpenedThisCycle = 0;
     for (const signal of candidates) {
       if (opened >= availableSlots || this.stopping) break;
+      if (signal.explorationTrade) {
+        const dailyExplorationTrades = Number(this.store.state.daily.explorationTrades || 0);
+        if (!adaptivePolicy.explorationEnabled || dailyExplorationTrades + explorationOpenedThisCycle >= adaptivePolicy.explorationBudget) {
+          this.log("INFO", "Exploration candidate skipped because daily exploration budget is used.", {
+            symbol: signal.symbol,
+            dailyExplorationTrades,
+            explorationOpenedThisCycle,
+            explorationBudget: adaptivePolicy.explorationBudget,
+          });
+          continue;
+        }
+        this.log("INFO", "Adaptive exploration active for candidate.", {
+          symbol: signal.symbol,
+          side: signal.side,
+          score: signal.score,
+          convictionScore: signal.convictionScore,
+          explorationMinScore: adaptivePolicy.explorationMinSignalScore,
+          explorationMinConviction: adaptivePolicy.explorationMinConvictionScore,
+          waivedStrictRejections: signal.explorationWaivedRejections,
+        });
+      }
       this.log("INFO", "Top-scoring candidate selected for safety evaluation.", {
         symbol: signal.symbol,
         side: signal.side,
@@ -326,6 +368,8 @@ class LadderBot {
         baseScore: signal.baseScore,
         requiredScore: signal.requiredScore,
         setupType: signal.setupType,
+        tradeCategory: signal.tradeCategory,
+        explorationTrade: signal.explorationTrade,
         regime: signal.regime,
         volatilityRegime: signal.volatilityRegime,
         volumeCondition: signal.volumeCondition,
@@ -355,6 +399,19 @@ class LadderBot {
         this.log("INFO", "Candidate entry rejected by portfolio safety rule.", { symbol: signal.symbol, reason: block });
         continue;
       }
+      const edgeCheck = this.feeAwareEntryCheck(signal);
+      if (edgeCheck.rejected) {
+        this.log("INFO", "Candidate rejected due to fee inefficiency or low conviction.", {
+          symbol: signal.symbol,
+          reason: edgeCheck.reason,
+          expectedMovePct: signal.expectedMovePct,
+          estimatedRoundTripCostPct: signal.estimatedRoundTripCostPct,
+          feeEdgeRatio: signal.feeEdgeRatio,
+          projectedNetEdgePct: signal.projectedNetEdgePct,
+          convictionScore: signal.convictionScore,
+        });
+        continue;
+      }
       const requestedLeverage = this.adaptiveLeverageForSignal(signal, adaptivePolicy);
       const liveSafety = this.config.dryRun ? { leverage: requestedLeverage } : await this.liveEntrySafety(signal, equity, requestedLeverage);
       if (liveSafety.rejected) {
@@ -378,6 +435,28 @@ class LadderBot {
         this.log("INFO", "Candidate rejected by aggregate margin allocation cap.", { symbol: signal.symbol });
         continue;
       }
+      if (plan.highQualityContinuation && plan.qualitySizeMultiplier > 1) {
+        this.log("INFO", "Adaptive size increase applied for high-conviction setup.", {
+          symbol: signal.symbol,
+          convictionScore: signal.convictionScore,
+          liquidityScore: signal.liquidityScore,
+          feeEdgeRatio: signal.feeEdgeRatio,
+          qualitySizeMultiplier: plan.qualitySizeMultiplier,
+          adaptiveRiskMultiplier: plan.adaptiveRiskMultiplier,
+        });
+      }
+      if (signal.explorationTrade) {
+        this.log("WARN", "EXPLORATION TRADE OPENED", {
+          symbol: signal.symbol,
+          side: signal.side,
+          score: signal.score,
+          convictionScore: signal.convictionScore,
+          plannedNotionalUsdt: plan.notional,
+          riskPct: plan.riskPct,
+          explorationRiskMultiplier: this.config.explorationRiskMultiplier,
+          waivedStrictRejections: signal.explorationWaivedRejections,
+        });
+      }
       this.log("WARN", "ENTRY SIGNAL", {
         symbol: signal.symbol,
         side: signal.side,
@@ -386,13 +465,22 @@ class LadderBot {
         adaptiveConfidence: signal.adaptiveConfidence,
         adaptivePolicyMode: signal.adaptivePolicyMode,
         setupType: signal.setupType,
+        tradeCategory: signal.tradeCategory,
+        explorationTrade: signal.explorationTrade,
         trigger: signal.fomoTrigger ? "FOMO_1M_MOMENTUM" : "SCORE_THRESHOLD",
         leverage: plan.leverage,
         plannedNotionalUsdt: plan.notional,
+        riskPct: plan.riskPct,
+        qualitySizeMultiplier: plan.qualitySizeMultiplier,
+        adaptiveRiskMultiplier: plan.adaptiveRiskMultiplier,
         entryPrice: signal.price,
         stopLossPrice: plan.stopLossPrice,
         takeProfitPrice: plan.takeProfitPrice,
         projectedNetEdgePct: signal.projectedNetEdgePct,
+        expectedMovePct: signal.expectedMovePct,
+        estimatedRoundTripCostPct: signal.estimatedRoundTripCostPct,
+        feeEdgeRatio: signal.feeEdgeRatio,
+        convictionScore: signal.convictionScore,
         estimatedRoundTripFeePct: signal.roundTripFeePct,
         momentumPersistenceCandles: signal.momentumPersistenceCandles,
         volatilityRegime: signal.volatilityRegime,
@@ -402,6 +490,7 @@ class LadderBot {
       });
       await this.openPosition(signal, plan);
       opened += 1;
+      if (signal.explorationTrade) explorationOpenedThisCycle += 1;
     }
   }
 
@@ -410,6 +499,24 @@ class LadderBot {
       (total, position) => total + Number(position.notional || Number(position.size) * position.entryPrice) / Number(position.leverage || 1),
       0
     );
+  }
+
+  feeAwareEntryCheck(signal) {
+    const minProjectedEdgePct = signal.explorationTrade ? this.config.explorationMinProjectedEdgePct : this.config.minProjectedEdgePct;
+    const minEdgeToCostRatio = signal.explorationTrade ? this.config.explorationMinEdgeToCostRatio : this.config.minEdgeToCostRatio;
+    const minConvictionScore = signal.explorationTrade ? this.config.explorationMinConvictionScore : this.config.minConvictionScore;
+    if (Number(signal.projectedNetEdgePct) < this.config.minProjectedEdgePct) {
+      if (!signal.explorationTrade || Number(signal.projectedNetEdgePct) < minProjectedEdgePct) {
+      return { rejected: true, reason: "projected edge after fees, spread, and slippage is too small" };
+      }
+    }
+    if (Number(signal.feeEdgeRatio) < minEdgeToCostRatio) {
+      return { rejected: true, reason: "expected move is too small relative to transaction costs" };
+    }
+    if (Number(signal.convictionScore) < minConvictionScore) {
+      return { rejected: true, reason: "conviction score below threshold" };
+    }
+    return { rejected: false };
   }
 
   adaptiveLeverageForSignal(signal, policy = this.adaptive.currentPolicy()) {
@@ -505,6 +612,9 @@ class LadderBot {
       baseSignalScore: signal.baseScore,
       signalRegime: signal.regime,
       setupType: signal.setupType,
+      tradeCategory: signal.tradeCategory,
+      explorationTrade: signal.explorationTrade,
+      explorationWaivedRejections: signal.explorationWaivedRejections,
       btcMarketRegime: signal.btcTrend,
       ethMarketRegime: signal.ethTrend,
       volatilityRegime: signal.volatilityRegime,
@@ -512,7 +622,15 @@ class LadderBot {
       entryMomentumPct: signal.entryMomentumPct,
       spreadPct: signal.spreadPct,
       projectedNetEdgePct: signal.projectedNetEdgePct,
+      expectedMovePct: signal.expectedMovePct,
+      estimatedRoundTripCostPct: signal.estimatedRoundTripCostPct,
+      feeEdgeRatio: signal.feeEdgeRatio,
       roundTripFeePct: signal.roundTripFeePct,
+      convictionScore: signal.convictionScore,
+      technicalConvictionScore: signal.technicalConvictionScore,
+      liquidityScore: signal.liquidityScore,
+      trendQualityScore: signal.trendQualityScore,
+      antiChopScore: signal.antiChopScore,
       breakoutTriggered: signal.breakoutTriggered,
       microBreakoutTriggered: signal.microBreakoutTriggered,
       fastMode: signal.fastMode,
@@ -590,7 +708,7 @@ class LadderBot {
         this.store.saveAll();
         await this.reconcileLivePositions();
       } else {
-        this.risk.registerOpen();
+        this.risk.registerOpen(Boolean(position.explorationTrade));
       }
       this.store.saveAll();
       this.log(this.config.dryRun ? "INFO" : "WARN", `${position.mode} ${position.side} position opened/submitted for reconciliation.`, {
@@ -733,11 +851,51 @@ class LadderBot {
       const momentumGone = long
         ? analysis.momentum1mPct < 0 && analysis.momentum5mPct < 0
         : analysis.momentum1mPct > 0 && analysis.momentum5mPct > 0;
-      if (trendReversed || momentumGone) {
-        await this.closePosition(position, price, trendReversed ? "EMA trend reversed" : "momentum disappeared");
+      const strongContinuation = this.strongMomentumContinuation(position, analysis, pnlPct);
+      if (strongContinuation) {
+        this.log("INFO", "Strong momentum continuation detected; avoiding premature exit.", {
+          symbol: position.symbol,
+          side: position.side,
+          pnlPct: pnlPct.toFixed(3),
+          holdSeconds: secondsHeld(position).toFixed(1),
+          continuationScore: analysis.convictionScore,
+          volumeCondition: analysis.volumeCondition,
+          momentumPersistenceCandles: analysis.momentumPersistenceCandles,
+        });
+      }
+      if (trendReversed && !strongContinuation) {
+        await this.closePosition(position, price, "EMA trend reversed");
+      } else if (momentumGone) {
+        const heldSeconds = secondsHeld(position);
+        if (strongContinuation || (heldSeconds < this.config.minHoldSecondsBeforeMomentumExit && pnlPct > -this.config.stopLossPct * 0.5)) {
+          this.log("INFO", "Momentum exit delayed to avoid over-fragmented micro-scalping.", {
+            symbol: position.symbol,
+            holdSeconds: heldSeconds.toFixed(1),
+            minHoldSeconds: this.config.minHoldSecondsBeforeMomentumExit,
+            pnlPct: pnlPct.toFixed(3),
+          });
+          continue;
+        }
+        await this.closePosition(position, price, "momentum disappeared");
       }
     }
     this.store.saveState();
+  }
+
+  strongMomentumContinuation(position, analysis, pnlPct) {
+    const sameSide = analysis.side === position.side;
+    const alignedMomentum = position.side === "LONG"
+      ? analysis.momentum1mPct > 0 && analysis.momentum5mPct >= 0
+      : analysis.momentum1mPct < 0 && analysis.momentum5mPct <= 0;
+    return Boolean(
+      sameSide &&
+      alignedMomentum &&
+      pnlPct >= this.config.continuationMinPnlPct &&
+      Number(analysis.convictionScore || 0) >= this.config.continuationMinScore &&
+      Number(analysis.momentumPersistenceCandles || 0) >= this.config.minMomentumPersistenceCandles &&
+      analysis.volumeCondition !== "LOW_VOLUME" &&
+      analysis.volatilityRegime !== "NEWS_LIKE_ABNORMAL"
+    );
   }
 
   async closePosition(position, referencePrice, reason) {
@@ -1031,7 +1189,7 @@ class LadderBot {
             trade.size = String(size);
             trade.positionIdx = managed.positionIdx;
           }
-          this.risk.registerOpen();
+          this.risk.registerOpen(Boolean(managed.explorationTrade));
           if (this.store.state.pauseReason === LEGACY_UNKNOWN_ENTRY_PAUSE) {
             this.store.state.paused = false;
             this.store.state.pauseReason = null;
@@ -1294,6 +1452,7 @@ class LadderBot {
       `Adaptive mode: ${adaptivePolicy.mode}, min score ${adaptivePolicy.minSignalScore}, max leverage ${adaptivePolicy.maxLeverage}x`,
       `Daily PnL realized: ${Number(daily.realizedPnlUsdt || 0).toFixed(4)} USDT`,
       `Daily trades/losses: ${daily.tradesOpened || 0}/${daily.losingTrades || 0}`,
+      `Exploration trades today: ${daily.explorationTrades || 0}/${adaptivePolicy.explorationBudget || 0}`,
       `All-time win rate: ${Number(performance.winRatePct || 0).toFixed(2)}% over ${performance.closedTrades || 0} closed trades`,
       `Fees tracked: ${Number(performance.totalFeesUsdt || 0).toFixed(4)} USDT`,
       `Average hold: ${Number(performance.averageHoldSeconds || 0).toFixed(1)} seconds`,

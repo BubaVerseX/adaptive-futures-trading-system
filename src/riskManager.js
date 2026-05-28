@@ -118,6 +118,7 @@ class RiskManager {
         feesUsdt: todayClosed.reduce((total, trade) => total + Number(trade.feesUsdt || trade.estimatedFeesUsdt || 0), 0),
         wins: todayClosed.filter((trade) => Number(trade.pnlUsdt) > 0).length,
         closedTrades: todayClosed.length,
+        explorationTrades: todayTrades.filter((trade) => trade.explorationTrade).length,
         lossLocked: false,
       };
       state.paused = false;
@@ -192,9 +193,32 @@ class RiskManager {
     const strongSetup = signal.score >= this.config.aggressiveScoreThreshold && !this.store.state.ladder.riskDowngraded;
     const baseRiskPct = strongSetup ? this.config.aggressiveRiskPerTradePct : this.config.baseRiskPerTradePct;
     const adaptiveRiskMultiplier = Number(signal.adaptiveRiskMultiplier || 1);
+    let qualitySizeMultiplier = 1;
+    const highQualityContinuation =
+      Number(signal.convictionScore || 0) >= this.config.minConvictionScore + 18 &&
+      Number(signal.liquidityScore || 0) >= 70 &&
+      signal.btcTrendAligned &&
+      ["STRONG_VOLUME_SPIKE", "CONFIRMED_VOLUME"].includes(signal.volumeCondition) &&
+      Number(signal.projectedNetEdgePct || 0) >= this.config.minProjectedEdgePct + 0.45;
+    if (highQualityContinuation) {
+      qualitySizeMultiplier = 1.12;
+    } else if (
+      Number(signal.convictionScore || 0) < this.config.minConvictionScore + 6 ||
+      signal.volatilityRegime === "HIGH_VOLATILITY" ||
+      signal.volatilityRegime === "NEWS_LIKE_ABNORMAL" ||
+      Number(signal.feeEdgeRatio || 0) < this.config.minEdgeToCostRatio + 0.5
+    ) {
+      qualitySizeMultiplier = signal.volatilityRegime === "NEWS_LIKE_ABNORMAL" ? 0.55 : 0.75;
+    }
+    if (signal.explorationTrade) {
+      qualitySizeMultiplier *= this.config.explorationRiskMultiplier;
+    }
     const riskPct = Math.max(
       this.config.baseRiskPerTradePct * this.config.adaptiveRiskMinMultiplier,
-      Math.min(this.config.aggressiveRiskPerTradePct * this.config.adaptiveRiskMaxMultiplier, baseRiskPct * adaptiveRiskMultiplier)
+      Math.min(
+        this.config.aggressiveRiskPerTradePct * this.config.adaptiveRiskMaxMultiplier,
+        baseRiskPct * adaptiveRiskMultiplier * qualitySizeMultiplier
+      )
     );
     // Position size uses only the unlocked milestone floor, never transient profit above it.
     const sizingEquity = Math.max(0, Math.min(equity, level.floor));
@@ -225,6 +249,9 @@ class RiskManager {
       riskPct,
       baseRiskPct,
       adaptiveRiskMultiplier: Number(adaptiveRiskMultiplier.toFixed(3)),
+      qualitySizeMultiplier: Number(qualitySizeMultiplier.toFixed(3)),
+      highQualityContinuation,
+      explorationSizing: Boolean(signal.explorationTrade),
       riskUsdt: Number(riskUsdt.toFixed(6)),
       stopLossPrice: roundedPrice(signal.price * (isLong ? 1 - stopDistance : 1 + stopDistance), tickSize, !isLong),
       takeProfitPrice: roundedPrice(
@@ -238,11 +265,14 @@ class RiskManager {
     };
   }
 
-  registerOpen() {
+  registerOpen(explorationTrade = false) {
     if (!this.store.state.daily) {
       return;
     }
     this.store.state.daily.tradesOpened += 1;
+    if (explorationTrade) {
+      this.store.state.daily.explorationTrades = Number(this.store.state.daily.explorationTrades || 0) + 1;
+    }
     this.store.saveState();
   }
 

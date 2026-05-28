@@ -237,6 +237,16 @@ class AdaptiveEngine {
       entryMomentumPct: numeric(trade.entryMomentumPct || trade.momentum1mPct),
       spreadPct: numeric(trade.spreadPct),
       slippagePct: Number.isFinite(slippagePct) ? Number(slippagePct.toFixed(4)) : 0,
+      expectedMovePct: numeric(trade.expectedMovePct),
+      estimatedRoundTripCostPct: numeric(trade.estimatedRoundTripCostPct),
+      feeEdgeRatio: numeric(trade.feeEdgeRatio),
+      projectedNetEdgePct: numeric(trade.projectedNetEdgePct),
+      convictionScore: numeric(trade.convictionScore),
+      liquidityScore: numeric(trade.liquidityScore),
+      trendQualityScore: numeric(trade.trendQualityScore),
+      antiChopScore: numeric(trade.antiChopScore),
+      tradeCategory: trade.tradeCategory || (trade.explorationTrade ? "EXPLORATION" : "HIGH_CONVICTION"),
+      explorationTrade: Boolean(trade.explorationTrade),
       result: trade.result || resultType(trade.exitReason),
       winLoss: pnlUsdt > 0 ? "WIN" : pnlUsdt < 0 ? "LOSS" : "FLAT",
       sessionType: trade.sessionType || sessionType(timestamp),
@@ -316,6 +326,7 @@ class AdaptiveEngine {
 
   buildPolicy() {
     const last20 = this.memory.rolling.last20;
+    const recoveryWindow = summarize(this.memory.trades.slice(-this.config.adaptiveRecoveryLookbackTrades));
     const enough = last20.count >= this.config.minAdaptiveTrades;
     let mode = "BASELINE";
     let riskMultiplier = 1;
@@ -323,36 +334,64 @@ class AdaptiveEngine {
     let maxLeverage = this.config.maxLeverage;
     let maxOpenPositions = this.config.maxOpenPositions;
     let maxTradesPerDay = this.config.maxTradesPerDay;
+    let explorationMultiplier = 1;
 
     if (enough && (last20.winRatePct < this.config.defensiveWinRatePct || last20.feeAdjustedPnlUsdt < 0)) {
       mode = "DEFENSIVE";
-      riskMultiplier = 0.6;
-      signalThresholdAdjustment = 8;
-      maxLeverage = Math.max(1, Math.floor(this.config.maxLeverage * 0.65));
-      maxOpenPositions = Math.max(1, Math.floor(this.config.maxOpenPositions * 0.6));
-      maxTradesPerDay = Math.max(5, Math.floor(this.config.maxTradesPerDay * 0.5));
+      riskMultiplier = 0.72;
+      signalThresholdAdjustment = 4;
+      maxLeverage = Math.max(1, Math.floor(this.config.maxLeverage * 0.75));
+      maxOpenPositions = Math.max(1, Math.ceil(this.config.maxOpenPositions * 0.67));
+      maxTradesPerDay = Math.max(8, Math.floor(this.config.maxTradesPerDay * 0.65));
+      explorationMultiplier = 0.75;
+      if (
+        recoveryWindow.count >= Math.min(this.config.minAdaptiveTrades, this.config.adaptiveRecoveryLookbackTrades) &&
+        (recoveryWindow.winRatePct >= this.config.adaptiveRecoveryWinRatePct || recoveryWindow.feeAdjustedPnlUsdt > 0)
+      ) {
+        mode = "DEFENSIVE_RECOVERY";
+        riskMultiplier = 0.86;
+        signalThresholdAdjustment = 1;
+        maxLeverage = Math.max(1, Math.floor(this.config.maxLeverage * 0.85));
+        maxOpenPositions = Math.max(1, Math.ceil(this.config.maxOpenPositions * 0.8));
+        maxTradesPerDay = Math.max(10, Math.floor(this.config.maxTradesPerDay * 0.8));
+        explorationMultiplier = 1;
+      }
     } else if (enough && last20.winRatePct > this.config.aggressiveWinRatePct && last20.feeAdjustedPnlUsdt > 0) {
       mode = "CONTROLLED_AGGRESSIVE";
-      riskMultiplier = 1.12;
-      signalThresholdAdjustment = -2;
+      riskMultiplier = 1.15;
+      signalThresholdAdjustment = -3;
       maxLeverage = this.config.maxLeverage;
       maxOpenPositions = this.config.maxOpenPositions;
       maxTradesPerDay = this.config.maxTradesPerDay;
+      explorationMultiplier = 1.15;
     }
 
     if (last20.count >= this.config.minAdaptiveTrades && last20.totalFeesUsdt > Math.abs(last20.totalPnlUsdt) * 0.7) {
       signalThresholdAdjustment += 4;
       riskMultiplier *= 0.85;
     }
+    const explorationBudget = this.config.explorationModeEnabled
+      ? Math.min(
+          this.config.explorationMaxTradesPerDay,
+          Math.max(1, Math.floor(maxTradesPerDay * this.config.explorationTradeRatio * explorationMultiplier))
+        )
+      : 0;
 
     return {
       mode,
       sampleSize: last20.count,
       rollingWinRatePct: last20.winRatePct,
       rollingPnlUsdt: last20.feeAdjustedPnlUsdt,
+      recoverySampleSize: recoveryWindow.count,
+      recoveryWinRatePct: recoveryWindow.winRatePct,
+      recoveryPnlUsdt: recoveryWindow.feeAdjustedPnlUsdt,
       riskMultiplier: clamp(riskMultiplier, this.config.adaptiveRiskMinMultiplier, this.config.adaptiveRiskMaxMultiplier),
       signalThresholdAdjustment,
       minSignalScore: clamp(this.config.minSignalScore + signalThresholdAdjustment, 1, 100),
+      explorationEnabled: this.config.explorationModeEnabled && explorationBudget > 0,
+      explorationBudget,
+      explorationMinSignalScore: clamp(this.config.explorationMinSignalScore + Math.max(0, Math.floor(signalThresholdAdjustment / 2)), 1, 100),
+      explorationMinConvictionScore: clamp(this.config.explorationMinConvictionScore + Math.max(0, Math.floor(signalThresholdAdjustment / 2)), 1, 100),
       maxLeverage: clamp(maxLeverage, 1, this.config.maxLeverage),
       maxOpenPositions: clamp(maxOpenPositions, 1, this.config.maxOpenPositions),
       maxTradesPerDay: clamp(maxTradesPerDay, 1, this.config.maxTradesPerDay),
@@ -424,12 +463,13 @@ class AdaptiveEngine {
     if (!stats || stats.count < this.config.minAdaptiveBucketTrades) return { adjustment: 0, confidence: 50, reasons: [] };
     const winEdge = (stats.winRatePct - 50) * weight;
     const pnlEdge = clamp(stats.averagePnlPct * 1.5, -8, 8);
-    const adjustment = clamp(winEdge + pnlEdge, -this.config.adaptiveConfidencePenaltyMax, this.config.adaptiveConfidenceBonusMax);
+    const feeAdjustedEdge = stats.feeAdjustedPnlUsdt > 0 && stats.profitFactor >= 1.2 ? 2 : stats.feeAdjustedPnlUsdt < 0 ? -3 : 0;
+    const adjustment = clamp(winEdge + pnlEdge + feeAdjustedEdge, -this.config.adaptiveConfidencePenaltyMax, this.config.adaptiveConfidenceBonusMax);
     const confidence = clamp(50 + adjustment * 2, 1, 99);
     return {
       adjustment,
       confidence,
-      reasons: [`sample=${stats.count} winrate=${stats.winRatePct}% avgPnl=${stats.averagePnlPct}%`],
+      reasons: [`sample=${stats.count} winrate=${stats.winRatePct}% avgPnl=${stats.averagePnlPct}% profitFactor=${stats.profitFactor}`],
     };
   }
 
@@ -501,6 +541,21 @@ class AdaptiveEngine {
       riskMultiplier *= 1.05;
       reasons.push("BTC alignment supports setup");
     }
+    if (numeric(signal.technicalConvictionScore) >= this.config.minConvictionScore + 15 && numeric(signal.feeEdgeRatio) >= this.config.minEdgeToCostRatio + 0.75) {
+      riskMultiplier *= 1.08;
+      scoreAdjustment += 3;
+      reasons.push("conviction boost applied: strong technical conviction plus fee edge");
+    }
+    if (numeric(signal.technicalConvictionScore) < this.config.minConvictionScore) {
+      riskMultiplier *= 0.75;
+      scoreAdjustment -= 5;
+      reasons.push("low technical conviction: risk and score reduced");
+    }
+    if (numeric(signal.projectedNetEdgePct) < this.config.minProjectedEdgePct) {
+      riskMultiplier *= 0.75;
+      scoreAdjustment -= 6;
+      reasons.push("fee-aware edge below threshold: confidence reduced");
+    }
 
     const poorCondition =
       conditionStats &&
@@ -520,6 +575,14 @@ class AdaptiveEngine {
     }
 
     const policy = this.currentPolicy();
+    if (policy.mode === "DEFENSIVE_RECOVERY") {
+      scoreAdjustment += 2;
+      riskMultiplier *= 1.05;
+      reasons.push("defensive recovery activated: recent performance improved");
+    } else if (policy.mode === "CONTROLLED_AGGRESSIVE") {
+      scoreAdjustment += 2;
+      reasons.push("adaptive aggression increased: recent performance supports more activity");
+    }
     riskMultiplier *= policy.riskMultiplier || 1;
     const confidence = clamp(50 + scoreAdjustment * 2, 1, 99);
     return {
