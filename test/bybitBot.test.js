@@ -1106,42 +1106,32 @@ async function testAdaptiveActivityFloorPolicy() {
   assert.ok(policy.explorationMinConvictionScore < adaptive.config.explorationMinConvictionScore + 2);
 }
 
-async function testLearningPhaseDisablesDailyTradeLimits() {
-  const unlimited = new LadderBot(config({
+async function testContinuousExecutionIgnoresDailyLossAndTradeCounts() {
+  const bot = new LadderBot(config({
     disableDailyTradeLimits: true,
     maxTradesPerDay: 1,
-    maxDailyLossPct: 20,
-    maxDailyLossUsdt: null,
   }));
-  unlimited.store.state.daily = {
+  bot.store.state.daily = {
     date: "2099-01-01",
     startingEquity: 100,
     tradesOpened: 999,
-    losingTrades: 0,
-    realizedPnlUsdt: 0,
+    losingTrades: 5,
+    realizedPnlUsdt: -21,
   };
-  assert.equal(unlimited.risk.dailyLock(100).locked, false);
-
-  const capped = new LadderBot(config({
-    disableDailyTradeLimits: false,
-    aggressiveLearningPhase: false,
-    maxTradesPerDay: 1,
-    maxDailyLossPct: 20,
-    maxDailyLossUsdt: null,
+  bot.store.trades = Array.from({ length: 3 }, (_, index) => ({
+    id: `loss-${index}`,
+    mode: "DRY_RUN",
+    status: "CLOSED",
+    pnlUsdt: -1,
+    exitedAt: new Date(Date.now() - (3 - index) * 1000).toISOString(),
   }));
-  capped.store.state.daily = {
-    date: "2099-01-01",
-    startingEquity: 100,
-    tradesOpened: 1,
-    losingTrades: 0,
-    realizedPnlUsdt: 0,
-  };
-  const lock = capped.risk.dailyLock(100);
-  assert.equal(lock.locked, false);
-
-  const lossLocked = capped.risk.dailyLock(79);
-  assert.equal(lossLocked.locked, true);
-  assert.equal(lossLocked.reason, "maximum daily loss reached");
+  assert.equal(bot.risk.entryBlockReason(79, "BTCUSDT"), null);
+  const recovery = bot.risk.continuousRecoveryStatus(79);
+  assert.equal(recovery.active, true);
+  assert.equal(recovery.stopBot, false);
+  assert.equal(recovery.closePositions, false);
+  assert.ok(recovery.riskMultiplier < 1);
+  assert.ok(recovery.leverageMultiplier < 1);
 }
 
 async function testContinuousExecutionClearsStaleTradeLimitPause() {
@@ -1171,6 +1161,11 @@ async function testContinuousExecutionClearsStaleTradeLimitPause() {
   bot.store.state.daily = { startingEquity: 100, tradesOpened: 9999, losingTrades: 0, realizedPnlUsdt: 0 };
   bot.risk.store = bot.store;
   assert.equal(bot.risk.entryBlockReason(100, "BTCUSDT"), null);
+
+  bot.store.state.paused = true;
+  bot.store.state.pauseReason = ["maximum", "daily", "loss", "reached"].join(" ");
+  assert.equal(bot.risk.entryBlockReason(70, "BTCUSDT"), null);
+  assert.equal(bot.store.state.paused, false);
 }
 
 async function testAggressiveLearningCooldownsAreAdvisory() {
@@ -1262,11 +1257,11 @@ async function run() {
   await testAdaptiveEnginePolicyAndConfidence();
   await testAdaptiveDefensiveRecoveryPolicy();
   await testAdaptiveActivityFloorPolicy();
-  await testLearningPhaseDisablesDailyTradeLimits();
+  await testContinuousExecutionIgnoresDailyLossAndTradeCounts();
   await testContinuousExecutionClearsStaleTradeLimitPause();
   await testAggressiveLearningCooldownsAreAdvisory();
   await testForcedMarketSamplingPromotion();
-  console.log("Bybit client and bot tests passed: REST signing, UTA balance parsing, live safety balance use, native protection payloads, WebSocket reconnect, reconciliation, hedge exposure detection, native TP events, regime intelligence, focused BTC/ETH/SOL universe restriction, survivability scoring, exploration path, exploration memory relaxation, fee-aware stats, advisory symbol cooldowns, adaptive learning, cautious active recovery, activity floor, daily trade limit removal, forced market sampling, profit protection, fee-aware entries, dynamic sizing, and continuation holds.");
+  console.log("Bybit client and bot tests passed: REST signing, UTA balance parsing, live safety balance use, native protection payloads, WebSocket reconnect, reconciliation, hedge exposure detection, native TP events, regime intelligence, focused BTC/ETH/SOL universe restriction, survivability scoring, exploration path, exploration memory relaxation, fee-aware stats, advisory symbol cooldowns, adaptive learning, cautious active recovery, activity floor, daily shutdown removal, forced market sampling, profit protection sizing, fee-aware entries, dynamic sizing, and continuation holds.");
 }
 
 run().catch((error) => {

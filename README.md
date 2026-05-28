@@ -69,6 +69,8 @@ Defaults now favor active but selective learning-phase participation: the bot st
 
 The scanner ranks only `BTCUSDT`, `ETHUSDT`, and `SOLUSDT` by EMA alignment or acceleration, breakout strength, momentum persistence, volume quality, RSI, candle strength, volatility quality, liquidity, projected edge after fees/spread/slippage, BTC/ETH direction context, market-regime intelligence, session context, and adaptive historical confidence. In learning phase, choppy and imperfect conditions are softened instead of treated as near-vetoes, so moderate setups can still generate feedback data inside the focused universe.
 
+Daily shutdowns are removed. The bot does not stop, pause, close all positions, or disable entries because of daily loss, daily drawdown, daily trade count, exploration count, or participation quota. Losing sessions are handled through adaptive recovery: sizing and leverage can be moderated, but continuous BTC/ETH/SOL execution remains active until manual stop, emergency stop, repeated exchange/API failure, liquidation danger, or another catastrophic execution safety condition.
+
 Learning-phase controls:
 
 | Setting | Default |
@@ -81,7 +83,7 @@ Learning-phase controls:
 | `FORCED_SAMPLING_MIN_PROJECTED_EDGE_PCT` | `0.12` |
 | `FORCED_SAMPLING_MIN_EDGE_TO_COST_RATIO` | `1.20` |
 
-If no trade has opened for the configured idle window, forced market sampling can promote moderate exploratory candidates on BTC, ETH, or SOL that still have positive projected edge, acceptable liquidity, non-abnormal volatility, no blacklist/exchange-minimum rejection, and no existing same-symbol position. This is designed for data collection, not all-in trading. Continuous execution mode removes trade-count blockers and clears stale saved pauses created by old daily-limit logic. Aggressive learning phase treats symbol cooldowns as advisory, not execution blockers, so the bot can continue collecting focused feedback unless a core safety rule rejects the trade.
+If no trade has opened for the configured idle window, forced market sampling can promote moderate exploratory candidates on BTC, ETH, or SOL that still have positive projected edge, acceptable liquidity, non-abnormal volatility, no blacklist/exchange-minimum rejection, and no existing same-symbol position. This is designed for data collection, not all-in trading. Continuous execution mode removes trade-count blockers and stale saved daily-loss pauses. Aggressive learning phase treats symbol cooldowns as advisory, not execution blockers, so the bot can continue collecting focused feedback unless a core safety rule rejects the trade.
 
 Fee-efficiency controls:
 
@@ -164,7 +166,7 @@ Regime config:
 
 Session intelligence tags each setup as `ASIA`, `EUROPE`, `US`, `LATE_US_ASIA_HANDOFF`, or `DEAD_HOURS`. Historical session and regime performance are stored in trade memory, so the adaptive engine can increase confidence in sessions that work and reduce activity in sessions that produce fake breakouts.
 
-Profit protection reduces new-risk appetite after strong daily gains:
+Profit protection reduces sizing after strong daily gains without blocking entries:
 
 | Setting | Default |
 | --- | ---: |
@@ -174,7 +176,7 @@ Profit protection reduces new-risk appetite after strong daily gains:
 | `PROFIT_PROTECTION_EXPLORATION_MULTIPLIER` | `0.50` |
 | `PROFIT_PROTECTION_SIGNAL_ADJUSTMENT` | `2` |
 
-This is not a profit lock. It keeps the bot running, but sizes new trades smaller when the day is already meaningfully positive. Learning-phase exploration can continue if the candidate still passes fee, wallet, liquidation, and position safety checks.
+This is not a profit lock or participation throttle. It keeps the bot running, sizes new trades smaller when the day is already meaningfully positive, and never rejects a candidate by itself. Learning-phase exploration can continue if the candidate still passes fee, wallet, liquidation, and position safety checks.
 
 Signal-quality controls:
 
@@ -216,7 +218,7 @@ If a managed position still has same-side momentum, strong conviction, adequate 
 - Pending entry state expires after `ENTRY_CONFIRMATION_TIMEOUT_MS=15000`; absent positions are cleared automatically.
 - REST reconciliation remains active even if private WebSocket updates disconnect.
 
-Logs include `ENTRY SIGNAL`, `EXPLORATION TRADE OPENED`, `ORDER SENT`, `ORDER FILLED`, `POSITION OPENED`, `POSITION CLOSED`, `TP HIT`, `SL HIT`, `RECONCILIATION SUCCESS`, `WEBSOCKET RECONNECTED`, `focused trading universe enabled`, `BTC/ETH/SOL mode active`, `noisy market universe removed`, `adaptive focus mode enabled`, `concentrated liquidity trading active`, `focused exploration active`, `Learning phase mode active`, `Aggressive learning phase active`, `daily execution limits disabled`, `portfolio suppression removed`, `continuous market participation active`, `Forced market sampling engaged`, `exploration execution approved`, `adaptive pacing engaged`, `low-edge setup rejected`, `micro-scalp filtered`, `high-conviction setup prioritized`, `noisy chop setup rejected`, `cautious active mode enabled`, `Trending regime detected`, `Chop regime activated`, `Breakout volatility regime active`, `BTC instability detected`, `Liquidity too weak`, `adaptive regime confidence increased`, `Profit protection mode enabled`, `Exploration threshold softened`, `Adaptive activity floor engaged`, `Moderate chop accepted`, `Recovery aggression restored`, `Exploration expansion active`, `adaptive penalty softened`, `technical override activated`, `adaptive confidence floor applied`, `small-sample penalty reduced`, `exploration memory relaxation active`, fee-inefficiency rejections, low-conviction rejections, anti-chop activations, adaptive exploration activity, adaptive size increases, and strong momentum continuation decisions.
+Logs include `ENTRY SIGNAL`, `EXPLORATION TRADE OPENED`, `ORDER SENT`, `ORDER FILLED`, `POSITION OPENED`, `POSITION CLOSED`, `TP HIT`, `SL HIT`, `RECONCILIATION SUCCESS`, `WEBSOCKET RECONNECTED`, `focused trading universe enabled`, `BTC/ETH/SOL mode active`, `noisy market universe removed`, `adaptive focus mode enabled`, `concentrated liquidity trading active`, `focused exploration active`, `daily shutdown logic removed`, `continuous execution mode active`, `adaptive recovery mode active`, `losing streak handled without shutdown`, `continuous learning preserved`, `24/7 execution enabled`, `Learning phase mode active`, `Aggressive learning phase active`, `daily execution limits disabled`, `portfolio suppression removed`, `continuous market participation active`, `Forced market sampling engaged`, `exploration execution approved`, `adaptive pacing engaged`, `low-edge setup rejected`, `micro-scalp filtered`, `high-conviction setup prioritized`, `noisy chop setup rejected`, `cautious active mode enabled`, `Trending regime detected`, `Chop regime activated`, `Breakout volatility regime active`, `BTC instability detected`, `Liquidity too weak`, `adaptive regime confidence increased`, `Profit protection sizing mode enabled`, `Exploration threshold softened`, `Adaptive activity floor engaged`, `Moderate chop accepted`, `Recovery aggression restored`, `Exploration expansion active`, `adaptive penalty softened`, `technical override activated`, `adaptive confidence floor applied`, `small-sample penalty reduced`, `exploration memory relaxation active`, fee-inefficiency rejections, low-conviction rejections, anti-chop activations, adaptive exploration activity, adaptive size increases, and strong momentum continuation decisions.
 
 ## Performance Tracking
 
