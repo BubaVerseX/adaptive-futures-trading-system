@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-05-28T10:05:20.397Z",
+  "updatedAt": "2026-05-28T12:04:28.134Z",
   "trades": [
     {
       "id": "x10-trade-1779909524921-82647",
@@ -3075,15 +3075,15 @@
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "BEATUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-28T11:20:51.002Z",
+        "until": "2026-05-28T13:01:38.403Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "BOBBOBUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-28T11:38:42.192Z",
+        "until": "2026-05-28T12:30:44.918Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "XLMUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-28T11:43:36.628Z",
+        "until": "2026-05-28T13:07:46.023Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "STORJUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
@@ -3091,7 +3091,7 @@
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "GRASSUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-28T11:45:57.085Z",
+        "until": "2026-05-28T12:54:56.747Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "MAVIAUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
@@ -3107,7 +3107,7 @@
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "ARUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-28T11:33:50.379Z",
+        "until": "2026-05-28T13:08:51.608Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "EDENUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
@@ -3115,11 +3115,11 @@
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "WLDUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-27T23:55:24.346Z",
+        "until": "2026-05-28T13:01:00.356Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "HUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-28T11:46:24.147Z",
+        "until": "2026-05-28T12:39:35.915Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "PLAYSOUTUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
@@ -3139,7 +3139,7 @@
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "RIVERUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-28T08:17:56.375Z",
+        "until": "2026-05-28T12:24:53.769Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "GUNUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
@@ -3147,19 +3147,19 @@
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "SKYAI1USDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-28T11:23:58.077Z",
+        "until": "2026-05-28T12:42:36.702Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "10000NEXUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-28T10:57:39.075Z",
+        "until": "2026-05-28T13:07:32.595Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "XMRUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-28T08:26:51.208Z",
+        "until": "2026-05-28T12:35:56.410Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "ARKMUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-28T11:32:37.747Z",
+        "until": "2026-05-28T13:08:52.277Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "NBISUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
@@ -3167,15 +3167,15 @@
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "UBUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-28T11:31:48.466Z",
+        "until": "2026-05-28T12:52:29.213Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "ICPUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-28T11:42:28.635Z",
+        "until": "2026-05-28T13:04:41.929Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "FFUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-28T11:54:37.459Z",
+        "until": "2026-05-28T12:29:30.783Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "CHZUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
@@ -3183,15 +3183,15 @@
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "APEUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-28T09:33:36.420Z",
+        "until": "2026-05-28T12:52:42.733Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "DRIFTUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-28T11:42:37.206Z",
+        "until": "2026-05-28T12:16:21.273Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "GENIUSUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-28T11:59:44.592Z",
+        "until": "2026-05-28T13:09:49.384Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "ORDIUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
@@ -3207,7 +3207,7 @@
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "NILUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-28T11:18:46.830Z",
+        "until": "2026-05-28T12:18:54.276Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "FIDAUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
@@ -3227,7 +3227,7 @@
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "NEARUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-28T08:21:58.564Z",
+        "until": "2026-05-28T12:31:43.825Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "ZECUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
@@ -3239,7 +3239,7 @@
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "SEIUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-28T10:36:49.817Z",
+        "until": "2026-05-28T13:00:33.579Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "ALTUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
@@ -3251,7 +3251,7 @@
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "VVVUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-28T10:58:41.983Z",
+        "until": "2026-05-28T12:17:28.610Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "SAHARAUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
@@ -3259,11 +3259,11 @@
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "LITUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-28T09:13:21.014Z",
+        "until": "2026-05-28T12:41:19.088Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "PENDLEUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-28T09:55:43.003Z",
+        "until": "2026-05-28T12:17:34.437Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "HIGHUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
@@ -3287,11 +3287,11 @@
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "CLOUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-28T11:40:58.963Z",
+        "until": "2026-05-28T12:55:52.586Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "SOXLUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-28T09:49:53.858Z",
+        "until": "2026-05-28T12:56:53.172Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "OPGUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
@@ -3303,7 +3303,7 @@
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "GMTUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-28T08:13:52.403Z",
+        "until": "2026-05-28T13:08:45.995Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "PYTHUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
@@ -3315,15 +3315,15 @@
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "CRVUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-27T23:40:54.352Z",
+        "until": "2026-05-28T13:00:45.098Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "AKTUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-28T11:31:20.149Z",
+        "until": "2026-05-28T13:03:47.420Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "JELLYJELLYUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-28T11:35:44.420Z",
+        "until": "2026-05-28T12:36:56.152Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "POPCATUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
@@ -3335,7 +3335,7 @@
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "TONUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-28T09:33:46.704Z",
+        "until": "2026-05-28T13:07:47.439Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "PHAUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
@@ -3347,7 +3347,7 @@
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "RENDERUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-28T09:56:46.269Z",
+        "until": "2026-05-28T13:02:57.420Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "HOMEUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
@@ -3359,11 +3359,11 @@
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "XPLUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-28T11:42:32.427Z",
+        "until": "2026-05-28T13:04:45.448Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "MUUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-28T09:33:23.852Z",
+        "until": "2026-05-28T13:06:50.553Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "COMPUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
@@ -3371,11 +3371,11 @@
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "RAVEUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-28T09:55:45.684Z",
+        "until": "2026-05-28T12:26:42.572Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "AZTECUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-28T11:07:36.527Z",
+        "until": "2026-05-28T12:55:50.939Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "ATHUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
@@ -3395,23 +3395,23 @@
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "HYPEUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-28T08:16:48.626Z",
+        "until": "2026-05-28T13:09:33.339Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "ONDOUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-28T08:16:51.485Z",
+        "until": "2026-05-28T13:09:00.568Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "TAOUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-28T09:33:47.608Z",
+        "until": "2026-05-28T12:59:39.316Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "FILUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-28T10:18:22.657Z",
+        "until": "2026-05-28T13:04:43.775Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "EIGENUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-28T08:17:57.542Z",
+        "until": "2026-05-28T12:59:55.999Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "DYDXUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
@@ -3419,19 +3419,19 @@
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "STRKUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-28T11:32:24.663Z",
+        "until": "2026-05-28T13:01:51.148Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "JUPUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-28T08:20:48.031Z",
+        "until": "2026-05-28T13:00:49.756Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "1000LUNCUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-28T08:21:33.967Z",
+        "until": "2026-05-28T12:27:26.299Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "LABUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-28T11:43:43.159Z",
+        "until": "2026-05-28T13:01:43.010Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "BLENDUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
@@ -3443,7 +3443,7 @@
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "ZROUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-28T10:58:59.924Z",
+        "until": "2026-05-28T12:23:14.890Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "10000NEXUSDT:FOMO_BREAKOUT:SHORT:CHOPPY": {
@@ -3463,7 +3463,7 @@
         "reason": "poor condition stats: 25% winrate over 12 trades"
       },
       "CLOUSDT:FOMO_BREAKOUT:SHORT:CHOPPY": {
-        "until": "2026-05-28T11:33:46.892Z",
+        "until": "2026-05-28T12:15:16.810Z",
         "reason": "poor condition stats: 25% winrate over 12 trades"
       },
       "ICPUSDT:FOMO_BREAKOUT:SHORT:CHOPPY": {
@@ -3539,7 +3539,7 @@
         "reason": "poor condition stats: 25% winrate over 12 trades"
       },
       "GENIUSUSDT:FOMO_BREAKOUT:SHORT:CHOPPY": {
-        "until": "2026-05-28T09:49:21.421Z",
+        "until": "2026-05-28T12:14:56.042Z",
         "reason": "poor condition stats: 25% winrate over 12 trades"
       },
       "EIGENUSDT:FOMO_BREAKOUT:SHORT:CHOPPY": {
@@ -3567,15 +3567,15 @@
         "reason": "poor condition stats: 25% winrate over 12 trades"
       },
       "HUSDT:FOMO_BREAKOUT:SHORT:CHOPPY": {
-        "until": "2026-05-28T10:45:52.314Z",
+        "until": "2026-05-28T12:18:35.635Z",
         "reason": "poor condition stats: 25% winrate over 12 trades"
       },
       "BILLUSDT:FOMO_BREAKOUT:SHORT:CHOPPY": {
-        "until": "2026-05-28T10:39:17.272Z",
+        "until": "2026-05-28T12:15:35.742Z",
         "reason": "poor condition stats: 25% winrate over 12 trades"
       },
       "JELLYJELLYUSDT:FOMO_BREAKOUT:SHORT:CHOPPY": {
-        "until": "2026-05-28T11:06:58.772Z",
+        "until": "2026-05-28T12:16:26.215Z",
         "reason": "poor condition stats: 25% winrate over 12 trades"
       },
       "PLUMEUSDT:FOMO_BREAKOUT:SHORT:CHOPPY": {
@@ -3595,12 +3595,12 @@
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "SOXLUSDT:FOMO_BREAKOUT:SHORT:CHOPPY": {
-        "until": "2026-05-28T11:30:32.170Z",
+        "until": "2026-05-28T12:15:41.640Z",
         "reason": "poor condition stats: 25% winrate over 12 trades"
       },
       "IPUSDT:FOMO_BREAKOUT:SHORT:CHOPPY": {
-        "until": "2026-05-28T09:08:55.744Z",
-        "reason": "poor condition stats: 25% winrate over 12 trades"
+        "until": "2026-05-28T12:30:54.621Z",
+        "reason": "poor condition stats: 0% winrate over 2 trades"
       },
       "APEUSDT:FOMO_BREAKOUT:SHORT:CHOPPY": {
         "until": "2026-05-28T11:29:58.671Z",
@@ -3611,7 +3611,7 @@
         "reason": "poor condition stats: 25% winrate over 12 trades"
       },
       "FFUSDT:FOMO_BREAKOUT:SHORT:CHOPPY": {
-        "until": "2026-05-28T11:38:02.558Z",
+        "until": "2026-05-28T12:18:37.270Z",
         "reason": "poor condition stats: 25% winrate over 12 trades"
       },
       "SKYAI1USDT:FOMO_BREAKOUT:SHORT:CHOPPY": {
@@ -3627,12 +3627,12 @@
         "reason": "poor condition stats: 25% winrate over 12 trades"
       },
       "LYNUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-28T09:34:47.561Z",
+        "until": "2026-05-28T13:03:48.195Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "BIOUSDT:FOMO_BREAKOUT:SHORT:CHOPPY": {
-        "until": "2026-05-28T09:34:49.707Z",
-        "reason": "poor condition stats: 25% winrate over 12 trades"
+        "until": "2026-05-28T13:07:38.890Z",
+        "reason": "poor condition stats: 0% winrate over 2 trades"
       },
       "HYPEUSDT:FOMO_BREAKOUT:SHORT:CHOPPY": {
         "until": "2026-05-28T11:20:47.398Z",
@@ -3655,7 +3655,7 @@
         "reason": "poor condition stats: 25% winrate over 12 trades"
       },
       "BSBUSDT:FOMO_BREAKOUT:SHORT:CHOPPY": {
-        "until": "2026-05-28T10:46:26.138Z",
+        "until": "2026-05-28T12:15:31.455Z",
         "reason": "poor condition stats: 25% winrate over 12 trades"
       },
       "ENAUSDT:FOMO_BREAKOUT:SHORT:CHOPPY": {
@@ -3695,7 +3695,7 @@
         "reason": "poor condition stats: 25% winrate over 12 trades"
       },
       "BOBBOBUSDT:FOMO_BREAKOUT:SHORT:CHOPPY": {
-        "until": "2026-05-28T11:22:49.974Z",
+        "until": "2026-05-28T12:20:35.110Z",
         "reason": "poor condition stats: 25% winrate over 12 trades"
       },
       "DRIFTUSDT:FOMO_BREAKOUT:SHORT:CHOPPY": {
@@ -3711,7 +3711,7 @@
         "reason": "poor condition stats: 25% winrate over 12 trades"
       },
       "ESPORTSUSDT:FOMO_BREAKOUT:SHORT:CHOPPY": {
-        "until": "2026-05-28T11:00:47.922Z",
+        "until": "2026-05-28T12:16:53.608Z",
         "reason": "poor condition stats: 25% winrate over 12 trades"
       },
       "LITUSDT:FOMO_BREAKOUT:SHORT:CHOPPY": {
@@ -3755,7 +3755,7 @@
         "reason": "poor condition stats: 25% winrate over 12 trades"
       },
       "BCHUSDT:FOMO_BREAKOUT:SHORT:CHOPPY": {
-        "until": "2026-05-28T11:28:27.085Z",
+        "until": "2026-05-28T12:20:27.843Z",
         "reason": "poor condition stats: 25% winrate over 12 trades"
       },
       "NILUSDT:FOMO_BREAKOUT:SHORT:CHOPPY": {
@@ -3767,12 +3767,12 @@
         "reason": "poor condition stats: 25% winrate over 12 trades"
       },
       "SUIUSDT:FOMO_BREAKOUT:SHORT:CHOPPY": {
-        "until": "2026-05-28T10:49:00.204Z",
-        "reason": "poor condition stats: 25% winrate over 12 trades"
+        "until": "2026-05-28T12:32:59.952Z",
+        "reason": "poor condition stats: 0% winrate over 2 trades"
       },
       "APTUSDT:FOMO_BREAKOUT:SHORT:CHOPPY": {
-        "until": "2026-05-28T10:49:50.994Z",
-        "reason": "poor condition stats: 25% winrate over 12 trades"
+        "until": "2026-05-28T12:34:58.810Z",
+        "reason": "poor condition stats: 0% winrate over 2 trades"
       },
       "XPLUSDT:FOMO_BREAKOUT:SHORT:CHOPPY": {
         "until": "2026-05-28T10:52:24.289Z",
@@ -3787,8 +3787,8 @@
         "reason": "poor condition stats: 25% winrate over 12 trades"
       },
       "CHZUSDT:FOMO_BREAKOUT:SHORT:CHOPPY": {
-        "until": "2026-05-28T11:59:13.935Z",
-        "reason": "poor condition stats: 25% winrate over 12 trades"
+        "until": "2026-05-28T12:30:55.998Z",
+        "reason": "poor condition stats: 0% winrate over 2 trades"
       },
       "TONUSDT:FOMO_BREAKOUT:SHORT:CHOPPY": {
         "until": "2026-05-28T11:53:19.177Z",
@@ -3831,7 +3831,7 @@
         "reason": "poor condition stats: 25% winrate over 12 trades"
       },
       "XMRUSDT:FOMO_BREAKOUT:SHORT:CHOPPY": {
-        "until": "2026-05-28T11:31:45.542Z",
+        "until": "2026-05-28T12:16:53.891Z",
         "reason": "poor condition stats: 25% winrate over 12 trades"
       },
       "LDOUSDT:FOMO_BREAKOUT:SHORT:CHOPPY": {
@@ -3843,11 +3843,79 @@
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "FARTCOINUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-28T11:44:52.097Z",
+        "until": "2026-05-28T12:59:40.881Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "ATOMUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
         "until": "2026-05-28T11:56:00.024Z",
+        "reason": "poor condition stats: 20% winrate over 5 trades"
+      },
+      "CHIPUSDT:FOMO_BREAKOUT:SHORT:CHOPPY": {
+        "until": "2026-05-28T12:12:44.162Z",
+        "reason": "poor condition stats: 25% winrate over 12 trades"
+      },
+      "SHIB1000USDT:FOMO_BREAKOUT:SHORT:CHOPPY": {
+        "until": "2026-05-28T12:24:56.026Z",
+        "reason": "poor condition stats: 0% winrate over 2 trades"
+      },
+      "CLUSDT:FOMO_BREAKOUT:SHORT:CHOPPY": {
+        "until": "2026-05-28T12:52:56.361Z",
+        "reason": "poor condition stats: 0% winrate over 2 trades"
+      },
+      "INJUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-28T13:07:50.850Z",
+        "reason": "poor condition stats: 20% winrate over 5 trades"
+      },
+      "USTCUSDT:FOMO_BREAKOUT:SHORT:CHOPPY": {
+        "until": "2026-05-28T12:37:52.918Z",
+        "reason": "poor condition stats: 0% winrate over 2 trades"
+      },
+      "SANDUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-28T13:08:50.876Z",
+        "reason": "poor condition stats: 0% winrate over 2 trades"
+      },
+      "ADAUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-28T12:52:52.389Z",
+        "reason": "poor condition stats: 20% winrate over 5 trades"
+      },
+      "USTCUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-28T12:52:44.497Z",
+        "reason": "poor condition stats: 0% winrate over 2 trades"
+      },
+      "SOLUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-28T12:59:35.148Z",
+        "reason": "poor condition stats: 0% winrate over 2 trades"
+      },
+      "XRPUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-28T12:59:35.639Z",
+        "reason": "poor condition stats: 0% winrate over 2 trades"
+      },
+      "DOTUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-28T12:59:45.075Z",
+        "reason": "poor condition stats: 20% winrate over 5 trades"
+      },
+      "APTUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-28T13:02:59.429Z",
+        "reason": "poor condition stats: 20% winrate over 5 trades"
+      },
+      "HBARUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-28T13:01:50.201Z",
+        "reason": "poor condition stats: 20% winrate over 5 trades"
+      },
+      "IPUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-28T12:59:56.900Z",
+        "reason": "poor condition stats: 0% winrate over 2 trades"
+      },
+      "AXSUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-28T13:08:51.395Z",
+        "reason": "poor condition stats: 0% winrate over 2 trades"
+      },
+      "1000BONKUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-28T13:01:20.131Z",
+        "reason": "poor condition stats: 20% winrate over 5 trades"
+      },
+      "LINKUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-28T13:02:51.025Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       }
     },
@@ -3856,24 +3924,30 @@
       "sampleSize": 20,
       "rollingWinRatePct": 10,
       "rollingPnlUsdt": -4.998019,
-      "recoverySampleSize": 8,
+      "recoverySampleSize": 6,
       "recoveryWinRatePct": 0,
-      "recoveryPnlUsdt": -2.526024,
-      "riskMultiplier": 0.72,
-      "signalThresholdAdjustment": 4,
-      "minSignalScore": 52,
+      "recoveryPnlUsdt": -2.161174,
+      "recoveryAggressionRestored": false,
+      "riskMultiplier": 0.88,
+      "signalThresholdAdjustment": 1,
+      "minSignalScore": 47,
       "explorationEnabled": true,
-      "explorationBudget": 4,
-      "explorationMinSignalScore": 42,
-      "explorationMinConvictionScore": 50,
+      "explorationBudget": 12,
+      "explorationExpansionActive": true,
+      "activityFloorEngaged": false,
+      "activityFloorSignalRelaxPoints": 0,
+      "activityFloorConvictionRelaxPoints": 0,
+      "activityFloorChopToleranceBonus": 0,
+      "explorationMinSignalScore": 36,
+      "explorationMinConvictionScore": 42,
       "regimeSelfTuning": {
         "bestRegime": "DOWN",
         "worstRegime": "CHOPPY",
-        "memoryWeight": 0.22
+        "memoryWeight": 0.18
       },
-      "maxLeverage": 6,
+      "maxLeverage": 7,
       "maxOpenPositions": 3,
-      "maxTradesPerDay": 26
+      "maxTradesPerDay": 34
     }
   }
 }

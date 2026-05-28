@@ -85,6 +85,7 @@ class LadderBot {
     this.unmanagedLiveExposure = false;
     this.closingPositionIds = new Set();
     this.lastAdaptiveMode = null;
+    this.startedAt = Date.now();
   }
 
   async start() {
@@ -99,6 +100,9 @@ class LadderBot {
       environment: this.config.bybitTestnet ? "TESTNET" : "MAINNET",
       accountStartUsdt: this.config.accountStartUsdt,
       x10Mode: this.config.x10Mode,
+      learningPhaseMode: this.config.learningPhaseMode,
+      dailyTradeLimitsDisabled: this.config.disableDailyTradeLimits,
+      forcedMarketSamplingEnabled: this.config.forcedMarketSamplingEnabled,
       fastMode: this.config.fastMode,
       fomoBreakoutMode: this.config.fomoBreakoutMode,
       microBreakoutEntries: this.config.microBreakoutEntries,
@@ -131,6 +135,16 @@ class LadderBot {
       stopLossPct: this.config.stopLossPct,
       maxDailyLossPct: this.config.maxDailyLossPct,
     });
+    if (this.config.learningPhaseMode) {
+      this.log("WARN", "Learning phase mode active; continuous learning priority active.", {
+        dailyTradeLimitsDisabled: this.config.disableDailyTradeLimits,
+        aggressiveExplorationActive: this.config.explorationModeEnabled,
+        forcedMarketSamplingEnabled: this.config.forcedMarketSamplingEnabled,
+      });
+      if (this.config.disableDailyTradeLimits) {
+        this.log("WARN", "Daily trade limits disabled; trading continues until manual stop, emergency stop, loss protection, or portfolio safety blocks it.");
+      }
+    }
 
     if (this.emergencyStopRequested()) {
       await this.shutdown(`emergency stop file detected: ${path.basename(this.config.emergencyStopFile)}`);
@@ -205,7 +219,7 @@ class LadderBot {
           recoveryPnlUsdt: adaptivePolicy.recoveryPnlUsdt,
           explorationEnabled: adaptivePolicy.explorationEnabled,
         });
-        if (adaptivePolicy.mode === "DEFENSIVE_RECOVERY") {
+        if (adaptivePolicy.mode === "DEFENSIVE_RECOVERY" || adaptivePolicy.mode === "LEARNING_RECOVERY") {
           this.log("INFO", "Recovery aggression restored; defensive penalties are decaying while reduced-risk learning continues.", adaptivePolicy);
         }
         if (adaptivePolicy.mode === "CONTROLLED_AGGRESSIVE") {
@@ -230,6 +244,9 @@ class LadderBot {
           adaptiveMode: adaptivePolicy.mode,
         });
       }
+      if (adaptivePolicy.mode === "CAUTIOUS_LEARNING") {
+        this.log("INFO", "Cautious mode participation enabled; risk is moderated but learning participation remains active.", adaptivePolicy);
+      }
       this.log("INFO", "Cycle risk status.", {
         equityUsdt: beforeEquity.toFixed(4),
         ladderLevel: level.level,
@@ -241,7 +258,8 @@ class LadderBot {
         adaptiveMinSignalScore: adaptivePolicy.minSignalScore,
         adaptiveMaxLeverage: adaptivePolicy.maxLeverage,
         adaptiveMaxOpenPositions: adaptivePolicy.maxOpenPositions,
-        adaptiveMaxTradesPerDay: adaptivePolicy.maxTradesPerDay,
+        adaptiveMaxTradesPerDay: this.config.disableDailyTradeLimits ? "unlimited" : adaptivePolicy.maxTradesPerDay,
+        dailyTradeLimitsDisabled: adaptivePolicy.dailyTradeLimitsDisabled,
         adaptiveRiskMultiplier: adaptivePolicy.riskMultiplier,
         explorationEnabled: adaptivePolicy.explorationEnabled,
         explorationBudget: adaptivePolicy.explorationBudget,
@@ -293,7 +311,8 @@ class LadderBot {
           candidates: scan.candidates.length,
         });
       }
-      await this.openBestCandidates(scan.candidates, equity, profitProtection);
+      const candidates = this.candidatesWithForcedSampling(scan, equity);
+      await this.openBestCandidates(candidates, equity, profitProtection);
     } catch (error) {
       this.store.state.consecutiveApiErrors += 1;
       this.store.saveState();
@@ -377,7 +396,7 @@ class LadderBot {
         const explorationBudget = protection.active
           ? Math.max(0, Math.floor((adaptivePolicy.explorationBudget || 0) * protection.explorationMultiplier))
           : adaptivePolicy.explorationBudget;
-        if (!adaptivePolicy.explorationEnabled || dailyExplorationTrades + explorationOpenedThisCycle >= explorationBudget) {
+        if (!this.config.disableDailyTradeLimits && (!adaptivePolicy.explorationEnabled || dailyExplorationTrades + explorationOpenedThisCycle >= explorationBudget)) {
           this.log("INFO", "Exploration candidate skipped because daily exploration budget is used.", {
             symbol: signal.symbol,
             dailyExplorationTrades,
@@ -386,6 +405,13 @@ class LadderBot {
             profitProtectionActive: protection.active,
           });
           continue;
+        }
+        if (this.config.disableDailyTradeLimits) {
+          this.log("INFO", "Aggressive exploration active; exploration daily caps are disabled in learning phase.", {
+            symbol: signal.symbol,
+            dailyExplorationTrades,
+            explorationBudgetReference: explorationBudget,
+          });
         }
         this.log("INFO", "Adaptive exploration active for candidate.", {
           symbol: signal.symbol,
@@ -397,6 +423,7 @@ class LadderBot {
           explorationRequiredScore: signal.explorationRequiredScore,
           explorationRequiredConvictionScore: signal.explorationRequiredConvictionScore,
           explorationThresholdSoftened: signal.explorationThresholdSoftened,
+          explorationMemoryRelaxation: signal.explorationMemoryRelaxation,
           waivedStrictRejections: signal.explorationWaivedRejections,
         });
         if (signal.explorationThresholdSoftened) {
@@ -405,6 +432,24 @@ class LadderBot {
             requiredScore: signal.explorationRequiredScore,
             requiredConvictionScore: signal.explorationRequiredConvictionScore,
             activityFloorEngaged: adaptivePolicy.activityFloorEngaged,
+          });
+        }
+        if (signal.explorationMemoryRelaxation) {
+          this.log("INFO", "Exploration memory relaxation active.", {
+            symbol: signal.symbol,
+            restoredScorePoints: signal.explorationMemoryRelaxation,
+            adaptiveScoreAdjustment: signal.adaptiveScoreAdjustment,
+            convictionScore: signal.convictionScore,
+          });
+        }
+        if (signal.forcedMarketSampling) {
+          this.log("WARN", "Forced market sampling engaged for exploratory learning trade.", {
+            symbol: signal.symbol,
+            side: signal.side,
+            inactiveMinutes: signal.forcedSamplingInactiveMinutes,
+            originalRejections: signal.forcedSamplingOriginalRejections,
+            projectedNetEdgePct: signal.projectedNetEdgePct,
+            feeEdgeRatio: signal.feeEdgeRatio,
           });
         }
       }
@@ -427,6 +472,7 @@ class LadderBot {
         setupType: signal.setupType,
         tradeCategory: signal.tradeCategory,
         explorationTrade: signal.explorationTrade,
+        forcedMarketSampling: signal.forcedMarketSampling,
         explorationThresholdSoftened: signal.explorationThresholdSoftened,
         moderateChopAccepted: signal.moderateChopAccepted,
         regime: signal.regime,
@@ -534,6 +580,8 @@ class LadderBot {
           plannedNotionalUsdt: plan.notional,
           riskPct: plan.riskPct,
           explorationRiskMultiplier: this.config.explorationRiskMultiplier,
+          forcedMarketSampling: signal.forcedMarketSampling,
+          inactiveMinutesBeforeForcedSampling: signal.forcedSamplingInactiveMinutes,
           waivedStrictRejections: signal.explorationWaivedRejections,
         });
       }
@@ -547,6 +595,7 @@ class LadderBot {
         setupType: signal.setupType,
         tradeCategory: signal.tradeCategory,
         explorationTrade: signal.explorationTrade,
+        forcedMarketSampling: signal.forcedMarketSampling,
         explorationThresholdSoftened: signal.explorationThresholdSoftened,
         moderateChopAccepted: signal.moderateChopAccepted,
         marketRegimeType: signal.marketRegimeType,
@@ -590,8 +639,86 @@ class LadderBot {
     );
   }
 
+  lastTradeOpenedAtMs() {
+    const currentMode = this.config.dryRun ? "DRY_RUN" : "LIVE";
+    const openedTimes = this.store.trades
+      .filter((trade) => trade.mode === currentMode && !["ENTRY_FAILED", "FAILED", "IGNORED_AFTER_MODE_CHANGE"].includes(trade.status))
+      .map((trade) => Date.parse(trade.openedAt || trade.entryTime || ""))
+      .filter(Number.isFinite);
+    return openedTimes.length ? Math.max(...openedTimes) : this.startedAt;
+  }
+
+  candidatesWithForcedSampling(scan) {
+    if (!this.config.learningPhaseMode || !this.config.forcedMarketSamplingEnabled) return scan.candidates;
+    const inactiveMinutes = (Date.now() - this.lastTradeOpenedAtMs()) / 60000;
+    if (inactiveMinutes < this.config.forcedMarketSamplingAfterMinutes) return scan.candidates;
+    const existing = new Set(scan.candidates.map((candidate) => `${candidate.symbol}:${candidate.side}`));
+    const forced = scan.analyses
+      .filter((signal) => !existing.has(`${signal.symbol}:${signal.side}`))
+      .filter((signal) => this.forcedSamplingEligible(signal))
+      .sort((left, right) =>
+        right.projectedNetEdgePct - left.projectedNetEdgePct ||
+        right.convictionScore - left.convictionScore ||
+        right.score - left.score
+      )
+      .slice(0, this.config.forcedSamplingMaxCandidates)
+      .map((signal) => this.promoteForcedSamplingSignal(signal, inactiveMinutes));
+    if (forced.length) {
+      this.log("WARN", "Forced market sampling engaged.", {
+        inactiveMinutes: Number(inactiveMinutes.toFixed(2)),
+        promoted: forced.map((signal) => ({
+          symbol: signal.symbol,
+          side: signal.side,
+          score: signal.score,
+          convictionScore: signal.convictionScore,
+          projectedNetEdgePct: signal.projectedNetEdgePct,
+          originalRejections: signal.forcedSamplingOriginalRejections,
+        })),
+      });
+      return [...scan.candidates, ...forced];
+    }
+    return scan.candidates;
+  }
+
+  forcedSamplingEligible(signal) {
+    if (!signal) return false;
+    if (this.store.state.openPositions.some((position) => position.symbol === signal.symbol)) return false;
+    if (signal.volatilityRegime === "NEWS_LIKE_ABNORMAL") return false;
+    if (Number(signal.projectedNetEdgePct || 0) < this.config.forcedSamplingMinProjectedEdgePct) return false;
+    if (Number(signal.feeEdgeRatio || 0) < this.config.forcedSamplingMinEdgeToCostRatio) return false;
+    if (Number(signal.score || 0) < this.config.forcedSamplingMinScore) return false;
+    if (Number(signal.convictionScore || 0) < this.config.forcedSamplingMinConviction) return false;
+    if (Number(signal.liquidityScore || 0) < this.config.minLiquidityScore * 0.65) return false;
+    if (Array.isArray(signal.rejected) && signal.rejected.some((reason) => /fee inefficiency|exchange minimum|blacklist/i.test(reason))) return false;
+    return true;
+  }
+
+  promoteForcedSamplingSignal(signal, inactiveMinutes) {
+    const promoted = { ...signal };
+    promoted.eligible = true;
+    promoted.tradeCategory = "EXPLORATION";
+    promoted.explorationTrade = true;
+    promoted.forcedMarketSampling = true;
+    promoted.forcedSamplingInactiveMinutes = Number(inactiveMinutes.toFixed(2));
+    promoted.forcedSamplingOriginalRejections = [...(signal.rejected || [])];
+    promoted.explorationWaivedRejections = promoted.forcedSamplingOriginalRejections;
+    promoted.rejected = [];
+    promoted.scoreBreakdown = [...(signal.scoreBreakdown || []), "forced market sampling engaged +0"];
+    promoted.adaptiveReasons = [...(signal.adaptiveReasons || []), "forced market sampling engaged for learning feedback"];
+    promoted.requiredScore = Math.min(Number(promoted.requiredScore || this.config.minSignalScore), this.config.minSignalScore);
+    promoted.explorationRequiredScore = Math.min(Number(promoted.explorationRequiredScore || this.config.explorationMinSignalScore), this.config.forcedSamplingMinScore);
+    promoted.explorationRequiredConvictionScore = Math.min(
+      Number(promoted.explorationRequiredConvictionScore || this.config.explorationMinConvictionScore),
+      this.config.forcedSamplingMinConviction
+    );
+    return promoted;
+  }
+
   profitProtectionEntryCheck(signal, protection) {
     if (!protection || !protection.active) return { rejected: false };
+    if (this.config.learningPhaseMode && signal.explorationTrade) {
+      return { rejected: false, reason: "learning phase keeps protected exploration active during profit protection" };
+    }
     const requiredScore = Math.min(100, Number(signal.requiredScore || this.config.minSignalScore) + protection.signalAdjustment);
     const requiredConviction = Math.min(
       100,
@@ -744,7 +871,11 @@ class LadderBot {
       tradeCategory: signal.tradeCategory,
       explorationTrade: signal.explorationTrade,
       explorationThresholdSoftened: signal.explorationThresholdSoftened,
+      explorationMemoryRelaxation: signal.explorationMemoryRelaxation,
       explorationWaivedRejections: signal.explorationWaivedRejections,
+      forcedMarketSampling: signal.forcedMarketSampling,
+      forcedSamplingInactiveMinutes: signal.forcedSamplingInactiveMinutes,
+      forcedSamplingOriginalRejections: signal.forcedSamplingOriginalRejections,
       btcMarketRegime: signal.btcTrend,
       ethMarketRegime: signal.ethTrend,
       btcTrendStrength: signal.btcTrendStrength,
@@ -1600,9 +1731,11 @@ class LadderBot {
       `Level: ${state.ladder.activeLevel} (highest ${state.ladder.highestUnlockedLevel})`,
       `Open positions: ${state.openPositions.length}/${adaptivePolicy.maxOpenPositions || this.config.maxOpenPositions}`,
       `Adaptive mode: ${adaptivePolicy.mode}, min score ${adaptivePolicy.minSignalScore}, max leverage ${adaptivePolicy.maxLeverage}x`,
+      `Learning phase: ${this.config.learningPhaseMode ? "active" : "off"}, daily trade limits: ${this.config.disableDailyTradeLimits ? "disabled" : "enabled"}`,
       `Daily PnL realized: ${Number(daily.realizedPnlUsdt || 0).toFixed(4)} USDT`,
       `Daily trades/losses: ${daily.tradesOpened || 0}/${daily.losingTrades || 0}`,
-      `Exploration trades today: ${daily.explorationTrades || 0}/${adaptivePolicy.explorationBudget || 0}`,
+      `Exploration trades today: ${daily.explorationTrades || 0}/${this.config.disableDailyTradeLimits ? "unlimited" : adaptivePolicy.explorationBudget || 0}`,
+      `Forced sampling: ${this.config.forcedMarketSamplingEnabled ? `on after ${this.config.forcedMarketSamplingAfterMinutes} idle minutes` : "off"}`,
       `Profit protection: ${daily.profitProtectionActive ? `active at ${Number(daily.profitProtectionPnlPct || 0).toFixed(2)}% daily PnL` : "inactive"}`,
       `All-time win rate: ${Number(performance.winRatePct || 0).toFixed(2)}% over ${performance.closedTrades || 0} closed trades`,
       `Fees tracked: ${Number(performance.totalFeesUsdt || 0).toFixed(4)} USDT`,

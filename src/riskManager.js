@@ -144,7 +144,7 @@ class RiskManager {
     }
     const policy = this.adaptive && this.config.adaptiveLearningEnabled ? this.adaptive.currentPolicy() : null;
     const maxTradesPerDay = policy ? policy.maxTradesPerDay : this.config.maxTradesPerDay;
-    if (daily.tradesOpened >= maxTradesPerDay) {
+    if (!this.config.disableDailyTradeLimits && daily.tradesOpened >= maxTradesPerDay) {
       return {
         locked: true,
         closePositions: false,

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-05-28T10:05:20.396Z",
+  "updatedAt": "2026-05-28T12:04:28.134Z",
   "totalPnl": {
     "count": 38,
     "wins": 6,
@@ -1169,23 +1169,29 @@
     "sampleSize": 20,
     "rollingWinRatePct": 10,
     "rollingPnlUsdt": -4.998019,
-    "recoverySampleSize": 8,
+    "recoverySampleSize": 6,
     "recoveryWinRatePct": 0,
-    "recoveryPnlUsdt": -2.526024,
-    "riskMultiplier": 0.72,
-    "signalThresholdAdjustment": 4,
-    "minSignalScore": 52,
+    "recoveryPnlUsdt": -2.161174,
+    "recoveryAggressionRestored": false,
+    "riskMultiplier": 0.88,
+    "signalThresholdAdjustment": 1,
+    "minSignalScore": 47,
     "explorationEnabled": true,
-    "explorationBudget": 4,
-    "explorationMinSignalScore": 42,
-    "explorationMinConvictionScore": 50,
+    "explorationBudget": 12,
+    "explorationExpansionActive": true,
+    "activityFloorEngaged": false,
+    "activityFloorSignalRelaxPoints": 0,
+    "activityFloorConvictionRelaxPoints": 0,
+    "activityFloorChopToleranceBonus": 0,
+    "explorationMinSignalScore": 36,
+    "explorationMinConvictionScore": 42,
     "regimeSelfTuning": {
       "bestRegime": "DOWN",
       "worstRegime": "CHOPPY",
-      "memoryWeight": 0.22
+      "memoryWeight": 0.18
     },
-    "maxLeverage": 6,
+    "maxLeverage": 7,
     "maxOpenPositions": 3,
-    "maxTradesPerDay": 26
+    "maxTradesPerDay": 34
   }
 }
