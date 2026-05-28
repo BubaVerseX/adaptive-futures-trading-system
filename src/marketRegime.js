@@ -249,41 +249,41 @@ function marketProfileFromBenchmarks(config, btc, eth) {
     scoreAdjustment += 3;
   }
   if (chop) {
-    aggressionMultiplier *= 0.72;
-    riskMultiplier *= 0.78;
-    leverageMultiplier *= 0.82;
-    explorationMultiplier *= 0.65;
-    scoreAdjustment -= 5;
-    minSignalAdjustment += 2;
-    minConvictionAdjustment += 2;
+    aggressionMultiplier *= config.learningPhaseMode ? 0.92 : 0.72;
+    riskMultiplier *= config.learningPhaseMode ? 0.9 : 0.78;
+    leverageMultiplier *= config.learningPhaseMode ? 0.9 : 0.82;
+    explorationMultiplier *= config.learningPhaseMode ? 1.1 : 0.65;
+    scoreAdjustment -= config.learningPhaseMode ? 2 : 5;
+    minSignalAdjustment += config.learningPhaseMode ? 0 : 2;
+    minConvictionAdjustment += config.learningPhaseMode ? 0 : 2;
     holdMultiplier *= 0.88;
     trailingDistanceMultiplier *= 0.82;
   }
   if (lowLiquidity) {
-    aggressionMultiplier *= 0.82;
-    riskMultiplier *= 0.8;
-    leverageMultiplier *= 0.88;
-    explorationMultiplier *= 0.7;
-    scoreAdjustment -= 3;
-    minSignalAdjustment += 2;
+    aggressionMultiplier *= config.learningPhaseMode ? 0.92 : 0.82;
+    riskMultiplier *= config.learningPhaseMode ? 0.9 : 0.8;
+    leverageMultiplier *= config.learningPhaseMode ? 0.95 : 0.88;
+    explorationMultiplier *= config.learningPhaseMode ? 1 : 0.7;
+    scoreAdjustment -= config.learningPhaseMode ? 1 : 3;
+    minSignalAdjustment += config.learningPhaseMode ? 0 : 2;
   }
   if (deadMarket) {
-    aggressionMultiplier *= 0.55;
-    riskMultiplier *= 0.62;
-    leverageMultiplier *= 0.7;
-    explorationMultiplier *= 0.35;
-    scoreAdjustment -= 8;
-    minSignalAdjustment += 5;
-    minConvictionAdjustment += 5;
+    aggressionMultiplier *= config.learningPhaseMode ? 0.75 : 0.55;
+    riskMultiplier *= config.learningPhaseMode ? 0.78 : 0.62;
+    leverageMultiplier *= config.learningPhaseMode ? 0.8 : 0.7;
+    explorationMultiplier *= config.learningPhaseMode ? 0.75 : 0.35;
+    scoreAdjustment -= config.learningPhaseMode ? 4 : 8;
+    minSignalAdjustment += config.learningPhaseMode ? 2 : 5;
+    minConvictionAdjustment += config.learningPhaseMode ? 2 : 5;
   }
   if (fakeBreakout) {
-    aggressionMultiplier *= 0.72;
-    riskMultiplier *= 0.75;
-    leverageMultiplier *= 0.82;
-    explorationMultiplier *= 0.55;
-    scoreAdjustment -= 6;
-    minSignalAdjustment += 3;
-    minConvictionAdjustment += 3;
+    aggressionMultiplier *= config.learningPhaseMode ? 0.85 : 0.72;
+    riskMultiplier *= config.learningPhaseMode ? 0.85 : 0.75;
+    leverageMultiplier *= config.learningPhaseMode ? 0.9 : 0.82;
+    explorationMultiplier *= config.learningPhaseMode ? 0.85 : 0.55;
+    scoreAdjustment -= config.learningPhaseMode ? 3 : 6;
+    minSignalAdjustment += config.learningPhaseMode ? 1 : 3;
+    minConvictionAdjustment += config.learningPhaseMode ? 1 : 3;
     trailingDistanceMultiplier *= 0.82;
   }
 
