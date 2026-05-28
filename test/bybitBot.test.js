@@ -871,11 +871,12 @@ async function testAdaptiveEnginePolicyAndConfidence() {
     })
   );
   defensive.rebuild();
-  assert.equal(defensive.currentPolicy().mode, "CAUTIOUS_LEARNING");
+  assert.equal(defensive.currentPolicy().mode, "CAUTIOUS_ACTIVE");
   assert.equal(defensive.currentPolicy().learningPhaseActive, true);
+  assert.equal(defensive.currentPolicy().aggressiveLearningPhaseActive, true);
   assert.equal(defensive.currentPolicy().dailyTradeLimitsDisabled, true);
-  assert.ok(defensive.currentPolicy().riskMultiplier >= 0.9);
-  assert.ok(defensive.currentPolicy().explorationBudget >= defensive.config.explorationMaxTradesPerDay);
+  assert.ok(defensive.currentPolicy().riskMultiplier >= 0.95);
+  assert.equal(defensive.currentPolicy().explorationBudget, Number.MAX_SAFE_INTEGER);
 
   const confident = new AdaptiveEngine(config({ minAdaptiveTrades: 5, minAdaptiveBucketTrades: 3 }), log);
   confident.load();
@@ -1001,7 +1002,7 @@ async function testAdaptiveDefensiveRecoveryPolicy() {
   ];
   adaptive.rebuild();
   const policy = adaptive.currentPolicy();
-  assert.equal(policy.mode, "LEARNING_RECOVERY");
+  assert.equal(policy.mode, "AGGRESSIVE_LEARNING_RECOVERY");
   assert.ok(policy.riskMultiplier >= 1);
   assert.ok(policy.explorationEnabled);
   assert.ok(policy.explorationBudget >= 1);
@@ -1020,6 +1021,7 @@ async function testAdaptiveActivityFloorPolicy() {
     activityFloorSignalRelaxPoints: 3,
     activityFloorConvictionRelaxPoints: 4,
     minAdaptiveTrades: 5,
+    aggressiveLearningPhase: false,
     disableDailyTradeLimits: false,
   }), log);
   adaptive.load();
@@ -1059,6 +1061,7 @@ async function testLearningPhaseDisablesDailyTradeLimits() {
 
   const capped = new LadderBot(config({
     disableDailyTradeLimits: false,
+    aggressiveLearningPhase: false,
     maxTradesPerDay: 1,
     maxDailyLossPct: 20,
     maxDailyLossUsdt: null,
@@ -1071,8 +1074,32 @@ async function testLearningPhaseDisablesDailyTradeLimits() {
     realizedPnlUsdt: 0,
   };
   const lock = capped.risk.dailyLock(100);
-  assert.equal(lock.locked, true);
-  assert.equal(lock.reason, "maximum daily trades reached");
+  assert.equal(lock.locked, false);
+
+  const lossLocked = capped.risk.dailyLock(79);
+  assert.equal(lossLocked.locked, true);
+  assert.equal(lossLocked.reason, "maximum daily loss reached");
+}
+
+async function testAggressiveLearningCooldownsAreAdvisory() {
+  const bot = new LadderBot(config({
+    aggressiveLearningPhase: true,
+    dryRun: true,
+  }));
+  const future = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+  bot.store.state = {
+    paused: false,
+    openPositions: [],
+    symbolCooldowns: {
+      BTCUSDT: {
+        lossCooldownUntil: future,
+        reentryUntil: future,
+      },
+    },
+    daily: { startingEquity: 100, tradesOpened: 9999, losingTrades: 0, realizedPnlUsdt: 0 },
+  };
+  bot.risk.store = bot.store;
+  assert.equal(bot.risk.entryBlockReason(100, "BTCUSDT"), null);
 }
 
 async function testForcedMarketSamplingPromotion() {
@@ -1139,8 +1166,9 @@ async function run() {
   await testAdaptiveDefensiveRecoveryPolicy();
   await testAdaptiveActivityFloorPolicy();
   await testLearningPhaseDisablesDailyTradeLimits();
+  await testAggressiveLearningCooldownsAreAdvisory();
   await testForcedMarketSamplingPromotion();
-  console.log("Bybit client and bot tests passed: REST signing, UTA balance parsing, live safety balance use, native protection payloads, WebSocket reconnect, reconciliation, hedge exposure detection, native TP events, regime intelligence, survivability scoring, exploration path, exploration memory relaxation, fee-aware stats, symbol cooldowns, adaptive learning, cautious learning recovery, activity floor, daily trade limit disablement, forced market sampling, profit protection, fee-aware entries, dynamic sizing, and continuation holds.");
+  console.log("Bybit client and bot tests passed: REST signing, UTA balance parsing, live safety balance use, native protection payloads, WebSocket reconnect, reconciliation, hedge exposure detection, native TP events, regime intelligence, survivability scoring, exploration path, exploration memory relaxation, fee-aware stats, advisory symbol cooldowns, adaptive learning, cautious active recovery, activity floor, daily trade limit removal, forced market sampling, profit protection, fee-aware entries, dynamic sizing, and continuation holds.");
 }
 
 run().catch((error) => {
