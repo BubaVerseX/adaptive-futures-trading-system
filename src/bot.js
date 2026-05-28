@@ -117,6 +117,8 @@ class LadderBot {
       adaptiveLearningEnabled: this.config.adaptiveLearningEnabled,
       adaptiveMode: this.adaptive.currentPolicy().mode,
       adaptiveMinSignalScore: this.adaptive.currentPolicy().minSignalScore,
+      marketRegimeIntelligenceEnabled: this.config.marketRegimeIntelligenceEnabled,
+      profitProtectionEnabled: this.config.profitProtectionEnabled,
       scanIntervalMs: this.config.scanIntervalMs,
       scanConcurrency: this.config.scanConcurrency,
       maxPositionNotionalUsdt: this.config.maxPositionNotionalUsdt,
@@ -204,13 +206,30 @@ class LadderBot {
           explorationEnabled: adaptivePolicy.explorationEnabled,
         });
         if (adaptivePolicy.mode === "DEFENSIVE_RECOVERY") {
-          this.log("INFO", "Defensive recovery activated; penalties are decaying while reduced-risk learning continues.", adaptivePolicy);
+          this.log("INFO", "Recovery aggression restored; defensive penalties are decaying while reduced-risk learning continues.", adaptivePolicy);
         }
         if (adaptivePolicy.mode === "CONTROLLED_AGGRESSIVE") {
           this.log("INFO", "Adaptive aggression increased after improved recent performance.", adaptivePolicy);
         }
       }
       this.lastAdaptiveMode = adaptivePolicy.mode;
+      if (adaptivePolicy.activityFloorEngaged) {
+        this.log("INFO", "Adaptive activity floor engaged.", {
+          maxTradesPerDay: adaptivePolicy.maxTradesPerDay,
+          explorationBudget: adaptivePolicy.explorationBudget,
+          explorationMinSignalScore: adaptivePolicy.explorationMinSignalScore,
+          explorationMinConvictionScore: adaptivePolicy.explorationMinConvictionScore,
+          activityFloorSignalRelaxPoints: adaptivePolicy.activityFloorSignalRelaxPoints,
+          activityFloorConvictionRelaxPoints: adaptivePolicy.activityFloorConvictionRelaxPoints,
+        });
+      }
+      if (adaptivePolicy.explorationExpansionActive) {
+        this.log("INFO", "Exploration expansion active; adaptive participation increased.", {
+          explorationBudget: adaptivePolicy.explorationBudget,
+          explorationTradeRatio: this.config.explorationTradeRatio,
+          adaptiveMode: adaptivePolicy.mode,
+        });
+      }
       this.log("INFO", "Cycle risk status.", {
         equityUsdt: beforeEquity.toFixed(4),
         ladderLevel: level.level,
@@ -226,17 +245,29 @@ class LadderBot {
         adaptiveRiskMultiplier: adaptivePolicy.riskMultiplier,
         explorationEnabled: adaptivePolicy.explorationEnabled,
         explorationBudget: adaptivePolicy.explorationBudget,
+        explorationExpansionActive: adaptivePolicy.explorationExpansionActive,
+        activityFloorEngaged: adaptivePolicy.activityFloorEngaged,
         dailyExplorationTrades: this.store.state.daily.explorationTrades || 0,
         winRatePct: this.store.state.performance.winRatePct,
         realizedPnlUsdt: this.store.state.performance.realizedPnlUsdt,
         feesUsdt: this.store.state.performance.totalFeesUsdt,
       });
 
-      const regime = await this.scanner.regimeForMarket();
-      await this.managePositions(regime);
+      const marketProfile = await this.scanner.marketProfile();
+      await this.managePositions(marketProfile);
       const equity = await this.measureEquity();
       this.risk.updateEquity(equity);
       const lock = this.risk.dailyLock(equity);
+      const profitProtection = this.risk.profitProtection(equity);
+      if (profitProtection.active) {
+        this.store.state.daily.profitProtectionActive = true;
+        this.store.state.daily.profitProtectionPnlPct = Number(profitProtection.pnlPct.toFixed(4));
+        this.store.saveState();
+        this.log("WARN", "Profit protection mode enabled.", profitProtection);
+      } else if (this.store.state.daily) {
+        this.store.state.daily.profitProtectionActive = false;
+        this.store.state.daily.profitProtectionPnlPct = Number(profitProtection.pnlPct.toFixed(4));
+      }
 
       if (lock.locked) {
         this.store.state.paused = true;
@@ -250,7 +281,7 @@ class LadderBot {
         }
       }
 
-      const scan = await this.scanner.scan(regime);
+      const scan = await this.scanner.scan(marketProfile);
       this.store.state.consecutiveApiErrors = 0;
       this.store.saveState();
       if (scan.hadApiErrors && !(this.config.fastMode && this.config.allowPartialScanEntries && scan.candidates.length)) {
@@ -262,7 +293,7 @@ class LadderBot {
           candidates: scan.candidates.length,
         });
       }
-      await this.openBestCandidates(scan.candidates, equity);
+      await this.openBestCandidates(scan.candidates, equity, profitProtection);
     } catch (error) {
       this.store.state.consecutiveApiErrors += 1;
       this.store.saveState();
@@ -320,8 +351,9 @@ class LadderBot {
     }
   }
 
-  async openBestCandidates(candidates, equity) {
+  async openBestCandidates(candidates, equity, profitProtection = null) {
     const adaptivePolicy = this.adaptive.currentPolicy();
+    const protection = profitProtection || { active: false, riskMultiplier: 1, leverageMultiplier: 1, explorationMultiplier: 1, signalAdjustment: 0 };
     const maxOpenPositions = adaptivePolicy.maxOpenPositions || this.config.maxOpenPositions;
     const availableSlots = maxOpenPositions - this.store.state.openPositions.length;
     if (availableSlots <= 0) {
@@ -342,12 +374,16 @@ class LadderBot {
       if (opened >= availableSlots || this.stopping) break;
       if (signal.explorationTrade) {
         const dailyExplorationTrades = Number(this.store.state.daily.explorationTrades || 0);
-        if (!adaptivePolicy.explorationEnabled || dailyExplorationTrades + explorationOpenedThisCycle >= adaptivePolicy.explorationBudget) {
+        const explorationBudget = protection.active
+          ? Math.max(0, Math.floor((adaptivePolicy.explorationBudget || 0) * protection.explorationMultiplier))
+          : adaptivePolicy.explorationBudget;
+        if (!adaptivePolicy.explorationEnabled || dailyExplorationTrades + explorationOpenedThisCycle >= explorationBudget) {
           this.log("INFO", "Exploration candidate skipped because daily exploration budget is used.", {
             symbol: signal.symbol,
             dailyExplorationTrades,
             explorationOpenedThisCycle,
-            explorationBudget: adaptivePolicy.explorationBudget,
+            explorationBudget,
+            profitProtectionActive: protection.active,
           });
           continue;
         }
@@ -358,7 +394,28 @@ class LadderBot {
           convictionScore: signal.convictionScore,
           explorationMinScore: adaptivePolicy.explorationMinSignalScore,
           explorationMinConviction: adaptivePolicy.explorationMinConvictionScore,
+          explorationRequiredScore: signal.explorationRequiredScore,
+          explorationRequiredConvictionScore: signal.explorationRequiredConvictionScore,
+          explorationThresholdSoftened: signal.explorationThresholdSoftened,
           waivedStrictRejections: signal.explorationWaivedRejections,
+        });
+        if (signal.explorationThresholdSoftened) {
+          this.log("INFO", "Exploration threshold softened for adaptive probing.", {
+            symbol: signal.symbol,
+            requiredScore: signal.explorationRequiredScore,
+            requiredConvictionScore: signal.explorationRequiredConvictionScore,
+            activityFloorEngaged: adaptivePolicy.activityFloorEngaged,
+          });
+        }
+      }
+      if (signal.moderateChopAccepted) {
+        this.log("INFO", "Moderate chop accepted for controlled participation.", {
+          symbol: signal.symbol,
+          side: signal.side,
+          antiChopScore: signal.antiChopScore,
+          maxChopScore: this.config.maxChopScore,
+          volumeCondition: signal.volumeCondition,
+          projectedNetEdgePct: signal.projectedNetEdgePct,
         });
       }
       this.log("INFO", "Top-scoring candidate selected for safety evaluation.", {
@@ -370,7 +427,13 @@ class LadderBot {
         setupType: signal.setupType,
         tradeCategory: signal.tradeCategory,
         explorationTrade: signal.explorationTrade,
+        explorationThresholdSoftened: signal.explorationThresholdSoftened,
+        moderateChopAccepted: signal.moderateChopAccepted,
         regime: signal.regime,
+        marketRegimeType: signal.marketRegimeType,
+        marketRegimeTags: signal.marketRegimeTags,
+        marketRegimeConfidence: signal.marketRegimeConfidence,
+        sessionRegime: signal.sessionRegime,
         volatilityRegime: signal.volatilityRegime,
         volumeCondition: signal.volumeCondition,
         fastMode: signal.fastMode,
@@ -392,6 +455,9 @@ class LadderBot {
         estimatedRoundTripFeePct: signal.roundTripFeePct.toFixed(3),
         btcTrend: signal.btcTrend,
         ethTrend: signal.ethTrend,
+        btcTrendStrength: signal.btcTrendStrength,
+        btcVolatilityPct: signal.btcVolatilityPct,
+        btcInstability: signal.btcInstability,
       });
       await this.telegram.send(`Candidate selected: ${signal.symbol} ${signal.side}, score ${signal.score}.`);
       const block = this.risk.entryBlockReason(equity, signal.symbol);
@@ -399,6 +465,20 @@ class LadderBot {
         this.log("INFO", "Candidate entry rejected by portfolio safety rule.", { symbol: signal.symbol, reason: block });
         continue;
       }
+      const protectionCheck = this.profitProtectionEntryCheck(signal, protection);
+      if (protectionCheck.rejected) {
+        this.log("INFO", "Candidate rejected by profit protection mode.", {
+          symbol: signal.symbol,
+          reason: protectionCheck.reason,
+          dailyPnlPct: protection.pnlPct,
+          requiredScore: protectionCheck.requiredScore,
+          score: signal.score,
+          convictionScore: signal.convictionScore,
+        });
+        continue;
+      }
+      signal.profitProtectionRiskMultiplier = protection.riskMultiplier;
+      signal.profitProtectionLeverageMultiplier = protection.leverageMultiplier;
       const edgeCheck = this.feeAwareEntryCheck(signal);
       if (edgeCheck.rejected) {
         this.log("INFO", "Candidate rejected due to fee inefficiency or low conviction.", {
@@ -467,6 +547,12 @@ class LadderBot {
         setupType: signal.setupType,
         tradeCategory: signal.tradeCategory,
         explorationTrade: signal.explorationTrade,
+        explorationThresholdSoftened: signal.explorationThresholdSoftened,
+        moderateChopAccepted: signal.moderateChopAccepted,
+        marketRegimeType: signal.marketRegimeType,
+        marketRegimeTags: signal.marketRegimeTags,
+        marketRegimeConfidence: signal.marketRegimeConfidence,
+        sessionRegime: signal.sessionRegime,
         trigger: signal.fomoTrigger ? "FOMO_1M_MOMENTUM" : "SCORE_THRESHOLD",
         leverage: plan.leverage,
         plannedNotionalUsdt: plan.notional,
@@ -485,6 +571,9 @@ class LadderBot {
         momentumPersistenceCandles: signal.momentumPersistenceCandles,
         volatilityRegime: signal.volatilityRegime,
         volumeCondition: signal.volumeCondition,
+        regimeRiskMultiplier: signal.regimeRiskMultiplier,
+        profitProtectionRiskMultiplier: signal.profitProtectionRiskMultiplier,
+        profitProtectionActive: protection.active,
         adaptiveReasons: signal.adaptiveReasons,
         scoreBreakdown: signal.scoreBreakdown,
       });
@@ -501,13 +590,37 @@ class LadderBot {
     );
   }
 
+  profitProtectionEntryCheck(signal, protection) {
+    if (!protection || !protection.active) return { rejected: false };
+    const requiredScore = Math.min(100, Number(signal.requiredScore || this.config.minSignalScore) + protection.signalAdjustment);
+    const requiredConviction = Math.min(
+      100,
+      Number(signal.requiredConvictionScore || this.config.minConvictionScore) + Math.ceil(protection.signalAdjustment / 2)
+    );
+    const highQualityContinuation =
+      Array.isArray(signal.marketRegimeTags) &&
+      (signal.marketRegimeTags.includes("STRONG_TRENDING_MARKET") || signal.marketRegimeTags.includes("HIGH_VOLATILITY_BREAKOUT_MARKET")) &&
+      signal.btcTrendAligned &&
+      Number(signal.projectedNetEdgePct || 0) >= this.config.minProjectedEdgePct + 0.25;
+    if (signal.explorationTrade && !highQualityContinuation) {
+      return { rejected: true, reason: "profit protection suppresses exploratory entries after strong daily gains", requiredScore };
+    }
+    if (!highQualityContinuation && Number(signal.score || 0) < requiredScore) {
+      return { rejected: true, reason: "profit protection requires stronger score before adding new risk", requiredScore };
+    }
+    if (Number(signal.convictionScore || 0) < requiredConviction) {
+      return { rejected: true, reason: "profit protection requires stronger conviction", requiredScore, requiredConviction };
+    }
+    return { rejected: false, requiredScore, requiredConviction };
+  }
+
   feeAwareEntryCheck(signal) {
     const minProjectedEdgePct = signal.explorationTrade ? this.config.explorationMinProjectedEdgePct : this.config.minProjectedEdgePct;
     const minEdgeToCostRatio = signal.explorationTrade ? this.config.explorationMinEdgeToCostRatio : this.config.minEdgeToCostRatio;
     const minConvictionScore = signal.explorationTrade ? this.config.explorationMinConvictionScore : this.config.minConvictionScore;
     if (Number(signal.projectedNetEdgePct) < this.config.minProjectedEdgePct) {
       if (!signal.explorationTrade || Number(signal.projectedNetEdgePct) < minProjectedEdgePct) {
-      return { rejected: true, reason: "projected edge after fees, spread, and slippage is too small" };
+        return { rejected: true, reason: "projected edge after fees, spread, and slippage is too small" };
       }
     }
     if (Number(signal.feeEdgeRatio) < minEdgeToCostRatio) {
@@ -526,7 +639,15 @@ class LadderBot {
         : signal.volatilityRegime === "HIGH_VOLATILITY"
           ? Math.max(1, Math.floor(this.config.maxLeverage * 0.7))
           : this.config.maxLeverage;
-    const confidenceAdjusted = Math.max(1, Math.floor((policy.maxLeverage || this.config.maxLeverage) * Number(signal.adaptiveLeverageMultiplier || 1)));
+    const confidenceAdjusted = Math.max(
+      1,
+      Math.floor(
+        (policy.maxLeverage || this.config.maxLeverage) *
+          Number(signal.adaptiveLeverageMultiplier || 1) *
+          Number(signal.regimeLeverageMultiplier || 1) *
+          Number(signal.profitProtectionLeverageMultiplier || 1)
+      )
+    );
     return Math.max(1, Math.min(this.config.maxLeverage, volatilityCap, confidenceAdjusted));
   }
 
@@ -611,12 +732,26 @@ class LadderBot {
       signalScore: signal.score,
       baseSignalScore: signal.baseScore,
       signalRegime: signal.regime,
+      marketRegimeType: signal.marketRegimeType,
+      marketRegimeTags: signal.marketRegimeTags,
+      marketRegimeConfidence: signal.marketRegimeConfidence,
+      regimeAggressionMultiplier: signal.regimeAggressionMultiplier,
+      regimeRiskMultiplier: signal.regimeRiskMultiplier,
+      regimeLeverageMultiplier: signal.regimeLeverageMultiplier,
+      regimeHoldMultiplier: signal.regimeHoldMultiplier,
+      regimeTrailingDistanceMultiplier: signal.regimeTrailingDistanceMultiplier,
       setupType: signal.setupType,
       tradeCategory: signal.tradeCategory,
       explorationTrade: signal.explorationTrade,
+      explorationThresholdSoftened: signal.explorationThresholdSoftened,
       explorationWaivedRejections: signal.explorationWaivedRejections,
       btcMarketRegime: signal.btcTrend,
       ethMarketRegime: signal.ethTrend,
+      btcTrendStrength: signal.btcTrendStrength,
+      ethTrendStrength: signal.ethTrendStrength,
+      btcVolatilityPct: signal.btcVolatilityPct,
+      btcMomentumPct: signal.btcMomentumPct,
+      btcInstability: signal.btcInstability,
       volatilityRegime: signal.volatilityRegime,
       volumeCondition: signal.volumeCondition,
       entryMomentumPct: signal.entryMomentumPct,
@@ -631,16 +766,21 @@ class LadderBot {
       liquidityScore: signal.liquidityScore,
       trendQualityScore: signal.trendQualityScore,
       antiChopScore: signal.antiChopScore,
+      moderateChopAccepted: signal.moderateChopAccepted,
       breakoutTriggered: signal.breakoutTriggered,
       microBreakoutTriggered: signal.microBreakoutTriggered,
       fastMode: signal.fastMode,
       fomoTrigger: signal.fomoTrigger,
       fomoTriggered: signal.fomoTrigger,
       sessionType: sessionType(),
+      sessionRegime: signal.sessionRegime,
+      sessionHourUtc: signal.sessionHourUtc,
       adaptiveConfidence: signal.adaptiveConfidence,
       adaptiveScoreAdjustment: signal.adaptiveScoreAdjustment,
       adaptiveRiskMultiplier: signal.adaptiveRiskMultiplier,
       adaptiveLeverageMultiplier: signal.adaptiveLeverageMultiplier,
+      profitProtectionRiskMultiplier: signal.profitProtectionRiskMultiplier,
+      profitProtectionLeverageMultiplier: signal.profitProtectionLeverageMultiplier,
       adaptiveMode: signal.adaptivePolicyMode,
       adaptiveReasons: signal.adaptiveReasons,
       entryReason: signal.scoreBreakdown,
@@ -781,21 +921,23 @@ class LadderBot {
         ? percentChange(position.peakPrice, position.entryPrice)
         : percentChange(position.entryPrice, position.peakPrice);
 
-      if (this.config.trailingStopEnabled && favorablePct >= this.config.trailingStartPct) {
+      const trailingDistancePct = this.config.trailingDistancePct * Number(position.regimeTrailingDistanceMultiplier || 1);
+      const trailingStartPct = this.config.trailingStartPct * Number(position.regimeHoldMultiplier && position.regimeHoldMultiplier > 1 ? 1.05 : 1);
+      if (this.config.trailingStopEnabled && favorablePct >= trailingStartPct) {
         const candidateStop = long
-          ? position.peakPrice * (1 - this.config.trailingDistancePct / 100)
-          : position.peakPrice * (1 + this.config.trailingDistancePct / 100);
+          ? position.peakPrice * (1 - trailingDistancePct / 100)
+          : position.peakPrice * (1 + trailingDistancePct / 100);
         const improves = !position.trailingStopPrice || (long ? candidateStop > position.trailingStopPrice : candidateStop < position.trailingStopPrice);
         if (improves) {
           position.trailingStopPrice = candidateStop;
           if (!this.config.dryRun && !position.nativeTrailingConfigured) {
             const trailingDistance = roundedPrice(
-              position.entryPrice * (this.config.trailingDistancePct / 100),
+              position.entryPrice * (trailingDistancePct / 100),
               position.tickSize,
               true
             );
             const activePrice = roundedPrice(
-              position.entryPrice * (long ? 1 + this.config.trailingStartPct / 100 : 1 - this.config.trailingStartPct / 100),
+              position.entryPrice * (long ? 1 + trailingStartPct / 100 : 1 - trailingStartPct / 100),
               position.tickSize,
               long
             );
@@ -815,6 +957,8 @@ class LadderBot {
             symbol: position.symbol,
             side: position.side,
             trailingStopPrice: candidateStop,
+            trailingDistancePct,
+            trailingStartPct,
             nativeTrailingConfigured: Boolean(position.nativeTrailingConfigured),
           });
           await this.telegram.send(`Trailing stop moved: ${position.symbol} ${position.side} stop ${candidateStop.toFixed(8)}.`);
@@ -859,6 +1003,7 @@ class LadderBot {
           pnlPct: pnlPct.toFixed(3),
           holdSeconds: secondsHeld(position).toFixed(1),
           continuationScore: analysis.convictionScore,
+          marketRegimeTags: analysis.marketRegimeTags,
           volumeCondition: analysis.volumeCondition,
           momentumPersistenceCandles: analysis.momentumPersistenceCandles,
         });
@@ -887,11 +1032,16 @@ class LadderBot {
     const alignedMomentum = position.side === "LONG"
       ? analysis.momentum1mPct > 0 && analysis.momentum5mPct >= 0
       : analysis.momentum1mPct < 0 && analysis.momentum5mPct <= 0;
+    const tags = Array.isArray(analysis.marketRegimeTags) ? analysis.marketRegimeTags : Array.isArray(position.marketRegimeTags) ? position.marketRegimeTags : [];
+    const continuationRegime = tags.includes("STRONG_TRENDING_MARKET") || tags.includes("HIGH_VOLATILITY_BREAKOUT_MARKET");
+    const hostileRegime = tags.includes("SIDEWAYS_CHOP_MARKET") || tags.includes("FAKE_BREAKOUT_ENVIRONMENT") || tags.includes("DEAD_MARKET_CONDITIONS");
+    const requiredScore = this.config.continuationMinScore + (continuationRegime ? -6 : 0) + (hostileRegime ? 8 : 0);
+    const requiredPnlPct = this.config.continuationMinPnlPct * (continuationRegime ? 0.85 : 1);
     return Boolean(
       sameSide &&
       alignedMomentum &&
-      pnlPct >= this.config.continuationMinPnlPct &&
-      Number(analysis.convictionScore || 0) >= this.config.continuationMinScore &&
+      pnlPct >= requiredPnlPct &&
+      Number(analysis.convictionScore || 0) >= requiredScore &&
       Number(analysis.momentumPersistenceCandles || 0) >= this.config.minMomentumPersistenceCandles &&
       analysis.volumeCondition !== "LOW_VOLUME" &&
       analysis.volatilityRegime !== "NEWS_LIKE_ABNORMAL"
@@ -1453,6 +1603,7 @@ class LadderBot {
       `Daily PnL realized: ${Number(daily.realizedPnlUsdt || 0).toFixed(4)} USDT`,
       `Daily trades/losses: ${daily.tradesOpened || 0}/${daily.losingTrades || 0}`,
       `Exploration trades today: ${daily.explorationTrades || 0}/${adaptivePolicy.explorationBudget || 0}`,
+      `Profit protection: ${daily.profitProtectionActive ? `active at ${Number(daily.profitProtectionPnlPct || 0).toFixed(2)}% daily PnL` : "inactive"}`,
       `All-time win rate: ${Number(performance.winRatePct || 0).toFixed(2)}% over ${performance.closedTrades || 0} closed trades`,
       `Fees tracked: ${Number(performance.totalFeesUsdt || 0).toFixed(4)} USDT`,
       `Average hold: ${Number(performance.averageHoldSeconds || 0).toFixed(1)} seconds`,

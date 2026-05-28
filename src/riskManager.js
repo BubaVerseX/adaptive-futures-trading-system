@@ -156,6 +156,43 @@ class RiskManager {
     return { locked: false, pnlPct };
   }
 
+  profitProtection(equity) {
+    if (!this.config.profitProtectionEnabled || !this.store.state.daily) {
+      return {
+        active: false,
+        pnlPct: this.store.state.daily ? this.dailyPerformancePct(equity) : 0,
+        riskMultiplier: 1,
+        leverageMultiplier: 1,
+        explorationMultiplier: 1,
+        signalAdjustment: 0,
+      };
+    }
+    const pnlPct = this.dailyPerformancePct(equity);
+    if (pnlPct < this.config.profitProtectionStartPct) {
+      return {
+        active: false,
+        pnlPct,
+        riskMultiplier: 1,
+        leverageMultiplier: 1,
+        explorationMultiplier: 1,
+        signalAdjustment: 0,
+      };
+    }
+    const intensity = Math.max(0.25, Math.min(1, pnlPct / Math.max(this.config.profitProtectionStartPct * 2, 1)));
+    const riskMultiplier = 1 - (1 - this.config.profitProtectionRiskMultiplier) * intensity;
+    const explorationMultiplier = 1 - (1 - this.config.profitProtectionExplorationMultiplier) * intensity;
+    return {
+      active: true,
+      pnlPct,
+      intensity: Number(intensity.toFixed(3)),
+      riskMultiplier: Number(riskMultiplier.toFixed(3)),
+      leverageMultiplier: Number(Math.max(0.65, riskMultiplier).toFixed(3)),
+      explorationMultiplier: Number(explorationMultiplier.toFixed(3)),
+      signalAdjustment: Math.ceil(this.config.profitProtectionSignalAdjustment * intensity),
+      reason: "daily pnl is strongly positive; protecting gains by reducing new-risk appetite",
+    };
+  }
+
   entryBlockReason(equity, symbol) {
     const state = this.store.state;
     const dailyProtection = this.dailyLock(equity);
@@ -213,6 +250,8 @@ class RiskManager {
     if (signal.explorationTrade) {
       qualitySizeMultiplier *= this.config.explorationRiskMultiplier;
     }
+    qualitySizeMultiplier *= Number(signal.regimeRiskMultiplier || 1);
+    qualitySizeMultiplier *= Number(signal.profitProtectionRiskMultiplier || 1);
     const riskPct = Math.max(
       this.config.baseRiskPerTradePct * this.config.adaptiveRiskMinMultiplier,
       Math.min(

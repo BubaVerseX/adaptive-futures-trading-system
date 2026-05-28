@@ -2,14 +2,14 @@
   "version": 1,
   "exchange": "BYBIT_V5_LINEAR",
   "strategyProfile": "BYBIT_ADAPTIVE_STAT_SCALP_V2",
-  "updatedAt": "2026-05-28T08:53:01.417Z",
+  "updatedAt": "2026-05-28T11:31:15.101Z",
   "mode": "LIVE",
   "paused": true,
   "pauseReason": "adaptive maximum daily trades reached",
   "equity": {
     "startingUsdt": 100,
-    "realizedPnlUsdt": -8.86199047999998,
-    "currentUsdt": 48.523322
+    "realizedPnlUsdt": -8.861989999999999,
+    "currentUsdt": 48.530127
   },
   "daily": {
     "date": "2026-05-28",
@@ -20,7 +20,9 @@
     "feesUsdt": 1.0378608049999998,
     "wins": 0,
     "closedTrades": 10,
-    "lossLocked": false
+    "lossLocked": false,
+    "profitProtectionActive": false,
+    "profitProtectionPnlPct": -5.5241
   },
   "ladder": {
     "activeLevel": 1,

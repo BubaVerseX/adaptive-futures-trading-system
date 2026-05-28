@@ -2,6 +2,12 @@
 
 const { analyzeCandles, emaDirection, parseCandles } = require("./indicators");
 const { setupTypeFromSignal } = require("./adaptiveEngine");
+const {
+  marketProfileFromBenchmarks,
+  profileFromDirection,
+  sessionProfile,
+  signalRegimeTags,
+} = require("./marketRegime");
 
 async function mapLimited(items, concurrency, operation) {
   const output = new Array(items.length);
@@ -123,14 +129,27 @@ function technicalConvictionScore(config, parts) {
 
 function explorationBlockReason(config, signal) {
   if (!config.explorationModeEnabled) return "exploration mode disabled";
+  const tags = Array.isArray(signal.marketRegimeTags) ? signal.marketRegimeTags : [];
+  const regimeScoreHike = Math.max(0, Math.floor(Number(signal.regimeMinSignalAdjustment || 0) / 2));
+  const regimeConvictionHike = Math.max(0, Math.floor(Number(signal.regimeMinConvictionAdjustment || 0) / 2));
+  if (Number(signal.regimeExplorationMultiplier || 1) <= 0.25) return "exploration blocked by defensive market regime";
+  if (tags.includes("DEAD_MARKET_CONDITIONS") && !signal.fomoTrigger) return "exploration blocked during dead market conditions";
+  if (tags.includes("FAKE_BREAKOUT_ENVIRONMENT") && !signal.btcTrendAligned) return "exploration blocked by fake breakout environment";
   if (signal.volatilityRegime === "NEWS_LIKE_ABNORMAL") return "exploration blocked during news-like abnormal volatility";
   if (signal.volumeCondition === "LOW_VOLUME") return "exploration blocked by low volume condition";
   if (signal.liquidityScore < config.minLiquidityScore * 0.8) return "exploration blocked by weak liquidity";
-  if (signal.antiChopScore > config.explorationMaxChopScore) return "exploration blocked by excessive chop";
+  const chopLimit = config.explorationMaxChopScore + (config.adaptiveActivityFloorEnabled ? config.activityFloorChopToleranceBonus : 0);
+  if (signal.antiChopScore > chopLimit) return "exploration blocked by excessive chop";
   if (signal.projectedNetEdgePct < config.explorationMinProjectedEdgePct) return "exploration blocked by insufficient fee-adjusted edge";
   if (signal.feeEdgeRatio < config.explorationMinEdgeToCostRatio) return "exploration blocked by weak edge-to-cost ratio";
-  if (signal.score < config.explorationMinSignalScore) return "exploration blocked by low adaptive score";
-  if (signal.convictionScore < config.explorationMinConvictionScore) return "exploration blocked by low exploratory conviction";
+  const scoreFloor = signal.explorationRequiredScore !== undefined
+    ? signal.explorationRequiredScore
+    : config.explorationMinSignalScore + regimeScoreHike - (config.adaptiveActivityFloorEnabled ? config.activityFloorSignalRelaxPoints : 0);
+  const convictionFloor = signal.explorationRequiredConvictionScore !== undefined
+    ? signal.explorationRequiredConvictionScore
+    : config.explorationMinConvictionScore + regimeConvictionHike - (config.adaptiveActivityFloorEnabled ? config.activityFloorConvictionRelaxPoints : 0);
+  if (signal.score < scoreFloor) return "exploration blocked by low adaptive score";
+  if (signal.convictionScore < convictionFloor) return "exploration blocked by low exploratory conviction";
   const blacklist = signal.rejected.find((reason) => /blacklist|choppy-market entries disabled/i.test(reason));
   if (blacklist) return blacklist;
   return null;
@@ -144,34 +163,66 @@ class Scanner {
     this.adaptive = adaptive;
     this.scanErrors = 0;
     this.cachedRegime = null;
+    this.cachedMarketProfile = null;
     this.cachedRegimeExpiresAt = 0;
     this.cachedBenchmarkDirections = { BTCUSDT: "CHOPPY", ETHUSDT: "CHOPPY" };
   }
 
-  async regimeForMarket() {
-    if (this.cachedRegime && Date.now() < this.cachedRegimeExpiresAt) {
+  normalizeMarketProfile(input) {
+    if (input && typeof input === "object" && input.direction) return input;
+    return profileFromDirection(input || this.cachedRegime || "CHOPPY");
+  }
+
+  async marketProfile() {
+    if (this.cachedMarketProfile && Date.now() < this.cachedRegimeExpiresAt) {
       this.log("DEBUG", "Using cached BTC/ETH market regime for faster scanning.", {
-        direction: this.cachedRegime,
+        direction: this.cachedMarketProfile.direction,
+        primary: this.cachedMarketProfile.primary,
+        tags: this.cachedMarketProfile.tags,
         benchmarks: this.cachedBenchmarkDirections,
       });
-      return this.cachedRegime;
+      return this.cachedMarketProfile;
     }
-    const directions = {};
+    const analyses = {};
     for (const symbol of ["BTCUSDT", "ETHUSDT"]) {
       const candles = parseCandles(await this.client.getKlines(symbol, this.config.candleIntervalTrend, 80));
-      directions[symbol] = emaDirection(analyzeCandles(candles));
+      analyses[symbol] = analyzeCandles(candles);
     }
-    const direction =
-      directions.BTCUSDT === "UP" && directions.ETHUSDT === "UP"
-        ? "UP"
-        : directions.BTCUSDT === "DOWN" && directions.ETHUSDT === "DOWN"
-          ? "DOWN"
-          : "CHOPPY";
-    this.log("INFO", "Market regime evaluated from BTC and ETH.", { direction, benchmarks: directions });
-    this.cachedRegime = direction;
+    const directions = {
+      BTCUSDT: emaDirection(analyses.BTCUSDT),
+      ETHUSDT: emaDirection(analyses.ETHUSDT),
+    };
+    const profile = marketProfileFromBenchmarks(this.config, analyses.BTCUSDT, analyses.ETHUSDT);
+    this.log("INFO", "Market regime evaluated from BTC and ETH.", {
+      direction: profile.direction,
+      primary: profile.primary,
+      tags: profile.tags,
+      confidence: profile.confidence,
+      benchmarks: directions,
+      btcTrendStrength: profile.btcTrendStrength,
+      ethTrendStrength: profile.ethTrendStrength,
+      btcVolatilityPct: profile.btcVolatilityPct,
+      btcMomentumPct: profile.btcMomentumPct,
+      btcInstability: profile.btcInstability,
+      aggressionMultiplier: profile.aggressionMultiplier,
+      reasons: profile.reasons,
+    });
+    if (profile.tags.includes("STRONG_TRENDING_MARKET")) this.log("INFO", "Trending regime detected.", profile);
+    if (profile.tags.includes("SIDEWAYS_CHOP_MARKET")) this.log("WARN", "Chop regime activated.", profile);
+    if (profile.tags.includes("HIGH_VOLATILITY_BREAKOUT_MARKET")) this.log("WARN", "Breakout volatility regime active.", profile);
+    if (profile.btcInstability) this.log("WARN", "BTC instability detected.", profile);
+    if (profile.tags.includes("LOW_LIQUIDITY_MARKET")) this.log("WARN", "Liquidity too weak in benchmark market.", profile);
+    if (profile.tags.includes("DEAD_MARKET_CONDITIONS")) this.log("WARN", "Dead market conditions detected.", profile);
+    if (profile.tags.includes("FAKE_BREAKOUT_ENVIRONMENT")) this.log("WARN", "Fake breakout environment detected.", profile);
+    this.cachedRegime = profile.direction;
+    this.cachedMarketProfile = profile;
     this.cachedBenchmarkDirections = directions;
     this.cachedRegimeExpiresAt = Date.now() + this.config.marketRegimeCacheMs;
-    return direction;
+    return profile;
+  }
+
+  async regimeForMarket() {
+    return (await this.marketProfile()).direction;
   }
 
   async universe() {
@@ -226,7 +277,8 @@ class Scanner {
     return limited;
   }
 
-  async analyzeSymbol(item, regime) {
+  async analyzeSymbol(item, marketInput) {
+    const marketProfile = this.normalizeMarketProfile(marketInput);
     let rawCandles;
     try {
       const candleLimit = this.config.fastMode ? 30 : 80;
@@ -259,13 +311,15 @@ class Scanner {
     const technicalReject = [];
 
     const signals = [];
-    if (this.config.allowLongs) signals.push(this.scoreDirection("LONG", item, fast, main, trend, regime, technicalReject));
-    if (this.config.allowShorts) signals.push(this.scoreDirection("SHORT", item, fast, main, trend, regime, technicalReject));
+    if (this.config.allowLongs) signals.push(this.scoreDirection("LONG", item, fast, main, trend, marketProfile, technicalReject));
+    if (this.config.allowShorts) signals.push(this.scoreDirection("SHORT", item, fast, main, trend, marketProfile, technicalReject));
     signals.sort((left, right) => right.score - left.score);
     return signals[0];
   }
 
-  scoreDirection(side, item, fast, main, trend, regime, commonReject) {
+  scoreDirection(side, item, fast, main, trend, marketInput, commonReject) {
+    const marketProfile = this.normalizeMarketProfile(marketInput);
+    const regime = marketProfile.direction;
     const long = side === "LONG";
     const direction = long ? "UP" : "DOWN";
     let score = 0;
@@ -352,6 +406,18 @@ class Scanner {
       Math.max(Math.abs(fast.momentumPct), Math.abs(main.momentumPct)) >= this.config.fomoMomentumPct * 2 &&
       !supportsTrend &&
       !breakSignal;
+    const session = sessionProfile();
+    const marketRegimeTags = signalRegimeTags(this.config, marketProfile, {
+      volumeSpike,
+      directedFastMomentum,
+      breakSignal,
+      fomoTrigger,
+      hasMomentumPersistence,
+      btcContradictsSide,
+      liquidityScore: symbolLiquidityScore,
+      spreadPct: item.spreadPct,
+      trendQualityScore: symbolTrendQualityScore,
+    });
     const addScore = (description, points) => {
       score += points;
       scoreBreakdown.push(`${description} ${points >= 0 ? "+" : ""}${points}`);
@@ -406,6 +472,44 @@ class Scanner {
       const penalty = fomoTrigger && hasMomentumPersistence ? Math.ceil(this.config.choppyMarketPenalty / 2) : this.config.choppyMarketPenalty;
       addScore("BTC/ETH choppy context penalty", -penalty);
     }
+    if (marketRegimeTags.includes("STRONG_TRENDING_MARKET") && (supportsMarket || btcSupportsSide)) {
+      addScore("strong trending regime continuation boost", 8);
+    }
+    if (marketRegimeTags.includes("HIGH_VOLATILITY_BREAKOUT_MARKET")) {
+      if (breakSignal || fomoTrigger || momentumBurst) {
+        addScore("high-volatility breakout mode momentum boost", 7);
+      } else {
+        addScore("high-volatility without clean trigger penalty", -4);
+      }
+    }
+    if (marketRegimeTags.includes("BTC_LED_MARKET")) {
+      if (btcSupportsSide) {
+        addScore("BTC-led market alignment boost", 7);
+      } else if (btcContradictsSide) {
+        addScore("BTC-led market contradiction penalty", -10);
+      }
+    }
+    if (marketRegimeTags.includes("ALTCOIN_MOMENTUM_MARKET")) {
+      addScore("altcoin momentum market participation boost", 6);
+    }
+    if (marketRegimeTags.includes("SIDEWAYS_CHOP_MARKET")) {
+      const chopRegimePenalty = breakSignal && volumeSpike >= this.config.minVolumeSpike + 0.45 && symbolTrendQualityScore >= 65 ? 4 : 10;
+      addScore("sideways chop market activity reduction", -chopRegimePenalty);
+    }
+    if (marketRegimeTags.includes("FAKE_BREAKOUT_ENVIRONMENT")) {
+      addScore("fake breakout environment penalty", -12);
+    }
+    if (marketRegimeTags.includes("LOW_LIQUIDITY_MARKET")) {
+      addScore("low-liquidity market penalty", -8);
+    }
+    if (marketRegimeTags.includes("DEAD_MARKET_CONDITIONS")) {
+      addScore("dead market conditions penalty", -12);
+    }
+    if (session.deadHours) {
+      addScore("dead-hours session liquidity penalty", -5);
+    } else if (session.momentumWindow && !marketRegimeTags.includes("SIDEWAYS_CHOP_MARKET")) {
+      addScore("session momentum window boost", 3);
+    }
     if (projectedNetEdgePct >= this.config.minProjectedEdgePct + 0.5 && feeEdgeRatio >= this.config.minEdgeToCostRatio + 0.75) {
       addScore("fee-aware expected edge clears costs", 8);
     } else if (projectedNetEdgePct < this.config.minProjectedEdgePct || feeEdgeRatio < this.config.minEdgeToCostRatio) {
@@ -419,17 +523,42 @@ class Scanner {
     if (symbolLiquidityScore < this.config.minLiquidityScore) {
       rejected.push(`low liquidity quality score ${symbolLiquidityScore.toFixed(1)} below ${this.config.minLiquidityScore}`);
     }
+    if (
+      marketRegimeTags.includes("LOW_LIQUIDITY_MARKET") &&
+      symbolLiquidityScore < this.config.minLiquidityScore + 8
+    ) {
+      rejected.push("liquidity too weak for regime-aware entry");
+    }
+    if (marketRegimeTags.includes("DEAD_MARKET_CONDITIONS") && !fomoTrigger) {
+      rejected.push("dead market conditions require an exceptional fast momentum trigger");
+    }
+    if (
+      marketRegimeTags.includes("FAKE_BREAKOUT_ENVIRONMENT") &&
+      (!supportsTrend || volumeSpike < this.config.minVolumeSpike + 0.45 || symbolTrendQualityScore < 65)
+    ) {
+      rejected.push("fake breakout environment rejected weak breakout structure");
+    }
     const exceptionalChopBreakout =
       breakSignal &&
       supportsTrend &&
       volumeSpike >= this.config.minVolumeSpike + 0.65 &&
       feeEdgeRatio >= this.config.minEdgeToCostRatio + 0.75 &&
       symbolTrendQualityScore >= 65;
-    if (chop.score > this.config.maxChopScore && !exceptionalChopBreakout) {
+    const moderateChopAccepted =
+      this.config.adaptiveActivityFloorEnabled &&
+      marketRegimeTags.includes("SIDEWAYS_CHOP_MARKET") &&
+      !marketRegimeTags.includes("FAKE_BREAKOUT_ENVIRONMENT") &&
+      !marketRegimeTags.includes("DEAD_MARKET_CONDITIONS") &&
+      chop.score <= this.config.maxChopScore + this.config.activityFloorChopToleranceBonus &&
+      volumeSpike >= this.config.minVolumeSpike &&
+      (hasMomentumPersistence || breakSignal || fomoTrigger) &&
+      projectedNetEdgePct >= this.config.explorationMinProjectedEdgePct &&
+      symbolLiquidityScore >= this.config.minLiquidityScore;
+    if (chop.score > this.config.maxChopScore && !exceptionalChopBreakout && !moderateChopAccepted) {
       addScore("anti-chop filter penalty", -Math.min(24, chop.score * 5));
       rejected.push(`anti-chop filter activated: ${chop.reasons.join("; ")}`);
     } else if (chop.score > 0) {
-      addScore("minor chop-quality penalty", -Math.min(10, chop.score * 2));
+      addScore(moderateChopAccepted ? "moderate chop accepted by activity floor" : "minor chop-quality penalty", -Math.min(8, chop.score * 1.5));
     }
 
     if (regime === "CHOPPY" && !this.config.allowChoppyMarket) rejected.push("choppy-market entries disabled by configuration");
@@ -471,6 +600,7 @@ class Scanner {
       trendQualityScore: symbolTrendQualityScore,
       antiChopScore: chop.score,
       antiChopReasons: chop.reasons,
+      moderateChopAccepted,
       btcTrend,
       ethTrend,
       btcTrendAligned: btcSupportsSide,
@@ -486,6 +616,27 @@ class Scanner {
       volatilityRegime: volatilityRegime(this.config, main.atrPct),
       volumeCondition: volumeCondition(this.config, volumeSpike),
       regime,
+      marketRegimeType: marketProfile.primary,
+      marketRegimeTags,
+      marketRegimeConfidence: marketProfile.confidence,
+      marketRegimeReasons: marketProfile.reasons,
+      regimeAggressionMultiplier: marketProfile.aggressionMultiplier,
+      regimeRiskMultiplier: marketProfile.riskMultiplier,
+      regimeLeverageMultiplier: marketProfile.leverageMultiplier,
+      regimeExplorationMultiplier: marketProfile.explorationMultiplier,
+      regimeMinSignalAdjustment: marketProfile.minSignalAdjustment,
+      regimeMinConvictionAdjustment: marketProfile.minConvictionAdjustment,
+      regimeHoldMultiplier: marketProfile.holdMultiplier,
+      regimeTrailingDistanceMultiplier: marketProfile.trailingDistanceMultiplier,
+      btcTrendStrength: marketProfile.btcTrendStrength,
+      ethTrendStrength: marketProfile.ethTrendStrength,
+      btcVolatilityPct: marketProfile.btcVolatilityPct,
+      btcMomentumPct: marketProfile.btcMomentumPct,
+      btcInstability: marketProfile.btcInstability,
+      sessionType: session.session,
+      sessionRegime: session.sessionRegime,
+      sessionHourUtc: session.hourUtc,
+      deadSessionHours: session.deadHours,
       setupType: null,
       eligible: false,
     };
@@ -505,10 +656,30 @@ class Scanner {
     baseSignal.technicalConvictionScore = conviction.score;
     baseSignal.convictionComponents = conviction.components;
     const signal = this.applyAdaptiveLearning(baseSignal);
-    const requiredScore = this.adaptive && this.config.adaptiveLearningEnabled
+    const policyRequiredScore = this.adaptive && this.config.adaptiveLearningEnabled
       ? this.adaptive.currentPolicy().minSignalScore
       : this.config.minSignalScore;
+    const policy = this.adaptive && this.config.adaptiveLearningEnabled ? this.adaptive.currentPolicy() : null;
+    const requiredScore = bounded(policyRequiredScore + Number(signal.regimeMinSignalAdjustment || 0), 1, 100);
     signal.requiredScore = requiredScore;
+    const regimeScoreHike = Math.max(0, Math.floor(Number(signal.regimeMinSignalAdjustment || 0) / 2));
+    const regimeConvictionHike = Math.max(0, Math.floor(Number(signal.regimeMinConvictionAdjustment || 0) / 2));
+    const activityScoreRelax = !policy && this.config.adaptiveActivityFloorEnabled ? this.config.activityFloorSignalRelaxPoints : 0;
+    const activityConvictionRelax = !policy && this.config.adaptiveActivityFloorEnabled ? this.config.activityFloorConvictionRelaxPoints : 0;
+    signal.explorationRequiredScore = bounded(
+      (policy ? policy.explorationMinSignalScore : this.config.explorationMinSignalScore) + regimeScoreHike - activityScoreRelax,
+      1,
+      100
+    );
+    signal.explorationRequiredConvictionScore = bounded(
+      (policy ? policy.explorationMinConvictionScore : this.config.explorationMinConvictionScore) + regimeConvictionHike - activityConvictionRelax,
+      1,
+      100
+    );
+    signal.explorationThresholdSoftened = Boolean(
+      (policy && policy.activityFloorEngaged) ||
+        (!policy && this.config.adaptiveActivityFloorEnabled && (activityScoreRelax > 0 || activityConvictionRelax > 0))
+    );
     signal.tradeCategory = "HIGH_CONVICTION";
     signal.explorationTrade = false;
     signal.strictRejectedReasons = [...signal.rejected];
@@ -540,8 +711,9 @@ class Scanner {
       signal.adaptivePolicyMode = "DISABLED";
       signal.adaptiveReasons = ["adaptive learning disabled"];
       signal.convictionScore = signal.technicalConvictionScore;
-      if (signal.convictionScore < this.config.minConvictionScore) {
-        signal.rejected.push(`low conviction: ${signal.convictionScore.toFixed(1)} below ${this.config.minConvictionScore}`);
+      signal.requiredConvictionScore = bounded(this.config.minConvictionScore + Number(signal.regimeMinConvictionAdjustment || 0), 1, 100);
+      if (signal.convictionScore < signal.requiredConvictionScore) {
+        signal.rejected.push(`low conviction: ${signal.convictionScore.toFixed(1)} below ${signal.requiredConvictionScore}`);
       }
       return signal;
     }
@@ -556,27 +728,31 @@ class Scanner {
     signal.convictionScore = Number(
       bounded(signal.technicalConvictionScore * 0.72 + adaptation.confidence * 0.28, 0, 100).toFixed(2)
     );
+    signal.requiredConvictionScore = bounded(this.config.minConvictionScore + Number(signal.regimeMinConvictionAdjustment || 0), 1, 100);
     if (adaptation.rejected) {
       signal.rejected.push(...adaptation.reasons);
     }
     if (adaptation.scoreAdjustment !== 0) {
       signal.scoreBreakdown.push(`adaptive historical confidence ${adaptation.scoreAdjustment >= 0 ? "+" : ""}${adaptation.scoreAdjustment}`);
     }
-    if (signal.convictionScore < this.config.minConvictionScore) {
-      signal.rejected.push(`low conviction: ${signal.convictionScore.toFixed(1)} below ${this.config.minConvictionScore}`);
-    } else if (signal.convictionScore >= this.config.minConvictionScore + 14 && adaptation.scoreAdjustment > 0) {
-      signal.scoreBreakdown.push(`conviction boost applied +${Math.min(6, Math.round((signal.convictionScore - this.config.minConvictionScore) / 4))}`);
+    if (signal.convictionScore < signal.requiredConvictionScore) {
+      signal.rejected.push(`low conviction: ${signal.convictionScore.toFixed(1)} below ${signal.requiredConvictionScore}`);
+    } else if (signal.convictionScore >= signal.requiredConvictionScore + 14 && adaptation.scoreAdjustment > 0) {
+      signal.scoreBreakdown.push(`conviction boost applied +${Math.min(6, Math.round((signal.convictionScore - signal.requiredConvictionScore) / 4))}`);
     }
     return signal;
   }
 
   async scan(regimeOverride) {
     this.scanErrors = 0;
-    const regime = regimeOverride || (await this.regimeForMarket());
+    const market = regimeOverride
+      ? this.normalizeMarketProfile(regimeOverride)
+      : await this.marketProfile();
+    const regime = market.direction;
     const universe = await this.universe();
     // Multiple analyses queue concurrently; the API client still paces actual requests to limit 429s.
     // FOMO + FAST mode needs only the 1-minute candle series for immediate-entry decisions.
-    const analyses = await mapLimited(universe, this.config.scanConcurrency, (item) => this.analyzeSymbol(item, regime));
+    const analyses = await mapLimited(universe, this.config.scanConcurrency, (item) => this.analyzeSymbol(item, market));
     analyses.sort((left, right) => right.score - left.score || right.volume24hUsdt - left.volume24hUsdt);
     for (const item of analyses.slice(0, 10)) {
       this.log(item.eligible ? "INFO" : "DEBUG", item.eligible ? "Candidate passed signal threshold." : "High-ranked candidate rejected.", {
@@ -588,6 +764,9 @@ class Scanner {
         setupType: item.setupType,
         tradeCategory: item.tradeCategory,
         explorationTrade: item.explorationTrade,
+        explorationRequiredScore: item.explorationRequiredScore,
+        explorationRequiredConvictionScore: item.explorationRequiredConvictionScore,
+        explorationThresholdSoftened: item.explorationThresholdSoftened,
         explorationBlockReason: item.explorationBlockReason,
         explorationWaivedRejections: item.explorationWaivedRejections,
         rsi: item.rsi.toFixed(2),
@@ -608,8 +787,16 @@ class Scanner {
         trendQualityScore: item.trendQualityScore,
         antiChopScore: item.antiChopScore,
         antiChopReasons: item.antiChopReasons,
+        moderateChopAccepted: item.moderateChopAccepted,
         volatilityRegime: item.volatilityRegime,
         volumeCondition: item.volumeCondition,
+        marketRegimeType: item.marketRegimeType,
+        marketRegimeTags: item.marketRegimeTags,
+        marketRegimeConfidence: item.marketRegimeConfidence,
+        sessionRegime: item.sessionRegime,
+        btcTrendStrength: item.btcTrendStrength,
+        btcVolatilityPct: item.btcVolatilityPct,
+        btcInstability: item.btcInstability,
         adaptiveConfidence: item.adaptiveConfidence,
         adaptiveScoreAdjustment: item.adaptiveScoreAdjustment,
         adaptivePolicyMode: item.adaptivePolicyMode,
@@ -635,8 +822,11 @@ class Scanner {
       analysisConcurrency: this.config.scanConcurrency,
       candleRequestsPerSymbol: this.config.fastMode && this.config.fomoBreakoutMode ? 1 : this.config.fastMode ? 2 : 3,
       apiErrors: this.scanErrors,
+      marketRegimeType: market.primary,
+      marketRegimeTags: market.tags,
+      marketRegimeConfidence: market.confidence,
     });
-    return { regime, analyses, candidates: analyses.filter((item) => item.eligible), hadApiErrors: this.scanErrors > 0 };
+    return { regime, marketProfile: market, analyses, candidates: analyses.filter((item) => item.eligible), hadApiErrors: this.scanErrors > 0 };
   }
 
   async analysisForPosition(position, regime) {

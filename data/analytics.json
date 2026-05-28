@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-05-28T08:21:11.370Z",
+  "updatedAt": "2026-05-28T10:05:20.396Z",
   "totalPnl": {
     "count": 38,
     "wins": 6,
@@ -610,6 +610,153 @@
       }
     ]
   },
+  "marketRegimeLeaderboard": {
+    "best": [
+      {
+        "key": "DOWN",
+        "count": 5,
+        "wins": 1,
+        "losses": 4,
+        "winRatePct": 20,
+        "totalPnlUsdt": -1.485373,
+        "totalPnlPct": -0.9386,
+        "feeAdjustedPnlUsdt": -1.485373,
+        "totalFeesUsdt": 0.830705,
+        "averagePnlUsdt": -0.297075,
+        "averagePnlPct": -0.1877,
+        "averageHoldSeconds": 129.95,
+        "averageSlippagePct": 0.1582,
+        "profitFactor": 0.042
+      },
+      {
+        "key": "CHOPPY",
+        "count": 33,
+        "wins": 5,
+        "losses": 28,
+        "winRatePct": 15.15,
+        "totalPnlUsdt": -7.376617,
+        "totalPnlPct": -2.8577,
+        "feeAdjustedPnlUsdt": -7.376617,
+        "totalFeesUsdt": 3.778749,
+        "averagePnlUsdt": -0.223534,
+        "averagePnlPct": -0.0866,
+        "averageHoldSeconds": 188.38,
+        "averageSlippagePct": 0.0664,
+        "profitFactor": 0.082
+      }
+    ],
+    "worst": [
+      {
+        "key": "CHOPPY",
+        "count": 33,
+        "wins": 5,
+        "losses": 28,
+        "winRatePct": 15.15,
+        "totalPnlUsdt": -7.376617,
+        "totalPnlPct": -2.8577,
+        "feeAdjustedPnlUsdt": -7.376617,
+        "totalFeesUsdt": 3.778749,
+        "averagePnlUsdt": -0.223534,
+        "averagePnlPct": -0.0866,
+        "averageHoldSeconds": 188.38,
+        "averageSlippagePct": 0.0664,
+        "profitFactor": 0.082
+      },
+      {
+        "key": "DOWN",
+        "count": 5,
+        "wins": 1,
+        "losses": 4,
+        "winRatePct": 20,
+        "totalPnlUsdt": -1.485373,
+        "totalPnlPct": -0.9386,
+        "feeAdjustedPnlUsdt": -1.485373,
+        "totalFeesUsdt": 0.830705,
+        "averagePnlUsdt": -0.297075,
+        "averagePnlPct": -0.1877,
+        "averageHoldSeconds": 129.95,
+        "averageSlippagePct": 0.1582,
+        "profitFactor": 0.042
+      }
+    ]
+  },
+  "regimeSessionPerformance": {
+    "CHOPPY:US": {
+      "count": 25,
+      "wins": 5,
+      "losses": 20,
+      "winRatePct": 20,
+      "totalPnlUsdt": -5.669581,
+      "totalPnlPct": -1.609,
+      "feeAdjustedPnlUsdt": -5.669581,
+      "totalFeesUsdt": 2.918324,
+      "averagePnlUsdt": -0.226783,
+      "averagePnlPct": -0.0644,
+      "averageHoldSeconds": 163.35,
+      "averageSlippagePct": 0.0634,
+      "profitFactor": 0.104
+    },
+    "DOWN:US": {
+      "count": 3,
+      "wins": 1,
+      "losses": 2,
+      "winRatePct": 33.33,
+      "totalPnlUsdt": -0.437469,
+      "totalPnlPct": 0.145,
+      "feeAdjustedPnlUsdt": -0.437469,
+      "totalFeesUsdt": 0.653269,
+      "averagePnlUsdt": -0.145823,
+      "averagePnlPct": 0.0483,
+      "averageHoldSeconds": 134.82,
+      "averageSlippagePct": 0,
+      "profitFactor": 0.129
+    },
+    "CHOPPY:ASIA": {
+      "count": 1,
+      "wins": 0,
+      "losses": 1,
+      "winRatePct": 0,
+      "totalPnlUsdt": -0.124278,
+      "totalPnlPct": 0,
+      "feeAdjustedPnlUsdt": -0.124278,
+      "totalFeesUsdt": 0.124278,
+      "averagePnlUsdt": -0.124278,
+      "averagePnlPct": 0,
+      "averageHoldSeconds": 15.87,
+      "averageSlippagePct": 0,
+      "profitFactor": 0
+    },
+    "CHOPPY:EUROPE": {
+      "count": 7,
+      "wins": 0,
+      "losses": 7,
+      "winRatePct": 0,
+      "totalPnlUsdt": -1.582758,
+      "totalPnlPct": -1.2487,
+      "feeAdjustedPnlUsdt": -1.582758,
+      "totalFeesUsdt": 0.736147,
+      "averagePnlUsdt": -0.226108,
+      "averagePnlPct": -0.1784,
+      "averageHoldSeconds": 302.45,
+      "averageSlippagePct": 0.0866,
+      "profitFactor": 0
+    },
+    "DOWN:EUROPE": {
+      "count": 2,
+      "wins": 0,
+      "losses": 2,
+      "winRatePct": 0,
+      "totalPnlUsdt": -1.047904,
+      "totalPnlPct": -1.0836,
+      "feeAdjustedPnlUsdt": -1.047904,
+      "totalFeesUsdt": 0.177436,
+      "averagePnlUsdt": -0.523952,
+      "averagePnlPct": -0.5418,
+      "averageHoldSeconds": 122.64,
+      "averageSlippagePct": 0.3955,
+      "profitFactor": 0
+    }
+  },
   "bestWorstConditions": {
     "best": [
       {
@@ -1022,11 +1169,23 @@
     "sampleSize": 20,
     "rollingWinRatePct": 10,
     "rollingPnlUsdt": -4.998019,
-    "riskMultiplier": 0.6,
-    "signalThresholdAdjustment": 8,
-    "minSignalScore": 60,
-    "maxLeverage": 5,
-    "maxOpenPositions": 1,
-    "maxTradesPerDay": 12
+    "recoverySampleSize": 8,
+    "recoveryWinRatePct": 0,
+    "recoveryPnlUsdt": -2.526024,
+    "riskMultiplier": 0.72,
+    "signalThresholdAdjustment": 4,
+    "minSignalScore": 52,
+    "explorationEnabled": true,
+    "explorationBudget": 4,
+    "explorationMinSignalScore": 42,
+    "explorationMinConvictionScore": 50,
+    "regimeSelfTuning": {
+      "bestRegime": "DOWN",
+      "worstRegime": "CHOPPY",
+      "memoryWeight": 0.22
+    },
+    "maxLeverage": 6,
+    "maxOpenPositions": 3,
+    "maxTradesPerDay": 26
   }
 }
