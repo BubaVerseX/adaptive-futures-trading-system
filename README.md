@@ -31,46 +31,83 @@ npm install
 
 The bot uses Bybit V5 linear endpoints for instruments, tickers, klines, unified wallet balance, positions, leverage, order creation, open orders, order history, native trading stops, position mode changes, and order cancellation. It uses WebSocket streams for tickers and authenticated order, execution, and position updates.
 
-## Aggressive Strategy
+## High-Conviction Momentum Strategy
 
-Defaults are aggressive but less chaotic than the earlier hyper-scalper profile:
+Defaults now favor fewer, higher-quality trades over micro-scalping:
 
 | Setting | Default |
 | --- | ---: |
 | `FAST_MODE` | `true` |
 | `FOMO_BREAKOUT_MODE` | `true` |
 | `MICRO_BREAKOUT_ENTRIES` | `true` |
-| `MIN_SIGNAL_SCORE` | `35` |
+| `MIN_SIGNAL_SCORE` | `48` |
+| `MIN_CONVICTION_SCORE` | `58` |
 | `MAX_OPEN_POSITIONS` | `3` |
-| `MAX_TRADES_PER_DAY` | `60` |
+| `MAX_TRADES_PER_DAY` | `40` |
 | `MAX_LEVERAGE` | `8` |
 | `SCAN_INTERVAL_MS` | `2000` |
 | `POSITION_MONITOR_INTERVAL_MS` | `2000` |
-| `TAKE_PROFIT_PCT` | `1.50` |
-| `STOP_LOSS_PCT` | `0.70` |
+| `TAKE_PROFIT_PCT` | `2.10` |
+| `STOP_LOSS_PCT` | `0.80` |
 
-The scanner ranks `USDT` linear perpetuals by EMA alignment or acceleration, breakout candles, one-minute momentum, volume spike, momentum persistence, RSI window, candle strength, volatility, projected net edge after fees/spread, and BTC/ETH direction context. Choppy benchmark conditions remain tradable when `ALLOW_CHOPPY_MARKET=true`, but weak chop entries are penalized or rejected when they lack breakout plus persistent volume/momentum.
+The scanner ranks `USDT` linear perpetuals by EMA alignment or acceleration, breakout strength, momentum persistence, volume quality, RSI, candle strength, volatility quality, liquidity, projected edge after fees/spread/slippage, BTC/ETH direction context, and adaptive historical confidence. Choppy benchmark conditions remain tradable when `ALLOW_CHOPPY_MARKET=true`, but activity is heavily reduced unless the setup has exceptional breakout quality.
 
 Fee-efficiency controls:
 
 | Setting | Default |
 | --- | ---: |
 | `ESTIMATED_FEE_PCT_PER_SIDE` | `0.055` |
-| `MIN_PROJECTED_EDGE_PCT` | `0.35` |
-| `SYMBOL_REENTRY_COOLDOWN_SECONDS` | `90` |
-| `SYMBOL_LOSS_COOLDOWN_MINUTES` | `15` |
+| `ESTIMATED_SLIPPAGE_PCT` | `0.08` |
+| `MIN_PROJECTED_EDGE_PCT` | `0.65` |
+| `MIN_EXPECTED_MOVE_PCT` | `1.10` |
+| `MIN_EDGE_TO_COST_RATIO` | `2.10` |
+| `SYMBOL_REENTRY_COOLDOWN_SECONDS` | `180` |
+| `SYMBOL_LOSS_COOLDOWN_MINUTES` | `30` |
+
+Controlled exploration adds a smaller, separately tagged entry path:
+
+| Setting | Default |
+| --- | ---: |
+| `EXPLORATION_MODE_ENABLED` | `true` |
+| `EXPLORATION_TRADE_RATIO` | `0.25` |
+| `EXPLORATION_MIN_SIGNAL_SCORE` | `40` |
+| `EXPLORATION_MIN_CONVICTION_SCORE` | `48` |
+| `EXPLORATION_MIN_PROJECTED_EDGE_PCT` | `0.28` |
+| `EXPLORATION_MIN_EDGE_TO_COST_RATIO` | `1.45` |
+| `EXPLORATION_RISK_MULTIPLIER` | `0.35` |
+| `EXPLORATION_MAX_CHOP_SCORE` | `3` |
+| `EXPLORATION_MAX_TRADES_PER_DAY` | `8` |
+
+Exploration trades still require positive fee-aware edge, acceptable liquidity, non-abnormal volatility, and anti-chop limits. They are smaller, counted separately in daily stats, marked as `EXPLORATION` in trade memory, and used to speed up adaptive learning.
 
 Signal-quality controls:
 
 | Setting | Default |
 | --- | ---: |
-| `MIN_VOLUME_SPIKE` | `1.35` |
-| `MIN_BURST_MOMENTUM_PCT` | `0.08` |
-| `FOMO_MOMENTUM_PCT` | `0.12` |
-| `MIN_MOMENTUM_PERSISTENCE_CANDLES` | `2` |
-| `BTC_TREND_ALIGNMENT_BONUS` | `8` |
-| `CHOPPY_MARKET_PENALTY` | `8` |
-| `LOW_LIQUIDITY_SPIKE_PENALTY` | `10` |
+| `MIN_VOLUME_SPIKE` | `1.60` |
+| `MIN_BURST_MOMENTUM_PCT` | `0.12` |
+| `FOMO_MOMENTUM_PCT` | `0.22` |
+| `MIN_MOMENTUM_PERSISTENCE_CANDLES` | `3` |
+| `BTC_TREND_ALIGNMENT_BONUS` | `12` |
+| `CHOPPY_MARKET_PENALTY` | `16` |
+| `LOW_LIQUIDITY_SPIKE_PENALTY` | `16` |
+| `ANTI_CHOP_ENABLED` | `true` |
+| `MAX_CHOP_SCORE` | `2` |
+| `MIN_LIQUIDITY_SCORE` | `45` |
+
+Fee-aware entry filtering rejects a candidate when the expected move is too small relative to estimated taker fees, spread, and slippage. Conviction filtering then requires alignment between volume, momentum, BTC trend, trend quality, liquidity, anti-chop score, and adaptive historical confidence.
+
+Winner management is also less twitchy:
+
+| Setting | Default |
+| --- | ---: |
+| `TRAILING_START_PCT` | `0.90` |
+| `TRAILING_DISTANCE_PCT` | `0.45` |
+| `MIN_HOLD_SECONDS_BEFORE_MOMENTUM_EXIT` | `120` |
+| `CONTINUATION_MIN_SCORE` | `70` |
+| `CONTINUATION_MIN_PNL_PCT` | `0.35` |
+
+If a managed position still has same-side momentum, strong conviction, adequate volume, and positive PnL, the bot logs `Strong momentum continuation detected` and avoids premature momentum exits. Hard stops, native TP/SL, trailing stops, liquidation protection, and reduce-only shutdown behavior are unchanged.
 
 ## Native Protection And Lifecycle
 
@@ -83,7 +120,7 @@ Signal-quality controls:
 - Pending entry state expires after `ENTRY_CONFIRMATION_TIMEOUT_MS=15000`; absent positions are cleared automatically.
 - REST reconciliation remains active even if private WebSocket updates disconnect.
 
-Logs include `ENTRY SIGNAL`, `ORDER SENT`, `ORDER FILLED`, `POSITION OPENED`, `POSITION CLOSED`, `TP HIT`, `SL HIT`, `RECONCILIATION SUCCESS`, and `WEBSOCKET RECONNECTED`.
+Logs include `ENTRY SIGNAL`, `EXPLORATION TRADE OPENED`, `ORDER SENT`, `ORDER FILLED`, `POSITION OPENED`, `POSITION CLOSED`, `TP HIT`, `SL HIT`, `RECONCILIATION SUCCESS`, `WEBSOCKET RECONNECTED`, fee-inefficiency rejections, low-conviction rejections, anti-chop activations, adaptive exploration activity, defensive recovery, adaptive size increases, and strong momentum continuation decisions.
 
 ## Performance Tracking
 
@@ -123,7 +160,8 @@ Adaptive behavior:
 - Strong historical conditions add a confidence bonus to future matching setups.
 - Weak historical conditions reduce score, risk, and leverage.
 - Very poor repeated condition buckets can be temporarily blacklisted.
-- If recent last-20 performance is poor, the bot enters `DEFENSIVE` mode: higher signal threshold, lower leverage, fewer positions, fewer trades/day.
+- If recent last-20 performance is poor, the bot enters `DEFENSIVE` mode: reduced risk, lower leverage, fewer positions, fewer trades/day, but exploration can continue at smaller size.
+- If the shorter recovery window improves, the bot enters `DEFENSIVE_RECOVERY` mode and gradually decays defensive penalties.
 - If recent last-20 performance is strong, the bot enters `CONTROLLED_AGGRESSIVE` mode within hard caps.
 - High-volatility and abnormal-volatility setups automatically reduce risk/leverage.
 - Low-volume setups are penalized unless the statistics and signal quality justify them.
@@ -133,19 +171,21 @@ Adaptive config:
 | Setting | Default |
 | --- | ---: |
 | `ADAPTIVE_LEARNING_ENABLED` | `true` |
-| `MIN_ADAPTIVE_TRADES` | `10` |
-| `MIN_ADAPTIVE_BUCKET_TRADES` | `5` |
+| `MIN_ADAPTIVE_TRADES` | `6` |
+| `MIN_ADAPTIVE_BUCKET_TRADES` | `3` |
 | `ADAPTIVE_MEMORY_MAX_TRADES` | `5000` |
 | `DEFENSIVE_WIN_RATE_PCT` | `35` |
-| `AGGRESSIVE_WIN_RATE_PCT` | `60` |
+| `AGGRESSIVE_WIN_RATE_PCT` | `58` |
+| `ADAPTIVE_RECOVERY_WIN_RATE_PCT` | `45` |
+| `ADAPTIVE_RECOVERY_LOOKBACK_TRADES` | `8` |
 | `ADAPTIVE_CONFIDENCE_BONUS_MAX` | `12` |
 | `ADAPTIVE_CONFIDENCE_PENALTY_MAX` | `18` |
 | `ADAPTIVE_BLACKLIST_WIN_RATE_PCT` | `25` |
-| `ADAPTIVE_BLACKLIST_MINUTES` | `60` |
+| `ADAPTIVE_BLACKLIST_MINUTES` | `30` |
 | `ADAPTIVE_RISK_MIN_MULTIPLIER` | `0.45` |
 | `ADAPTIVE_RISK_MAX_MULTIPLIER` | `1.25` |
-| `HIGH_VOLATILITY_ATR_PCT` | `0.90` |
-| `ABNORMAL_VOLATILITY_ATR_PCT` | `1.80` |
+| `HIGH_VOLATILITY_ATR_PCT` | `0.80` |
+| `ABNORMAL_VOLATILITY_ATR_PCT` | `1.60` |
 
 ## Position Mode
 

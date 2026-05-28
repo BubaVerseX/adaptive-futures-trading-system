@@ -408,7 +408,9 @@ async function testSurvivabilityScannerScoring() {
   const strong = scanner.scoreDirection("LONG", item, scannerAnalysis(), scannerAnalysis(), scannerAnalysis(), "UP", []);
   assert.equal(strong.eligible, true);
   assert.ok(strong.scoreBreakdown.some((reason) => reason.includes("BTC trend alignment")));
-  assert.ok(strong.scoreBreakdown.some((reason) => reason.includes("projected edge clears fees/spread")));
+  assert.ok(strong.scoreBreakdown.some((reason) => reason.includes("fee-aware expected edge clears costs")));
+  assert.ok(strong.convictionScore >= cfg.minConvictionScore);
+  assert.ok(strong.feeEdgeRatio >= cfg.minEdgeToCostRatio);
 
   scanner.cachedBenchmarkDirections = { BTCUSDT: "CHOPPY", ETHUSDT: "CHOPPY" };
   const weak = scanner.scoreDirection(
@@ -445,6 +447,41 @@ async function testSurvivabilityScannerScoring() {
   assert.equal(weak.eligible, false);
   assert.ok(weak.rejected.some((reason) => reason.includes("volume confirmation")));
   assert.ok(weak.rejected.some((reason) => reason.includes("momentum did not persist")));
+  assert.ok(weak.rejected.some((reason) => reason.includes("anti-chop filter")));
+}
+
+async function testExplorationSignalPath() {
+  const { log } = logCollector();
+  const cfg = config({
+    minSignalScore: 90,
+    minConvictionScore: 80,
+    explorationModeEnabled: true,
+    explorationMinSignalScore: 40,
+    explorationMinConvictionScore: 45,
+    explorationMinProjectedEdgePct: 0.2,
+    explorationMinEdgeToCostRatio: 1.3,
+    explorationMaxChopScore: 3,
+    min24hVolumeUsdt: 100000,
+    maxSpreadPct: 0.6,
+    minVolumeSpike: 1.35,
+    minMomentumPersistenceCandles: 2,
+  });
+  const scanner = new Scanner(cfg, {}, log);
+  scanner.cachedBenchmarkDirections = { BTCUSDT: "UP", ETHUSDT: "UP" };
+  const exploratory = scanner.scoreDirection(
+    "LONG",
+    { info: { symbol: "ADAUSDT" }, price: 1, volume: 3000000, spreadPct: 0.04 },
+    scannerAnalysis({ breakout: false, volumeSpike: 1.5, momentumPct: 0.13, lastCandleMomentumPct: 0.04 }),
+    scannerAnalysis({ breakout: false, volumeSpike: 1.45, momentumPct: 0.1, lastCandleMomentumPct: 0.03 }),
+    scannerAnalysis(),
+    "UP",
+    []
+  );
+  assert.equal(exploratory.eligible, true);
+  assert.equal(exploratory.explorationTrade, true);
+  assert.equal(exploratory.tradeCategory, "EXPLORATION");
+  assert.ok(exploratory.score < exploratory.requiredScore);
+  assert.ok(Array.isArray(exploratory.explorationWaivedRejections));
 }
 
 async function testFeeAwareStatsAndSymbolCooldown() {
@@ -499,6 +536,130 @@ async function testFeeAwareStatsAndSymbolCooldown() {
   assert.ok(bot.store.state.performance.totalFeesUsdt > 0);
   assert.ok(Date.parse(bot.store.state.symbolCooldowns.BTCUSDT.lossCooldownUntil) > Date.now());
   assert.ok(events.some((event) => event.message === "Performance stats updated."));
+}
+
+async function testFeeAwareEntryAndDynamicSizing() {
+  const { log } = logCollector();
+  const bot = new LadderBot(config({ dryRun: true }));
+  bot.log = log;
+  const rejected = bot.feeAwareEntryCheck({
+    projectedNetEdgePct: 0.1,
+    feeEdgeRatio: 1.1,
+    convictionScore: 85,
+  });
+  assert.equal(rejected.rejected, true);
+  assert.match(rejected.reason, /edge|move/i);
+  const exploratoryPass = bot.feeAwareEntryCheck({
+    explorationTrade: true,
+    projectedNetEdgePct: bot.config.explorationMinProjectedEdgePct + 0.02,
+    feeEdgeRatio: bot.config.explorationMinEdgeToCostRatio + 0.05,
+    convictionScore: bot.config.explorationMinConvictionScore + 1,
+  });
+  assert.equal(exploratoryPass.rejected, false);
+
+  bot.store.state = {
+    ladder: { activeLevel: 1, highestUnlockedLevel: 1, levelStartEquity: 100, riskDowngraded: false },
+  };
+  bot.risk.store = bot.store;
+  const symbolInfo = {
+    lotSizeFilter: { qtyStep: "0.001", minOrderQty: "0.001", minNotionalValue: "1" },
+    priceFilter: { tickSize: "0.01" },
+  };
+  const strongPlan = bot.risk.sizingPlan(
+    {
+      score: 90,
+      price: 10,
+      side: "LONG",
+      convictionScore: 86,
+      liquidityScore: 82,
+      btcTrendAligned: true,
+      volumeCondition: "STRONG_VOLUME_SPIKE",
+      projectedNetEdgePct: 1.4,
+      feeEdgeRatio: 4,
+      adaptiveRiskMultiplier: 1.05,
+    },
+    100,
+    symbolInfo,
+    5
+  );
+  assert.equal(strongPlan.rejected, false);
+  assert.ok(strongPlan.qualitySizeMultiplier > 1);
+  assert.equal(strongPlan.highQualityContinuation, true);
+
+  const weakPlan = bot.risk.sizingPlan(
+    {
+      score: 55,
+      price: 10,
+      side: "LONG",
+      convictionScore: 63,
+      liquidityScore: 50,
+      btcTrendAligned: false,
+      volumeCondition: "EARLY_VOLUME",
+      projectedNetEdgePct: 0.8,
+      feeEdgeRatio: 2.45,
+      adaptiveRiskMultiplier: 1,
+      volatilityRegime: "HIGH_VOLATILITY",
+    },
+    100,
+    symbolInfo,
+    5
+  );
+  assert.equal(weakPlan.rejected, false);
+  assert.ok(weakPlan.qualitySizeMultiplier < 1);
+
+  const explorationPlan = bot.risk.sizingPlan(
+    {
+      score: 50,
+      price: 10,
+      side: "LONG",
+      convictionScore: 52,
+      liquidityScore: 60,
+      btcTrendAligned: true,
+      volumeCondition: "CONFIRMED_VOLUME",
+      projectedNetEdgePct: 0.4,
+      feeEdgeRatio: 1.7,
+      adaptiveRiskMultiplier: 1,
+      explorationTrade: true,
+    },
+    100,
+    symbolInfo,
+    5
+  );
+  assert.equal(explorationPlan.rejected, false);
+  assert.equal(explorationPlan.explorationSizing, true);
+  assert.ok(explorationPlan.qualitySizeMultiplier <= bot.config.explorationRiskMultiplier);
+}
+
+async function testMomentumContinuationHoldLogic() {
+  const bot = new LadderBot(config({ dryRun: true }));
+  const position = {
+    symbol: "ADAUSDT",
+    side: "LONG",
+    openedAt: new Date(Date.now() - 180000).toISOString(),
+  };
+  const strong = bot.strongMomentumContinuation(position, {
+    symbol: "ADAUSDT",
+    side: "LONG",
+    momentum1mPct: 0.3,
+    momentum5mPct: 0.2,
+    convictionScore: 78,
+    momentumPersistenceCandles: 4,
+    volumeCondition: "CONFIRMED_VOLUME",
+    volatilityRegime: "NORMAL",
+  }, 0.6);
+  assert.equal(strong, true);
+
+  const noisy = bot.strongMomentumContinuation(position, {
+    symbol: "ADAUSDT",
+    side: "SHORT",
+    momentum1mPct: -0.1,
+    momentum5mPct: -0.1,
+    convictionScore: 50,
+    momentumPersistenceCandles: 1,
+    volumeCondition: "LOW_VOLUME",
+    volatilityRegime: "NORMAL",
+  }, 0.6);
+  assert.equal(noisy, false);
 }
 
 function memoryRecord(overrides = {}) {
@@ -601,6 +762,51 @@ async function testAdaptiveEnginePolicyAndConfidence() {
   assert.ok(bad.scoreAdjustment < 0);
 }
 
+async function testAdaptiveDefensiveRecoveryPolicy() {
+  const { log } = logCollector();
+  const adaptive = new AdaptiveEngine(config({
+    minAdaptiveTrades: 6,
+    adaptiveRecoveryLookbackTrades: 8,
+    adaptiveRecoveryWinRatePct: 45,
+  }), log);
+  adaptive.load();
+  adaptive.memory.trades = [
+    ...Array.from({ length: 12 }, (_, index) =>
+      memoryRecord({
+        id: `old-loss-${index}`,
+        realizedPnlPct: -0.8,
+        realizedPnlUsdt: -0.4,
+        result: "SL",
+        winLoss: "LOSS",
+      })
+    ),
+    ...Array.from({ length: 2 }, (_, index) =>
+      memoryRecord({
+        id: `recent-loss-${index}`,
+        realizedPnlPct: -0.5,
+        realizedPnlUsdt: -0.25,
+        result: "SL",
+        winLoss: "LOSS",
+      })
+    ),
+    ...Array.from({ length: 6 }, (_, index) =>
+      memoryRecord({
+        id: `recent-win-${index}`,
+        realizedPnlPct: 0.5,
+        realizedPnlUsdt: 0.2,
+        result: "TP",
+        winLoss: "WIN",
+      })
+    ),
+  ];
+  adaptive.rebuild();
+  const policy = adaptive.currentPolicy();
+  assert.equal(policy.mode, "DEFENSIVE_RECOVERY");
+  assert.ok(policy.riskMultiplier > 0.72);
+  assert.ok(policy.explorationEnabled);
+  assert.ok(policy.explorationBudget >= 1);
+}
+
 async function run() {
   await testClientContracts();
   await testSignedRestHeaders();
@@ -609,9 +815,13 @@ async function run() {
   await testReconciliation();
   await testLiveEntrySafetyUsesParsedUtaBalance();
   await testSurvivabilityScannerScoring();
+  await testExplorationSignalPath();
   await testFeeAwareStatsAndSymbolCooldown();
+  await testFeeAwareEntryAndDynamicSizing();
+  await testMomentumContinuationHoldLogic();
   await testAdaptiveEnginePolicyAndConfidence();
-  console.log("Bybit client and bot tests passed: REST signing, UTA balance parsing, live safety balance use, native protection payloads, WebSocket reconnect, reconciliation, hedge exposure detection, native TP events, survivability scoring, fee-aware stats, symbol cooldowns, and adaptive learning.");
+  await testAdaptiveDefensiveRecoveryPolicy();
+  console.log("Bybit client and bot tests passed: REST signing, UTA balance parsing, live safety balance use, native protection payloads, WebSocket reconnect, reconciliation, hedge exposure detection, native TP events, survivability scoring, exploration path, fee-aware stats, symbol cooldowns, adaptive learning, defensive recovery, fee-aware entries, dynamic sizing, and continuation holds.");
 }
 
 run().catch((error) => {
