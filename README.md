@@ -39,6 +39,7 @@ Defaults now favor full learning-phase participation: frequent protected samplin
 | --- | ---: |
 | `LEARNING_PHASE_MODE` | `true` |
 | `AGGRESSIVE_LEARNING_PHASE` | `true` |
+| `CONTINUOUS_EXECUTION_MODE` | `true` |
 | `DISABLE_DAILY_TRADE_LIMITS` | `true` |
 | `FAST_MODE` | `true` |
 | `FOMO_BREAKOUT_MODE` | `true` |
@@ -67,7 +68,7 @@ Learning-phase controls:
 | `FORCED_SAMPLING_MIN_PROJECTED_EDGE_PCT` | `0.01` |
 | `FORCED_SAMPLING_MIN_EDGE_TO_COST_RATIO` | `1.00` |
 
-If no trade has opened for the configured idle window, forced market sampling can promote moderate exploratory candidates that still have positive projected edge, acceptable liquidity, non-abnormal volatility, no blacklist/exchange-minimum rejection, and no existing same-symbol position. This is designed for data collection, not all-in trading. Aggressive learning phase treats symbol cooldowns as advisory, not execution blockers, so the bot can continue collecting feedback unless a core safety rule rejects the trade.
+If no trade has opened for the configured idle window, forced market sampling can promote moderate exploratory candidates that still have positive projected edge, acceptable liquidity, non-abnormal volatility, no blacklist/exchange-minimum rejection, and no existing same-symbol position. This is designed for data collection, not all-in trading. Continuous execution mode removes trade-count blockers and clears stale saved pauses created by old daily-limit logic. Aggressive learning phase treats symbol cooldowns as advisory, not execution blockers, so the bot can continue collecting feedback unless a core safety rule rejects the trade.
 
 Fee-efficiency controls:
 

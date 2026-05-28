@@ -361,6 +361,7 @@ class AdaptiveEngine {
       enough &&
       last20.feeAdjustedPnlUsdt < 0 &&
       (last20.winRatePct < this.config.defensiveWinRatePct || last20.averagePnlPct < -0.25);
+    const continuousExecution = this.config.continuousExecutionMode || this.config.aggressiveLearningPhase;
     let mode = this.config.aggressiveLearningPhase ? "AGGRESSIVE_LEARNING_PHASE" : this.config.learningPhaseMode ? "LEARNING_PHASE" : "BASELINE";
     let riskMultiplier = 1;
     let signalThresholdAdjustment = 0;
@@ -418,7 +419,7 @@ class AdaptiveEngine {
       activityFloorEngaged = maxTradesPerDay > preFloorMaxTradesPerDay;
     }
     let explorationBudget = this.config.explorationModeEnabled
-      ? this.config.disableDailyTradeLimits || this.config.aggressiveLearningPhase
+      ? this.config.disableDailyTradeLimits || continuousExecution
         ? Number.MAX_SAFE_INTEGER
         : Math.min(
             this.config.explorationMaxTradesPerDay,
@@ -447,8 +448,9 @@ class AdaptiveEngine {
       recoveryAggressionRestored,
       learningPhaseActive: this.config.learningPhaseMode,
       aggressiveLearningPhaseActive: this.config.aggressiveLearningPhase,
-      dailyTradeLimitsDisabled: this.config.disableDailyTradeLimits,
-      explorationDailyCapDisabled: this.config.disableDailyTradeLimits || this.config.aggressiveLearningPhase,
+      continuousExecutionMode: this.config.continuousExecutionMode,
+      dailyTradeLimitsDisabled: this.config.disableDailyTradeLimits || continuousExecution,
+      explorationDailyCapDisabled: this.config.disableDailyTradeLimits || continuousExecution,
       riskMultiplier: clamp(riskMultiplier, this.config.adaptiveRiskMinMultiplier, this.config.adaptiveRiskMaxMultiplier),
       signalThresholdAdjustment,
       minSignalScore: clamp(this.config.minSignalScore + signalThresholdAdjustment, 1, 100),
@@ -476,7 +478,7 @@ class AdaptiveEngine {
       },
       maxLeverage: clamp(maxLeverage, 1, this.config.maxLeverage),
       maxOpenPositions: clamp(maxOpenPositions, 1, this.config.maxOpenPositions),
-      maxTradesPerDay: this.config.disableDailyTradeLimits || this.config.aggressiveLearningPhase ? Number.MAX_SAFE_INTEGER : clamp(maxTradesPerDay, 1, this.config.maxTradesPerDay),
+      maxTradesPerDay: this.config.disableDailyTradeLimits || continuousExecution ? Number.MAX_SAFE_INTEGER : clamp(maxTradesPerDay, 1, this.config.maxTradesPerDay),
     };
   }
 

@@ -2,6 +2,7 @@
 
 const assert = require("node:assert/strict");
 const EventEmitter = require("node:events");
+const fs = require("node:fs");
 
 const { BybitClient, intervalForApi, normalizedOrderStatus, parseUnifiedUsdtBalance, queryString } = require("../src/bybitClient");
 const { LadderBot } = require("../src/bot");
@@ -1022,6 +1023,7 @@ async function testAdaptiveActivityFloorPolicy() {
     activityFloorConvictionRelaxPoints: 4,
     minAdaptiveTrades: 5,
     aggressiveLearningPhase: false,
+    continuousExecutionMode: false,
     disableDailyTradeLimits: false,
   }), log);
   adaptive.load();
@@ -1079,6 +1081,35 @@ async function testLearningPhaseDisablesDailyTradeLimits() {
   const lossLocked = capped.risk.dailyLock(79);
   assert.equal(lossLocked.locked, true);
   assert.equal(lossLocked.reason, "maximum daily loss reached");
+}
+
+async function testContinuousExecutionClearsStaleTradeLimitPause() {
+  const cfg = config({
+    continuousExecutionMode: true,
+    dryRun: true,
+  });
+  fs.writeFileSync(
+    cfg.stateFile,
+    JSON.stringify({
+      mode: "DRY_RUN",
+      exchange: "BYBIT_V5_LINEAR",
+      strategyProfile: "BYBIT_ADAPTIVE_STAT_SCALP_V2",
+      paused: true,
+      pauseReason: ["adaptive", "maximum", "daily", "trades", "reached"].join(" "),
+      openPositions: [],
+      equity: { realizedPnlUsdt: 0 },
+      ladder: { activeLevel: 1, highestUnlockedLevel: 1, levelStartEquity: 100, riskDowngraded: false },
+    }),
+    "utf8"
+  );
+  fs.writeFileSync(cfg.tradesFile, "[]", "utf8");
+  const bot = new LadderBot(cfg);
+  bot.store.load();
+  assert.equal(bot.store.state.paused, false);
+  assert.equal(bot.store.state.pauseReason, null);
+  bot.store.state.daily = { startingEquity: 100, tradesOpened: 9999, losingTrades: 0, realizedPnlUsdt: 0 };
+  bot.risk.store = bot.store;
+  assert.equal(bot.risk.entryBlockReason(100, "BTCUSDT"), null);
 }
 
 async function testAggressiveLearningCooldownsAreAdvisory() {
@@ -1166,6 +1197,7 @@ async function run() {
   await testAdaptiveDefensiveRecoveryPolicy();
   await testAdaptiveActivityFloorPolicy();
   await testLearningPhaseDisablesDailyTradeLimits();
+  await testContinuousExecutionClearsStaleTradeLimitPause();
   await testAggressiveLearningCooldownsAreAdvisory();
   await testForcedMarketSamplingPromotion();
   console.log("Bybit client and bot tests passed: REST signing, UTA balance parsing, live safety balance use, native protection payloads, WebSocket reconnect, reconciliation, hedge exposure detection, native TP events, regime intelligence, survivability scoring, exploration path, exploration memory relaxation, fee-aware stats, advisory symbol cooldowns, adaptive learning, cautious active recovery, activity floor, daily trade limit removal, forced market sampling, profit protection, fee-aware entries, dynamic sizing, and continuation holds.");

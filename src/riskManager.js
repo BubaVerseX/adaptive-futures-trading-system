@@ -185,7 +185,15 @@ class RiskManager {
   entryBlockReason(equity, symbol) {
     const state = this.store.state;
     const dailyProtection = this.dailyLock(equity);
-    if (state.paused) return state.pauseReason || "manual pause is active";
+    if (state.paused) {
+      if (this.config.continuousExecutionMode && /(?:adaptive\s+)?maximum\s+daily\s+trades|daily\s+trade|exploration\s+quota|participation\s+quota/i.test(String(state.pauseReason || ""))) {
+        state.paused = false;
+        state.pauseReason = null;
+        this.log("WARN", "Execution blocker removed; stale portfolio pause cleared in continuous execution mode.", { symbol });
+      } else {
+        return state.pauseReason || "manual pause is active";
+      }
+    }
     if (dailyProtection.locked) return dailyProtection.reason;
     if (
       !this.config.dryRun &&

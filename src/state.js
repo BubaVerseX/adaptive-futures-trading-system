@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const EXCHANGE_ID = "BYBIT_V5_LINEAR";
 const CURRENT_STRATEGY_PROFILE = "BYBIT_ADAPTIVE_STAT_SCALP_V2";
+const REMOVED_EXECUTION_PAUSE_REASONS = /(?:adaptive\s+)?maximum\s+daily\s+trades|daily\s+trade\s+limit|exploration\s+quota|participation\s+quota/i;
 
 function readJson(file, fallback) {
   try {
@@ -96,6 +97,7 @@ class StateStore {
     this.resetCountersOnModeChange();
     this.removePositionsFromAnotherMode();
     this.migrateStrategyProfile(loaded.strategyProfile);
+    this.clearRemovedExecutionPause();
     this.rebuildRealizedPnl();
     this.rebuildPerformance();
     this.saveAll();
@@ -176,6 +178,17 @@ class StateStore {
         strategyProfile: CURRENT_STRATEGY_PROFILE,
       });
     }
+  }
+
+  clearRemovedExecutionPause() {
+    if (!this.config.continuousExecutionMode || !this.state.paused) return;
+    if (!REMOVED_EXECUTION_PAUSE_REASONS.test(String(this.state.pauseReason || ""))) return;
+    const oldReason = this.state.pauseReason;
+    this.state.paused = false;
+    this.state.pauseReason = null;
+    this.log("WARN", "Continuous execution mode active; removed stale portfolio execution blocker from saved state.", {
+      oldReason,
+    });
   }
 
   rebuildRealizedPnl() {
