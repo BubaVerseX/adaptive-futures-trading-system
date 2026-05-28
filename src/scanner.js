@@ -67,6 +67,45 @@ function trendQualityScore(config, main, fast, supportsTrend, emaAccelerating, m
   return bounded(score, 0, 100);
 }
 
+function estimatedTpProbability(config, context) {
+  let probability = 0.38;
+  if (context.supportsTrend) probability += 0.08;
+  if (context.multiTimeframeAligned) probability += 0.07;
+  if (context.hasMomentumPersistence) probability += 0.07;
+  if (context.breakSignal) probability += 0.06;
+  if (context.fomoTrigger) probability += 0.05;
+  if (context.volumeSpike >= config.minVolumeSpike + 0.65) probability += 0.08;
+  else if (context.volumeSpike >= config.minVolumeSpike) probability += 0.04;
+  if (context.btcSupportsSide) probability += 0.05;
+  if (context.ethSupportsSide) probability += 0.03;
+  if (context.symbolTrendQualityScore >= 75) probability += 0.05;
+  if (context.marketRegimeTags.includes("STRONG_TRENDING_MARKET")) probability += 0.05;
+  if (context.marketRegimeTags.includes("HIGH_VOLATILITY_BREAKOUT_MARKET")) probability += 0.04;
+  if (context.marketRegimeTags.includes("SIDEWAYS_CHOP_MARKET")) probability -= 0.08;
+  if (context.marketRegimeTags.includes("FAKE_BREAKOUT_ENVIRONMENT")) probability -= 0.1;
+  if (context.btcContradictsSide) probability -= 0.08;
+  if (context.chopScore > config.maxChopScore) probability -= 0.05;
+  return Number(bounded(probability, 0.22, 0.82).toFixed(3));
+}
+
+function marketPersonality(config, context) {
+  if (
+    context.marketRegimeTags.includes("HIGH_VOLATILITY_BREAKOUT_MARKET") &&
+    (context.fomoTrigger || context.breakSignal) &&
+    context.volumeSpike >= config.minVolumeSpike + 0.45
+  ) return "EXPLOSIVE_TRENDING";
+  if (
+    context.marketRegimeTags.includes("STRONG_TRENDING_MARKET") &&
+    context.multiTimeframeAligned &&
+    context.hasMomentumPersistence
+  ) return "HIGH_MOMENTUM_CONTINUATION";
+  if (
+    context.marketRegimeTags.includes("SIDEWAYS_CHOP_MARKET") ||
+    context.marketRegimeTags.includes("FAKE_BREAKOUT_ENVIRONMENT")
+  ) return "WEAK_CHOP";
+  return "FOCUSED_ACTIVE";
+}
+
 function antiChopScore(config, context) {
   if (!config.antiChopEnabled) return { score: 0, reasons: [] };
   const reasons = [];
@@ -127,6 +166,18 @@ function technicalConvictionScore(config, parts) {
   };
 }
 
+function eliteConditionKey(signal) {
+  const tags = Array.isArray(signal.marketRegimeTags) ? signal.marketRegimeTags : [];
+  const regime = tags.includes("HIGH_VOLATILITY_BREAKOUT_MARKET")
+    ? "BREAKOUT_VOL"
+    : tags.includes("STRONG_TRENDING_MARKET")
+      ? "TREND"
+      : signal.marketRegimeType || signal.regime || "UNKNOWN";
+  const momentum = Number(signal.momentumPersistenceCandles || 0) >= 4 ? "PERSIST_4" : "PERSIST_2";
+  const volume = signal.volumeCondition || "UNKNOWN_VOLUME";
+  return `${signal.symbol}:${signal.side}:${signal.setupType || "SETUP"}:${regime}:${volume}:${momentum}:${signal.sessionRegime || "SESSION"}`;
+}
+
 function explorationBlockReason(config, signal) {
   if (!config.explorationModeEnabled) return "exploration mode disabled";
   const aggressiveLearning = Boolean(config.aggressiveLearningPhase);
@@ -134,6 +185,7 @@ function explorationBlockReason(config, signal) {
   const regimeScoreHike = Math.max(0, Math.floor(Number(signal.regimeMinSignalAdjustment || 0) / 2));
   const regimeConvictionHike = Math.max(0, Math.floor(Number(signal.regimeMinConvictionAdjustment || 0) / 2));
   const edgeMultiplier = signal.qualityPacingActive ? config.qualityPacingEdgeMultiplier : 1;
+  const highActivity = Boolean(config.highActivityMode);
   if (!aggressiveLearning && Number(signal.regimeExplorationMultiplier || 1) <= 0.25) return "exploration blocked by defensive market regime";
   if (!aggressiveLearning && tags.includes("DEAD_MARKET_CONDITIONS") && !signal.fomoTrigger) return "exploration blocked during dead market conditions";
   if (!aggressiveLearning && tags.includes("FAKE_BREAKOUT_ENVIRONMENT") && !signal.btcTrendAligned) return "exploration blocked by fake breakout environment";
@@ -142,7 +194,7 @@ function explorationBlockReason(config, signal) {
     signal.fomoTrigger ||
     signal.breakoutTriggered ||
     Number(signal.momentumPersistenceCandles || 0) >= config.minMomentumPersistenceCandles ||
-    (signal.btcTrendAligned && Number(signal.trendQualityScore || 0) >= 58);
+    (signal.btcTrendAligned && Number(signal.trendQualityScore || 0) >= (highActivity ? 52 : 58));
   if (!continuationClue) return "smarter exploration active: weak continuation clue rejected";
   if (
     signal.volumeCondition === "LOW_VOLUME" &&
@@ -152,14 +204,14 @@ function explorationBlockReason(config, signal) {
       signal.liquidityScore >= config.minLiquidityScore
     )
   ) return "exploration blocked by low volume condition";
-  const liquidityFloor = config.minLiquidityScore * (aggressiveLearning ? 0.45 : 0.8);
+  const liquidityFloor = config.minLiquidityScore * (highActivity ? 0.4 : aggressiveLearning ? 0.45 : 0.8);
   if (signal.liquidityScore < liquidityFloor) return "exploration blocked by weak liquidity";
   const chopLimit = config.explorationMaxChopScore + (config.adaptiveActivityFloorEnabled ? config.activityFloorChopToleranceBonus : 0);
   if (signal.antiChopScore > chopLimit + (aggressiveLearning ? 2 : 0)) return "noisy chop setup rejected: excessive anti-chop score";
   if (
     signal.microBreakoutTriggered &&
     Number(signal.momentumPersistenceCandles || 0) < config.minMomentumPersistenceCandles &&
-    Number(signal.volumeSpike || 0) < config.minVolumeSpike + 0.15
+    Number(signal.volumeSpike || 0) < config.minVolumeSpike + (highActivity ? 0.05 : 0.15)
   ) return "micro-scalp filtered: micro-breakout lacks volume and persistence";
   if (signal.projectedNetEdgePct < config.explorationMinProjectedEdgePct * edgeMultiplier) return "exploration blocked by insufficient fee-adjusted edge";
   if (signal.feeEdgeRatio < config.explorationMinEdgeToCostRatio * edgeMultiplier) return "exploration blocked by weak edge-to-cost ratio";
@@ -327,13 +379,9 @@ class Scanner {
       const candleLimit = this.config.fastMode ? 30 : 80;
       const candleRequests = [
         this.client.getKlines(item.info.symbol, this.config.candleIntervalFast, candleLimit),
+        this.client.getKlines(item.info.symbol, this.config.candleIntervalMain, candleLimit),
+        this.client.getKlines(item.info.symbol, this.config.candleIntervalTrend, 80),
       ];
-      if (!(this.config.fastMode && this.config.fomoBreakoutMode)) {
-        candleRequests.push(this.client.getKlines(item.info.symbol, this.config.candleIntervalMain, candleLimit));
-      }
-      if (!this.config.fastMode) {
-        candleRequests.push(this.client.getKlines(item.info.symbol, this.config.candleIntervalTrend, 80));
-      }
       rawCandles = await Promise.all(candleRequests);
     } catch (error) {
       this.scanErrors += 1;
@@ -342,10 +390,8 @@ class Scanner {
     }
     const minimumCandles = this.config.fastMode ? 24 : 55;
     const fast = analyzeCandles(parseCandles(rawCandles[0]), minimumCandles);
-    const main = this.config.fastMode && this.config.fomoBreakoutMode
-      ? fast
-      : analyzeCandles(parseCandles(rawCandles[1]), minimumCandles);
-    const trend = this.config.fastMode ? main : analyzeCandles(parseCandles(rawCandles[2]));
+    const main = analyzeCandles(parseCandles(rawCandles[1]), minimumCandles);
+    const trend = analyzeCandles(parseCandles(rawCandles[2]));
     if (!fast || !main || !trend) {
       this.log("DEBUG", "Symbol rejected: missing required candle history.", { symbol: item.info.symbol });
       return null;
@@ -370,6 +416,8 @@ class Scanner {
     const rejected = [...commonReject];
     const mainTrend = emaDirection(main);
     const trend15 = emaDirection(trend);
+    const multiTimeframeAligned = mainTrend === direction && trend15 === direction;
+    const multiTimeframeContradicts = mainTrend === (long ? "DOWN" : "UP") || trend15 === (long ? "DOWN" : "UP");
     const supportsTrend = long
       ? Number.isFinite(main.ema50) && main.ema9 > main.ema21 && main.ema21 > main.ema50
       : Number.isFinite(main.ema50) && main.ema9 < main.ema21 && main.ema21 < main.ema50;
@@ -461,6 +509,44 @@ class Scanner {
       spreadPct: item.spreadPct,
       trendQualityScore: symbolTrendQualityScore,
     });
+    const tpProbability = estimatedTpProbability(this.config, {
+      supportsTrend,
+      multiTimeframeAligned,
+      hasMomentumPersistence,
+      breakSignal,
+      fomoTrigger,
+      volumeSpike,
+      btcSupportsSide,
+      ethSupportsSide,
+      btcContradictsSide,
+      symbolTrendQualityScore,
+      marketRegimeTags,
+      chopScore: chop.score,
+    });
+    const smartProjectedNetEdgePct = Number(
+      (expectedMovePct * tpProbability - estimatedRoundTripCostPct * this.config.smartEdgeCostBufferMultiplier).toFixed(4)
+    );
+    const personality = marketPersonality(this.config, {
+      marketRegimeTags,
+      fomoTrigger,
+      breakSignal,
+      volumeSpike,
+      multiTimeframeAligned,
+      hasMomentumPersistence,
+    });
+    const highActivityContinuation =
+      this.config.highActivityMode &&
+      hasMomentumPersistence &&
+      (supportsTrend || multiTimeframeAligned || btcSupportsSide) &&
+      (volumeSpike >= this.config.minVolumeSpike || fomoTrigger || breakSignal) &&
+      symbolTrendQualityScore >= 56 &&
+      projectedNetEdgePct >= this.config.explorationMinProjectedEdgePct &&
+      feeEdgeRatio >= this.config.explorationMinEdgeToCostRatio;
+    const eliteContinuationCandidate =
+      highActivityContinuation &&
+      (personality === "EXPLOSIVE_TRENDING" || personality === "HIGH_MOMENTUM_CONTINUATION" || marketRegimeTags.includes("STRONG_TRENDING_MARKET")) &&
+      volumeSpike >= this.config.minVolumeSpike + 0.25 &&
+      (breakSignal || fomoTrigger || directedFastMomentum >= this.config.fomoMomentumPct * 0.9);
     const addScore = (description, points) => {
       score += points;
       scoreBreakdown.push(`${description} ${points >= 0 ? "+" : ""}${points}`);
@@ -495,6 +581,9 @@ class Scanner {
     if (volumeSpike >= this.config.minVolumeSpike + 0.45 && hasMomentumPersistence) {
       addScore("volume-backed momentum persistence", 5);
     }
+    if (highActivityContinuation) {
+      addScore("elite continuation detected", eliteContinuationCandidate ? 8 : 5);
+    }
     if (microBreakoutTriggered && !hasMomentumPersistence) {
       addScore("micro-scalp quality penalty", -6);
     }
@@ -517,6 +606,11 @@ class Scanner {
     }
     if (ethSupportsSide) {
       addScore("ETH trend alignment", 4);
+    }
+    if (multiTimeframeAligned) {
+      addScore("multi-timeframe confirmation passed", 6);
+    } else if (multiTimeframeContradicts) {
+      addScore("multi-timeframe confirmation failed", -6);
     }
     if (supportsMarket) {
       addScore("BTC/ETH regime agrees", 3);
@@ -579,6 +673,20 @@ class Scanner {
         `fee inefficiency: expected move ${expectedMovePct.toFixed(3)}% vs cost ${estimatedRoundTripCostPct.toFixed(3)}% ratio ${feeEdgeRatio.toFixed(2)}`
       );
     }
+    if (smartProjectedNetEdgePct >= this.config.smartEdgeMinNetPct && tpProbability >= this.config.smartEdgeMinTpProbability) {
+      addScore("projected net edge validated", 7);
+    } else {
+      rejected.push(
+        `smart edge filter: probability-adjusted edge ${smartProjectedNetEdgePct.toFixed(3)}% with TP probability ${tpProbability.toFixed(3)}`
+      );
+    }
+    if (personality === "EXPLOSIVE_TRENDING") {
+      addScore("adaptive market personality switched: explosive trending", 5);
+    } else if (personality === "HIGH_MOMENTUM_CONTINUATION") {
+      addScore("adaptive market personality switched: momentum continuation", 4);
+    } else if (personality === "WEAK_CHOP") {
+      addScore("adaptive market personality switched: weak chop", -4);
+    }
     if (lowLiquidityRandomSpike) {
       addScore("low-liquidity random spike penalty", -this.config.lowLiquiditySpikePenalty);
     }
@@ -625,8 +733,14 @@ class Scanner {
     }
 
     if (regime === "CHOPPY" && !this.config.allowChoppyMarket) rejected.push("choppy-market entries disabled by configuration");
-    const volumeSurvivabilityFloor = this.config.aggressiveLearningPhase ? this.config.minVolumeSpike * 0.8 : this.config.learningPhaseMode ? this.config.minVolumeSpike * 0.72 : this.config.minVolumeSpike;
-    if (volumeSpike < volumeSurvivabilityFloor && !fomoTrigger) rejected.push("volume confirmation below survivability threshold");
+    const volumeSurvivabilityFloor = this.config.highActivityMode
+      ? this.config.minVolumeSpike * 0.7
+      : this.config.aggressiveLearningPhase
+        ? this.config.minVolumeSpike * 0.8
+        : this.config.learningPhaseMode
+          ? this.config.minVolumeSpike * 0.72
+          : this.config.minVolumeSpike;
+    if (volumeSpike < volumeSurvivabilityFloor && !fomoTrigger && !highActivityContinuation) rejected.push("volume confirmation below survivability threshold");
     if (!hasMomentumPersistence && !fomoTrigger && !breakSignal) rejected.push("momentum did not persist long enough");
     if (
       regime === "CHOPPY" &&
@@ -658,6 +772,8 @@ class Scanner {
       expectedMovePct,
       estimatedRoundTripCostPct,
       projectedNetEdgePct,
+      smartProjectedNetEdgePct,
+      estimatedTpProbability: tpProbability,
       feeEdgeRatio,
       roundTripFeePct,
       estimatedSlippagePct: this.config.estimatedSlippagePct,
@@ -669,6 +785,10 @@ class Scanner {
       btcTrend,
       ethTrend,
       btcTrendAligned: btcSupportsSide,
+      multiTimeframeAligned,
+      marketPersonality: personality,
+      highActivityContinuation,
+      eliteContinuationCandidate,
       trend15m: trend15,
       trend5m: mainTrend,
       reasons: scoreBreakdown,
@@ -720,7 +840,7 @@ class Scanner {
     });
     baseSignal.technicalConvictionScore = conviction.score;
     baseSignal.convictionComponents = conviction.components;
-    const signal = this.applyAdaptiveLearning(baseSignal);
+    const signal = this.applyEliteClassification(this.applyAdaptiveLearning(baseSignal));
     const policyRequiredScore = this.adaptive && this.config.adaptiveLearningEnabled
       ? this.adaptive.currentPolicy().minSignalScore
       : this.config.minSignalScore;
@@ -745,7 +865,7 @@ class Scanner {
       (policy && policy.activityFloorEngaged) ||
         (!policy && this.config.adaptiveActivityFloorEnabled && (activityScoreRelax > 0 || activityConvictionRelax > 0))
     );
-    signal.tradeCategory = "HIGH_CONVICTION";
+    signal.tradeCategory = signal.eliteSetup ? "ELITE_SETUP" : "HIGH_CONVICTION";
     signal.explorationTrade = false;
     signal.strictRejectedReasons = [...signal.rejected];
     const highConvictionEligible = signal.score >= requiredScore && signal.rejected.length === 0;
@@ -776,6 +896,37 @@ class Scanner {
         signal.rejected = [];
         signal.scoreBreakdown.push("adaptive exploration active +0");
       }
+    }
+    return signal;
+  }
+
+  applyEliteClassification(signal) {
+    const tags = Array.isArray(signal.marketRegimeTags) ? signal.marketRegimeTags : [];
+    const strongRegime =
+      tags.includes("STRONG_TRENDING_MARKET") ||
+      tags.includes("HIGH_VOLATILITY_BREAKOUT_MARKET") ||
+      signal.marketPersonality === "EXPLOSIVE_TRENDING" ||
+      signal.marketPersonality === "HIGH_MOMENTUM_CONTINUATION";
+    const highActivityContinuation = Boolean(this.config.highActivityMode && signal.eliteContinuationCandidate);
+    const highConfluence = Boolean(
+      Number(signal.score || 0) >= this.config.eliteMinScore - (highActivityContinuation ? 3 : 0) &&
+        Number(signal.convictionScore || 0) >= this.config.eliteMinConvictionScore - (highActivityContinuation ? 3 : 0) &&
+        Number(signal.projectedNetEdgePct || 0) >= this.config.eliteMinProjectedEdgePct - (highActivityContinuation ? 0.1 : 0) &&
+        Number(signal.smartProjectedNetEdgePct || 0) >= this.config.smartEdgeMinNetPct &&
+        Number(signal.feeEdgeRatio || 0) >= this.config.eliteMinFeeEdgeRatio - (highActivityContinuation ? 0.15 : 0) &&
+        Number(signal.volumeSpike || 0) >= this.config.eliteMinVolumeSpike - (highActivityContinuation ? 0.1 : 0) &&
+        Number(signal.trendQualityScore || 0) >= this.config.eliteMinTrendQuality - (highActivityContinuation ? 4 : 0) &&
+        Number(signal.momentumPersistenceCandles || 0) >= this.config.eliteMinMomentumPersistenceCandles &&
+        signal.btcTrendAligned &&
+        (signal.multiTimeframeAligned || highActivityContinuation) &&
+        strongRegime &&
+        (signal.breakoutTriggered || signal.fomoTrigger)
+    );
+    signal.eliteSetup = highConfluence;
+    signal.eliteConditionKey = eliteConditionKey(signal);
+    if (highConfluence) {
+      signal.scoreBreakdown.push("ELITE_SETUP classification +0");
+      signal.adaptiveReasons = [...(signal.adaptiveReasons || []), "high-confluence setup confirmed: elite setup detected"];
     }
     return signal;
   }
@@ -831,7 +982,7 @@ class Scanner {
     const regime = market.direction;
     const universe = await this.universe();
     // Multiple analyses queue concurrently; the API client still paces actual requests to limit 429s.
-    // FOMO + FAST mode needs only the 1-minute candle series for immediate-entry decisions.
+    // Focused BTC/ETH/SOL mode keeps full 1m/5m/15m confirmation fast enough for execution.
     const analyses = await mapLimited(universe, this.config.scanConcurrency, (item) => this.analyzeSymbol(item, market));
     analyses.sort((left, right) => right.score - left.score || right.volume24hUsdt - left.volume24hUsdt);
     for (const item of analyses.slice(0, 10)) {
@@ -843,6 +994,8 @@ class Scanner {
         requiredScore: item.requiredScore,
         setupType: item.setupType,
         tradeCategory: item.tradeCategory,
+        eliteSetup: item.eliteSetup,
+        marketPersonality: item.marketPersonality,
         explorationTrade: item.explorationTrade,
         explorationRequiredScore: item.explorationRequiredScore,
         explorationRequiredConvictionScore: item.explorationRequiredConvictionScore,
@@ -858,6 +1011,8 @@ class Scanner {
         momentumPersistenceCandles: item.momentumPersistenceCandles,
         atrPct: item.atrPct.toFixed(3),
         projectedNetEdgePct: item.projectedNetEdgePct.toFixed(3),
+        smartProjectedNetEdgePct: item.smartProjectedNetEdgePct.toFixed(3),
+        estimatedTpProbability: item.estimatedTpProbability,
         expectedMovePct: item.expectedMovePct.toFixed(3),
         estimatedRoundTripCostPct: item.estimatedRoundTripCostPct.toFixed(3),
         feeEdgeRatio: item.feeEdgeRatio.toFixed(2),
@@ -901,7 +1056,7 @@ class Scanner {
       adaptiveMinimumScore: this.adaptive && this.config.adaptiveLearningEnabled ? this.adaptive.currentPolicy().minSignalScore : this.config.minSignalScore,
       adaptiveMode: this.adaptive && this.config.adaptiveLearningEnabled ? this.adaptive.currentPolicy().mode : "DISABLED",
       analysisConcurrency: this.config.scanConcurrency,
-      candleRequestsPerSymbol: this.config.fastMode && this.config.fomoBreakoutMode ? 1 : this.config.fastMode ? 2 : 3,
+      candleRequestsPerSymbol: 3,
       apiErrors: this.scanErrors,
       marketRegimeType: market.primary,
       marketRegimeTags: market.tags,

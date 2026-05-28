@@ -85,6 +85,9 @@ class LadderBot {
     this.unmanagedLiveExposure = false;
     this.closingPositionIds = new Set();
     this.lastAdaptiveMode = null;
+    this.lastMarketPersonality = null;
+    this.apiRecoveryActive = false;
+    this.lastApiRecoveryNoticeAt = 0;
     this.startedAt = Date.now();
   }
 
@@ -102,7 +105,9 @@ class LadderBot {
       x10Mode: this.config.x10Mode,
       learningPhaseMode: this.config.learningPhaseMode,
       aggressiveLearningPhase: this.config.aggressiveLearningPhase,
+      highActivityMode: this.config.highActivityMode,
       continuousExecutionMode: this.config.continuousExecutionMode,
+      apiAutoRecoveryEnabled: this.config.apiAutoRecoveryEnabled,
       dailyTradeLimitsDisabled: this.config.disableDailyTradeLimits,
       forcedMarketSamplingEnabled: this.config.forcedMarketSamplingEnabled,
       fastMode: this.config.fastMode,
@@ -172,8 +177,24 @@ class LadderBot {
         });
       }
       if (this.config.disableDailyTradeLimits) {
-        this.log("WARN", "Daily execution limits disabled; trading continues until manual stop, emergency stop, exchange failure, or core catastrophic safety blocks it.");
+        this.log("WARN", "Daily execution limits disabled; trading continues until manual stop, emergency stop, liquidation danger, or core catastrophic safety blocks it.");
       }
+    }
+    if (this.config.highActivityMode) {
+      this.log("WARN", "High activity mode active; BTC/ETH/SOL monitoring intensified while smart edge filtering remains enabled.", {
+        scanIntervalMs: this.config.scanIntervalMs,
+        positionMonitorIntervalMs: this.config.positionMonitorIntervalMs,
+        marketRegimeCacheMs: this.config.marketRegimeCacheMs,
+        focusedSymbols: this.config.focusedTradingSymbolsList,
+      });
+    }
+    if (this.config.apiAutoRecoveryEnabled) {
+      this.log("WARN", "Resilient execution engine active; API errors trigger recovery instead of automatic shutdown.", {
+        maxConsecutiveApiErrorsBeforeEscalation: this.config.maxConsecutiveApiErrors,
+        apiRecoveryBaseBackoffMs: this.config.apiRecoveryBaseBackoffMs,
+        apiRecoveryMaxBackoffMs: this.config.apiRecoveryMaxBackoffMs,
+        nonstopExecutionPreserved: true,
+      });
     }
 
     if (this.emergencyStopRequested()) {
@@ -290,6 +311,11 @@ class LadderBot {
           explorationMinSignalScore: adaptivePolicy.explorationMinSignalScore,
           explorationMinConvictionScore: adaptivePolicy.explorationMinConvictionScore,
         });
+        this.log("INFO", "Smart pacing engaged; low-quality fee bleed is being filtered while activity stays enabled.", {
+          continuousExecutionMode: this.config.continuousExecutionMode,
+          forcedMarketSamplingEnabled: this.config.forcedMarketSamplingEnabled,
+          qualityPacingReason: adaptivePolicy.qualityPacingReason,
+        });
       }
       this.log("INFO", "Cycle risk status.", {
         equityUsdt: beforeEquity.toFixed(4),
@@ -338,7 +364,18 @@ class LadderBot {
       }
 
       const scan = await this.scanner.scan(marketProfile);
-      this.store.state.consecutiveApiErrors = 0;
+      if (scan.hadApiErrors) {
+        await this.handleApiRecovery(new Error("partial scan API data failure"), {
+          source: "PARTIAL_SCAN",
+          countError: false,
+          nonBlocking: true,
+        });
+      } else if (this.store.state.consecutiveApiErrors > 0) {
+        this.log("INFO", "Execution resumed automatically after API recovery.", {
+          previousConsecutiveApiErrors: this.store.state.consecutiveApiErrors,
+        });
+        this.store.state.consecutiveApiErrors = 0;
+      }
       this.store.saveState();
       if (scan.hadApiErrors && !(this.config.fastMode && this.config.allowPartialScanEntries && scan.candidates.length)) {
         this.log("WARN", "New entries skipped because at least one scanned symbol had an API data failure.");
@@ -352,23 +389,164 @@ class LadderBot {
       const candidates = this.candidatesWithForcedSampling(scan, equity);
       await this.openBestCandidates(candidates, equity, profitProtection, recoveryStatus);
     } catch (error) {
-      this.store.state.consecutiveApiErrors += 1;
-      this.store.saveState();
-      this.log("ERROR", "Trading cycle failed; no new risk will be added.", {
+      this.log("ERROR", "Trading cycle failed; API recovery will retry without shutting down the bot.", {
         error: error.message,
         consecutiveApiErrors: this.store.state.consecutiveApiErrors,
       });
-      await this.telegram.send(`Aggressive Scalping Bot error: ${error.message}`);
-      if (this.store.state.consecutiveApiErrors >= this.config.maxConsecutiveApiErrors) {
-        await this.shutdown("automatic stop after repeated API errors");
-        return;
-      }
+      await this.handleApiRecovery(error, { source: "TRADING_CYCLE", countError: true });
     } finally {
       this.cycleActive = false;
       if (!this.stopping) {
         this.timer = setTimeout(() => void this.runCycle(), this.config.scanIntervalMs);
       }
     }
+  }
+
+  async handleApiRecovery(error, options = {}) {
+    const source = options.source || "UNKNOWN";
+    const countError = options.countError !== false;
+    const nonBlocking = Boolean(options.nonBlocking);
+    if (countError) this.store.state.consecutiveApiErrors += 1;
+    const consecutiveApiErrors = Number(this.store.state.consecutiveApiErrors || 0);
+    const stage = Math.max(1, Math.min(5, nonBlocking ? Math.max(1, Math.min(2, consecutiveApiErrors || 1)) : consecutiveApiErrors || 1));
+    const backoffMs = Math.min(
+      this.config.apiRecoveryMaxBackoffMs,
+      this.config.apiRecoveryBaseBackoffMs * 2 ** Math.max(0, stage - 1)
+    );
+    this.store.state.apiRecovery = {
+      active: true,
+      stage,
+      source,
+      lastError: error.message,
+      lastTriggeredAt: new Date().toISOString(),
+      consecutiveApiErrors,
+      shutdownSuppressed: true,
+    };
+    this.store.saveState();
+
+    if (!this.config.apiAutoRecoveryEnabled) {
+      this.log("WARN", "API auto-recovery disabled, but shutdown on repeated API errors is still suppressed.", {
+        source,
+        error: error.message,
+        consecutiveApiErrors,
+        nonstopExecutionPreserved: true,
+      });
+      return;
+    }
+
+    if (this.apiRecoveryActive && nonBlocking) {
+      this.log("DEBUG", "API recovery already active; partial scan recovery signal coalesced.", {
+        source,
+        error: error.message,
+      });
+      return;
+    }
+
+    this.apiRecoveryActive = true;
+    this.log("WARN", "API auto-recovery triggered.", {
+      source,
+      stage,
+      error: error.message,
+      consecutiveApiErrors,
+      maxConsecutiveApiErrorsBeforeEscalation: this.config.maxConsecutiveApiErrors,
+      automaticShutdownRemoved: true,
+      backoffMs: nonBlocking ? 0 : backoffMs,
+    });
+
+    const now = Date.now();
+    if (now - this.lastApiRecoveryNoticeAt > 60000) {
+      this.lastApiRecoveryNoticeAt = now;
+      await this.telegram.send(`API auto-recovery triggered (${source}, stage ${stage}): ${error.message}`);
+    }
+
+    try {
+      if (!nonBlocking) {
+        this.log("INFO", "API recovery stage 1: retry request after backoff.", { backoffMs });
+        await sleep(backoffMs);
+      }
+      if (stage >= 2) {
+        this.log("WARN", "API recovery stage 2: websocket reconnect requested.", { source });
+        if (typeof this.client.reconnectWebSockets === "function") {
+          this.client.reconnectWebSockets(`api recovery stage ${stage}`);
+        }
+      }
+      if (stage >= 3) {
+        this.log("WARN", "API recovery stage 3: refreshing REST session caches.", { source });
+        if (typeof this.client.refreshSession === "function") this.client.refreshSession();
+        if (!this.config.dryRun && typeof this.client.getUsdtBalance === "function") {
+          await this.client.getUsdtBalance();
+        }
+      }
+      if (stage >= 4) {
+        this.log("WARN", "API recovery stage 4: rebuilding exchange state.", { source });
+        await this.rebuildExchangeState();
+      }
+      if (stage >= 5) {
+        this.log("WARN", "API recovery stage 5: continuous execution resume after full state rebuild.", {
+          source,
+          catastrophicStopOnly: true,
+        });
+      }
+      this.store.state.apiRecovery = {
+        active: false,
+        stage,
+        source,
+        lastError: error.message,
+        recoveredAt: new Date().toISOString(),
+        consecutiveApiErrors,
+        shutdownSuppressed: true,
+      };
+      this.store.saveState();
+      this.log("INFO", "Execution resumed automatically.", {
+        source,
+        stage,
+        consecutiveApiErrors,
+        nextScanIntervalMs: this.config.scanIntervalMs,
+        nonstopExecutionPreserved: true,
+      });
+    } catch (recoveryError) {
+      this.store.state.apiRecovery = {
+        active: true,
+        stage,
+        source,
+        lastError: error.message,
+        recoveryError: recoveryError.message,
+        lastFailedAt: new Date().toISOString(),
+        shutdownSuppressed: true,
+      };
+      this.store.saveState();
+      this.log("ERROR", "API auto-recovery step failed; bot will keep retrying on the next cycle.", {
+        source,
+        stage,
+        error: error.message,
+        recoveryError: recoveryError.message,
+        automaticShutdownRemoved: true,
+      });
+    } finally {
+      this.apiRecoveryActive = false;
+    }
+  }
+
+  async rebuildExchangeState() {
+    const tickerResults = [];
+    for (const symbol of this.config.focusedTradingSymbolsList) {
+      try {
+        if (typeof this.client.getTicker === "function") {
+          const ticker = await this.client.getTicker(symbol);
+          tickerResults.push({ symbol, ok: Boolean(ticker) });
+        }
+      } catch (error) {
+        tickerResults.push({ symbol, ok: false, error: error.message });
+      }
+    }
+    if (!this.config.dryRun && typeof this.client.getPositions === "function") {
+      await this.reconcileLivePositions();
+    }
+    this.log("WARN", "Exchange state rebuilt.", {
+      tickers: tickerResults,
+      liveReconciled: !this.config.dryRun,
+      openPositions: this.store.state.openPositions.length,
+    });
   }
 
   schedulePositionMonitor() {
@@ -396,6 +574,7 @@ class LadderBot {
     } catch (error) {
       this.log("ERROR", "Fast position-protection monitor failed.", { error: error.message });
       await this.telegram.send(`Position monitor error: ${error.message}`);
+      await this.handleApiRecovery(error, { source: "POSITION_MONITOR", countError: true, nonBlocking: true });
     } finally {
       this.monitorActive = false;
       this.schedulePositionMonitor();
@@ -500,6 +679,10 @@ class LadderBot {
         requiredScore: signal.requiredScore,
         setupType: signal.setupType,
         tradeCategory: signal.tradeCategory,
+        eliteSetup: signal.eliteSetup,
+        marketPersonality: signal.marketPersonality,
+        highActivityContinuation: signal.highActivityContinuation,
+        eliteContinuationCandidate: signal.eliteContinuationCandidate,
         explorationTrade: signal.explorationTrade,
         forcedMarketSampling: signal.forcedMarketSampling,
         explorationThresholdSoftened: signal.explorationThresholdSoftened,
@@ -527,6 +710,8 @@ class LadderBot {
         momentumPersistenceCandles: signal.momentumPersistenceCandles,
         atrPct: signal.atrPct.toFixed(3),
         projectedNetEdgePct: signal.projectedNetEdgePct.toFixed(3),
+        smartProjectedNetEdgePct: Number(signal.smartProjectedNetEdgePct || 0).toFixed(3),
+        estimatedTpProbability: signal.estimatedTpProbability,
         estimatedRoundTripFeePct: signal.roundTripFeePct.toFixed(3),
         btcTrend: signal.btcTrend,
         ethTrend: signal.ethTrend,
@@ -535,6 +720,37 @@ class LadderBot {
         btcInstability: signal.btcInstability,
       });
       await this.telegram.send(`Candidate selected: ${signal.symbol} ${signal.side}, score ${signal.score}.`);
+      if (signal.marketPersonality && signal.marketPersonality !== this.lastMarketPersonality) {
+        this.log("INFO", "Adaptive market personality switched.", {
+          from: this.lastMarketPersonality,
+          to: signal.marketPersonality,
+          symbol: signal.symbol,
+          marketRegimeTags: signal.marketRegimeTags,
+        });
+        this.lastMarketPersonality = signal.marketPersonality;
+      }
+      if (this.intelligentReentrySignal(signal)) {
+        signal.intelligentReentryTriggered = true;
+        this.log("WARN", "Intelligent re-entry triggered.", {
+          symbol: signal.symbol,
+          side: signal.side,
+          score: signal.score,
+          projectedNetEdgePct: signal.projectedNetEdgePct,
+          smartProjectedNetEdgePct: signal.smartProjectedNetEdgePct,
+          momentumPersistenceCandles: signal.momentumPersistenceCandles,
+        });
+      }
+      if (signal.eliteContinuationCandidate) {
+        this.log("WARN", "Elite continuation detected; high activity mode is prioritizing trend-following participation.", {
+          symbol: signal.symbol,
+          side: signal.side,
+          score: signal.score,
+          convictionScore: signal.convictionScore,
+          momentumPersistenceCandles: signal.momentumPersistenceCandles,
+          volumeSpike: signal.volumeSpike,
+          marketPersonality: signal.marketPersonality,
+        });
+      }
       const block = this.risk.entryBlockReason(equity, signal.symbol);
       if (block) {
         this.log("INFO", "Candidate entry rejected by portfolio safety rule.", { symbol: signal.symbol, reason: block });
@@ -586,6 +802,16 @@ class LadderBot {
         });
         continue;
       }
+      this.log("INFO", "Fee-adjusted edge approved; projected net edge validated.", {
+        symbol: signal.symbol,
+        side: signal.side,
+        projectedNetEdgePct: signal.projectedNetEdgePct,
+        smartProjectedNetEdgePct: signal.smartProjectedNetEdgePct,
+        expectedMovePct: signal.expectedMovePct,
+        estimatedTpProbability: signal.estimatedTpProbability,
+        feeEdgeRatio: signal.feeEdgeRatio,
+        requiredSmartEdgePct: edgeCheck.requiredSmartEdgePct,
+      });
       const requestedLeverage = this.adaptiveLeverageForSignal(signal, adaptivePolicy);
       const liveSafety = this.config.dryRun ? { leverage: requestedLeverage } : await this.liveEntrySafety(signal, equity, requestedLeverage);
       if (liveSafety.rejected) {
@@ -617,6 +843,39 @@ class LadderBot {
           feeEdgeRatio: signal.feeEdgeRatio,
           qualitySizeMultiplier: plan.qualitySizeMultiplier,
           adaptiveRiskMultiplier: plan.adaptiveRiskMultiplier,
+        });
+        this.log("INFO", "High-quality setup prioritized.", {
+          symbol: signal.symbol,
+          convictionTier: plan.convictionTier,
+          smartProjectedNetEdgePct: signal.smartProjectedNetEdgePct,
+          multiTimeframeAligned: signal.multiTimeframeAligned,
+        });
+      }
+      if (plan.eliteSetup) {
+        this.log("WARN", "Elite setup detected; aggressive elite sizing activated.", {
+          symbol: signal.symbol,
+          side: signal.side,
+          convictionTier: plan.convictionTier,
+          targetMarginUsdt: plan.targetMarginUsdt,
+          plannedNotionalUsdt: plan.notional,
+          eliteConditionKey: signal.eliteConditionKey,
+          smartProjectedNetEdgePct: signal.smartProjectedNetEdgePct,
+          estimatedTpProbability: signal.estimatedTpProbability,
+        });
+        this.log("INFO", "High-confluence setup confirmed; adaptive conviction strong.", {
+          symbol: signal.symbol,
+          convictionScore: signal.convictionScore,
+          adaptiveConfidence: signal.adaptiveConfidence,
+          trendQualityScore: signal.trendQualityScore,
+          volumeSpike: signal.volumeSpike,
+          multiTimeframeAligned: signal.multiTimeframeAligned,
+        });
+      } else if (plan.convictionTier === "TIER_2_STRONG_SETUP") {
+        this.log("INFO", "Conviction tier upgraded for strong setup.", {
+          symbol: signal.symbol,
+          convictionTier: plan.convictionTier,
+          targetMarginUsdt: plan.targetMarginUsdt,
+          qualitySizeMultiplier: plan.qualitySizeMultiplier,
         });
       }
       if (adaptivePolicy.qualityPacingActive && plan.qualitySizeMultiplier < 1) {
@@ -660,6 +919,10 @@ class LadderBot {
         trigger: signal.fomoTrigger ? "FOMO_1M_MOMENTUM" : "SCORE_THRESHOLD",
         leverage: plan.leverage,
         plannedNotionalUsdt: plan.notional,
+        convictionTier: plan.convictionTier,
+        highActivityContinuation: signal.highActivityContinuation,
+        eliteContinuationCandidate: signal.eliteContinuationCandidate,
+        targetMarginUsdt: plan.targetMarginUsdt,
         riskPct: plan.riskPct,
         qualitySizeMultiplier: plan.qualitySizeMultiplier,
         adaptiveRiskMultiplier: plan.adaptiveRiskMultiplier,
@@ -667,6 +930,8 @@ class LadderBot {
         stopLossPrice: plan.stopLossPrice,
         takeProfitPrice: plan.takeProfitPrice,
         projectedNetEdgePct: signal.projectedNetEdgePct,
+        smartProjectedNetEdgePct: signal.smartProjectedNetEdgePct,
+        estimatedTpProbability: signal.estimatedTpProbability,
         expectedMovePct: signal.expectedMovePct,
         estimatedRoundTripCostPct: signal.estimatedRoundTripCostPct,
         feeEdgeRatio: signal.feeEdgeRatio,
@@ -746,15 +1011,39 @@ class LadderBot {
     if (Number(signal.feeEdgeRatio || 0) < this.config.forcedSamplingMinEdgeToCostRatio * edgeMultiplier) return false;
     if (Number(signal.score || 0) < this.config.forcedSamplingMinScore) return false;
     if (Number(signal.convictionScore || 0) < this.config.forcedSamplingMinConviction) return false;
-    if (Number(signal.liquidityScore || 0) < this.config.minLiquidityScore * 0.65) return false;
+    const liquidityFloor = this.config.minLiquidityScore * (this.config.highActivityMode ? 0.55 : 0.65);
+    if (Number(signal.liquidityScore || 0) < liquidityFloor) return false;
     const continuationClue =
       signal.fomoTrigger ||
       signal.breakoutTriggered ||
       Number(signal.momentumPersistenceCandles || 0) >= this.config.minMomentumPersistenceCandles ||
-      (signal.btcTrendAligned && Number(signal.trendQualityScore || 0) >= 58);
+      signal.highActivityContinuation ||
+      (signal.btcTrendAligned && Number(signal.trendQualityScore || 0) >= (this.config.highActivityMode ? 52 : 58));
     if (!continuationClue) return false;
     if (Array.isArray(signal.rejected) && signal.rejected.some((reason) => /fee inefficiency|exchange minimum|blacklist/i.test(reason))) return false;
     return true;
+  }
+
+  intelligentReentrySignal(signal) {
+    if (!signal || this.config.smartReentryWindowMinutes <= 0) return false;
+    const cutoff = Date.now() - this.config.smartReentryWindowMinutes * 60 * 1000;
+    const recent = this.store.trades
+      .filter((trade) =>
+        trade.symbol === signal.symbol &&
+        trade.side === signal.side &&
+        trade.status === "CLOSED" &&
+        Date.parse(trade.exitedAt || trade.exitTime || "") >= cutoff
+      )
+      .sort((left, right) => Date.parse(right.exitedAt || right.exitTime || "") - Date.parse(left.exitedAt || left.exitTime || ""))[0];
+    if (!recent) return false;
+    const requiredFeeEdgeRatio = this.config.highActivityMode ? this.config.minEdgeToCostRatio * 0.9 : this.config.minEdgeToCostRatio;
+    const requiredSmartEdgePct = this.config.highActivityMode ? this.config.smartEdgeMinNetPct * 0.85 : this.config.smartEdgeMinNetPct;
+    const trendStillValid =
+      (signal.multiTimeframeAligned || (this.config.highActivityMode && signal.btcTrendAligned && Number(signal.trendQualityScore || 0) >= 58)) &&
+      (signal.breakoutTriggered || signal.fomoTrigger || Number(signal.momentumPersistenceCandles || 0) >= this.config.minMomentumPersistenceCandles) &&
+      Number(signal.smartProjectedNetEdgePct || 0) >= requiredSmartEdgePct &&
+      Number(signal.feeEdgeRatio || 0) >= requiredFeeEdgeRatio;
+    return Boolean(trendStillValid);
   }
 
   promoteForcedSamplingSignal(signal, inactiveMinutes) {
@@ -804,14 +1093,27 @@ class LadderBot {
 
   feeAwareEntryCheck(signal) {
     const qualityMultiplier = signal.qualityPacingActive ? this.config.qualityPacingEdgeMultiplier : 1;
+    const highActivityContinuation =
+      this.config.highActivityMode &&
+      Boolean(signal.highActivityContinuation || signal.eliteContinuationCandidate || signal.intelligentReentryTriggered || signal.eliteSetup) &&
+      Number(signal.feeEdgeRatio || 0) >= this.config.explorationMinEdgeToCostRatio &&
+      Number(signal.smartProjectedNetEdgePct || signal.projectedNetEdgePct || 0) >= this.config.smartEdgeMinNetPct * 0.75;
+    const activityMultiplier = highActivityContinuation ? 0.9 : 1;
     const minProjectedEdgePct =
-      (signal.explorationTrade ? this.config.explorationMinProjectedEdgePct : this.config.minProjectedEdgePct) * qualityMultiplier;
+      (signal.explorationTrade ? this.config.explorationMinProjectedEdgePct : this.config.minProjectedEdgePct) * qualityMultiplier * activityMultiplier;
     const minEdgeToCostRatio =
-      (signal.explorationTrade ? this.config.explorationMinEdgeToCostRatio : this.config.minEdgeToCostRatio) * qualityMultiplier;
+      (signal.explorationTrade ? this.config.explorationMinEdgeToCostRatio : this.config.minEdgeToCostRatio) * qualityMultiplier * activityMultiplier;
     const minConvictionScore =
       (signal.explorationTrade ? this.config.explorationMinConvictionScore : this.config.minConvictionScore) +
       (signal.qualityPacingActive ? (signal.explorationTrade ? 2 : 3) : 0);
-    const minExpectedMovePct = this.config.minExpectedMovePct * (signal.explorationTrade ? 0.75 : 1);
+    const minExpectedMovePct = this.config.minExpectedMovePct * (signal.explorationTrade ? 0.75 : 1) * activityMultiplier;
+    const minSmartEdgePct = this.config.smartEdgeMinNetPct * (signal.explorationTrade ? 0.65 : 1) * qualityMultiplier * activityMultiplier;
+    const smartProjectedNetEdgePct = Number.isFinite(Number(signal.smartProjectedNetEdgePct))
+      ? Number(signal.smartProjectedNetEdgePct)
+      : Number(signal.projectedNetEdgePct || 0);
+    const estimatedTpProbability = Number.isFinite(Number(signal.estimatedTpProbability))
+      ? Number(signal.estimatedTpProbability)
+      : this.config.smartEdgeMinTpProbability;
     if (Number(signal.expectedMovePct) < minExpectedMovePct) {
       return {
         rejected: true,
@@ -819,6 +1121,16 @@ class LadderBot {
         reason: "micro-scalp filtered: expected move is too small for the current fee profile",
         requiredProjectedEdgePct: Number(minProjectedEdgePct.toFixed(4)),
         requiredEdgeToCostRatio: Number(minEdgeToCostRatio.toFixed(4)),
+        requiredSmartEdgePct: Number(minSmartEdgePct.toFixed(4)),
+      };
+    }
+    if (smartProjectedNetEdgePct < minSmartEdgePct || estimatedTpProbability < this.config.smartEdgeMinTpProbability * (signal.explorationTrade ? 0.9 : 1)) {
+      return {
+        rejected: true,
+        reason: "smart edge filter rejected low-profit setup: probability-adjusted edge barely exceeds execution costs",
+        requiredProjectedEdgePct: Number(minProjectedEdgePct.toFixed(4)),
+        requiredEdgeToCostRatio: Number(minEdgeToCostRatio.toFixed(4)),
+        requiredSmartEdgePct: Number(minSmartEdgePct.toFixed(4)),
       };
     }
     if (Number(signal.projectedNetEdgePct) < minProjectedEdgePct) {
@@ -827,6 +1139,7 @@ class LadderBot {
         reason: "low-edge setup rejected: projected edge after fees, spread, and slippage is too small",
         requiredProjectedEdgePct: Number(minProjectedEdgePct.toFixed(4)),
         requiredEdgeToCostRatio: Number(minEdgeToCostRatio.toFixed(4)),
+        requiredSmartEdgePct: Number(minSmartEdgePct.toFixed(4)),
       };
     }
     if (Number(signal.feeEdgeRatio) < minEdgeToCostRatio) {
@@ -835,6 +1148,7 @@ class LadderBot {
         reason: "fee-aware edge validation improved: expected move is too small relative to transaction costs",
         requiredProjectedEdgePct: Number(minProjectedEdgePct.toFixed(4)),
         requiredEdgeToCostRatio: Number(minEdgeToCostRatio.toFixed(4)),
+        requiredSmartEdgePct: Number(minSmartEdgePct.toFixed(4)),
       };
     }
     if (Number(signal.convictionScore) < minConvictionScore) {
@@ -843,12 +1157,14 @@ class LadderBot {
         reason: "quality filter strengthened: conviction score below threshold",
         requiredProjectedEdgePct: Number(minProjectedEdgePct.toFixed(4)),
         requiredEdgeToCostRatio: Number(minEdgeToCostRatio.toFixed(4)),
+        requiredSmartEdgePct: Number(minSmartEdgePct.toFixed(4)),
       };
     }
     return {
       rejected: false,
       requiredProjectedEdgePct: Number(minProjectedEdgePct.toFixed(4)),
       requiredEdgeToCostRatio: Number(minEdgeToCostRatio.toFixed(4)),
+      requiredSmartEdgePct: Number(minSmartEdgePct.toFixed(4)),
     };
   }
 
@@ -945,6 +1261,12 @@ class LadderBot {
       entryPrice: signal.price,
       stopLossPrice: plan.stopLossPrice,
       takeProfitPrice: plan.takeProfitPrice,
+      partialTakeProfitPrice: plan.partialTakeProfitPrice,
+      runnerTakeProfitPrice: plan.runnerTakeProfitPrice,
+      standardTakeProfitPrice: plan.standardTakeProfitPrice,
+      eliteTrendRider: Boolean(plan.eliteSetup && this.config.eliteTrendRiderEnabled),
+      runnerPartialPct: plan.eliteSetup ? this.config.elitePartialTakeProfitPct : 0,
+      runnerPartialTaken: false,
       peakPrice: signal.price,
       trailingStopPrice: null,
       openedAt: new Date().toISOString(),
@@ -982,6 +1304,8 @@ class LadderBot {
       entryMomentumPct: signal.entryMomentumPct,
       spreadPct: signal.spreadPct,
       projectedNetEdgePct: signal.projectedNetEdgePct,
+      smartProjectedNetEdgePct: signal.smartProjectedNetEdgePct,
+      estimatedTpProbability: signal.estimatedTpProbability,
       expectedMovePct: signal.expectedMovePct,
       estimatedRoundTripCostPct: signal.estimatedRoundTripCostPct,
       feeEdgeRatio: signal.feeEdgeRatio,
@@ -992,6 +1316,12 @@ class LadderBot {
       trendQualityScore: signal.trendQualityScore,
       antiChopScore: signal.antiChopScore,
       moderateChopAccepted: signal.moderateChopAccepted,
+      marketPersonality: signal.marketPersonality,
+      multiTimeframeAligned: signal.multiTimeframeAligned,
+      eliteSetup: signal.eliteSetup,
+      eliteConditionKey: signal.eliteConditionKey,
+      convictionTier: plan.convictionTier,
+      targetMarginUsdt: plan.targetMarginUsdt,
       breakoutTriggered: signal.breakoutTriggered,
       microBreakoutTriggered: signal.microBreakoutTriggered,
       fastMode: signal.fastMode,
@@ -1006,6 +1336,8 @@ class LadderBot {
       adaptiveLeverageMultiplier: signal.adaptiveLeverageMultiplier,
       profitProtectionRiskMultiplier: signal.profitProtectionRiskMultiplier,
       profitProtectionLeverageMultiplier: signal.profitProtectionLeverageMultiplier,
+      continuousRecoveryRiskMultiplier: signal.continuousRecoveryRiskMultiplier,
+      continuousRecoveryLeverageMultiplier: signal.continuousRecoveryLeverageMultiplier,
       adaptiveMode: signal.adaptivePolicyMode,
       adaptiveReasons: signal.adaptiveReasons,
       entryReason: signal.scoreBreakdown,
@@ -1025,6 +1357,8 @@ class LadderBot {
       riskPct: plan.riskPct,
       baseRiskPct: plan.baseRiskPct,
       adaptiveRiskMultiplier: plan.adaptiveRiskMultiplier,
+      convictionTier: plan.convictionTier,
+      targetMarginUsdt: plan.targetMarginUsdt,
       riskUsdt: plan.riskUsdt,
       aggressiveSizing: plan.aggressive,
       reasons: signal.reasons,
@@ -1068,6 +1402,8 @@ class LadderBot {
           orderId: position.entryOrderId,
           positionIdx: position.positionIdx,
           nativeTakeProfit: position.takeProfitPrice,
+          partialTakeProfitPrice: position.partialTakeProfitPrice,
+          eliteTrendRider: position.eliteTrendRider,
           nativeStopLoss: position.stopLossPrice,
         });
         this.store.saveAll();
@@ -1089,6 +1425,9 @@ class LadderBot {
         entryPrice: position.entryPrice,
         stopLossPrice: position.stopLossPrice,
         takeProfitPrice: position.takeProfitPrice,
+        partialTakeProfitPrice: position.partialTakeProfitPrice,
+        eliteTrendRider: position.eliteTrendRider,
+        convictionTier: position.convictionTier,
         leverage: position.leverage,
         adaptiveConfidence: position.adaptiveConfidence,
         adaptiveMode: position.adaptiveMode,
@@ -1146,7 +1485,9 @@ class LadderBot {
         ? percentChange(position.peakPrice, position.entryPrice)
         : percentChange(position.entryPrice, position.peakPrice);
 
-      const trailingDistancePct = this.config.trailingDistancePct * Number(position.regimeTrailingDistanceMultiplier || 1);
+      const runnerTrailingMultiplier =
+        position.eliteTrendRider && position.runnerPartialTaken ? this.config.eliteRunnerTrailingDistanceMultiplier : 1;
+      const trailingDistancePct = this.config.trailingDistancePct * Number(position.regimeTrailingDistanceMultiplier || 1) * runnerTrailingMultiplier;
       const trailingStartPct = this.config.trailingStartPct * Number(position.regimeHoldMultiplier && position.regimeHoldMultiplier > 1 ? 1.05 : 1);
       if (this.config.trailingStopEnabled && favorablePct >= trailingStartPct) {
         const candidateStop = long
@@ -1204,6 +1545,28 @@ class LadderBot {
         await this.closePosition(position, price, "hard stop loss hit");
         continue;
       }
+      const partialTargetHit =
+        position.eliteTrendRider &&
+        !position.runnerPartialTaken &&
+        Number(position.partialTakeProfitPrice) > 0 &&
+        ((long && price >= position.partialTakeProfitPrice) || (!long && price <= position.partialTakeProfitPrice));
+      if (partialTargetHit) {
+        const analysis = options.priceProtectionOnly ? null : await this.scanner.analysisForPosition(position, regime);
+        const continuation = analysis ? this.strongMomentumContinuation(position, analysis, pnlPct, { elite: true }) : true;
+        if (continuation) {
+          await this.closePartialPosition(position, price, "elite trend rider partial take profit", this.config.elitePartialTakeProfitPct / 100);
+          this.log("WARN", "Elite trend rider activated; partial runner enabled.", {
+            symbol: position.symbol,
+            side: position.side,
+            partialTakeProfitPrice: position.partialTakeProfitPrice,
+            runnerTakeProfitPrice: position.runnerTakeProfitPrice,
+            remainingSize: position.size,
+            trailingDistanceMultiplier: this.config.eliteRunnerTrailingDistanceMultiplier,
+          });
+          await this.telegram.send(`Elite runner enabled: ${position.symbol} ${position.side}; partial TP taken and runner is trailing.`);
+          continue;
+        }
+      }
       if ((long && price >= position.takeProfitPrice) || (!long && price <= position.takeProfitPrice)) {
         await this.closePosition(position, price, "take profit hit");
         continue;
@@ -1220,9 +1583,9 @@ class LadderBot {
       const momentumGone = long
         ? analysis.momentum1mPct < 0 && analysis.momentum5mPct < 0
         : analysis.momentum1mPct > 0 && analysis.momentum5mPct > 0;
-      const strongContinuation = this.strongMomentumContinuation(position, analysis, pnlPct);
+      const strongContinuation = this.strongMomentumContinuation(position, analysis, pnlPct, { elite: Boolean(position.eliteTrendRider) });
       if (strongContinuation) {
-        this.log("INFO", "Strong momentum continuation detected; avoiding premature exit.", {
+        this.log("INFO", position.eliteTrendRider ? "Elite continuation holding enabled." : "Strong momentum continuation detected; avoiding premature exit.", {
           symbol: position.symbol,
           side: position.side,
           pnlPct: pnlPct.toFixed(3),
@@ -1252,7 +1615,7 @@ class LadderBot {
     this.store.saveState();
   }
 
-  strongMomentumContinuation(position, analysis, pnlPct) {
+  strongMomentumContinuation(position, analysis, pnlPct, options = {}) {
     const sameSide = analysis.side === position.side;
     const alignedMomentum = position.side === "LONG"
       ? analysis.momentum1mPct > 0 && analysis.momentum5mPct >= 0
@@ -1260,8 +1623,9 @@ class LadderBot {
     const tags = Array.isArray(analysis.marketRegimeTags) ? analysis.marketRegimeTags : Array.isArray(position.marketRegimeTags) ? position.marketRegimeTags : [];
     const continuationRegime = tags.includes("STRONG_TRENDING_MARKET") || tags.includes("HIGH_VOLATILITY_BREAKOUT_MARKET");
     const hostileRegime = tags.includes("SIDEWAYS_CHOP_MARKET") || tags.includes("FAKE_BREAKOUT_ENVIRONMENT") || tags.includes("DEAD_MARKET_CONDITIONS");
-    const requiredScore = this.config.continuationMinScore + (continuationRegime ? -6 : 0) + (hostileRegime ? 8 : 0);
-    const requiredPnlPct = this.config.continuationMinPnlPct * (continuationRegime ? 0.85 : 1);
+    const elite = Boolean(options.elite || position.eliteTrendRider);
+    const requiredScore = this.config.continuationMinScore + (continuationRegime ? -6 : 0) + (hostileRegime ? 8 : 0) + (elite ? -5 : 0);
+    const requiredPnlPct = this.config.continuationMinPnlPct * (continuationRegime ? 0.85 : 1) * (elite ? 0.8 : 1);
     return Boolean(
       sameSide &&
       alignedMomentum &&
@@ -1271,6 +1635,70 @@ class LadderBot {
       analysis.volumeCondition !== "LOW_VOLUME" &&
       analysis.volatilityRegime !== "NEWS_LIKE_ABNORMAL"
     );
+  }
+
+  async closePartialPosition(position, referencePrice, reason, fraction) {
+    if (position.partialCloseSubmitted || position.runnerPartialTaken) return;
+    const currentSize = numeric(position.size);
+    const closeSize = currentSize * Math.max(0, Math.min(0.9, fraction));
+    if (!Number.isFinite(closeSize) || closeSize <= 0) return;
+    const remainingSize = Math.max(0, currentSize - closeSize);
+    const sizeDecimals = String(position.size).includes(".") ? String(position.size).split(".")[1].length : 0;
+    const closeQty = closeSize.toFixed(sizeDecimals);
+    position.partialCloseSubmitted = true;
+    if (!this.config.dryRun) {
+      const result = await this.client.placeMarketOrder({
+        orderLinkId: makeId("partial"),
+        symbol: position.symbol,
+        side: position.side === "LONG" ? "Sell" : "Buy",
+        qty: closeQty,
+        positionIdx: position.positionIdx,
+        reduceOnly: true,
+      });
+      position.partialCloseOrderId = result.orderId;
+      position.partialCloseOrderLinkId = result.orderLinkId;
+      this.log("WARN", "ORDER SENT", {
+        operation: "PARTIAL_RUNNER_TP",
+        symbol: position.symbol,
+        side: position.side,
+        orderId: result.orderId,
+        reduceOnly: true,
+        qty: closeQty,
+        reason,
+      });
+    }
+    const directionChange = position.side === "LONG" ? referencePrice - position.entryPrice : position.entryPrice - referencePrice;
+    const partialGross = directionChange * closeSize;
+    const entryNotional = position.entryPrice * closeSize;
+    const exitNotional = referencePrice * closeSize;
+    const partialFees = this.estimateSideFeeUsdt(entryNotional) + this.estimateSideFeeUsdt(exitNotional);
+    position.partialRealizedGrossPnlUsdt = numeric(position.partialRealizedGrossPnlUsdt) + partialGross;
+    position.partialRealizedFeesUsdt = numeric(position.partialRealizedFeesUsdt) + partialFees;
+    position.partialRealizedPnlUsdt = numeric(position.partialRealizedPnlUsdt) + partialGross - partialFees;
+    position.runnerPartialTaken = true;
+    position.partialCloseSubmitted = false;
+    position.size = remainingSize.toFixed(sizeDecimals);
+    position.trailingStopPrice = null;
+    const trade = this.store.trades.find((item) => item.id === position.id);
+    if (trade) {
+      trade.size = position.size;
+      trade.partialRealizedGrossPnlUsdt = Number(position.partialRealizedGrossPnlUsdt.toFixed(6));
+      trade.partialRealizedFeesUsdt = Number(position.partialRealizedFeesUsdt.toFixed(6));
+      trade.partialRealizedPnlUsdt = Number(position.partialRealizedPnlUsdt.toFixed(6));
+      trade.runnerPartialTaken = true;
+    }
+    this.store.saveAll();
+    this.log("WARN", "PARTIAL RUNNER ENABLED", {
+      symbol: position.symbol,
+      side: position.side,
+      closedQty: closeQty,
+      remainingSize: position.size,
+      referencePrice,
+      partialGrossPnlUsdt: partialGross.toFixed(6),
+      partialEstimatedFeesUsdt: partialFees.toFixed(6),
+      partialNetPnlUsdt: (partialGross - partialFees).toFixed(6),
+      reason,
+    });
   }
 
   async closePosition(position, referencePrice, reason) {
@@ -1378,6 +1806,8 @@ class LadderBot {
       (position.entryOrderId && position.entryOrderId === execution.orderId) ||
       (position.entryOrderLinkId && position.entryOrderLinkId === execution.orderLinkId);
     const closeMatch =
+      (position.partialCloseOrderId && position.partialCloseOrderId === execution.orderId) ||
+      (position.partialCloseOrderLinkId && position.partialCloseOrderLinkId === execution.orderLinkId) ||
       (position.closeOrderId && position.closeOrderId === execution.orderId) ||
       (position.closeOrderLinkId && position.closeOrderLinkId === execution.orderLinkId);
     const executionSide = String(execution.side || "");
@@ -1405,9 +1835,11 @@ class LadderBot {
   finalizePosition(position, exitPrice, reason) {
     const directionChange =
       position.side === "LONG" ? exitPrice - position.entryPrice : position.entryPrice - exitPrice;
-    const grossPnlUsdt = directionChange * Number(position.size);
+    const remainingGrossPnlUsdt = directionChange * Number(position.size);
+    const grossPnlUsdt = remainingGrossPnlUsdt + numeric(position.partialRealizedGrossPnlUsdt);
     const fees = this.feeBreakdownForClose(position, exitPrice);
-    const pnlUsdt = grossPnlUsdt - fees.total;
+    const totalFees = fees.total + numeric(position.partialRealizedFeesUsdt);
+    const pnlUsdt = grossPnlUsdt - totalFees;
     const pnlPct =
       position.side === "LONG" ? percentChange(exitPrice, position.entryPrice) : percentChange(position.entryPrice, exitPrice);
     const holdSeconds = secondsHeld(position);
@@ -1421,11 +1853,15 @@ class LadderBot {
         exitedAt: new Date().toISOString(),
         holdSeconds: Number(holdSeconds.toFixed(2)),
         grossPnlUsdt: Number(grossPnlUsdt.toFixed(6)),
-        feesUsdt: Number(fees.total.toFixed(6)),
+        feesUsdt: Number(totalFees.toFixed(6)),
         feeSource: fees.source,
+        partialRealizedGrossPnlUsdt: Number(numeric(position.partialRealizedGrossPnlUsdt).toFixed(6)),
+        partialRealizedFeesUsdt: Number(numeric(position.partialRealizedFeesUsdt).toFixed(6)),
+        partialRealizedPnlUsdt: Number(numeric(position.partialRealizedPnlUsdt).toFixed(6)),
+        runnerPartialTaken: Boolean(position.runnerPartialTaken),
         entryFeesUsdt: Number(fees.entryFee.toFixed(6)),
         exitFeesUsdt: Number(fees.exitFee.toFixed(6)),
-        estimatedFeesUsdt: Number((fees.estimatedEntryFee + fees.estimatedExitFee).toFixed(6)),
+        estimatedFeesUsdt: Number((fees.estimatedEntryFee + fees.estimatedExitFee + numeric(position.partialRealizedFeesUsdt)).toFixed(6)),
         pnlUsdt: Number(pnlUsdt.toFixed(6)),
         pnlPct: Number(pnlPct.toFixed(4)),
         result: this.closedPositionReason(position, exitPrice).includes("take profit")
@@ -1441,7 +1877,7 @@ class LadderBot {
     }
     this.store.state.openPositions = this.store.state.openPositions.filter((item) => item.id !== position.id);
     this.applySymbolCooldown(position.symbol, pnlUsdt);
-    this.risk.registerClose(pnlUsdt, fees.total);
+    this.risk.registerClose(pnlUsdt, totalFees);
     this.store.rebuildPerformance();
     if (completedTrade) this.adaptive.recordClosedTrade(completedTrade);
     this.store.saveAll();
@@ -1457,7 +1893,7 @@ class LadderBot {
       reason,
       exitPrice,
       grossPnlUsdt: grossPnlUsdt.toFixed(6),
-      feesUsdt: fees.total.toFixed(6),
+      feesUsdt: totalFees.toFixed(6),
       pnlUsdt: pnlUsdt.toFixed(6),
       holdSeconds: holdSeconds.toFixed(2),
       feeSource: fees.source,
@@ -1467,7 +1903,7 @@ class LadderBot {
       side: position.side,
       reason,
       grossPnlUsdt: grossPnlUsdt.toFixed(6),
-      feesUsdt: fees.total.toFixed(6),
+      feesUsdt: totalFees.toFixed(6),
       pnlUsdt: pnlUsdt.toFixed(6),
       pnlPct: pnlPct.toFixed(3),
       holdSeconds: holdSeconds.toFixed(2),
@@ -1548,10 +1984,24 @@ class LadderBot {
           managed.side === "LONG"
             ? roundedPrice(entryPrice * (1 - this.config.stopLossPct / 100), managed.tickSize, false)
             : roundedPrice(entryPrice * (1 + this.config.stopLossPct / 100), managed.tickSize, true);
-        managed.takeProfitPrice =
+        managed.standardTakeProfitPrice =
           managed.side === "LONG"
             ? roundedPrice(entryPrice * (1 + this.config.takeProfitPct / 100), managed.tickSize, false)
             : roundedPrice(entryPrice * (1 - this.config.takeProfitPct / 100), managed.tickSize, true);
+        managed.partialTakeProfitPrice = managed.eliteTrendRider ? managed.standardTakeProfitPrice : null;
+        managed.takeProfitPrice =
+          managed.side === "LONG"
+            ? roundedPrice(
+                entryPrice * (1 + (this.config.takeProfitPct * (managed.eliteTrendRider ? this.config.eliteRunnerTakeProfitMultiplier : 1)) / 100),
+                managed.tickSize,
+                false
+              )
+            : roundedPrice(
+                entryPrice * (1 - (this.config.takeProfitPct * (managed.eliteTrendRider ? this.config.eliteRunnerTakeProfitMultiplier : 1)) / 100),
+                managed.tickSize,
+                true
+              );
+        managed.runnerTakeProfitPrice = managed.takeProfitPrice;
         managed.status = "OPEN";
         if (entryWasPending) {
           managed.entryConfirmedAt = new Date().toISOString();
@@ -1707,6 +2157,8 @@ class LadderBot {
       (item) =>
         (item.entryOrderId && item.entryOrderId === order.orderId) ||
         (item.entryOrderLinkId && item.entryOrderLinkId === order.orderLinkId) ||
+        (item.partialCloseOrderId && item.partialCloseOrderId === order.orderId) ||
+        (item.partialCloseOrderLinkId && item.partialCloseOrderLinkId === order.orderLinkId) ||
         (item.closeOrderId && item.closeOrderId === order.orderId) ||
         (item.closeOrderLinkId && item.closeOrderLinkId === order.orderLinkId)
     );
@@ -1758,6 +2210,8 @@ class LadderBot {
       (item) =>
         (item.entryOrderId && item.entryOrderId === execution.orderId) ||
         (item.entryOrderLinkId && item.entryOrderLinkId === execution.orderLinkId) ||
+        (item.partialCloseOrderId && item.partialCloseOrderId === execution.orderId) ||
+        (item.partialCloseOrderLinkId && item.partialCloseOrderLinkId === execution.orderLinkId) ||
         (item.closeOrderId && item.closeOrderId === execution.orderId) ||
         (item.closeOrderLinkId && item.closeOrderLinkId === execution.orderLinkId)
     );
@@ -1826,7 +2280,9 @@ class LadderBot {
       `Open positions: ${state.openPositions.length}/${adaptivePolicy.maxOpenPositions || this.config.maxOpenPositions}`,
       `Adaptive mode: ${adaptivePolicy.mode}, min score ${adaptivePolicy.minSignalScore}, max leverage ${adaptivePolicy.maxLeverage}x`,
       `Focused universe: ${(this.config.focusedTradingSymbolsList || []).join(", ")}`,
+      `High activity mode: ${this.config.highActivityMode ? `active (${this.config.scanIntervalMs}ms scans)` : "off"}`,
       `Continuous execution: ${this.config.continuousExecutionMode ? "active" : "off"}`,
+      `API recovery: ${this.config.apiAutoRecoveryEnabled ? `active, stage ${state.apiRecovery && state.apiRecovery.active ? state.apiRecovery.stage : "idle"}` : "off"}`,
       `Daily shutdowns: removed; 24/7 execution ${this.config.continuousExecutionMode ? "enabled" : "disabled"}`,
       `Learning phase: ${this.config.learningPhaseMode ? "active" : "off"}, daily trade limits: ${this.config.disableDailyTradeLimits ? "disabled" : "enabled"}`,
       `Quality pacing: ${adaptivePolicy.qualityPacingActive ? `active - ${adaptivePolicy.qualityPacingReason}` : "inactive"}`,
