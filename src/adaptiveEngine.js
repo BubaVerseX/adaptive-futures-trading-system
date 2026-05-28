@@ -232,6 +232,13 @@ class AdaptiveEngine {
       leverage: numeric(trade.leverage),
       btcMarketRegime: trade.btcMarketRegime || trade.btcTrend || trade.signalRegime || "UNKNOWN",
       marketRegime: trade.signalRegime || "UNKNOWN",
+      marketRegimeType: trade.marketRegimeType || trade.primaryMarketRegime || trade.signalMarketRegimeType || "UNKNOWN",
+      marketRegimeTags: Array.isArray(trade.marketRegimeTags) ? trade.marketRegimeTags : [],
+      marketRegimeConfidence: numeric(trade.marketRegimeConfidence),
+      btcTrendStrength: numeric(trade.btcTrendStrength),
+      btcVolatilityPct: numeric(trade.btcVolatilityPct),
+      btcMomentumPct: numeric(trade.btcMomentumPct),
+      btcInstability: Boolean(trade.btcInstability),
       volatilityRegime: trade.volatilityRegime || "UNKNOWN",
       volumeConditions: trade.volumeCondition || "UNKNOWN",
       entryMomentumPct: numeric(trade.entryMomentumPct || trade.momentum1mPct),
@@ -247,9 +254,12 @@ class AdaptiveEngine {
       antiChopScore: numeric(trade.antiChopScore),
       tradeCategory: trade.tradeCategory || (trade.explorationTrade ? "EXPLORATION" : "HIGH_CONVICTION"),
       explorationTrade: Boolean(trade.explorationTrade),
+      explorationThresholdSoftened: Boolean(trade.explorationThresholdSoftened),
+      moderateChopAccepted: Boolean(trade.moderateChopAccepted),
       result: trade.result || resultType(trade.exitReason),
       winLoss: pnlUsdt > 0 ? "WIN" : pnlUsdt < 0 ? "LOSS" : "FLAT",
       sessionType: trade.sessionType || sessionType(timestamp),
+      sessionRegime: trade.sessionRegime || trade.sessionType || sessionType(timestamp),
       breakoutTriggered: Boolean(trade.breakoutTriggered),
       fomoTriggered: Boolean(trade.fomoTrigger || trade.fomoTriggered),
       microBreakoutTriggered: Boolean(trade.microBreakoutTriggered),
@@ -296,9 +306,20 @@ class AdaptiveEngine {
     const byHour = groupBy(records, (record) => new Date(record.timestamp || 0).getUTCHours());
     const byBtcRegime = groupBy(records, (record) => record.btcMarketRegime);
     const bySession = groupBy(records, (record) => record.sessionType);
+    const bySessionRegime = groupBy(records, (record) => record.sessionRegime || record.sessionType);
+    const byMarketRegimeType = groupBy(records, (record) => record.marketRegimeType || record.marketRegime);
+    const byMarketRegimeTag = groupBy(records, (record) =>
+      Array.isArray(record.marketRegimeTags) && record.marketRegimeTags.length ? record.marketRegimeTags.join("+") : record.marketRegimeType || "UNKNOWN"
+    );
     const byVolatilityRegime = groupBy(records, (record) => record.volatilityRegime);
     const byLeverage = groupBy(records, (record) => `${Math.round(numeric(record.leverage))}x`);
     const byCondition = groupBy(records, (record) => `${record.setupType}:${record.side}:${record.btcMarketRegime}:${record.volatilityRegime}`);
+    const byRegimeCondition = groupBy(records, (record) =>
+      `${record.marketRegimeType || record.marketRegime}:${record.setupType}:${record.side}`
+    );
+    const byRegimeSession = groupBy(records, (record) =>
+      `${record.marketRegimeType || record.marketRegime}:${record.sessionRegime || record.sessionType}`
+    );
 
     this.memory.stats = {
       all: summarize(records),
@@ -307,15 +328,22 @@ class AdaptiveEngine {
       byHour,
       byBtcRegime,
       bySession,
+      bySessionRegime,
+      byMarketRegimeType,
+      byMarketRegimeTag,
       byVolatilityRegime,
       byLeverage,
       byCondition,
+      byRegimeCondition,
+      byRegimeSession,
       bestSymbols: leaderboard(bySymbol, "best"),
       worstSymbols: leaderboard(bySymbol, "worst"),
       bestSetups: leaderboard(bySetupType, "best"),
       worstSetups: leaderboard(bySetupType, "worst"),
       strongestSessions: leaderboard(bySession, "best"),
       weakestSessions: leaderboard(bySession, "worst"),
+      bestMarketRegimes: leaderboard(byMarketRegimeType, "best"),
+      worstMarketRegimes: leaderboard(byMarketRegimeType, "worst"),
       drawdown: drawdown(records),
     };
     this.memory.adaptive.policy = this.buildPolicy();
@@ -335,26 +363,34 @@ class AdaptiveEngine {
     let maxOpenPositions = this.config.maxOpenPositions;
     let maxTradesPerDay = this.config.maxTradesPerDay;
     let explorationMultiplier = 1;
+    let recoveryAggressionRestored = false;
 
     if (enough && (last20.winRatePct < this.config.defensiveWinRatePct || last20.feeAdjustedPnlUsdt < 0)) {
       mode = "DEFENSIVE";
-      riskMultiplier = 0.72;
-      signalThresholdAdjustment = 4;
-      maxLeverage = Math.max(1, Math.floor(this.config.maxLeverage * 0.75));
-      maxOpenPositions = Math.max(1, Math.ceil(this.config.maxOpenPositions * 0.67));
-      maxTradesPerDay = Math.max(8, Math.floor(this.config.maxTradesPerDay * 0.65));
-      explorationMultiplier = 0.75;
-      if (
+      riskMultiplier = 0.8;
+      signalThresholdAdjustment = 2;
+      maxLeverage = Math.max(1, Math.floor(this.config.maxLeverage * 0.85));
+      maxOpenPositions = Math.max(1, Math.ceil(this.config.maxOpenPositions * 0.8));
+      maxTradesPerDay = Math.max(10, Math.floor(this.config.maxTradesPerDay * 0.75));
+      explorationMultiplier = 0.95;
+      const recoveryImproved =
         recoveryWindow.count >= Math.min(this.config.minAdaptiveTrades, this.config.adaptiveRecoveryLookbackTrades) &&
-        (recoveryWindow.winRatePct >= this.config.adaptiveRecoveryWinRatePct || recoveryWindow.feeAdjustedPnlUsdt > 0)
+        (
+          recoveryWindow.winRatePct >= this.config.adaptiveRecoveryWinRatePct ||
+          recoveryWindow.feeAdjustedPnlUsdt > 0 ||
+          recoveryWindow.winRatePct >= last20.winRatePct + 12
+        );
+      if (
+        recoveryImproved
       ) {
         mode = "DEFENSIVE_RECOVERY";
-        riskMultiplier = 0.86;
-        signalThresholdAdjustment = 1;
-        maxLeverage = Math.max(1, Math.floor(this.config.maxLeverage * 0.85));
-        maxOpenPositions = Math.max(1, Math.ceil(this.config.maxOpenPositions * 0.8));
-        maxTradesPerDay = Math.max(10, Math.floor(this.config.maxTradesPerDay * 0.8));
-        explorationMultiplier = 1;
+        riskMultiplier = 0.95;
+        signalThresholdAdjustment = 0;
+        maxLeverage = Math.max(1, Math.floor(this.config.maxLeverage * 0.95));
+        maxOpenPositions = Math.max(1, Math.ceil(this.config.maxOpenPositions * 0.9));
+        maxTradesPerDay = Math.max(14, Math.floor(this.config.maxTradesPerDay * 0.9));
+        explorationMultiplier = 1.15;
+        recoveryAggressionRestored = true;
       }
     } else if (enough && last20.winRatePct > this.config.aggressiveWinRatePct && last20.feeAdjustedPnlUsdt > 0) {
       mode = "CONTROLLED_AGGRESSIVE";
@@ -370,12 +406,28 @@ class AdaptiveEngine {
       signalThresholdAdjustment += 4;
       riskMultiplier *= 0.85;
     }
-    const explorationBudget = this.config.explorationModeEnabled
+    let activityFloorEngaged = false;
+    const preFloorMaxTradesPerDay = maxTradesPerDay;
+    if (this.config.adaptiveActivityFloorEnabled) {
+      maxTradesPerDay = Math.min(this.config.maxTradesPerDay, Math.max(maxTradesPerDay, this.config.activityFloorMinTradesPerDay));
+      activityFloorEngaged = maxTradesPerDay > preFloorMaxTradesPerDay;
+    }
+    let explorationBudget = this.config.explorationModeEnabled
       ? Math.min(
           this.config.explorationMaxTradesPerDay,
           Math.max(1, Math.floor(maxTradesPerDay * this.config.explorationTradeRatio * explorationMultiplier))
         )
       : 0;
+    const preFloorExplorationBudget = explorationBudget;
+    if (this.config.adaptiveActivityFloorEnabled && this.config.explorationModeEnabled) {
+      explorationBudget = Math.min(
+        this.config.explorationMaxTradesPerDay,
+        Math.max(explorationBudget, this.config.activityFloorMinExplorationBudget)
+      );
+      activityFloorEngaged = activityFloorEngaged || explorationBudget > preFloorExplorationBudget;
+    }
+    const bestRegime = leaderboard(this.memory.stats.byMarketRegimeType || {}, "best", 1)[0] || null;
+    const worstRegime = leaderboard(this.memory.stats.byMarketRegimeType || {}, "worst", 1)[0] || null;
 
     return {
       mode,
@@ -385,13 +437,32 @@ class AdaptiveEngine {
       recoverySampleSize: recoveryWindow.count,
       recoveryWinRatePct: recoveryWindow.winRatePct,
       recoveryPnlUsdt: recoveryWindow.feeAdjustedPnlUsdt,
+      recoveryAggressionRestored,
       riskMultiplier: clamp(riskMultiplier, this.config.adaptiveRiskMinMultiplier, this.config.adaptiveRiskMaxMultiplier),
       signalThresholdAdjustment,
       minSignalScore: clamp(this.config.minSignalScore + signalThresholdAdjustment, 1, 100),
       explorationEnabled: this.config.explorationModeEnabled && explorationBudget > 0,
       explorationBudget,
-      explorationMinSignalScore: clamp(this.config.explorationMinSignalScore + Math.max(0, Math.floor(signalThresholdAdjustment / 2)), 1, 100),
-      explorationMinConvictionScore: clamp(this.config.explorationMinConvictionScore + Math.max(0, Math.floor(signalThresholdAdjustment / 2)), 1, 100),
+      explorationExpansionActive: explorationBudget > preFloorExplorationBudget || explorationMultiplier > 1,
+      activityFloorEngaged,
+      activityFloorSignalRelaxPoints: activityFloorEngaged ? this.config.activityFloorSignalRelaxPoints : 0,
+      activityFloorConvictionRelaxPoints: activityFloorEngaged ? this.config.activityFloorConvictionRelaxPoints : 0,
+      activityFloorChopToleranceBonus: activityFloorEngaged ? this.config.activityFloorChopToleranceBonus : 0,
+      explorationMinSignalScore: clamp(
+        this.config.explorationMinSignalScore + Math.max(0, Math.floor(signalThresholdAdjustment / 2)) - (activityFloorEngaged ? this.config.activityFloorSignalRelaxPoints : 0),
+        1,
+        100
+      ),
+      explorationMinConvictionScore: clamp(
+        this.config.explorationMinConvictionScore + Math.max(0, Math.floor(signalThresholdAdjustment / 2)) - (activityFloorEngaged ? this.config.activityFloorConvictionRelaxPoints : 0),
+        1,
+        100
+      ),
+      regimeSelfTuning: {
+        bestRegime: bestRegime && bestRegime.count >= this.config.minAdaptiveBucketTrades ? bestRegime.key : null,
+        worstRegime: worstRegime && worstRegime.count >= this.config.minAdaptiveBucketTrades ? worstRegime.key : null,
+        memoryWeight: this.config.regimeMemoryWeight,
+      },
       maxLeverage: clamp(maxLeverage, 1, this.config.maxLeverage),
       maxOpenPositions: clamp(maxOpenPositions, 1, this.config.maxOpenPositions),
       maxTradesPerDay: clamp(maxTradesPerDay, 1, this.config.maxTradesPerDay),
@@ -425,6 +496,11 @@ class AdaptiveEngine {
         strongest: stats.strongestSessions || [],
         weakest: stats.weakestSessions || [],
       },
+      marketRegimeLeaderboard: {
+        best: stats.bestMarketRegimes || [],
+        worst: stats.worstMarketRegimes || [],
+      },
+      regimeSessionPerformance: stats.byRegimeSession || {},
       bestWorstConditions: {
         best: leaderboard(stats.byCondition || {}, "best"),
         worst: leaderboard(stats.byCondition || {}, "worst"),
@@ -504,15 +580,22 @@ class AdaptiveEngine {
 
     const setupStats = this.statsFor("bySetupType", signal.setupType);
     const symbolStats = this.statsFor("bySymbol", signal.symbol);
-    const sessionStats = this.statsFor("bySession", sessionType());
+    const currentSession = signal.sessionRegime || signal.sessionType || sessionType();
+    const sessionStats = this.statsFor("bySessionRegime", currentSession) || this.statsFor("bySession", currentSession);
     const regimeStats = this.statsFor("byBtcRegime", signal.btcTrend || signal.regime);
     const conditionStats = this.statsFor("byCondition", `${signal.setupType}:${signal.side}:${signal.btcTrend}:${signal.volatilityRegime}`);
+    const marketRegimeStats = this.statsFor("byMarketRegimeType", signal.marketRegimeType || signal.regime);
+    const regimeConditionStats = this.statsFor("byRegimeCondition", `${signal.marketRegimeType || signal.regime}:${signal.setupType}:${signal.side}`);
+    const regimeSessionStats = this.statsFor("byRegimeSession", `${signal.marketRegimeType || signal.regime}:${currentSession}`);
     const adjustments = [
       this.adjustmentFromStats(setupStats, 0.28),
       this.adjustmentFromStats(symbolStats, 0.24),
       this.adjustmentFromStats(sessionStats, 0.16),
       this.adjustmentFromStats(regimeStats, 0.16),
       this.adjustmentFromStats(conditionStats, 0.32),
+      this.adjustmentFromStats(marketRegimeStats, 0.24 * this.config.regimeMemoryWeight),
+      this.adjustmentFromStats(regimeConditionStats, 0.34 * this.config.regimeMemoryWeight),
+      this.adjustmentFromStats(regimeSessionStats, 0.2 * this.config.regimeMemoryWeight),
     ];
     let scoreAdjustment = adjustments.reduce((total, item) => total + item.adjustment, 0);
     const reasons = adjustments.flatMap((item) => item.reasons).filter(Boolean);
@@ -556,6 +639,62 @@ class AdaptiveEngine {
       scoreAdjustment -= 6;
       reasons.push("fee-aware edge below threshold: confidence reduced");
     }
+    if (Array.isArray(signal.marketRegimeTags)) {
+      if (signal.marketRegimeTags.includes("STRONG_TRENDING_MARKET") && signal.btcTrendAligned) {
+        riskMultiplier *= 1.06;
+        scoreAdjustment += 2;
+        reasons.push("adaptive regime confidence increased: strong trending market supports continuation");
+      }
+      if (signal.marketRegimeTags.includes("HIGH_VOLATILITY_BREAKOUT_MARKET") && (signal.breakoutTriggered || signal.fomoTrigger)) {
+        riskMultiplier *= 1.03;
+        scoreAdjustment += 2;
+        reasons.push("breakout volatility regime active: fast momentum entry allowed with controlled risk");
+      }
+      if (signal.marketRegimeTags.includes("SIDEWAYS_CHOP_MARKET")) {
+        riskMultiplier *= 0.72;
+        scoreAdjustment -= 5;
+        reasons.push("chop regime activated: risk and confidence reduced");
+      }
+      if (signal.marketRegimeTags.includes("LOW_LIQUIDITY_MARKET")) {
+        riskMultiplier *= 0.7;
+        scoreAdjustment -= 5;
+        reasons.push("liquidity too weak: aggression reduced");
+      }
+      if (signal.marketRegimeTags.includes("FAKE_BREAKOUT_ENVIRONMENT")) {
+        riskMultiplier *= 0.62;
+        scoreAdjustment -= 7;
+        reasons.push("fake breakout environment: weak breakouts penalized");
+      }
+      if (signal.marketRegimeTags.includes("DEAD_MARKET_CONDITIONS")) {
+        riskMultiplier *= 0.55;
+        scoreAdjustment -= 8;
+        reasons.push("dead market conditions: activity strongly reduced");
+      }
+    }
+    if (marketRegimeStats && marketRegimeStats.count >= this.config.minAdaptiveBucketTrades) {
+      if (marketRegimeStats.winRatePct >= 58 && marketRegimeStats.feeAdjustedPnlUsdt > 0) {
+        scoreAdjustment += 2;
+        riskMultiplier *= 1.04;
+        reasons.push(`adaptive regime confidence increased: ${signal.marketRegimeType} has ${marketRegimeStats.winRatePct}% winrate`);
+      } else if (marketRegimeStats.winRatePct <= 38 && marketRegimeStats.feeAdjustedPnlUsdt < 0) {
+        scoreAdjustment -= 3;
+        riskMultiplier *= 0.88;
+        reasons.push(`self-tuning regime penalty: ${signal.marketRegimeType} has weak historical performance`);
+      }
+    }
+    if (sessionStats && sessionStats.count >= this.config.minAdaptiveBucketTrades) {
+      if (sessionStats.winRatePct >= 58 && sessionStats.feeAdjustedPnlUsdt > 0) {
+        scoreAdjustment += 1.5;
+        riskMultiplier *= 1.03;
+        reasons.push(`session aggression increased: ${currentSession} has favorable history`);
+      } else if (sessionStats.winRatePct <= 38 && sessionStats.feeAdjustedPnlUsdt < 0) {
+        scoreAdjustment -= 2;
+        riskMultiplier *= 0.9;
+        reasons.push(`session risk reduced: ${currentSession} has poor historical performance`);
+      }
+    }
+    riskMultiplier *= Number(signal.regimeRiskMultiplier || 1);
+    leverageMultiplier *= Number(signal.regimeLeverageMultiplier || 1);
 
     const poorCondition =
       conditionStats &&
@@ -576,9 +715,9 @@ class AdaptiveEngine {
 
     const policy = this.currentPolicy();
     if (policy.mode === "DEFENSIVE_RECOVERY") {
-      scoreAdjustment += 2;
-      riskMultiplier *= 1.05;
-      reasons.push("defensive recovery activated: recent performance improved");
+      scoreAdjustment += 3;
+      riskMultiplier *= 1.08;
+      reasons.push(policy.recoveryAggressionRestored ? "recovery aggression restored: recent performance stabilized" : "defensive recovery activated: recent performance improved");
     } else if (policy.mode === "CONTROLLED_AGGRESSIVE") {
       scoreAdjustment += 2;
       reasons.push("adaptive aggression increased: recent performance supports more activity");
