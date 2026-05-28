@@ -361,6 +361,23 @@ class AdaptiveEngine {
       enough &&
       last20.feeAdjustedPnlUsdt < 0 &&
       (last20.winRatePct < this.config.defensiveWinRatePct || last20.averagePnlPct < -0.25);
+    const feeDragRatio = last20.count > 0
+      ? last20.totalFeesUsdt / Math.max(Math.abs(last20.totalPnlUsdt), 0.000001)
+      : 0;
+    const shortHoldPressure =
+      enough &&
+      last20.averageHoldSeconds > 0 &&
+      last20.averageHoldSeconds < this.config.qualityPacingMinAverageHoldSeconds &&
+      last20.feeAdjustedPnlUsdt <= 0;
+    const qualityPacingActive = Boolean(
+      this.config.qualityPacingEnabled &&
+      enough &&
+      (
+        last20.winRatePct < this.config.qualityPacingMinWinRatePct ||
+        feeDragRatio >= this.config.qualityPacingFeeDragRatio ||
+        shortHoldPressure
+      )
+    );
     const continuousExecution = this.config.continuousExecutionMode || this.config.aggressiveLearningPhase;
     let mode = this.config.aggressiveLearningPhase ? "AGGRESSIVE_LEARNING_PHASE" : this.config.learningPhaseMode ? "LEARNING_PHASE" : "BASELINE";
     let riskMultiplier = 1;
@@ -412,6 +429,19 @@ class AdaptiveEngine {
       signalThresholdAdjustment += 2;
       riskMultiplier *= 0.92;
     }
+    let qualityPacingReason = null;
+    if (qualityPacingActive) {
+      signalThresholdAdjustment += this.config.qualityPacingSignalAdjustment;
+      riskMultiplier *= this.config.qualityPacingRiskMultiplier;
+      explorationMultiplier *= 0.75;
+      if (last20.winRatePct < this.config.qualityPacingMinWinRatePct) {
+        qualityPacingReason = `recent winrate ${last20.winRatePct}% below ${this.config.qualityPacingMinWinRatePct}%`;
+      } else if (feeDragRatio >= this.config.qualityPacingFeeDragRatio) {
+        qualityPacingReason = `fee drag ratio ${feeDragRatio.toFixed(2)} exceeds ${this.config.qualityPacingFeeDragRatio}`;
+      } else {
+        qualityPacingReason = `average hold ${last20.averageHoldSeconds}s below ${this.config.qualityPacingMinAverageHoldSeconds}s`;
+      }
+    }
     let activityFloorEngaged = false;
     const preFloorMaxTradesPerDay = maxTradesPerDay;
     if (this.config.adaptiveActivityFloorEnabled) {
@@ -449,6 +479,10 @@ class AdaptiveEngine {
       learningPhaseActive: this.config.learningPhaseMode,
       aggressiveLearningPhaseActive: this.config.aggressiveLearningPhase,
       continuousExecutionMode: this.config.continuousExecutionMode,
+      qualityPacingActive,
+      qualityPacingReason,
+      feeDragRatio: Number(feeDragRatio.toFixed(3)),
+      shortHoldPressure,
       dailyTradeLimitsDisabled: this.config.disableDailyTradeLimits || continuousExecution,
       explorationDailyCapDisabled: this.config.disableDailyTradeLimits || continuousExecution,
       riskMultiplier: clamp(riskMultiplier, this.config.adaptiveRiskMinMultiplier, this.config.adaptiveRiskMaxMultiplier),
@@ -462,12 +496,18 @@ class AdaptiveEngine {
       activityFloorConvictionRelaxPoints: activityFloorEngaged ? this.config.activityFloorConvictionRelaxPoints : 0,
       activityFloorChopToleranceBonus: activityFloorEngaged ? this.config.activityFloorChopToleranceBonus : 0,
       explorationMinSignalScore: clamp(
-        this.config.explorationMinSignalScore + Math.max(0, Math.floor(signalThresholdAdjustment / 2)) - (activityFloorEngaged ? this.config.activityFloorSignalRelaxPoints : 0),
+        this.config.explorationMinSignalScore +
+          Math.max(0, Math.floor(signalThresholdAdjustment / 2)) +
+          (qualityPacingActive ? this.config.qualityPacingExplorationAdjustment : 0) -
+          (activityFloorEngaged ? this.config.activityFloorSignalRelaxPoints : 0),
         1,
         100
       ),
       explorationMinConvictionScore: clamp(
-        this.config.explorationMinConvictionScore + Math.max(0, Math.floor(signalThresholdAdjustment / 2)) - (activityFloorEngaged ? this.config.activityFloorConvictionRelaxPoints : 0),
+        this.config.explorationMinConvictionScore +
+          Math.max(0, Math.floor(signalThresholdAdjustment / 2)) +
+          (qualityPacingActive ? this.config.qualityPacingExplorationAdjustment : 0) -
+          (activityFloorEngaged ? this.config.activityFloorConvictionRelaxPoints : 0),
         1,
         100
       ),
@@ -797,6 +837,9 @@ class AdaptiveEngine {
     } else if (policy.mode === "CONTROLLED_AGGRESSIVE") {
       scoreAdjustment += 2;
       reasons.push("adaptive aggression increased: recent performance supports more activity");
+    }
+    if (policy.qualityPacingActive) {
+      reasons.push(`adaptive pacing engaged: execution quality improved with stronger filters (${policy.qualityPacingReason})`);
     }
     if (technicalOverride && scoreAdjustment < 0) {
       const before = scoreAdjustment;

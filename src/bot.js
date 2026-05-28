@@ -124,6 +124,7 @@ class LadderBot {
       adaptiveMode: this.adaptive.currentPolicy().mode,
       adaptiveMinSignalScore: this.adaptive.currentPolicy().minSignalScore,
       marketRegimeIntelligenceEnabled: this.config.marketRegimeIntelligenceEnabled,
+      focusedTradingUniverse: this.config.focusedTradingSymbolsList,
       profitProtectionEnabled: this.config.profitProtectionEnabled,
       scanIntervalMs: this.config.scanIntervalMs,
       scanConcurrency: this.config.scanConcurrency,
@@ -136,6 +137,13 @@ class LadderBot {
     this.log("WARN", "This strategy attempts aggressive growth but cannot guarantee profit.", {
       stopLossPct: this.config.stopLossPct,
       maxDailyLossPct: this.config.maxDailyLossPct,
+    });
+    this.log("WARN", "Focused trading universe enabled; BTC/ETH/SOL mode active.", {
+      symbols: this.config.focusedTradingSymbolsList,
+      noisyMarketUniverseRemoved: true,
+      adaptiveFocusModeEnabled: true,
+      concentratedLiquidityTradingActive: true,
+      focusedExplorationActive: this.config.explorationModeEnabled,
     });
     if (this.config.learningPhaseMode) {
       this.log("WARN", "Learning phase mode active; continuous learning priority active.", {
@@ -267,6 +275,17 @@ class LadderBot {
       if (adaptivePolicy.mode === "CAUTIOUS_ACTIVE") {
         this.log("INFO", "Cautious active mode enabled; sizing is moderated but execution participation continues.", adaptivePolicy);
       }
+      if (adaptivePolicy.qualityPacingActive) {
+        this.log("WARN", "Adaptive pacing engaged; execution quality improved without disabling continuous execution.", {
+          reason: adaptivePolicy.qualityPacingReason,
+          rollingWinRatePct: adaptivePolicy.rollingWinRatePct,
+          rollingPnlUsdt: adaptivePolicy.rollingPnlUsdt,
+          feeDragRatio: adaptivePolicy.feeDragRatio,
+          minSignalScore: adaptivePolicy.minSignalScore,
+          explorationMinSignalScore: adaptivePolicy.explorationMinSignalScore,
+          explorationMinConvictionScore: adaptivePolicy.explorationMinConvictionScore,
+        });
+      }
       this.log("INFO", "Cycle risk status.", {
         equityUsdt: beforeEquity.toFixed(4),
         ladderLevel: level.level,
@@ -280,6 +299,8 @@ class LadderBot {
         adaptiveMaxOpenPositions: adaptivePolicy.maxOpenPositions,
         adaptiveMaxTradesPerDay: this.config.disableDailyTradeLimits ? "unlimited" : adaptivePolicy.maxTradesPerDay,
         dailyTradeLimitsDisabled: adaptivePolicy.dailyTradeLimitsDisabled,
+        qualityPacingActive: adaptivePolicy.qualityPacingActive,
+        qualityPacingReason: adaptivePolicy.qualityPacingReason,
         adaptiveRiskMultiplier: adaptivePolicy.riskMultiplier,
         explorationEnabled: adaptivePolicy.explorationEnabled,
         explorationBudget: adaptivePolicy.explorationBudget,
@@ -411,6 +432,13 @@ class LadderBot {
     let explorationOpenedThisCycle = 0;
     for (const signal of candidates) {
       if (opened >= availableSlots || this.stopping) break;
+      if (!this.config.focusedTradingSymbols.has(signal.symbol)) {
+        this.log("WARN", "Candidate rejected outside focused BTC/ETH/SOL universe.", {
+          symbol: signal.symbol,
+          allowedSymbols: this.config.focusedTradingSymbolsList,
+        });
+        continue;
+      }
       if (signal.explorationTrade) {
         const dailyExplorationTrades = Number(this.store.state.daily.explorationTrades || 0);
         const explorationBudget = adaptivePolicy.explorationBudget;
@@ -534,9 +562,11 @@ class LadderBot {
       }
       signal.profitProtectionRiskMultiplier = protection.riskMultiplier;
       signal.profitProtectionLeverageMultiplier = protection.leverageMultiplier;
+      signal.qualityPacingActive = adaptivePolicy.qualityPacingActive;
+      signal.qualityPacingReason = adaptivePolicy.qualityPacingReason;
       const edgeCheck = this.feeAwareEntryCheck(signal);
       if (edgeCheck.rejected) {
-        this.log("INFO", "Candidate rejected due to fee inefficiency or low conviction.", {
+        this.log("INFO", edgeCheck.microScalp ? "Micro-scalp filtered before execution." : "Low-edge setup rejected by improved fee-aware validation.", {
           symbol: signal.symbol,
           reason: edgeCheck.reason,
           expectedMovePct: signal.expectedMovePct,
@@ -544,6 +574,9 @@ class LadderBot {
           feeEdgeRatio: signal.feeEdgeRatio,
           projectedNetEdgePct: signal.projectedNetEdgePct,
           convictionScore: signal.convictionScore,
+          requiredProjectedEdgePct: edgeCheck.requiredProjectedEdgePct,
+          requiredEdgeToCostRatio: edgeCheck.requiredEdgeToCostRatio,
+          qualityPacingActive: adaptivePolicy.qualityPacingActive,
         });
         continue;
       }
@@ -571,13 +604,20 @@ class LadderBot {
         continue;
       }
       if (plan.highQualityContinuation && plan.qualitySizeMultiplier > 1) {
-        this.log("INFO", "Adaptive size increase applied for high-conviction setup.", {
+        this.log("INFO", "High-conviction setup prioritized with adaptive size increase.", {
           symbol: signal.symbol,
           convictionScore: signal.convictionScore,
           liquidityScore: signal.liquidityScore,
           feeEdgeRatio: signal.feeEdgeRatio,
           qualitySizeMultiplier: plan.qualitySizeMultiplier,
           adaptiveRiskMultiplier: plan.adaptiveRiskMultiplier,
+        });
+      }
+      if (adaptivePolicy.qualityPacingActive && plan.qualitySizeMultiplier < 1) {
+        this.log("INFO", "Adaptive pacing engaged; position size reduced while keeping execution active.", {
+          symbol: signal.symbol,
+          qualitySizeMultiplier: plan.qualitySizeMultiplier,
+          qualityPacingReason: adaptivePolicy.qualityPacingReason,
         });
       }
       if (signal.explorationTrade) {
@@ -691,13 +731,22 @@ class LadderBot {
 
   forcedSamplingEligible(signal) {
     if (!signal) return false;
+    if (!this.config.focusedTradingSymbols.has(signal.symbol)) return false;
     if (this.store.state.openPositions.some((position) => position.symbol === signal.symbol)) return false;
     if (signal.volatilityRegime === "NEWS_LIKE_ABNORMAL") return false;
-    if (Number(signal.projectedNetEdgePct || 0) < this.config.forcedSamplingMinProjectedEdgePct) return false;
-    if (Number(signal.feeEdgeRatio || 0) < this.config.forcedSamplingMinEdgeToCostRatio) return false;
+    const adaptivePolicy = this.adaptive.currentPolicy();
+    const edgeMultiplier = adaptivePolicy.qualityPacingActive ? this.config.qualityPacingEdgeMultiplier : 1;
+    if (Number(signal.projectedNetEdgePct || 0) < this.config.forcedSamplingMinProjectedEdgePct * edgeMultiplier) return false;
+    if (Number(signal.feeEdgeRatio || 0) < this.config.forcedSamplingMinEdgeToCostRatio * edgeMultiplier) return false;
     if (Number(signal.score || 0) < this.config.forcedSamplingMinScore) return false;
     if (Number(signal.convictionScore || 0) < this.config.forcedSamplingMinConviction) return false;
     if (Number(signal.liquidityScore || 0) < this.config.minLiquidityScore * 0.65) return false;
+    const continuationClue =
+      signal.fomoTrigger ||
+      signal.breakoutTriggered ||
+      Number(signal.momentumPersistenceCandles || 0) >= this.config.minMomentumPersistenceCandles ||
+      (signal.btcTrendAligned && Number(signal.trendQualityScore || 0) >= 58);
+    if (!continuationClue) return false;
     if (Array.isArray(signal.rejected) && signal.rejected.some((reason) => /fee inefficiency|exchange minimum|blacklist/i.test(reason))) return false;
     return true;
   }
@@ -751,21 +800,53 @@ class LadderBot {
   }
 
   feeAwareEntryCheck(signal) {
-    const minProjectedEdgePct = signal.explorationTrade ? this.config.explorationMinProjectedEdgePct : this.config.minProjectedEdgePct;
-    const minEdgeToCostRatio = signal.explorationTrade ? this.config.explorationMinEdgeToCostRatio : this.config.minEdgeToCostRatio;
-    const minConvictionScore = signal.explorationTrade ? this.config.explorationMinConvictionScore : this.config.minConvictionScore;
-    if (Number(signal.projectedNetEdgePct) < this.config.minProjectedEdgePct) {
-      if (!signal.explorationTrade || Number(signal.projectedNetEdgePct) < minProjectedEdgePct) {
-        return { rejected: true, reason: "projected edge after fees, spread, and slippage is too small" };
-      }
+    const qualityMultiplier = signal.qualityPacingActive ? this.config.qualityPacingEdgeMultiplier : 1;
+    const minProjectedEdgePct =
+      (signal.explorationTrade ? this.config.explorationMinProjectedEdgePct : this.config.minProjectedEdgePct) * qualityMultiplier;
+    const minEdgeToCostRatio =
+      (signal.explorationTrade ? this.config.explorationMinEdgeToCostRatio : this.config.minEdgeToCostRatio) * qualityMultiplier;
+    const minConvictionScore =
+      (signal.explorationTrade ? this.config.explorationMinConvictionScore : this.config.minConvictionScore) +
+      (signal.qualityPacingActive ? (signal.explorationTrade ? 2 : 3) : 0);
+    const minExpectedMovePct = this.config.minExpectedMovePct * (signal.explorationTrade ? 0.75 : 1);
+    if (Number(signal.expectedMovePct) < minExpectedMovePct) {
+      return {
+        rejected: true,
+        microScalp: true,
+        reason: "micro-scalp filtered: expected move is too small for the current fee profile",
+        requiredProjectedEdgePct: Number(minProjectedEdgePct.toFixed(4)),
+        requiredEdgeToCostRatio: Number(minEdgeToCostRatio.toFixed(4)),
+      };
+    }
+    if (Number(signal.projectedNetEdgePct) < minProjectedEdgePct) {
+      return {
+        rejected: true,
+        reason: "low-edge setup rejected: projected edge after fees, spread, and slippage is too small",
+        requiredProjectedEdgePct: Number(minProjectedEdgePct.toFixed(4)),
+        requiredEdgeToCostRatio: Number(minEdgeToCostRatio.toFixed(4)),
+      };
     }
     if (Number(signal.feeEdgeRatio) < minEdgeToCostRatio) {
-      return { rejected: true, reason: "expected move is too small relative to transaction costs" };
+      return {
+        rejected: true,
+        reason: "fee-aware edge validation improved: expected move is too small relative to transaction costs",
+        requiredProjectedEdgePct: Number(minProjectedEdgePct.toFixed(4)),
+        requiredEdgeToCostRatio: Number(minEdgeToCostRatio.toFixed(4)),
+      };
     }
     if (Number(signal.convictionScore) < minConvictionScore) {
-      return { rejected: true, reason: "conviction score below threshold" };
+      return {
+        rejected: true,
+        reason: "quality filter strengthened: conviction score below threshold",
+        requiredProjectedEdgePct: Number(minProjectedEdgePct.toFixed(4)),
+        requiredEdgeToCostRatio: Number(minEdgeToCostRatio.toFixed(4)),
+      };
     }
-    return { rejected: false };
+    return {
+      rejected: false,
+      requiredProjectedEdgePct: Number(minProjectedEdgePct.toFixed(4)),
+      requiredEdgeToCostRatio: Number(minEdgeToCostRatio.toFixed(4)),
+    };
   }
 
   adaptiveLeverageForSignal(signal, policy = this.adaptive.currentPolicy()) {
@@ -1740,8 +1821,10 @@ class LadderBot {
       `Level: ${state.ladder.activeLevel} (highest ${state.ladder.highestUnlockedLevel})`,
       `Open positions: ${state.openPositions.length}/${adaptivePolicy.maxOpenPositions || this.config.maxOpenPositions}`,
       `Adaptive mode: ${adaptivePolicy.mode}, min score ${adaptivePolicy.minSignalScore}, max leverage ${adaptivePolicy.maxLeverage}x`,
+      `Focused universe: ${(this.config.focusedTradingSymbolsList || []).join(", ")}`,
       `Continuous execution: ${this.config.continuousExecutionMode ? "active" : "off"}`,
       `Learning phase: ${this.config.learningPhaseMode ? "active" : "off"}, daily trade limits: ${this.config.disableDailyTradeLimits ? "disabled" : "enabled"}`,
+      `Quality pacing: ${adaptivePolicy.qualityPacingActive ? `active - ${adaptivePolicy.qualityPacingReason}` : "inactive"}`,
       `Daily PnL realized: ${Number(daily.realizedPnlUsdt || 0).toFixed(4)} USDT`,
       `Daily trades/losses: ${daily.tradesOpened || 0}/${daily.losingTrades || 0}`,
       `Exploration trades today: ${daily.explorationTrades || 0}/${this.config.disableDailyTradeLimits ? "unlimited" : adaptivePolicy.explorationBudget || 0}`,

@@ -494,6 +494,45 @@ async function testMarketRegimeClassification() {
   assert.equal(late.sessionRegime, "DEAD_HOURS");
 }
 
+async function testFocusedUniverseRestriction() {
+  const { events, log } = logCollector();
+  const subscribed = [];
+  const symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "DOGEUSDT", "WIFUSDT"].map((symbol) => ({
+    symbol,
+    contractType: "LinearPerpetual",
+    status: "Trading",
+    settleCoin: "USDT",
+  }));
+  const tickers = new Map(
+    ["BTCUSDT", "ETHUSDT", "SOLUSDT", "DOGEUSDT", "WIFUSDT"].map((symbol, index) => [
+      symbol,
+      {
+        symbol,
+        turnover24h: String(10000000 - index * 1000),
+        lastPrice: "100",
+        bid1Price: "99.99",
+        ask1Price: "100.01",
+      },
+    ])
+  );
+  const client = {
+    getSymbols: async () => symbols,
+    getTicker: async (symbol) => tickers.get(symbol),
+    getTickers: async () => {
+      throw new Error("focused universe should not fetch all tickers");
+    },
+    subscribeTickers: (list) => subscribed.push(...list),
+  };
+  const scanner = new Scanner(config({ maxSymbolsToScan: 3 }), client, log);
+  const universe = await scanner.universe();
+  assert.deepEqual(universe.map((item) => item.info.symbol), ["BTCUSDT", "ETHUSDT", "SOLUSDT"]);
+  assert.deepEqual(subscribed, ["BTCUSDT", "ETHUSDT", "SOLUSDT"]);
+  assert.ok(events.some((event) => event.message === "Focused trading universe enabled."));
+  assert.ok(events.some((event) => event.message === "BTC/ETH/SOL mode active; noisy market universe removed."));
+  const prepared = events.find((event) => event.message === "Focused BTC/ETH/SOL universe prepared.");
+  assert.equal(prepared.details.rejected.outsideFocus, 2);
+}
+
 async function testExplorationSignalPath() {
   const { log } = logCollector();
   const cfg = config({
@@ -661,11 +700,31 @@ async function testFeeAwareEntryAndDynamicSizing() {
   assert.match(rejected.reason, /edge|move/i);
   const exploratoryPass = bot.feeAwareEntryCheck({
     explorationTrade: true,
+    expectedMovePct: bot.config.minExpectedMovePct,
     projectedNetEdgePct: bot.config.explorationMinProjectedEdgePct + 0.02,
     feeEdgeRatio: bot.config.explorationMinEdgeToCostRatio + 0.05,
     convictionScore: bot.config.explorationMinConvictionScore + 1,
   });
   assert.equal(exploratoryPass.rejected, false);
+  const pacedLowEdge = bot.feeAwareEntryCheck({
+    explorationTrade: true,
+    qualityPacingActive: true,
+    expectedMovePct: bot.config.minExpectedMovePct,
+    projectedNetEdgePct: bot.config.explorationMinProjectedEdgePct + 0.02,
+    feeEdgeRatio: bot.config.explorationMinEdgeToCostRatio + 0.05,
+    convictionScore: bot.config.explorationMinConvictionScore + 8,
+  });
+  assert.equal(pacedLowEdge.rejected, true);
+  assert.match(pacedLowEdge.reason, /low-edge|fee-aware/i);
+  const microScalp = bot.feeAwareEntryCheck({
+    explorationTrade: true,
+    expectedMovePct: 0.2,
+    projectedNetEdgePct: 1,
+    feeEdgeRatio: 4,
+    convictionScore: 90,
+  });
+  assert.equal(microScalp.rejected, true);
+  assert.equal(microScalp.microScalp, true);
 
   bot.store.state = {
     ladder: { activeLevel: 1, highestUnlockedLevel: 1, levelStartEquity: 100, riskDowngraded: false },
@@ -876,7 +935,8 @@ async function testAdaptiveEnginePolicyAndConfidence() {
   assert.equal(defensive.currentPolicy().learningPhaseActive, true);
   assert.equal(defensive.currentPolicy().aggressiveLearningPhaseActive, true);
   assert.equal(defensive.currentPolicy().dailyTradeLimitsDisabled, true);
-  assert.ok(defensive.currentPolicy().riskMultiplier >= 0.95);
+  assert.equal(defensive.currentPolicy().qualityPacingActive, true);
+  assert.ok(defensive.currentPolicy().riskMultiplier >= 0.8);
   assert.equal(defensive.currentPolicy().explorationBudget, Number.MAX_SAFE_INTEGER);
 
   const confident = new AdaptiveEngine(config({ minAdaptiveTrades: 5, minAdaptiveBucketTrades: 3 }), log);
@@ -1024,6 +1084,7 @@ async function testAdaptiveActivityFloorPolicy() {
     minAdaptiveTrades: 5,
     aggressiveLearningPhase: false,
     continuousExecutionMode: false,
+    qualityPacingEnabled: false,
     disableDailyTradeLimits: false,
   }), log);
   adaptive.load();
@@ -1154,13 +1215,16 @@ async function testForcedMarketSamplingPromotion() {
     candidates: [],
     analyses: [
       {
-        symbol: "LEARNUSDT",
+        symbol: "SOLUSDT",
         side: "LONG",
         score: 31,
         convictionScore: 34,
         projectedNetEdgePct: 0.12,
         feeEdgeRatio: 1.2,
         liquidityScore: 36,
+        momentumPersistenceCandles: 2,
+        breakoutTriggered: true,
+        trendQualityScore: 60,
         volatilityRegime: "NORMAL",
         rejected: ["moderate chop accepted for learning sample"],
         scoreBreakdown: ["momentum +15"],
@@ -1176,6 +1240,7 @@ async function testForcedMarketSamplingPromotion() {
   assert.equal(promoted[0].rejected.length, 0);
   assert.ok(promoted[0].forcedSamplingOriginalRejections.includes("moderate chop accepted for learning sample"));
   assert.ok(events.some((event) => event.message === "Forced market sampling engaged."));
+  assert.equal(bot.forcedSamplingEligible({ ...promoted[0], symbol: "DOGEUSDT" }), false);
 }
 
 async function run() {
@@ -1186,6 +1251,7 @@ async function run() {
   await testReconciliation();
   await testLiveEntrySafetyUsesParsedUtaBalance();
   await testMarketRegimeClassification();
+  await testFocusedUniverseRestriction();
   await testSurvivabilityScannerScoring();
   await testExplorationSignalPath();
   await testExplorationMemoryRelaxation();
@@ -1200,7 +1266,7 @@ async function run() {
   await testContinuousExecutionClearsStaleTradeLimitPause();
   await testAggressiveLearningCooldownsAreAdvisory();
   await testForcedMarketSamplingPromotion();
-  console.log("Bybit client and bot tests passed: REST signing, UTA balance parsing, live safety balance use, native protection payloads, WebSocket reconnect, reconciliation, hedge exposure detection, native TP events, regime intelligence, survivability scoring, exploration path, exploration memory relaxation, fee-aware stats, advisory symbol cooldowns, adaptive learning, cautious active recovery, activity floor, daily trade limit removal, forced market sampling, profit protection, fee-aware entries, dynamic sizing, and continuation holds.");
+  console.log("Bybit client and bot tests passed: REST signing, UTA balance parsing, live safety balance use, native protection payloads, WebSocket reconnect, reconciliation, hedge exposure detection, native TP events, regime intelligence, focused BTC/ETH/SOL universe restriction, survivability scoring, exploration path, exploration memory relaxation, fee-aware stats, advisory symbol cooldowns, adaptive learning, cautious active recovery, activity floor, daily trade limit removal, forced market sampling, profit protection, fee-aware entries, dynamic sizing, and continuation holds.");
 }
 
 run().catch((error) => {
