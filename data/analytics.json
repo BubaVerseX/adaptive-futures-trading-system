@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-05-28T13:03:38.050Z",
+  "updatedAt": "2026-05-28T13:47:56.697Z",
   "totalPnl": {
     "count": 38,
     "wins": 6,
@@ -1165,7 +1165,7 @@
     "maxDrawdownUsdt": -8.86199
   },
   "adaptivePolicy": {
-    "mode": "CAUTIOUS_LEARNING",
+    "mode": "CAUTIOUS_ACTIVE",
     "sampleSize": 20,
     "rollingWinRatePct": 10,
     "rollingPnlUsdt": -4.998019,
@@ -1174,26 +1174,27 @@
     "recoveryPnlUsdt": -2.161174,
     "recoveryAggressionRestored": false,
     "learningPhaseActive": true,
+    "aggressiveLearningPhaseActive": true,
     "dailyTradeLimitsDisabled": true,
     "explorationDailyCapDisabled": true,
-    "riskMultiplier": 0.94,
-    "signalThresholdAdjustment": 0,
-    "minSignalScore": 40,
+    "riskMultiplier": 0.97,
+    "signalThresholdAdjustment": -1,
+    "minSignalScore": 39,
     "explorationEnabled": true,
-    "explorationBudget": 999999,
+    "explorationBudget": 9007199254740991,
     "explorationExpansionActive": true,
     "activityFloorEngaged": false,
     "activityFloorSignalRelaxPoints": 0,
     "activityFloorConvictionRelaxPoints": 0,
     "activityFloorChopToleranceBonus": 0,
-    "explorationMinSignalScore": 25,
-    "explorationMinConvictionScore": 32,
+    "explorationMinSignalScore": 20,
+    "explorationMinConvictionScore": 24,
     "regimeSelfTuning": {
       "bestRegime": "DOWN",
       "worstRegime": "CHOPPY",
       "memoryWeight": 0.18
     },
-    "maxLeverage": 7,
+    "maxLeverage": 8,
     "maxOpenPositions": 3,
     "maxTradesPerDay": 9007199254740991
   }

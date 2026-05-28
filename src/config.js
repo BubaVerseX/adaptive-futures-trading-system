@@ -86,6 +86,7 @@ function loadConfig() {
     x10Mode: booleanValue("X10_MODE", true),
     learningPhaseMode: booleanValue("LEARNING_PHASE_MODE", true),
     aggressiveLearningPhase: booleanValue("AGGRESSIVE_LEARNING_PHASE", true),
+    continuousExecutionMode: booleanValue("CONTINUOUS_EXECUTION_MODE", true),
     disableDailyTradeLimits: booleanValue("DISABLE_DAILY_TRADE_LIMITS", true),
     forcedMarketSamplingEnabled: booleanValue("FORCED_MARKET_SAMPLING_ENABLED", true),
     forcedMarketSamplingAfterMinutes: numberValue("FORCED_MARKET_SAMPLING_AFTER_MINUTES", 5, { positive: true }),

@@ -102,6 +102,7 @@ class LadderBot {
       x10Mode: this.config.x10Mode,
       learningPhaseMode: this.config.learningPhaseMode,
       aggressiveLearningPhase: this.config.aggressiveLearningPhase,
+      continuousExecutionMode: this.config.continuousExecutionMode,
       dailyTradeLimitsDisabled: this.config.disableDailyTradeLimits,
       forcedMarketSamplingEnabled: this.config.forcedMarketSamplingEnabled,
       fastMode: this.config.fastMode,
@@ -148,6 +149,13 @@ class LadderBot {
           forcedExecutionSamplingActive: this.config.forcedMarketSamplingEnabled,
           portfolioSuppressionRemoved: true,
           continuousMarketParticipationActive: true,
+        });
+      }
+      if (this.config.continuousExecutionMode) {
+        this.log("WARN", "Continuous execution mode active; all daily trade-count blockers and participation quotas are disabled.", {
+          portfolioExecutionSuppressionRemoved: true,
+          explorationExecutionForceApproved: true,
+          adaptiveParticipationUnrestricted: true,
         });
       }
       if (this.config.disableDailyTradeLimits) {
@@ -1732,6 +1740,7 @@ class LadderBot {
       `Level: ${state.ladder.activeLevel} (highest ${state.ladder.highestUnlockedLevel})`,
       `Open positions: ${state.openPositions.length}/${adaptivePolicy.maxOpenPositions || this.config.maxOpenPositions}`,
       `Adaptive mode: ${adaptivePolicy.mode}, min score ${adaptivePolicy.minSignalScore}, max leverage ${adaptivePolicy.maxLeverage}x`,
+      `Continuous execution: ${this.config.continuousExecutionMode ? "active" : "off"}`,
       `Learning phase: ${this.config.learningPhaseMode ? "active" : "off"}, daily trade limits: ${this.config.disableDailyTradeLimits ? "disabled" : "enabled"}`,
       `Daily PnL realized: ${Number(daily.realizedPnlUsdt || 0).toFixed(4)} USDT`,
       `Daily trades/losses: ${daily.tradesOpened || 0}/${daily.losingTrades || 0}`,
