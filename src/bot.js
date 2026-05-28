@@ -101,6 +101,7 @@ class LadderBot {
       accountStartUsdt: this.config.accountStartUsdt,
       x10Mode: this.config.x10Mode,
       learningPhaseMode: this.config.learningPhaseMode,
+      aggressiveLearningPhase: this.config.aggressiveLearningPhase,
       dailyTradeLimitsDisabled: this.config.disableDailyTradeLimits,
       forcedMarketSamplingEnabled: this.config.forcedMarketSamplingEnabled,
       fastMode: this.config.fastMode,
@@ -137,12 +138,20 @@ class LadderBot {
     });
     if (this.config.learningPhaseMode) {
       this.log("WARN", "Learning phase mode active; continuous learning priority active.", {
+        aggressiveLearningPhase: this.config.aggressiveLearningPhase,
         dailyTradeLimitsDisabled: this.config.disableDailyTradeLimits,
         aggressiveExplorationActive: this.config.explorationModeEnabled,
         forcedMarketSamplingEnabled: this.config.forcedMarketSamplingEnabled,
       });
+      if (this.config.aggressiveLearningPhase) {
+        this.log("WARN", "Aggressive learning phase active; adaptive participation unrestricted by daily execution quotas.", {
+          forcedExecutionSamplingActive: this.config.forcedMarketSamplingEnabled,
+          portfolioSuppressionRemoved: true,
+          continuousMarketParticipationActive: true,
+        });
+      }
       if (this.config.disableDailyTradeLimits) {
-        this.log("WARN", "Daily trade limits disabled; trading continues until manual stop, emergency stop, loss protection, or portfolio safety blocks it.");
+        this.log("WARN", "Daily execution limits disabled; trading continues until manual stop, emergency stop, loss protection, or core safety blocks it.");
       }
     }
 
@@ -246,6 +255,9 @@ class LadderBot {
       }
       if (adaptivePolicy.mode === "CAUTIOUS_LEARNING") {
         this.log("INFO", "Cautious mode participation enabled; risk is moderated but learning participation remains active.", adaptivePolicy);
+      }
+      if (adaptivePolicy.mode === "CAUTIOUS_ACTIVE") {
+        this.log("INFO", "Cautious active mode enabled; sizing is moderated but execution participation continues.", adaptivePolicy);
       }
       this.log("INFO", "Cycle risk status.", {
         equityUsdt: beforeEquity.toFixed(4),
@@ -393,26 +405,15 @@ class LadderBot {
       if (opened >= availableSlots || this.stopping) break;
       if (signal.explorationTrade) {
         const dailyExplorationTrades = Number(this.store.state.daily.explorationTrades || 0);
-        const explorationBudget = protection.active
-          ? Math.max(0, Math.floor((adaptivePolicy.explorationBudget || 0) * protection.explorationMultiplier))
-          : adaptivePolicy.explorationBudget;
-        if (!this.config.disableDailyTradeLimits && (!adaptivePolicy.explorationEnabled || dailyExplorationTrades + explorationOpenedThisCycle >= explorationBudget)) {
-          this.log("INFO", "Exploration candidate skipped because daily exploration budget is used.", {
-            symbol: signal.symbol,
-            dailyExplorationTrades,
-            explorationOpenedThisCycle,
-            explorationBudget,
-            profitProtectionActive: protection.active,
-          });
-          continue;
-        }
-        if (this.config.disableDailyTradeLimits) {
-          this.log("INFO", "Aggressive exploration active; exploration daily caps are disabled in learning phase.", {
-            symbol: signal.symbol,
-            dailyExplorationTrades,
-            explorationBudgetReference: explorationBudget,
-          });
-        }
+        const explorationBudget = adaptivePolicy.explorationBudget;
+        this.log("INFO", "Exploration execution approved; no daily exploration budget is enforced.", {
+          symbol: signal.symbol,
+          dailyExplorationTrades,
+          explorationOpenedThisCycle,
+          explorationBudgetReference: Number.isFinite(explorationBudget) ? explorationBudget : "unlimited",
+          profitProtectionActive: protection.active,
+          aggressiveLearningPhase: this.config.aggressiveLearningPhase,
+        });
         this.log("INFO", "Adaptive exploration active for candidate.", {
           symbol: signal.symbol,
           side: signal.side,

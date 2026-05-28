@@ -142,17 +142,6 @@ class RiskManager {
       daily.lossLocked = true;
       return { locked: true, closePositions: true, stopBot: true, reason: "maximum daily loss reached", pnlPct };
     }
-    const policy = this.adaptive && this.config.adaptiveLearningEnabled ? this.adaptive.currentPolicy() : null;
-    const maxTradesPerDay = policy ? policy.maxTradesPerDay : this.config.maxTradesPerDay;
-    if (!this.config.disableDailyTradeLimits && daily.tradesOpened >= maxTradesPerDay) {
-      return {
-        locked: true,
-        closePositions: false,
-        stopBot: false,
-        reason: policy && maxTradesPerDay < this.config.maxTradesPerDay ? "adaptive maximum daily trades reached" : "maximum daily trades reached",
-        pnlPct,
-      };
-    }
     return { locked: false, pnlPct };
   }
 
@@ -215,11 +204,12 @@ class RiskManager {
       const now = Date.now();
       const lossCooldownUntil = Date.parse(cooldown.lossCooldownUntil || "");
       const reentryUntil = Date.parse(cooldown.reentryUntil || "");
-      if (Number.isFinite(lossCooldownUntil) && lossCooldownUntil > now) {
-        return `symbol cooling down after losing trade until ${cooldown.lossCooldownUntil}`;
-      }
-      if (Number.isFinite(reentryUntil) && reentryUntil > now) {
-        return `symbol re-entry cooldown active until ${cooldown.reentryUntil}`;
+      if ((Number.isFinite(lossCooldownUntil) && lossCooldownUntil > now) || (Number.isFinite(reentryUntil) && reentryUntil > now)) {
+        this.log("INFO", "Portfolio suppression removed; symbol cooldown is advisory only.", {
+          symbol,
+          lossCooldownUntil: cooldown.lossCooldownUntil,
+          reentryUntil: cooldown.reentryUntil,
+        });
       }
     }
     return null;

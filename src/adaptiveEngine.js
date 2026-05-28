@@ -361,7 +361,7 @@ class AdaptiveEngine {
       enough &&
       last20.feeAdjustedPnlUsdt < 0 &&
       (last20.winRatePct < this.config.defensiveWinRatePct || last20.averagePnlPct < -0.25);
-    let mode = this.config.learningPhaseMode ? "LEARNING_PHASE" : "BASELINE";
+    let mode = this.config.aggressiveLearningPhase ? "AGGRESSIVE_LEARNING_PHASE" : this.config.learningPhaseMode ? "LEARNING_PHASE" : "BASELINE";
     let riskMultiplier = 1;
     let signalThresholdAdjustment = 0;
     let maxLeverage = this.config.maxLeverage;
@@ -371,13 +371,13 @@ class AdaptiveEngine {
     let recoveryAggressionRestored = false;
 
     if (weakRecentPerformance) {
-      mode = this.config.learningPhaseMode ? "CAUTIOUS_LEARNING" : "DEFENSIVE";
-      riskMultiplier = this.config.learningPhaseMode ? 0.94 : 0.88;
-      signalThresholdAdjustment = this.config.learningPhaseMode ? 0 : 1;
-      maxLeverage = Math.max(1, Math.floor(this.config.maxLeverage * (this.config.learningPhaseMode ? 0.95 : 0.9)));
+      mode = this.config.aggressiveLearningPhase ? "CAUTIOUS_ACTIVE" : this.config.learningPhaseMode ? "CAUTIOUS_LEARNING" : "DEFENSIVE";
+      riskMultiplier = this.config.aggressiveLearningPhase ? 0.97 : this.config.learningPhaseMode ? 0.94 : 0.88;
+      signalThresholdAdjustment = this.config.aggressiveLearningPhase ? -1 : this.config.learningPhaseMode ? 0 : 1;
+      maxLeverage = Math.max(1, Math.floor(this.config.maxLeverage * (this.config.aggressiveLearningPhase ? 1 : this.config.learningPhaseMode ? 0.95 : 0.9)));
       maxOpenPositions = Math.max(1, Math.ceil(this.config.maxOpenPositions * (this.config.learningPhaseMode ? 1 : 0.9)));
       maxTradesPerDay = this.config.learningPhaseMode ? this.config.maxTradesPerDay : Math.max(12, Math.floor(this.config.maxTradesPerDay * 0.85));
-      explorationMultiplier = this.config.learningPhaseMode ? 1.45 : 1.05;
+      explorationMultiplier = this.config.aggressiveLearningPhase ? 2.25 : this.config.learningPhaseMode ? 1.45 : 1.05;
       const recoveryImproved =
         recoveryWindow.count >= Math.min(this.config.minAdaptiveTrades, this.config.adaptiveRecoveryLookbackTrades) &&
         (
@@ -388,13 +388,13 @@ class AdaptiveEngine {
       if (
         recoveryImproved
       ) {
-        mode = this.config.learningPhaseMode ? "LEARNING_RECOVERY" : "DEFENSIVE_RECOVERY";
-        riskMultiplier = this.config.learningPhaseMode ? 1.05 : 1;
-        signalThresholdAdjustment = this.config.learningPhaseMode ? -2 : -1;
+        mode = this.config.aggressiveLearningPhase ? "AGGRESSIVE_LEARNING_RECOVERY" : this.config.learningPhaseMode ? "LEARNING_RECOVERY" : "DEFENSIVE_RECOVERY";
+        riskMultiplier = this.config.aggressiveLearningPhase ? 1.08 : this.config.learningPhaseMode ? 1.05 : 1;
+        signalThresholdAdjustment = this.config.aggressiveLearningPhase ? -3 : this.config.learningPhaseMode ? -2 : -1;
         maxLeverage = Math.max(1, Math.floor(this.config.maxLeverage * (this.config.learningPhaseMode ? 1 : 0.95)));
         maxOpenPositions = Math.max(1, Math.ceil(this.config.maxOpenPositions * (this.config.learningPhaseMode ? 1 : 0.9)));
         maxTradesPerDay = this.config.learningPhaseMode ? this.config.maxTradesPerDay : Math.max(14, Math.floor(this.config.maxTradesPerDay * 0.9));
-        explorationMultiplier = this.config.learningPhaseMode ? 1.7 : 1.25;
+        explorationMultiplier = this.config.aggressiveLearningPhase ? 2.5 : this.config.learningPhaseMode ? 1.7 : 1.25;
         recoveryAggressionRestored = true;
       }
     } else if (enough && last20.winRatePct > this.config.aggressiveWinRatePct && last20.feeAdjustedPnlUsdt > 0) {
@@ -404,7 +404,7 @@ class AdaptiveEngine {
       maxLeverage = this.config.maxLeverage;
       maxOpenPositions = this.config.maxOpenPositions;
       maxTradesPerDay = this.config.maxTradesPerDay;
-      explorationMultiplier = this.config.learningPhaseMode ? 1.5 : 1.15;
+      explorationMultiplier = this.config.aggressiveLearningPhase ? 2.2 : this.config.learningPhaseMode ? 1.5 : 1.15;
     }
 
     if (!this.config.learningPhaseMode && last20.count >= this.config.minAdaptiveTrades && last20.totalFeesUsdt > Math.abs(last20.totalPnlUsdt) * 0.7) {
@@ -418,15 +418,15 @@ class AdaptiveEngine {
       activityFloorEngaged = maxTradesPerDay > preFloorMaxTradesPerDay;
     }
     let explorationBudget = this.config.explorationModeEnabled
-      ? this.config.disableDailyTradeLimits
-        ? this.config.explorationMaxTradesPerDay
+      ? this.config.disableDailyTradeLimits || this.config.aggressiveLearningPhase
+        ? Number.MAX_SAFE_INTEGER
         : Math.min(
             this.config.explorationMaxTradesPerDay,
             Math.max(1, Math.floor(maxTradesPerDay * this.config.explorationTradeRatio * explorationMultiplier))
           )
       : 0;
     const preFloorExplorationBudget = explorationBudget;
-    if (this.config.adaptiveActivityFloorEnabled && this.config.explorationModeEnabled) {
+    if (this.config.adaptiveActivityFloorEnabled && this.config.explorationModeEnabled && !this.config.disableDailyTradeLimits && !this.config.aggressiveLearningPhase) {
       explorationBudget = Math.min(
         this.config.explorationMaxTradesPerDay,
         Math.max(explorationBudget, this.config.activityFloorMinExplorationBudget)
@@ -446,8 +446,9 @@ class AdaptiveEngine {
       recoveryPnlUsdt: recoveryWindow.feeAdjustedPnlUsdt,
       recoveryAggressionRestored,
       learningPhaseActive: this.config.learningPhaseMode,
+      aggressiveLearningPhaseActive: this.config.aggressiveLearningPhase,
       dailyTradeLimitsDisabled: this.config.disableDailyTradeLimits,
-      explorationDailyCapDisabled: this.config.disableDailyTradeLimits,
+      explorationDailyCapDisabled: this.config.disableDailyTradeLimits || this.config.aggressiveLearningPhase,
       riskMultiplier: clamp(riskMultiplier, this.config.adaptiveRiskMinMultiplier, this.config.adaptiveRiskMaxMultiplier),
       signalThresholdAdjustment,
       minSignalScore: clamp(this.config.minSignalScore + signalThresholdAdjustment, 1, 100),
@@ -475,7 +476,7 @@ class AdaptiveEngine {
       },
       maxLeverage: clamp(maxLeverage, 1, this.config.maxLeverage),
       maxOpenPositions: clamp(maxOpenPositions, 1, this.config.maxOpenPositions),
-      maxTradesPerDay: this.config.disableDailyTradeLimits ? Number.MAX_SAFE_INTEGER : clamp(maxTradesPerDay, 1, this.config.maxTradesPerDay),
+      maxTradesPerDay: this.config.disableDailyTradeLimits || this.config.aggressiveLearningPhase ? Number.MAX_SAFE_INTEGER : clamp(maxTradesPerDay, 1, this.config.maxTradesPerDay),
     };
   }
 
@@ -779,18 +780,18 @@ class AdaptiveEngine {
     }
 
     const policy = this.currentPolicy();
-    if (policy.mode === "DEFENSIVE_RECOVERY" || policy.mode === "LEARNING_RECOVERY") {
+    if (policy.mode === "DEFENSIVE_RECOVERY" || policy.mode === "LEARNING_RECOVERY" || policy.mode === "AGGRESSIVE_LEARNING_RECOVERY") {
       scoreAdjustment += 3;
       riskMultiplier *= 1.08;
       reasons.push(policy.recoveryAggressionRestored ? "recovery aggression restored: recent performance stabilized" : "defensive recovery activated: recent performance improved");
-    } else if (policy.mode === "CAUTIOUS_LEARNING") {
-      scoreAdjustment += 1;
-      riskMultiplier *= 1.02;
-      reasons.push("cautious mode participation enabled: learning phase keeps trading active");
-    } else if (policy.mode === "LEARNING_PHASE") {
+    } else if (policy.mode === "CAUTIOUS_ACTIVE" || policy.mode === "CAUTIOUS_LEARNING") {
+      scoreAdjustment += policy.mode === "CAUTIOUS_ACTIVE" ? 2 : 1;
+      riskMultiplier *= policy.mode === "CAUTIOUS_ACTIVE" ? 1.04 : 1.02;
+      reasons.push(policy.mode === "CAUTIOUS_ACTIVE" ? "cautious active mode enabled: risk is moderated but execution remains active" : "cautious mode participation enabled: learning phase keeps trading active");
+    } else if (policy.mode === "AGGRESSIVE_LEARNING_PHASE" || policy.mode === "LEARNING_PHASE") {
       scoreAdjustment += 2;
-      riskMultiplier *= 1.03;
-      reasons.push("continuous learning priority active: participation favored within safety limits");
+      riskMultiplier *= policy.mode === "AGGRESSIVE_LEARNING_PHASE" ? 1.05 : 1.03;
+      reasons.push(policy.mode === "AGGRESSIVE_LEARNING_PHASE" ? "aggressive learning phase active: continuous market participation active" : "continuous learning priority active: participation favored within safety limits");
     } else if (policy.mode === "CONTROLLED_AGGRESSIVE") {
       scoreAdjustment += 2;
       reasons.push("adaptive aggression increased: recent performance supports more activity");

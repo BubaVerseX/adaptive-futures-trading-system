@@ -249,41 +249,41 @@ function marketProfileFromBenchmarks(config, btc, eth) {
     scoreAdjustment += 3;
   }
   if (chop) {
-    aggressionMultiplier *= config.learningPhaseMode ? 0.92 : 0.72;
-    riskMultiplier *= config.learningPhaseMode ? 0.9 : 0.78;
-    leverageMultiplier *= config.learningPhaseMode ? 0.9 : 0.82;
-    explorationMultiplier *= config.learningPhaseMode ? 1.1 : 0.65;
-    scoreAdjustment -= config.learningPhaseMode ? 2 : 5;
+    aggressionMultiplier *= config.aggressiveLearningPhase ? 0.98 : config.learningPhaseMode ? 0.92 : 0.72;
+    riskMultiplier *= config.aggressiveLearningPhase ? 0.95 : config.learningPhaseMode ? 0.9 : 0.78;
+    leverageMultiplier *= config.aggressiveLearningPhase ? 0.95 : config.learningPhaseMode ? 0.9 : 0.82;
+    explorationMultiplier *= config.aggressiveLearningPhase ? 1.3 : config.learningPhaseMode ? 1.1 : 0.65;
+    scoreAdjustment -= config.aggressiveLearningPhase ? 1 : config.learningPhaseMode ? 2 : 5;
     minSignalAdjustment += config.learningPhaseMode ? 0 : 2;
     minConvictionAdjustment += config.learningPhaseMode ? 0 : 2;
     holdMultiplier *= 0.88;
     trailingDistanceMultiplier *= 0.82;
   }
   if (lowLiquidity) {
-    aggressionMultiplier *= config.learningPhaseMode ? 0.92 : 0.82;
-    riskMultiplier *= config.learningPhaseMode ? 0.9 : 0.8;
-    leverageMultiplier *= config.learningPhaseMode ? 0.95 : 0.88;
-    explorationMultiplier *= config.learningPhaseMode ? 1 : 0.7;
-    scoreAdjustment -= config.learningPhaseMode ? 1 : 3;
+    aggressionMultiplier *= config.aggressiveLearningPhase ? 0.98 : config.learningPhaseMode ? 0.92 : 0.82;
+    riskMultiplier *= config.aggressiveLearningPhase ? 0.95 : config.learningPhaseMode ? 0.9 : 0.8;
+    leverageMultiplier *= config.aggressiveLearningPhase ? 0.98 : config.learningPhaseMode ? 0.95 : 0.88;
+    explorationMultiplier *= config.aggressiveLearningPhase ? 1.15 : config.learningPhaseMode ? 1 : 0.7;
+    scoreAdjustment -= config.aggressiveLearningPhase ? 0 : config.learningPhaseMode ? 1 : 3;
     minSignalAdjustment += config.learningPhaseMode ? 0 : 2;
   }
   if (deadMarket) {
-    aggressionMultiplier *= config.learningPhaseMode ? 0.75 : 0.55;
-    riskMultiplier *= config.learningPhaseMode ? 0.78 : 0.62;
-    leverageMultiplier *= config.learningPhaseMode ? 0.8 : 0.7;
-    explorationMultiplier *= config.learningPhaseMode ? 0.75 : 0.35;
-    scoreAdjustment -= config.learningPhaseMode ? 4 : 8;
-    minSignalAdjustment += config.learningPhaseMode ? 2 : 5;
-    minConvictionAdjustment += config.learningPhaseMode ? 2 : 5;
+    aggressionMultiplier *= config.aggressiveLearningPhase ? 0.88 : config.learningPhaseMode ? 0.75 : 0.55;
+    riskMultiplier *= config.aggressiveLearningPhase ? 0.88 : config.learningPhaseMode ? 0.78 : 0.62;
+    leverageMultiplier *= config.aggressiveLearningPhase ? 0.88 : config.learningPhaseMode ? 0.8 : 0.7;
+    explorationMultiplier *= config.aggressiveLearningPhase ? 1 : config.learningPhaseMode ? 0.75 : 0.35;
+    scoreAdjustment -= config.aggressiveLearningPhase ? 2 : config.learningPhaseMode ? 4 : 8;
+    minSignalAdjustment += config.aggressiveLearningPhase ? 0 : config.learningPhaseMode ? 2 : 5;
+    minConvictionAdjustment += config.aggressiveLearningPhase ? 0 : config.learningPhaseMode ? 2 : 5;
   }
   if (fakeBreakout) {
-    aggressionMultiplier *= config.learningPhaseMode ? 0.85 : 0.72;
-    riskMultiplier *= config.learningPhaseMode ? 0.85 : 0.75;
-    leverageMultiplier *= config.learningPhaseMode ? 0.9 : 0.82;
-    explorationMultiplier *= config.learningPhaseMode ? 0.85 : 0.55;
-    scoreAdjustment -= config.learningPhaseMode ? 3 : 6;
-    minSignalAdjustment += config.learningPhaseMode ? 1 : 3;
-    minConvictionAdjustment += config.learningPhaseMode ? 1 : 3;
+    aggressionMultiplier *= config.aggressiveLearningPhase ? 0.92 : config.learningPhaseMode ? 0.85 : 0.72;
+    riskMultiplier *= config.aggressiveLearningPhase ? 0.9 : config.learningPhaseMode ? 0.85 : 0.75;
+    leverageMultiplier *= config.aggressiveLearningPhase ? 0.95 : config.learningPhaseMode ? 0.9 : 0.82;
+    explorationMultiplier *= config.aggressiveLearningPhase ? 1.05 : config.learningPhaseMode ? 0.85 : 0.55;
+    scoreAdjustment -= config.aggressiveLearningPhase ? 1 : config.learningPhaseMode ? 3 : 6;
+    minSignalAdjustment += config.aggressiveLearningPhase ? 0 : config.learningPhaseMode ? 1 : 3;
+    minConvictionAdjustment += config.aggressiveLearningPhase ? 0 : config.learningPhaseMode ? 1 : 3;
     trailingDistanceMultiplier *= 0.82;
   }
 

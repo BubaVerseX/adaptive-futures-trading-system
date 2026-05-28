@@ -129,12 +129,13 @@ function technicalConvictionScore(config, parts) {
 
 function explorationBlockReason(config, signal) {
   if (!config.explorationModeEnabled) return "exploration mode disabled";
+  const aggressiveLearning = Boolean(config.aggressiveLearningPhase);
   const tags = Array.isArray(signal.marketRegimeTags) ? signal.marketRegimeTags : [];
   const regimeScoreHike = Math.max(0, Math.floor(Number(signal.regimeMinSignalAdjustment || 0) / 2));
   const regimeConvictionHike = Math.max(0, Math.floor(Number(signal.regimeMinConvictionAdjustment || 0) / 2));
-  if (Number(signal.regimeExplorationMultiplier || 1) <= 0.25) return "exploration blocked by defensive market regime";
-  if (tags.includes("DEAD_MARKET_CONDITIONS") && !signal.fomoTrigger) return "exploration blocked during dead market conditions";
-  if (tags.includes("FAKE_BREAKOUT_ENVIRONMENT") && !signal.btcTrendAligned) return "exploration blocked by fake breakout environment";
+  if (!aggressiveLearning && Number(signal.regimeExplorationMultiplier || 1) <= 0.25) return "exploration blocked by defensive market regime";
+  if (!aggressiveLearning && tags.includes("DEAD_MARKET_CONDITIONS") && !signal.fomoTrigger) return "exploration blocked during dead market conditions";
+  if (!aggressiveLearning && tags.includes("FAKE_BREAKOUT_ENVIRONMENT") && !signal.btcTrendAligned) return "exploration blocked by fake breakout environment";
   if (signal.volatilityRegime === "NEWS_LIKE_ABNORMAL") return "exploration blocked during news-like abnormal volatility";
   if (
     signal.volumeCondition === "LOW_VOLUME" &&
@@ -144,9 +145,10 @@ function explorationBlockReason(config, signal) {
       signal.liquidityScore >= config.minLiquidityScore
     )
   ) return "exploration blocked by low volume condition";
-  if (signal.liquidityScore < config.minLiquidityScore * 0.8) return "exploration blocked by weak liquidity";
+  const liquidityFloor = config.minLiquidityScore * (aggressiveLearning ? 0.45 : 0.8);
+  if (signal.liquidityScore < liquidityFloor) return "exploration blocked by weak liquidity";
   const chopLimit = config.explorationMaxChopScore + (config.adaptiveActivityFloorEnabled ? config.activityFloorChopToleranceBonus : 0);
-  if (signal.antiChopScore > chopLimit) return "exploration blocked by excessive chop";
+  if (!aggressiveLearning && signal.antiChopScore > chopLimit) return "exploration blocked by excessive chop";
   if (signal.projectedNetEdgePct < config.explorationMinProjectedEdgePct) return "exploration blocked by insufficient fee-adjusted edge";
   if (signal.feeEdgeRatio < config.explorationMinEdgeToCostRatio) return "exploration blocked by weak edge-to-cost ratio";
   const scoreFloor = signal.explorationRequiredScore !== undefined
@@ -155,8 +157,8 @@ function explorationBlockReason(config, signal) {
   const convictionFloor = signal.explorationRequiredConvictionScore !== undefined
     ? signal.explorationRequiredConvictionScore
     : config.explorationMinConvictionScore + regimeConvictionHike - (config.adaptiveActivityFloorEnabled ? config.activityFloorConvictionRelaxPoints : 0);
-  if (signal.score < scoreFloor) return "exploration blocked by low adaptive score";
-  if (signal.convictionScore < convictionFloor) return "exploration blocked by low exploratory conviction";
+  if (signal.score < (aggressiveLearning ? Math.min(scoreFloor, config.forcedSamplingMinScore) : scoreFloor)) return "exploration blocked by low adaptive score";
+  if (signal.convictionScore < (aggressiveLearning ? Math.min(convictionFloor, config.forcedSamplingMinConviction) : convictionFloor)) return "exploration blocked by low exploratory conviction";
   const blacklist = signal.rejected.find((reason) => /blacklist|choppy-market entries disabled/i.test(reason));
   if (blacklist) return blacklist;
   return null;
@@ -500,7 +502,11 @@ class Scanner {
       addScore("altcoin momentum market participation boost", 6);
     }
     if (marketRegimeTags.includes("SIDEWAYS_CHOP_MARKET")) {
-      const chopRegimePenalty = this.config.learningPhaseMode
+      const chopRegimePenalty = this.config.aggressiveLearningPhase
+        ? breakSignal || fomoTrigger || hasMomentumPersistence
+          ? 1
+          : 3
+        : this.config.learningPhaseMode
         ? breakSignal || fomoTrigger || hasMomentumPersistence
           ? 2
           : 5
@@ -510,13 +516,13 @@ class Scanner {
       addScore("sideways chop market activity reduction", -chopRegimePenalty);
     }
     if (marketRegimeTags.includes("FAKE_BREAKOUT_ENVIRONMENT")) {
-      addScore("fake breakout environment penalty", this.config.learningPhaseMode ? -5 : -12);
+      addScore("fake breakout environment penalty", this.config.aggressiveLearningPhase ? -2 : this.config.learningPhaseMode ? -5 : -12);
     }
     if (marketRegimeTags.includes("LOW_LIQUIDITY_MARKET")) {
-      addScore("low-liquidity market penalty", this.config.learningPhaseMode ? -4 : -8);
+      addScore("low-liquidity market penalty", this.config.aggressiveLearningPhase ? -1 : this.config.learningPhaseMode ? -4 : -8);
     }
     if (marketRegimeTags.includes("DEAD_MARKET_CONDITIONS")) {
-      addScore("dead market conditions penalty", this.config.learningPhaseMode ? -6 : -12);
+      addScore("dead market conditions penalty", this.config.aggressiveLearningPhase ? -3 : this.config.learningPhaseMode ? -6 : -12);
     }
     if (session.deadHours) {
       addScore("dead-hours session liquidity penalty", -5);
@@ -533,13 +539,13 @@ class Scanner {
     if (lowLiquidityRandomSpike) {
       addScore("low-liquidity random spike penalty", -this.config.lowLiquiditySpikePenalty);
     }
-    const liquidityFloor = this.config.learningPhaseMode ? this.config.minLiquidityScore * 0.7 : this.config.minLiquidityScore;
+    const liquidityFloor = this.config.aggressiveLearningPhase ? this.config.minLiquidityScore * 0.5 : this.config.learningPhaseMode ? this.config.minLiquidityScore * 0.7 : this.config.minLiquidityScore;
     if (symbolLiquidityScore < liquidityFloor) {
       rejected.push(`low liquidity quality score ${symbolLiquidityScore.toFixed(1)} below ${this.config.minLiquidityScore}`);
     }
     if (
       marketRegimeTags.includes("LOW_LIQUIDITY_MARKET") &&
-      symbolLiquidityScore < (this.config.learningPhaseMode ? this.config.minLiquidityScore * 0.85 : this.config.minLiquidityScore + 8)
+      symbolLiquidityScore < (this.config.aggressiveLearningPhase ? this.config.minLiquidityScore * 0.65 : this.config.learningPhaseMode ? this.config.minLiquidityScore * 0.85 : this.config.minLiquidityScore + 8)
     ) {
       rejected.push("liquidity too weak for regime-aware entry");
     }
@@ -548,7 +554,7 @@ class Scanner {
     }
     if (
       marketRegimeTags.includes("FAKE_BREAKOUT_ENVIRONMENT") &&
-      (!supportsTrend || volumeSpike < this.config.minVolumeSpike + (this.config.learningPhaseMode ? 0.15 : 0.45) || symbolTrendQualityScore < (this.config.learningPhaseMode ? 55 : 65))
+      (!supportsTrend || volumeSpike < this.config.minVolumeSpike + (this.config.aggressiveLearningPhase ? 0.05 : this.config.learningPhaseMode ? 0.15 : 0.45) || symbolTrendQualityScore < (this.config.aggressiveLearningPhase ? 45 : this.config.learningPhaseMode ? 55 : 65))
     ) {
       rejected.push("fake breakout environment rejected weak breakout structure");
     }
@@ -576,7 +582,7 @@ class Scanner {
     }
 
     if (regime === "CHOPPY" && !this.config.allowChoppyMarket) rejected.push("choppy-market entries disabled by configuration");
-    const volumeSurvivabilityFloor = this.config.learningPhaseMode ? this.config.minVolumeSpike * 0.72 : this.config.minVolumeSpike;
+    const volumeSurvivabilityFloor = this.config.aggressiveLearningPhase ? this.config.minVolumeSpike * 0.55 : this.config.learningPhaseMode ? this.config.minVolumeSpike * 0.72 : this.config.minVolumeSpike;
     if (volumeSpike < volumeSurvivabilityFloor && !fomoTrigger) rejected.push("volume confirmation below survivability threshold");
     if (!hasMomentumPersistence && !fomoTrigger && !breakSignal) rejected.push("momentum did not persist long enough");
     if (
