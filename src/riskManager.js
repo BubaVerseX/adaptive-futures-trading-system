@@ -30,6 +30,10 @@ function roundedPrice(value, step, roundUp) {
   return Number(rounded.toFixed(decimalPlaces(step)));
 }
 
+function bounded(value, minimum, maximum) {
+  return Math.max(minimum, Math.min(maximum, value));
+}
+
 function closedLossStreak(trades, mode) {
   const closed = trades
     .filter((trade) => trade.mode === mode && trade.status === "CLOSED")
@@ -291,13 +295,25 @@ class RiskManager {
     const baseRiskPct = strongSetup ? this.config.aggressiveRiskPerTradePct : this.config.baseRiskPerTradePct;
     const adaptiveRiskMultiplier = Number(signal.adaptiveRiskMultiplier || 1);
     let qualitySizeMultiplier = 1;
+    let convictionTier = "TIER_1_EXPLORATORY";
+    let tierMarginMin = this.config.tier1MarginMinUsdt;
+    let tierMarginMax = this.config.tier1MarginMaxUsdt;
     const highQualityContinuation =
       Number(signal.convictionScore || 0) >= this.config.minConvictionScore + 18 &&
       Number(signal.liquidityScore || 0) >= 70 &&
       signal.btcTrendAligned &&
       ["STRONG_VOLUME_SPIKE", "CONFIRMED_VOLUME"].includes(signal.volumeCondition) &&
-      Number(signal.projectedNetEdgePct || 0) >= this.config.minProjectedEdgePct + 0.45;
-    if (highQualityContinuation) {
+      Number(signal.projectedNetEdgePct || 0) >= this.config.minProjectedEdgePct + (signal.highActivityContinuation ? 0.25 : 0.45);
+    const eliteSetup = Boolean(signal.eliteSetup);
+    if (eliteSetup) {
+      convictionTier = "TIER_3_ELITE_SETUP";
+      tierMarginMin = this.config.tier3MarginMinUsdt;
+      tierMarginMax = this.config.tier3MarginMaxUsdt;
+      qualitySizeMultiplier = 1.38;
+    } else if (highQualityContinuation) {
+      convictionTier = "TIER_2_STRONG_SETUP";
+      tierMarginMin = this.config.tier2MarginMinUsdt;
+      tierMarginMax = this.config.tier2MarginMaxUsdt;
       qualitySizeMultiplier = 1.12;
     } else if (
       Number(signal.convictionScore || 0) < this.config.minConvictionScore + 6 ||
@@ -308,6 +324,9 @@ class RiskManager {
       qualitySizeMultiplier = signal.volatilityRegime === "NEWS_LIKE_ABNORMAL" ? 0.55 : 0.75;
     }
     if (signal.explorationTrade) {
+      convictionTier = "TIER_1_EXPLORATORY";
+      tierMarginMin = this.config.tier1MarginMinUsdt;
+      tierMarginMax = this.config.tier1MarginMaxUsdt;
       qualitySizeMultiplier *= this.config.explorationRiskMultiplier;
     }
     if (signal.qualityPacingActive) {
@@ -331,19 +350,44 @@ class RiskManager {
     // Margin cap keeps the bot from using the full account even in aggressive mode.
     const marginCappedNotional = equity * leverage * (this.config.maxMarginUsagePct / 100);
     const configuredNotionalCap = this.config.maxPositionNotionalUsdt || Number.POSITIVE_INFINITY;
-    const notional = Math.min(riskBasedNotional, marginCappedNotional, configuredNotionalCap);
+    const targetMarginUsdt = bounded(
+      tierMarginMin + (tierMarginMax - tierMarginMin) * bounded(Number(signal.convictionScore || 0) / 100, 0, 1),
+      tierMarginMin,
+      tierMarginMax
+    );
+    const tierTargetNotional = targetMarginUsdt * leverage;
     const lot = symbolInfo.lotSizeFilter || {};
     const tickSize = symbolInfo.priceFilter && symbolInfo.priceFilter.tickSize;
+    const minimumSize = Number(lot.minOrderQty || 0);
+    const minimumNotional = Number(lot.minNotionalValue || 0);
+    const exchangeMinimumNotional = Math.max(minimumNotional, minimumSize * signal.price);
+    const hardNotionalCap = Math.min(riskBasedNotional, marginCappedNotional, configuredNotionalCap);
+    let notional = Math.min(hardNotionalCap, tierTargetNotional);
+    if (notional < exchangeMinimumNotional && exchangeMinimumNotional <= hardNotionalCap) {
+      notional = exchangeMinimumNotional;
+    }
     const step = Number(lot.qtyStep);
     const quantity = Math.floor(notional / signal.price / step + Number.EPSILON) * step;
     const size = quantity.toFixed(decimalPlaces(lot.qtyStep));
-    const minimumSize = Number(lot.minOrderQty || 0);
-    const minimumNotional = Number(lot.minNotionalValue || 0);
 
     if (!Number.isFinite(quantity) || quantity <= 0 || quantity < minimumSize || quantity * signal.price < minimumNotional) {
       return { rejected: true, reason: "risk-sized order is below this symbol's exchange minimum" };
     }
     const isLong = signal.side === "LONG";
+    const standardTakeProfitPrice = roundedPrice(
+      signal.price * (isLong ? 1 + this.config.takeProfitPct / 100 : 1 - this.config.takeProfitPct / 100),
+      tickSize,
+      !isLong
+    );
+    const runnerTakeProfitPrice = roundedPrice(
+      signal.price * (
+        isLong
+          ? 1 + (this.config.takeProfitPct * (eliteSetup ? this.config.eliteRunnerTakeProfitMultiplier : 1)) / 100
+          : 1 - (this.config.takeProfitPct * (eliteSetup ? this.config.eliteRunnerTakeProfitMultiplier : 1)) / 100
+      ),
+      tickSize,
+      !isLong
+    );
     return {
       rejected: false,
       size,
@@ -354,15 +398,19 @@ class RiskManager {
       adaptiveRiskMultiplier: Number(adaptiveRiskMultiplier.toFixed(3)),
       qualitySizeMultiplier: Number(qualitySizeMultiplier.toFixed(3)),
       highQualityContinuation,
+      eliteSetup,
+      convictionTier,
+      targetMarginUsdt: Number(targetMarginUsdt.toFixed(6)),
+      tierMarginMinUsdt: tierMarginMin,
+      tierMarginMaxUsdt: tierMarginMax,
       explorationSizing: Boolean(signal.explorationTrade),
       continuousRecoveryRiskMultiplier: Number(signal.continuousRecoveryRiskMultiplier || 1),
       riskUsdt: Number(riskUsdt.toFixed(6)),
       stopLossPrice: roundedPrice(signal.price * (isLong ? 1 - stopDistance : 1 + stopDistance), tickSize, !isLong),
-      takeProfitPrice: roundedPrice(
-        signal.price * (isLong ? 1 + this.config.takeProfitPct / 100 : 1 - this.config.takeProfitPct / 100),
-        tickSize,
-        !isLong
-      ),
+      takeProfitPrice: runnerTakeProfitPrice,
+      partialTakeProfitPrice: eliteSetup ? standardTakeProfitPrice : null,
+      runnerTakeProfitPrice,
+      standardTakeProfitPrice,
       ladderLevel: level.level,
       sizingEquity,
       aggressive: strongSetup,

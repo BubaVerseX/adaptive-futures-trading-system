@@ -56,6 +56,18 @@ function setupTypeFromSignal(signal = {}) {
   return "MOMENTUM_SCALP";
 }
 
+function eliteConditionKeyFromSignal(signal = {}) {
+  const tags = Array.isArray(signal.marketRegimeTags) ? signal.marketRegimeTags : [];
+  const regime = tags.includes("HIGH_VOLATILITY_BREAKOUT_MARKET")
+    ? "BREAKOUT_VOL"
+    : tags.includes("STRONG_TRENDING_MARKET")
+      ? "TREND"
+      : signal.marketRegimeType || signal.marketRegime || signal.regime || "UNKNOWN";
+  const momentum = numeric(signal.momentumPersistenceCandles) >= 4 ? "PERSIST_4" : "PERSIST_2";
+  const volume = signal.volumeCondition || signal.volumeConditions || "UNKNOWN_VOLUME";
+  return `${signal.symbol || "UNKNOWN"}:${signal.side || "SIDE"}:${signal.setupType || setupTypeFromSignal(signal)}:${regime}:${volume}:${momentum}:${signal.sessionRegime || signal.sessionType || "SESSION"}`;
+}
+
 function summarize(records) {
   const summary = {
     count: records.length,
@@ -249,6 +261,12 @@ class AdaptiveEngine {
       feeEdgeRatio: numeric(trade.feeEdgeRatio),
       projectedNetEdgePct: numeric(trade.projectedNetEdgePct),
       convictionScore: numeric(trade.convictionScore),
+      convictionTier: trade.convictionTier || "UNCLASSIFIED",
+      eliteSetup: Boolean(trade.eliteSetup),
+      eliteConditionKey: trade.eliteConditionKey || eliteConditionKeyFromSignal(trade),
+      smartProjectedNetEdgePct: numeric(trade.smartProjectedNetEdgePct),
+      estimatedTpProbability: numeric(trade.estimatedTpProbability),
+      marketPersonality: trade.marketPersonality || "UNKNOWN",
       liquidityScore: numeric(trade.liquidityScore),
       trendQualityScore: numeric(trade.trendQualityScore),
       antiChopScore: numeric(trade.antiChopScore),
@@ -321,6 +339,11 @@ class AdaptiveEngine {
     const byRegimeSession = groupBy(records, (record) =>
       `${record.marketRegimeType || record.marketRegime}:${record.sessionRegime || record.sessionType}`
     );
+    const byEliteCondition = groupBy(
+      records.filter((record) => record.eliteSetup || record.realizedPnlPct >= 1.2 || record.realizedPnlUsdt >= 1),
+      (record) => record.eliteConditionKey || eliteConditionKeyFromSignal(record)
+    );
+    const byMarketPersonality = groupBy(records, (record) => record.marketPersonality || "UNKNOWN");
 
     this.memory.stats = {
       all: summarize(records),
@@ -337,6 +360,8 @@ class AdaptiveEngine {
       byCondition,
       byRegimeCondition,
       byRegimeSession,
+      byEliteCondition,
+      byMarketPersonality,
       bestSymbols: leaderboard(bySymbol, "best"),
       worstSymbols: leaderboard(bySymbol, "worst"),
       bestSetups: leaderboard(bySetupType, "best"),
@@ -345,6 +370,7 @@ class AdaptiveEngine {
       weakestSessions: leaderboard(bySession, "worst"),
       bestMarketRegimes: leaderboard(byMarketRegimeType, "best"),
       worstMarketRegimes: leaderboard(byMarketRegimeType, "worst"),
+      bestEliteConditions: leaderboard(byEliteCondition, "best"),
       drawdown: drawdown(records),
     };
     this.memory.adaptive.policy = this.buildPolicy();
@@ -442,6 +468,13 @@ class AdaptiveEngine {
         qualityPacingReason = `average hold ${last20.averageHoldSeconds}s below ${this.config.qualityPacingMinAverageHoldSeconds}s`;
       }
     }
+    let highActivityAdjustment = 0;
+    if (this.config.highActivityMode) {
+      highActivityAdjustment = qualityPacingActive ? -1 : -2;
+      signalThresholdAdjustment += highActivityAdjustment;
+      explorationMultiplier *= qualityPacingActive ? 1.1 : 1.35;
+      riskMultiplier *= qualityPacingActive ? 1.02 : 1.06;
+    }
     let activityFloorEngaged = false;
     const preFloorMaxTradesPerDay = maxTradesPerDay;
     if (this.config.adaptiveActivityFloorEnabled) {
@@ -478,6 +511,8 @@ class AdaptiveEngine {
       recoveryAggressionRestored,
       learningPhaseActive: this.config.learningPhaseMode,
       aggressiveLearningPhaseActive: this.config.aggressiveLearningPhase,
+      highActivityModeActive: this.config.highActivityMode,
+      highActivityAdjustment,
       continuousExecutionMode: this.config.continuousExecutionMode,
       qualityPacingActive,
       qualityPacingReason,
@@ -553,6 +588,10 @@ class AdaptiveEngine {
         best: stats.bestMarketRegimes || [],
         worst: stats.worstMarketRegimes || [],
       },
+      eliteConditionLeaderboard: {
+        best: stats.bestEliteConditions || [],
+      },
+      marketPersonalityPerformance: stats.byMarketPersonality || {},
       regimeSessionPerformance: stats.byRegimeSession || {},
       bestWorstConditions: {
         best: leaderboard(stats.byCondition || {}, "best"),
@@ -674,6 +713,8 @@ class AdaptiveEngine {
     const marketRegimeStats = this.statsFor("byMarketRegimeType", signal.marketRegimeType || signal.regime);
     const regimeConditionStats = this.statsFor("byRegimeCondition", `${signal.marketRegimeType || signal.regime}:${signal.setupType}:${signal.side}`);
     const regimeSessionStats = this.statsFor("byRegimeSession", `${signal.marketRegimeType || signal.regime}:${currentSession}`);
+    const eliteKey = signal.eliteConditionKey || eliteConditionKeyFromSignal(signal);
+    const eliteStats = this.statsFor("byEliteCondition", eliteKey);
     const adjustments = [
       this.adjustmentFromStats(setupStats, 0.28),
       this.adjustmentFromStats(symbolStats, 0.24),
@@ -729,6 +770,13 @@ class AdaptiveEngine {
       riskMultiplier *= 1.08;
       scoreAdjustment += 3;
       reasons.push("conviction boost applied: strong technical conviction plus fee edge");
+    }
+    if (eliteStats && eliteStats.count >= this.config.minAdaptiveBucketTrades && eliteStats.winRatePct >= 55 && eliteStats.feeAdjustedPnlUsdt > 0) {
+      const eliteBonus = clamp((eliteStats.winRatePct - 50) / 10 + Math.min(4, eliteStats.averagePnlPct), 1, 8);
+      scoreAdjustment += eliteBonus;
+      riskMultiplier *= 1 + Math.min(0.16, eliteBonus / 60);
+      leverageMultiplier *= 1 + Math.min(0.1, eliteBonus / 90);
+      reasons.push(`elite memory matched: ${eliteKey} winrate ${eliteStats.winRatePct}% over ${eliteStats.count} samples`);
     }
     if (numeric(signal.technicalConvictionScore) < this.config.minConvictionScore) {
       riskMultiplier *= 0.75;
@@ -840,6 +888,15 @@ class AdaptiveEngine {
     }
     if (policy.qualityPacingActive) {
       reasons.push(`adaptive pacing engaged: execution quality improved with stronger filters (${policy.qualityPacingReason})`);
+    }
+    if (this.config.highActivityMode && signal.highActivityContinuation) {
+      scoreAdjustment += signal.eliteContinuationCandidate ? 3 : 2;
+      riskMultiplier *= signal.eliteContinuationCandidate ? 1.06 : 1.03;
+      reasons.push(
+        signal.eliteContinuationCandidate
+          ? "elite continuation detected: high activity mode increased trend participation"
+          : "high activity mode active: continuation setup receives participation boost"
+      );
     }
     if (technicalOverride && scoreAdjustment < 0) {
       const before = scoreAdjustment;

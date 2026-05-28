@@ -77,15 +77,16 @@ function loadConfig() {
     x10Mode: booleanValue("X10_MODE", true),
     learningPhaseMode: booleanValue("LEARNING_PHASE_MODE", true),
     aggressiveLearningPhase: booleanValue("AGGRESSIVE_LEARNING_PHASE", true),
+    highActivityMode: booleanValue("HIGH_ACTIVITY_MODE", true),
     continuousExecutionMode: true,
     disableDailyTradeLimits: true,
     forcedMarketSamplingEnabled: booleanValue("FORCED_MARKET_SAMPLING_ENABLED", true),
-    forcedMarketSamplingAfterMinutes: numberValue("FORCED_MARKET_SAMPLING_AFTER_MINUTES", 8, { positive: true }),
-    forcedSamplingMaxCandidates: numberValue("FORCED_SAMPLING_MAX_CANDIDATES", 2, { positive: true, integer: true, maximum: 10 }),
-    forcedSamplingMinScore: numberValue("FORCED_SAMPLING_MIN_SCORE", 28, { positive: true, maximum: 100 }),
-    forcedSamplingMinConviction: numberValue("FORCED_SAMPLING_MIN_CONVICTION", 34, { positive: true, maximum: 100 }),
-    forcedSamplingMinProjectedEdgePct: numberValue("FORCED_SAMPLING_MIN_PROJECTED_EDGE_PCT", 0.12, { minimum: 0 }),
-    forcedSamplingMinEdgeToCostRatio: numberValue("FORCED_SAMPLING_MIN_EDGE_TO_COST_RATIO", 1.2, { positive: true }),
+    forcedMarketSamplingAfterMinutes: numberValue("FORCED_MARKET_SAMPLING_AFTER_MINUTES", 4, { positive: true }),
+    forcedSamplingMaxCandidates: numberValue("FORCED_SAMPLING_MAX_CANDIDATES", 3, { positive: true, integer: true, maximum: 10 }),
+    forcedSamplingMinScore: numberValue("FORCED_SAMPLING_MIN_SCORE", 26, { positive: true, maximum: 100 }),
+    forcedSamplingMinConviction: numberValue("FORCED_SAMPLING_MIN_CONVICTION", 32, { positive: true, maximum: 100 }),
+    forcedSamplingMinProjectedEdgePct: numberValue("FORCED_SAMPLING_MIN_PROJECTED_EDGE_PCT", 0.1, { minimum: 0 }),
+    forcedSamplingMinEdgeToCostRatio: numberValue("FORCED_SAMPLING_MIN_EDGE_TO_COST_RATIO", 1.15, { positive: true }),
     fastMode: booleanValue("FAST_MODE", true),
     fomoBreakoutMode: booleanValue("FOMO_BREAKOUT_MODE", true),
     microBreakoutEntries: booleanValue("MICRO_BREAKOUT_ENTRIES", true),
@@ -102,13 +103,16 @@ function loadConfig() {
     acknowledgeLiveTrading: booleanValue("ACKNOWLEDGE_LIVE_TRADING", false),
     allowShorts: booleanValue("ALLOW_SHORTS", true),
     allowLongs: booleanValue("ALLOW_LONGS", true),
-    scanIntervalMs: numberValue("SCAN_INTERVAL_MS", 2000, { positive: true, integer: true }),
-    positionMonitorIntervalMs: numberValue("POSITION_MONITOR_INTERVAL_MS", 2000, { positive: true, integer: true }),
+    scanIntervalMs: numberValue("SCAN_INTERVAL_MS", 1500, { positive: true, integer: true }),
+    positionMonitorIntervalMs: numberValue("POSITION_MONITOR_INTERVAL_MS", 1500, { positive: true, integer: true }),
     entryConfirmationTimeoutMs: numberValue("ENTRY_CONFIRMATION_TIMEOUT_MS", 15000, { positive: true, integer: true }),
     scanConcurrency: numberValue("SCAN_CONCURRENCY", 4, { positive: true, integer: true, maximum: 10 }),
-    marketRegimeCacheMs: numberValue("MARKET_REGIME_CACHE_MS", 120000, { positive: true, integer: true }),
+    marketRegimeCacheMs: numberValue("MARKET_REGIME_CACHE_MS", 60000, { positive: true, integer: true }),
     apiRequestIntervalMs: numberValue("API_REQUEST_INTERVAL_MS", 70, { positive: true, integer: true }),
     apiRateLimitCooldownMs: numberValue("API_RATE_LIMIT_COOLDOWN_MS", 10000, { positive: true, integer: true }),
+    apiAutoRecoveryEnabled: booleanValue("API_AUTO_RECOVERY_ENABLED", true),
+    apiRecoveryBaseBackoffMs: numberValue("API_RECOVERY_BASE_BACKOFF_MS", 1000, { positive: true, integer: true }),
+    apiRecoveryMaxBackoffMs: numberValue("API_RECOVERY_MAX_BACKOFF_MS", 30000, { positive: true, integer: true }),
     wsReconnectBaseMs: numberValue("WS_RECONNECT_BASE_MS", 1000, { positive: true, integer: true }),
     candleIntervalFast: String(process.env.CANDLE_INTERVAL_FAST || "1M").trim(),
     candleIntervalMain: String(process.env.CANDLE_INTERVAL_MAIN || "5M").trim(),
@@ -124,15 +128,15 @@ function loadConfig() {
     trailingStopEnabled: booleanValue("TRAILING_STOP_ENABLED", true),
     trailingStartPct: numberValue("TRAILING_START_PCT", 1.1, { positive: true }),
     trailingDistancePct: numberValue("TRAILING_DISTANCE_PCT", 0.6, { positive: true }),
-    minSignalScore: numberValue("MIN_SIGNAL_SCORE", 44, { positive: true, maximum: 100 }),
+    minSignalScore: numberValue("MIN_SIGNAL_SCORE", 42, { positive: true, maximum: 100 }),
     closePositionOnExit: booleanValue("CLOSE_POSITION_ON_EXIT", true),
     maxPositionNotionalUsdt: numberValue("MAX_POSITION_NOTIONAL_USDT", 150, { positive: true }),
     maxMarginUsagePct: numberValue("MAX_MARGIN_USAGE_PCT", 55, { positive: true, maximum: 95 }),
     maxTotalMarginUsagePct: numberValue("MAX_TOTAL_MARGIN_USAGE_PCT", 90, { positive: true, maximum: 95 }),
     minLiquidationBufferPct: numberValue("MIN_LIQUIDATION_BUFFER_PCT", 2, { positive: true }),
-    minVolumeSpike: numberValue("MIN_VOLUME_SPIKE", 1.25, { positive: true }),
-    minBurstMomentumPct: numberValue("MIN_BURST_MOMENTUM_PCT", 0.09, { positive: true }),
-    fomoMomentumPct: numberValue("FOMO_MOMENTUM_PCT", 0.2, { positive: true }),
+    minVolumeSpike: numberValue("MIN_VOLUME_SPIKE", 1.18, { positive: true }),
+    minBurstMomentumPct: numberValue("MIN_BURST_MOMENTUM_PCT", 0.08, { positive: true }),
+    fomoMomentumPct: numberValue("FOMO_MOMENTUM_PCT", 0.18, { positive: true }),
     minMomentumPersistenceCandles: numberValue("MIN_MOMENTUM_PERSISTENCE_CANDLES", 2, { positive: true, integer: true, maximum: 6 }),
     estimatedFeePctPerSide: numberValue("ESTIMATED_FEE_PCT_PER_SIDE", 0.055, { minimum: 0 }),
     estimatedSlippagePct: numberValue("ESTIMATED_SLIPPAGE_PCT", 0.08, { minimum: 0 }),
@@ -140,7 +144,28 @@ function loadConfig() {
     minExpectedMovePct: numberValue("MIN_EXPECTED_MOVE_PCT", 0.95, { minimum: 0 }),
     expectedMoveAtrMultiplier: numberValue("EXPECTED_MOVE_ATR_MULTIPLIER", 1.15, { positive: true }),
     minEdgeToCostRatio: numberValue("MIN_EDGE_TO_COST_RATIO", 1.8, { positive: true }),
-    minConvictionScore: numberValue("MIN_CONVICTION_SCORE", 52, { positive: true, maximum: 100 }),
+    minConvictionScore: numberValue("MIN_CONVICTION_SCORE", 50, { positive: true, maximum: 100 }),
+    smartEdgeMinNetPct: numberValue("SMART_EDGE_MIN_NET_PCT", 0.22, { minimum: 0 }),
+    smartEdgeMinTpProbability: numberValue("SMART_EDGE_MIN_TP_PROBABILITY", 0.46, { minimum: 0, maximum: 1 }),
+    smartEdgeCostBufferMultiplier: numberValue("SMART_EDGE_COST_BUFFER_MULTIPLIER", 1.25, { positive: true }),
+    eliteTrendRiderEnabled: booleanValue("ELITE_TREND_RIDER_ENABLED", true),
+    elitePartialTakeProfitPct: numberValue("ELITE_PARTIAL_TAKE_PROFIT_PCT", 50, { positive: true, maximum: 90 }),
+    eliteRunnerTakeProfitMultiplier: numberValue("ELITE_RUNNER_TAKE_PROFIT_MULTIPLIER", 1.55, { positive: true, maximum: 4 }),
+    eliteRunnerTrailingDistanceMultiplier: numberValue("ELITE_RUNNER_TRAILING_DISTANCE_MULTIPLIER", 1.18, { positive: true, maximum: 3 }),
+    eliteMinScore: numberValue("ELITE_MIN_SCORE", 78, { positive: true, maximum: 100 }),
+    eliteMinConvictionScore: numberValue("ELITE_MIN_CONVICTION_SCORE", 72, { positive: true, maximum: 100 }),
+    eliteMinProjectedEdgePct: numberValue("ELITE_MIN_PROJECTED_EDGE_PCT", 0.8, { minimum: 0 }),
+    eliteMinFeeEdgeRatio: numberValue("ELITE_MIN_FEE_EDGE_RATIO", 2.2, { positive: true }),
+    eliteMinVolumeSpike: numberValue("ELITE_MIN_VOLUME_SPIKE", 1.65, { positive: true }),
+    eliteMinTrendQuality: numberValue("ELITE_MIN_TREND_QUALITY", 68, { positive: true, maximum: 100 }),
+    eliteMinMomentumPersistenceCandles: numberValue("ELITE_MIN_MOMENTUM_PERSISTENCE_CANDLES", 2, { positive: true, integer: true, maximum: 8 }),
+    smartReentryWindowMinutes: numberValue("SMART_REENTRY_WINDOW_MINUTES", 35, { minimum: 0 }),
+    tier1MarginMinUsdt: numberValue("TIER1_MARGIN_MIN_USDT", 1, { positive: true }),
+    tier1MarginMaxUsdt: numberValue("TIER1_MARGIN_MAX_USDT", 3, { positive: true }),
+    tier2MarginMinUsdt: numberValue("TIER2_MARGIN_MIN_USDT", 4, { positive: true }),
+    tier2MarginMaxUsdt: numberValue("TIER2_MARGIN_MAX_USDT", 8, { positive: true }),
+    tier3MarginMinUsdt: numberValue("TIER3_MARGIN_MIN_USDT", 10, { positive: true }),
+    tier3MarginMaxUsdt: numberValue("TIER3_MARGIN_MAX_USDT", 20, { positive: true }),
     qualityPacingEnabled: booleanValue("QUALITY_PACING_ENABLED", true),
     qualityPacingMinWinRatePct: numberValue("QUALITY_PACING_MIN_WIN_RATE_PCT", 25, { minimum: 0, maximum: 100 }),
     qualityPacingFeeDragRatio: numberValue("QUALITY_PACING_FEE_DRAG_RATIO", 0.65, { minimum: 0 }),
@@ -161,10 +186,10 @@ function loadConfig() {
     minLiquidityScore: numberValue("MIN_LIQUIDITY_SCORE", 45, { minimum: 0, maximum: 100 }),
     explorationModeEnabled: booleanValue("EXPLORATION_MODE_ENABLED", true),
     explorationTradeRatio: numberValue("EXPLORATION_TRADE_RATIO", 0.55, { minimum: 0, maximum: 1 }),
-    explorationMinSignalScore: numberValue("EXPLORATION_MIN_SIGNAL_SCORE", 30, { positive: true, maximum: 100 }),
-    explorationMinConvictionScore: numberValue("EXPLORATION_MIN_CONVICTION_SCORE", 36, { positive: true, maximum: 100 }),
-    explorationMinProjectedEdgePct: numberValue("EXPLORATION_MIN_PROJECTED_EDGE_PCT", 0.18, { minimum: 0 }),
-    explorationMinEdgeToCostRatio: numberValue("EXPLORATION_MIN_EDGE_TO_COST_RATIO", 1.25, { positive: true }),
+    explorationMinSignalScore: numberValue("EXPLORATION_MIN_SIGNAL_SCORE", 28, { positive: true, maximum: 100 }),
+    explorationMinConvictionScore: numberValue("EXPLORATION_MIN_CONVICTION_SCORE", 34, { positive: true, maximum: 100 }),
+    explorationMinProjectedEdgePct: numberValue("EXPLORATION_MIN_PROJECTED_EDGE_PCT", 0.16, { minimum: 0 }),
+    explorationMinEdgeToCostRatio: numberValue("EXPLORATION_MIN_EDGE_TO_COST_RATIO", 1.2, { positive: true }),
     explorationRiskMultiplier: numberValue("EXPLORATION_RISK_MULTIPLIER", 0.35, { positive: true, maximum: 1 }),
     explorationMaxChopScore: numberValue("EXPLORATION_MAX_CHOP_SCORE", 6, { minimum: 0, maximum: 10 }),
     explorationMaxTradesPerDay: numberValue("EXPLORATION_MAX_TRADES_PER_DAY", 999999, { minimum: 0, integer: true }),
@@ -217,8 +242,8 @@ function loadConfig() {
     abnormalVolatilityAtrPct: numberValue("ABNORMAL_VOLATILITY_ATR_PCT", 1.6, { positive: true }),
     lowVolumeMultiple: numberValue("LOW_VOLUME_MULTIPLE", 4, { positive: true }),
     minHoldSecondsBeforeMomentumExit: numberValue("MIN_HOLD_SECONDS_BEFORE_MOMENTUM_EXIT", 180, { minimum: 0 }),
-    continuationMinScore: numberValue("CONTINUATION_MIN_SCORE", 68, { minimum: 0, maximum: 100 }),
-    continuationMinPnlPct: numberValue("CONTINUATION_MIN_PNL_PCT", 0.45, { minimum: 0 }),
+    continuationMinScore: numberValue("CONTINUATION_MIN_SCORE", 62, { minimum: 0, maximum: 100 }),
+    continuationMinPnlPct: numberValue("CONTINUATION_MIN_PNL_PCT", 0.35, { minimum: 0 }),
     maxConsecutiveApiErrors: numberValue("MAX_CONSECUTIVE_API_ERRORS", 5, { positive: true, integer: true }),
   };
 
@@ -244,11 +269,23 @@ function loadConfig() {
   if (config.explorationMinEdgeToCostRatio > config.minEdgeToCostRatio) {
     throw new Error("EXPLORATION_MIN_EDGE_TO_COST_RATIO cannot exceed MIN_EDGE_TO_COST_RATIO.");
   }
+  for (const [minKey, maxKey] of [
+    ["tier1MarginMinUsdt", "tier1MarginMaxUsdt"],
+    ["tier2MarginMinUsdt", "tier2MarginMaxUsdt"],
+    ["tier3MarginMinUsdt", "tier3MarginMaxUsdt"],
+  ]) {
+    if (config[minKey] > config[maxKey]) {
+      throw new Error(`${minKey.toUpperCase()} cannot exceed ${maxKey.toUpperCase()}.`);
+    }
+  }
   if (config.regimeDeadMarketVolumeSpike > config.regimeLowLiquidityVolumeSpike) {
     throw new Error("REGIME_DEAD_MARKET_VOLUME_SPIKE cannot exceed REGIME_LOW_LIQUIDITY_VOLUME_SPIKE.");
   }
   if (config.regimeDeadMarketAtrPct > config.regimeHighVolatilityAtrPct) {
     throw new Error("REGIME_DEAD_MARKET_ATR_PCT cannot exceed REGIME_HIGH_VOLATILITY_ATR_PCT.");
+  }
+  if (config.apiRecoveryBaseBackoffMs > config.apiRecoveryMaxBackoffMs) {
+    throw new Error("API_RECOVERY_BASE_BACKOFF_MS cannot exceed API_RECOVERY_MAX_BACKOFF_MS.");
   }
   if (config.adaptiveSmallSampleMinWeight > 1) {
     throw new Error("ADAPTIVE_SMALL_SAMPLE_MIN_WEIGHT cannot exceed 1.");

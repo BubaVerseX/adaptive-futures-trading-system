@@ -51,37 +51,45 @@ Defaults now favor active but selective learning-phase participation: the bot st
 | --- | ---: |
 | `LEARNING_PHASE_MODE` | `true` |
 | `AGGRESSIVE_LEARNING_PHASE` | `true` |
+| `HIGH_ACTIVITY_MODE` | `true` |
 | `CONTINUOUS_EXECUTION_MODE` | `true` |
 | `DISABLE_DAILY_TRADE_LIMITS` | `true` |
 | `FAST_MODE` | `true` |
 | `FOMO_BREAKOUT_MODE` | `true` |
 | `MICRO_BREAKOUT_ENTRIES` | `true` |
-| `MIN_SIGNAL_SCORE` | `44` |
-| `MIN_CONVICTION_SCORE` | `52` |
+| `MIN_SIGNAL_SCORE` | `42` |
+| `MIN_CONVICTION_SCORE` | `50` |
 | `MAX_OPEN_POSITIONS` | `3` |
 | `MAX_TRADES_PER_DAY` | ignored while daily limits are disabled |
 | `MAX_LEVERAGE` | `8` |
-| `SCAN_INTERVAL_MS` | `2000` |
-| `POSITION_MONITOR_INTERVAL_MS` | `2000` |
+| `SCAN_INTERVAL_MS` | `1500` |
+| `POSITION_MONITOR_INTERVAL_MS` | `1500` |
 | `MAX_SYMBOLS_TO_SCAN` | `3` |
 | `TAKE_PROFIT_PCT` | `2.10` |
 | `STOP_LOSS_PCT` | `0.80` |
 
 The scanner ranks only `BTCUSDT`, `ETHUSDT`, and `SOLUSDT` by EMA alignment or acceleration, breakout strength, momentum persistence, volume quality, RSI, candle strength, volatility quality, liquidity, projected edge after fees/spread/slippage, BTC/ETH direction context, market-regime intelligence, session context, and adaptive historical confidence. In learning phase, choppy and imperfect conditions are softened instead of treated as near-vetoes, so moderate setups can still generate feedback data inside the focused universe.
 
-Daily shutdowns are removed. The bot does not stop, pause, close all positions, or disable entries because of daily loss, daily drawdown, daily trade count, exploration count, or participation quota. Losing sessions are handled through adaptive recovery: sizing and leverage can be moderated, but continuous BTC/ETH/SOL execution remains active until manual stop, emergency stop, repeated exchange/API failure, liquidation danger, or another catastrophic execution safety condition.
+Daily shutdowns are removed. The bot does not stop, pause, close all positions, or disable entries because of daily loss, daily drawdown, daily trade count, exploration count, participation quota, or temporary API instability. Losing sessions are handled through adaptive recovery: sizing and leverage can be moderated, but continuous BTC/ETH/SOL execution remains active until manual stop, emergency stop, liquidation danger, corrupted execution state, or another catastrophic safety condition.
+
+High activity mode keeps the focused universe hot without reopening low-cap chaos:
+
+- scanner and position monitor defaults run every `1500ms`
+- BTC/ETH/SOL regime cache refreshes every `60000ms`
+- continuation setups receive a small participation boost when momentum, volume, BTC alignment, and edge are all acceptable
+- smart edge filtering remains active, so high activity means more clean continuation attempts, not fee-blind spam
 
 Learning-phase controls:
 
 | Setting | Default |
 | --- | ---: |
 | `FORCED_MARKET_SAMPLING_ENABLED` | `true` |
-| `FORCED_MARKET_SAMPLING_AFTER_MINUTES` | `8` |
-| `FORCED_SAMPLING_MAX_CANDIDATES` | `2` |
-| `FORCED_SAMPLING_MIN_SCORE` | `28` |
-| `FORCED_SAMPLING_MIN_CONVICTION` | `34` |
-| `FORCED_SAMPLING_MIN_PROJECTED_EDGE_PCT` | `0.12` |
-| `FORCED_SAMPLING_MIN_EDGE_TO_COST_RATIO` | `1.20` |
+| `FORCED_MARKET_SAMPLING_AFTER_MINUTES` | `4` |
+| `FORCED_SAMPLING_MAX_CANDIDATES` | `3` |
+| `FORCED_SAMPLING_MIN_SCORE` | `26` |
+| `FORCED_SAMPLING_MIN_CONVICTION` | `32` |
+| `FORCED_SAMPLING_MIN_PROJECTED_EDGE_PCT` | `0.10` |
+| `FORCED_SAMPLING_MIN_EDGE_TO_COST_RATIO` | `1.15` |
 
 If no trade has opened for the configured idle window, forced market sampling can promote moderate exploratory candidates on BTC, ETH, or SOL that still have positive projected edge, acceptable liquidity, non-abnormal volatility, no blacklist/exchange-minimum rejection, and no existing same-symbol position. This is designed for data collection, not all-in trading. Continuous execution mode removes trade-count blockers and stale saved daily-loss pauses. Aggressive learning phase treats symbol cooldowns as advisory, not execution blockers, so the bot can continue collecting focused feedback unless a core safety rule rejects the trade.
 
@@ -94,8 +102,23 @@ Fee-efficiency controls:
 | `MIN_PROJECTED_EDGE_PCT` | `0.55` |
 | `MIN_EXPECTED_MOVE_PCT` | `0.95` |
 | `MIN_EDGE_TO_COST_RATIO` | `1.80` |
+| `SMART_EDGE_MIN_NET_PCT` | `0.22` |
+| `SMART_EDGE_MIN_TP_PROBABILITY` | `0.46` |
+| `SMART_EDGE_COST_BUFFER_MULTIPLIER` | `1.25` |
 | `SYMBOL_REENTRY_COOLDOWN_SECONDS` | `180` |
 | `SYMBOL_LOSS_COOLDOWN_MINUTES` | `30` |
+
+The smart edge filter estimates probability-adjusted net edge from expected move, fees, spread, slippage, volatility continuation, BTC/ETH alignment, volume, and multi-timeframe confirmation. It rejects trades where the expected profit only barely clears execution cost, while exploration remains available for smaller qualifying BTC/ETH/SOL samples.
+
+Elite conviction sizing:
+
+| Tier | Behavior |
+| --- | --- |
+| `TIER_1_EXPLORATORY` | roughly `1-3` USDT margin target for exploratory or weaker setups |
+| `TIER_2_STRONG_SETUP` | roughly `4-8` USDT margin target for strong momentum setups |
+| `TIER_3_ELITE_SETUP` | roughly `10-20` USDT margin target for rare high-confluence setups |
+
+Elite setup detection requires high score, strong adaptive/technical conviction, strong projected and smart edge, volume expansion, momentum persistence, trend quality, BTC alignment, and multi-timeframe confirmation. In high activity mode, clean continuation structures can qualify a little earlier when BTC alignment, volume, edge, and trend persistence are already strong. These tiers still obey wallet, leverage, max margin, exchange minimum, TP/SL, and liquidation-distance protections.
 
 Adaptive quality pacing:
 
@@ -118,10 +141,10 @@ Controlled exploration adds a smaller, separately tagged entry path:
 | --- | ---: |
 | `EXPLORATION_MODE_ENABLED` | `true` |
 | `EXPLORATION_TRADE_RATIO` | `0.55` |
-| `EXPLORATION_MIN_SIGNAL_SCORE` | `30` |
-| `EXPLORATION_MIN_CONVICTION_SCORE` | `36` |
-| `EXPLORATION_MIN_PROJECTED_EDGE_PCT` | `0.18` |
-| `EXPLORATION_MIN_EDGE_TO_COST_RATIO` | `1.25` |
+| `EXPLORATION_MIN_SIGNAL_SCORE` | `28` |
+| `EXPLORATION_MIN_CONVICTION_SCORE` | `34` |
+| `EXPLORATION_MIN_PROJECTED_EDGE_PCT` | `0.16` |
+| `EXPLORATION_MIN_EDGE_TO_COST_RATIO` | `1.20` |
 | `EXPLORATION_RISK_MULTIPLIER` | `0.35` |
 | `EXPLORATION_MAX_CHOP_SCORE` | `6` |
 | `EXPLORATION_MAX_TRADES_PER_DAY` | ignored while daily limits are disabled |
@@ -182,9 +205,9 @@ Signal-quality controls:
 
 | Setting | Default |
 | --- | ---: |
-| `MIN_VOLUME_SPIKE` | `1.25` |
-| `MIN_BURST_MOMENTUM_PCT` | `0.09` |
-| `FOMO_MOMENTUM_PCT` | `0.20` |
+| `MIN_VOLUME_SPIKE` | `1.18` |
+| `MIN_BURST_MOMENTUM_PCT` | `0.08` |
+| `FOMO_MOMENTUM_PCT` | `0.18` |
 | `MIN_MOMENTUM_PERSISTENCE_CANDLES` | `2` |
 | `BTC_TREND_ALIGNMENT_BONUS` | `12` |
 | `CHOPPY_MARKET_PENALTY` | `10` |
@@ -193,7 +216,7 @@ Signal-quality controls:
 | `MAX_CHOP_SCORE` | `3` |
 | `MIN_LIQUIDITY_SCORE` | `45` |
 
-Fee-aware entry filtering rejects candidates with non-positive or too-small edge relative to estimated taker fees, spread, and slippage. The current profile raises the expected move and edge-to-cost requirements compared with the hyperactive learning mode, especially when quality pacing is active.
+Fee-aware entry filtering rejects candidates with non-positive or too-small edge relative to estimated taker fees, spread, and slippage. The current profile raises the expected move, edge-to-cost, and probability-adjusted net-edge requirements compared with the hyperactive learning mode, especially when quality pacing is active.
 
 Winner management is also less twitchy:
 
@@ -202,10 +225,25 @@ Winner management is also less twitchy:
 | `TRAILING_START_PCT` | `1.10` |
 | `TRAILING_DISTANCE_PCT` | `0.60` |
 | `MIN_HOLD_SECONDS_BEFORE_MOMENTUM_EXIT` | `180` |
-| `CONTINUATION_MIN_SCORE` | `68` |
-| `CONTINUATION_MIN_PNL_PCT` | `0.45` |
+| `CONTINUATION_MIN_SCORE` | `62` |
+| `CONTINUATION_MIN_PNL_PCT` | `0.35` |
 
 If a managed position still has same-side momentum, strong conviction, adequate volume, and positive PnL, the bot logs `Strong momentum continuation detected` and avoids premature momentum exits. Hard stops, native TP/SL, trailing stops, liquidation protection, and reduce-only shutdown behavior are unchanged.
+
+Elite trend rider mode is enabled for `ELITE_SETUP` positions. The native TP is placed farther out, the normal TP level becomes a bot-managed partial take-profit trigger, and the remaining runner trails with wider continuation logic. The adaptive memory stores elite condition keys such as symbol, side, regime, volume condition, session, and momentum persistence, then boosts future conviction when similar elite conditions have historically produced strong winners. Smart re-entry can tag fresh entries when a recent BTC/ETH/SOL trend remains valid after a pullback.
+
+## API Auto-Recovery
+
+Temporary REST timeouts, rate limits, delayed order acknowledgements, and WebSocket disconnects trigger staged recovery instead of a full bot stop:
+
+| Setting | Default |
+| --- | ---: |
+| `API_AUTO_RECOVERY_ENABLED` | `true` |
+| `MAX_CONSECUTIVE_API_ERRORS` | recovery escalation threshold, not a shutdown |
+| `API_RECOVERY_BASE_BACKOFF_MS` | `1000` |
+| `API_RECOVERY_MAX_BACKOFF_MS` | `30000` |
+
+Recovery stages are retry after backoff, reconnect WebSockets, refresh REST session caches, rebuild exchange state through ticker and position reconciliation, then resume continuous execution. Only manual stop, emergency stop, liquidation danger, corrupted execution state, or another catastrophic safety issue should stop the bot.
 
 ## Native Protection And Lifecycle
 
@@ -218,7 +256,7 @@ If a managed position still has same-side momentum, strong conviction, adequate 
 - Pending entry state expires after `ENTRY_CONFIRMATION_TIMEOUT_MS=15000`; absent positions are cleared automatically.
 - REST reconciliation remains active even if private WebSocket updates disconnect.
 
-Logs include `ENTRY SIGNAL`, `EXPLORATION TRADE OPENED`, `ORDER SENT`, `ORDER FILLED`, `POSITION OPENED`, `POSITION CLOSED`, `TP HIT`, `SL HIT`, `RECONCILIATION SUCCESS`, `WEBSOCKET RECONNECTED`, `focused trading universe enabled`, `BTC/ETH/SOL mode active`, `noisy market universe removed`, `adaptive focus mode enabled`, `concentrated liquidity trading active`, `focused exploration active`, `daily shutdown logic removed`, `continuous execution mode active`, `adaptive recovery mode active`, `losing streak handled without shutdown`, `continuous learning preserved`, `24/7 execution enabled`, `Learning phase mode active`, `Aggressive learning phase active`, `daily execution limits disabled`, `portfolio suppression removed`, `continuous market participation active`, `Forced market sampling engaged`, `exploration execution approved`, `adaptive pacing engaged`, `low-edge setup rejected`, `micro-scalp filtered`, `high-conviction setup prioritized`, `noisy chop setup rejected`, `cautious active mode enabled`, `Trending regime detected`, `Chop regime activated`, `Breakout volatility regime active`, `BTC instability detected`, `Liquidity too weak`, `adaptive regime confidence increased`, `Profit protection sizing mode enabled`, `Exploration threshold softened`, `Adaptive activity floor engaged`, `Moderate chop accepted`, `Recovery aggression restored`, `Exploration expansion active`, `adaptive penalty softened`, `technical override activated`, `adaptive confidence floor applied`, `small-sample penalty reduced`, `exploration memory relaxation active`, fee-inefficiency rejections, low-conviction rejections, anti-chop activations, adaptive exploration activity, adaptive size increases, and strong momentum continuation decisions.
+Logs include `ENTRY SIGNAL`, `EXPLORATION TRADE OPENED`, `ORDER SENT`, `ORDER FILLED`, `POSITION OPENED`, `POSITION CLOSED`, `TP HIT`, `SL HIT`, `RECONCILIATION SUCCESS`, `WEBSOCKET RECONNECTED`, `API auto-recovery triggered`, `Exchange state rebuilt`, `Execution resumed automatically`, `high activity mode active`, `elite continuation detected`, `projected net edge validated`, `fee-adjusted edge approved`, `elite setup detected`, `conviction tier upgraded`, `aggressive elite sizing activated`, `elite trend rider activated`, `partial runner enabled`, `intelligent re-entry triggered`, `elite memory matched`, `multi-timeframe confirmation passed`, `adaptive market personality switched`, `smart pacing engaged`, `high-quality setup prioritized`, `focused trading universe enabled`, `BTC/ETH/SOL mode active`, `noisy market universe removed`, `adaptive focus mode enabled`, `concentrated liquidity trading active`, `focused exploration active`, `daily shutdown logic removed`, `continuous execution mode active`, `adaptive recovery mode active`, `losing streak handled without shutdown`, `continuous learning preserved`, `24/7 execution enabled`, `Learning phase mode active`, `Aggressive learning phase active`, `daily execution limits disabled`, `portfolio suppression removed`, `continuous market participation active`, `Forced market sampling engaged`, `exploration execution approved`, `adaptive pacing engaged`, `low-edge setup rejected`, `micro-scalp filtered`, `high-conviction setup prioritized`, `noisy chop setup rejected`, `cautious active mode enabled`, `Trending regime detected`, `Chop regime activated`, `Breakout volatility regime active`, `BTC instability detected`, `Liquidity too weak`, `adaptive regime confidence increased`, `Profit protection sizing mode enabled`, `Exploration threshold softened`, `Adaptive activity floor engaged`, `Moderate chop accepted`, `Recovery aggression restored`, `Exploration expansion active`, `adaptive penalty softened`, `technical override activated`, `adaptive confidence floor applied`, `small-sample penalty reduced`, `exploration memory relaxation active`, fee-inefficiency rejections, low-conviction rejections, anti-chop activations, adaptive exploration activity, adaptive size increases, and strong momentum continuation decisions.
 
 ## Performance Tracking
 
@@ -230,6 +268,7 @@ Closed trades are saved to `data/trades.json`. Runtime performance is rebuilt fr
 - win rate
 - average hold time
 - best and worst symbol statistics
+- elite condition leaderboards and market personality performance
 - per-symbol cooldown state after closes and losing trades
 
 ## Adaptive Statistical Learning
@@ -416,7 +455,7 @@ When `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` are configured:
 - `src/marketRegime.js`: BTC/ETH regime classification, session profiling, and symbol-level regime overlays.
 - `src/adaptiveEngine.js`: local trade memory, statistical learning, confidence scoring, adaptive policy, and analytics generation.
 - `src/indicators.js`: EMA, RSI, ATR, momentum, and candle calculations.
-- `src/riskManager.js`: ladder sizing, margin caps, and daily-loss protection.
+- `src/riskManager.js`: ladder sizing, margin caps, continuous recovery sizing, and catastrophic risk controls.
 - `src/state.js`: persistent Bybit runtime state and trade history.
 - `src/telegram.js`: optional alerting and control commands.
 

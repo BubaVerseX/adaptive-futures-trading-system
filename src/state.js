@@ -70,6 +70,11 @@ function initialState(config) {
     symbolCooldowns: {},
     performance: emptyPerformance(),
     consecutiveApiErrors: 0,
+    apiRecovery: {
+      active: false,
+      stage: 0,
+      shutdownSuppressed: true,
+    },
     telegramUpdateOffset: 0,
   };
 }
@@ -160,6 +165,7 @@ class StateStore {
     this.state.symbolCooldowns = {};
     this.state.performance = emptyPerformance();
     this.state.consecutiveApiErrors = 0;
+    this.state.apiRecovery = defaults.apiRecovery;
     this.log("WARN", "Operating mode changed; performance counters reset for the new mode.", {
       fromMode: priorMode,
       toMode: mode,

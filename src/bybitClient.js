@@ -287,6 +287,15 @@ class BybitClient extends EventEmitter {
     return list;
   }
 
+  refreshSession() {
+    this.instrumentCache = null;
+    this.tickers.clear();
+    this.log("INFO", "Bybit REST session cache refreshed.", {
+      instrumentCacheCleared: true,
+      tickerCacheCleared: true,
+    });
+  }
+
   async getTickers() {
     const result = await this.publicGet("/v5/market/tickers", { category: this.config.category });
     const list = Array.isArray(result.list) ? result.list : [];
@@ -475,6 +484,32 @@ class BybitClient extends EventEmitter {
     this.privateStreamEnabled = privateStream;
     this.connectStream("public");
     if (privateStream) this.connectStream("private");
+  }
+
+  reconnectWebSockets(reason = "api auto-recovery") {
+    const privateStream = this.privateStreamEnabled;
+    this.log("WARN", "API auto-recovery triggered: reconnecting websocket streams.", {
+      reason,
+      privateStream,
+    });
+    this.streamsStopped = true;
+    for (const kind of ["public", "private"]) {
+      this.stopHeartbeat(kind);
+      if (this.reconnectTimers[kind]) clearTimeout(this.reconnectTimers[kind]);
+      this.reconnectTimers[kind] = null;
+      const socket = this.sockets[kind];
+      if (socket) {
+        try {
+          socket.close();
+        } catch (_error) {
+          // A broken socket should not block recovery.
+        }
+      }
+      this.sockets[kind] = null;
+      this.reconnectAttempts[kind] = 0;
+    }
+    this.streamsStopped = false;
+    this.startWebSockets({ privateStream });
   }
 
   subscribeTickers(symbols) {
