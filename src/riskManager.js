@@ -248,6 +248,9 @@ class RiskManager {
     if (signal.explorationTrade) {
       qualitySizeMultiplier *= this.config.explorationRiskMultiplier;
     }
+    if (signal.qualityPacingActive) {
+      qualitySizeMultiplier *= this.config.qualityPacingRiskMultiplier;
+    }
     qualitySizeMultiplier *= Number(signal.regimeRiskMultiplier || 1);
     qualitySizeMultiplier *= Number(signal.profitProtectionRiskMultiplier || 1);
     const riskPct = Math.max(
