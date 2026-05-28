@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-05-27T20:57:13.128Z",
+  "updatedAt": "2026-05-28T07:26:34.956Z",
   "trades": [
     {
       "id": "x10-trade-1779909524921-82647",
@@ -869,70 +869,225 @@
       "microBreakoutTriggered": false,
       "adaptiveConfidenceAtEntry": 23.56,
       "adaptiveModeAtEntry": "DEFENSIVE"
+    },
+    {
+      "id": "x10-trade-1779926405427-86263",
+      "symbol": "SEIUSDT",
+      "side": "SHORT",
+      "setupType": "FOMO_BREAKOUT",
+      "score": 84.8,
+      "timestamp": "2026-05-28T00:00:21.299Z",
+      "openedAt": "2026-05-28T00:00:05.427Z",
+      "exitedAt": "2026-05-28T00:00:21.299Z",
+      "holdingTimeSeconds": 15.87,
+      "realizedPnlPct": 0,
+      "realizedPnlUsdt": -0.124278,
+      "feesPaidUsdt": 0.124278,
+      "grossPnlUsdt": 0,
+      "leverage": 4,
+      "btcMarketRegime": "CHOPPY",
+      "marketRegime": "CHOPPY",
+      "volatilityRegime": "NORMAL",
+      "volumeConditions": "STRONG_VOLUME_SPIKE",
+      "entryMomentumPct": 0.3469603258410137,
+      "spreadPct": 0.015136607886187849,
+      "slippagePct": 0,
+      "result": "OTHER_EXIT",
+      "winLoss": "LOSS",
+      "sessionType": "ASIA",
+      "breakoutTriggered": true,
+      "fomoTriggered": true,
+      "microBreakoutTriggered": false,
+      "adaptiveConfidenceAtEntry": 19.59,
+      "adaptiveModeAtEntry": "DEFENSIVE"
+    },
+    {
+      "id": "x10-trade-1779952288656-85154",
+      "symbol": "SEIUSDT",
+      "side": "SHORT",
+      "setupType": "FOMO_BREAKOUT",
+      "score": 66.75,
+      "timestamp": "2026-05-28T07:14:08.354Z",
+      "openedAt": "2026-05-28T07:11:28.656Z",
+      "exitedAt": "2026-05-28T07:14:08.354Z",
+      "holdingTimeSeconds": 159.7,
+      "realizedPnlPct": 0.0171,
+      "realizedPnlUsdt": -0.104638,
+      "feesPaidUsdt": 0.123867,
+      "grossPnlUsdt": 0.019229,
+      "leverage": 4,
+      "btcMarketRegime": "CHOPPY",
+      "marketRegime": "CHOPPY",
+      "volatilityRegime": "NORMAL",
+      "volumeConditions": "STRONG_VOLUME_SPIKE",
+      "entryMomentumPct": 0.13246982631734877,
+      "spreadPct": 0.014730794726390219,
+      "slippagePct": 0.2186,
+      "result": "OTHER_EXIT",
+      "winLoss": "LOSS",
+      "sessionType": "EUROPE",
+      "breakoutTriggered": false,
+      "fomoTriggered": true,
+      "microBreakoutTriggered": false,
+      "adaptiveConfidenceAtEntry": 15.5,
+      "adaptiveModeAtEntry": "DEFENSIVE"
+    },
+    {
+      "id": "x10-trade-1779952494506-6553",
+      "symbol": "JTOUSDT",
+      "side": "LONG",
+      "setupType": "BREAKOUT",
+      "score": 59.87,
+      "timestamp": "2026-05-28T07:18:22.199Z",
+      "openedAt": "2026-05-28T07:14:54.506Z",
+      "exitedAt": "2026-05-28T07:18:22.199Z",
+      "holdingTimeSeconds": 207.69,
+      "realizedPnlPct": 0,
+      "realizedPnlUsdt": -0.124117,
+      "feesPaidUsdt": 0.124117,
+      "grossPnlUsdt": 0,
+      "leverage": 4,
+      "btcMarketRegime": "CHOPPY",
+      "marketRegime": "CHOPPY",
+      "volatilityRegime": "NORMAL",
+      "volumeConditions": "CONFIRMED_VOLUME",
+      "entryMomentumPct": 0.07547169811319923,
+      "spreadPct": 0.01887326601868245,
+      "slippagePct": 0.151,
+      "result": "OTHER_EXIT",
+      "winLoss": "LOSS",
+      "sessionType": "EUROPE",
+      "breakoutTriggered": true,
+      "fomoTriggered": false,
+      "microBreakoutTriggered": false,
+      "adaptiveConfidenceAtEntry": 39.75,
+      "adaptiveModeAtEntry": "DEFENSIVE"
+    },
+    {
+      "id": "x10-trade-1779952747396-23093",
+      "symbol": "SKYAI1USDT",
+      "side": "SHORT",
+      "setupType": "FOMO_BREAKOUT",
+      "score": 60,
+      "timestamp": "2026-05-28T07:21:04.361Z",
+      "openedAt": "2026-05-28T07:19:07.396Z",
+      "exitedAt": "2026-05-28T07:21:04.361Z",
+      "holdingTimeSeconds": 116.97,
+      "realizedPnlPct": -0.105,
+      "realizedPnlUsdt": -0.240733,
+      "feesPaidUsdt": 0.12312,
+      "grossPnlUsdt": -0.117613,
+      "leverage": 4,
+      "btcMarketRegime": "CHOPPY",
+      "marketRegime": "CHOPPY",
+      "volatilityRegime": "NORMAL",
+      "volumeConditions": "CONFIRMED_VOLUME",
+      "entryMomentumPct": 0.12639446062536694,
+      "spreadPct": 0.08787346221440767,
+      "slippagePct": 0.2148,
+      "result": "OTHER_EXIT",
+      "winLoss": "LOSS",
+      "sessionType": "EUROPE",
+      "breakoutTriggered": false,
+      "fomoTriggered": true,
+      "microBreakoutTriggered": false,
+      "adaptiveConfidenceAtEntry": 12.02,
+      "adaptiveModeAtEntry": "DEFENSIVE"
+    },
+    {
+      "id": "x10-trade-1779952909234-34909",
+      "symbol": "GRTUSDT",
+      "side": "LONG",
+      "setupType": "FOMO_BREAKOUT",
+      "score": 86.01,
+      "timestamp": "2026-05-28T07:26:34.948Z",
+      "openedAt": "2026-05-28T07:21:49.234Z",
+      "exitedAt": "2026-05-28T07:26:34.948Z",
+      "holdingTimeSeconds": 285.71,
+      "realizedPnlPct": -0.0984,
+      "realizedPnlUsdt": -0.2326,
+      "feesPaidUsdt": 0.122763,
+      "grossPnlUsdt": -0.109837,
+      "leverage": 4,
+      "btcMarketRegime": "CHOPPY",
+      "marketRegime": "CHOPPY",
+      "volatilityRegime": "LOW_VOLATILITY",
+      "volumeConditions": "STRONG_VOLUME_SPIKE",
+      "entryMomentumPct": 0.22744503411675898,
+      "spreadPct": 0.03784295175023498,
+      "slippagePct": 0.0606,
+      "result": "OTHER_EXIT",
+      "winLoss": "LOSS",
+      "sessionType": "EUROPE",
+      "breakoutTriggered": true,
+      "fomoTriggered": true,
+      "microBreakoutTriggered": false,
+      "adaptiveConfidenceAtEntry": 22.03,
+      "adaptiveModeAtEntry": "DEFENSIVE"
     }
   ],
   "rolling": {
     "last20": {
       "count": 20,
-      "wins": 5,
-      "losses": 15,
-      "winRatePct": 25,
-      "totalPnlUsdt": -3.958196,
-      "totalPnlPct": -0.2502,
-      "feeAdjustedPnlUsdt": -3.958196,
-      "totalFeesUsdt": 3.242928,
-      "averagePnlUsdt": -0.19791,
-      "averagePnlPct": -0.0125,
-      "averageHoldSeconds": 184.09,
-      "averageSlippagePct": 0.0793,
-      "profitFactor": 0.141
+      "wins": 4,
+      "losses": 16,
+      "winRatePct": 20,
+      "totalPnlUsdt": -3.649191,
+      "totalPnlPct": -0.4479,
+      "feeAdjustedPnlUsdt": -3.649191,
+      "totalFeesUsdt": 2.71065,
+      "averagePnlUsdt": -0.18246,
+      "averagePnlPct": -0.0224,
+      "averageHoldSeconds": 175.35,
+      "averageSlippagePct": 0.1115,
+      "profitFactor": 0.138
     },
     "last50": {
-      "count": 28,
+      "count": 33,
       "wins": 6,
-      "losses": 22,
-      "winRatePct": 21.43,
-      "totalPnlUsdt": -6.10705,
-      "totalPnlPct": -1.464,
-      "feeAdjustedPnlUsdt": -6.10705,
-      "totalFeesUsdt": 3.571593,
-      "averagePnlUsdt": -0.218109,
-      "averagePnlPct": -0.0523,
-      "averageHoldSeconds": 160.29,
-      "averageSlippagePct": 0.0566,
-      "profitFactor": 0.106
+      "losses": 27,
+      "winRatePct": 18.18,
+      "totalPnlUsdt": -6.933416,
+      "totalPnlPct": -1.6503,
+      "feeAdjustedPnlUsdt": -6.933416,
+      "totalFeesUsdt": 4.189738,
+      "averagePnlUsdt": -0.210104,
+      "averagePnlPct": -0.05,
+      "averageHoldSeconds": 159.82,
+      "averageSlippagePct": 0.0676,
+      "profitFactor": 0.094
     },
     "last200": {
-      "count": 28,
+      "count": 33,
       "wins": 6,
-      "losses": 22,
-      "winRatePct": 21.43,
-      "totalPnlUsdt": -6.10705,
-      "totalPnlPct": -1.464,
-      "feeAdjustedPnlUsdt": -6.10705,
-      "totalFeesUsdt": 3.571593,
-      "averagePnlUsdt": -0.218109,
-      "averagePnlPct": -0.0523,
-      "averageHoldSeconds": 160.29,
-      "averageSlippagePct": 0.0566,
-      "profitFactor": 0.106
+      "losses": 27,
+      "winRatePct": 18.18,
+      "totalPnlUsdt": -6.933416,
+      "totalPnlPct": -1.6503,
+      "feeAdjustedPnlUsdt": -6.933416,
+      "totalFeesUsdt": 4.189738,
+      "averagePnlUsdt": -0.210104,
+      "averagePnlPct": -0.05,
+      "averageHoldSeconds": 159.82,
+      "averageSlippagePct": 0.0676,
+      "profitFactor": 0.094
     }
   },
   "stats": {
     "all": {
-      "count": 28,
+      "count": 33,
       "wins": 6,
-      "losses": 22,
-      "winRatePct": 21.43,
-      "totalPnlUsdt": -6.10705,
-      "totalPnlPct": -1.464,
-      "feeAdjustedPnlUsdt": -6.10705,
-      "totalFeesUsdt": 3.571593,
-      "averagePnlUsdt": -0.218109,
-      "averagePnlPct": -0.0523,
-      "averageHoldSeconds": 160.29,
-      "averageSlippagePct": 0.0566,
-      "profitFactor": 0.106
+      "losses": 27,
+      "winRatePct": 18.18,
+      "totalPnlUsdt": -6.933416,
+      "totalPnlPct": -1.6503,
+      "feeAdjustedPnlUsdt": -6.933416,
+      "totalFeesUsdt": 4.189738,
+      "averagePnlUsdt": -0.210104,
+      "averagePnlPct": -0.05,
+      "averageHoldSeconds": 159.82,
+      "averageSlippagePct": 0.0676,
+      "profitFactor": 0.094
     },
     "bySymbol": {
       "EDENUSDT": {
@@ -1251,19 +1406,19 @@
         "profitFactor": 0
       },
       "GRTUSDT": {
-        "count": 1,
+        "count": 2,
         "wins": 1,
-        "losses": 0,
-        "winRatePct": 100,
-        "totalPnlUsdt": 0.074124,
-        "totalPnlPct": 0.1745,
-        "feeAdjustedPnlUsdt": 0.074124,
-        "totalFeesUsdt": 0.127261,
-        "averagePnlUsdt": 0.074124,
-        "averagePnlPct": 0.1745,
-        "averageHoldSeconds": 34.69,
-        "averageSlippagePct": 0.7738,
-        "profitFactor": 999
+        "losses": 1,
+        "winRatePct": 50,
+        "totalPnlUsdt": -0.158476,
+        "totalPnlPct": 0.0761,
+        "feeAdjustedPnlUsdt": -0.158476,
+        "totalFeesUsdt": 0.250024,
+        "averagePnlUsdt": -0.079238,
+        "averagePnlPct": 0.038,
+        "averageHoldSeconds": 160.2,
+        "averageSlippagePct": 0.4172,
+        "profitFactor": 0.319
       },
       "FFUSDT": {
         "count": 1,
@@ -1309,26 +1464,101 @@
         "averageHoldSeconds": 102.07,
         "averageSlippagePct": -0.3456,
         "profitFactor": 0
+      },
+      "SEIUSDT": {
+        "count": 2,
+        "wins": 0,
+        "losses": 2,
+        "winRatePct": 0,
+        "totalPnlUsdt": -0.228916,
+        "totalPnlPct": 0.0171,
+        "feeAdjustedPnlUsdt": -0.228916,
+        "totalFeesUsdt": 0.248145,
+        "averagePnlUsdt": -0.114458,
+        "averagePnlPct": 0.0086,
+        "averageHoldSeconds": 87.78,
+        "averageSlippagePct": 0.1093,
+        "profitFactor": 0
+      },
+      "JTOUSDT": {
+        "count": 1,
+        "wins": 0,
+        "losses": 1,
+        "winRatePct": 0,
+        "totalPnlUsdt": -0.124117,
+        "totalPnlPct": 0,
+        "feeAdjustedPnlUsdt": -0.124117,
+        "totalFeesUsdt": 0.124117,
+        "averagePnlUsdt": -0.124117,
+        "averagePnlPct": 0,
+        "averageHoldSeconds": 207.69,
+        "averageSlippagePct": 0.151,
+        "profitFactor": 0
+      },
+      "SKYAI1USDT": {
+        "count": 1,
+        "wins": 0,
+        "losses": 1,
+        "winRatePct": 0,
+        "totalPnlUsdt": -0.240733,
+        "totalPnlPct": -0.105,
+        "feeAdjustedPnlUsdt": -0.240733,
+        "totalFeesUsdt": 0.12312,
+        "averagePnlUsdt": -0.240733,
+        "averagePnlPct": -0.105,
+        "averageHoldSeconds": 116.97,
+        "averageSlippagePct": 0.2148,
+        "profitFactor": 0
       }
     },
     "bySetupType": {
       "FOMO_BREAKOUT": {
-        "count": 28,
+        "count": 32,
         "wins": 6,
-        "losses": 22,
-        "winRatePct": 21.43,
-        "totalPnlUsdt": -6.10705,
-        "totalPnlPct": -1.464,
-        "feeAdjustedPnlUsdt": -6.10705,
-        "totalFeesUsdt": 3.571593,
-        "averagePnlUsdt": -0.218109,
-        "averagePnlPct": -0.0523,
-        "averageHoldSeconds": 160.29,
-        "averageSlippagePct": 0.0566,
-        "profitFactor": 0.106
+        "losses": 26,
+        "winRatePct": 18.75,
+        "totalPnlUsdt": -6.809299,
+        "totalPnlPct": -1.6503,
+        "feeAdjustedPnlUsdt": -6.809299,
+        "totalFeesUsdt": 4.065621,
+        "averagePnlUsdt": -0.212791,
+        "averagePnlPct": -0.0516,
+        "averageHoldSeconds": 158.33,
+        "averageSlippagePct": 0.065,
+        "profitFactor": 0.096
+      },
+      "BREAKOUT": {
+        "count": 1,
+        "wins": 0,
+        "losses": 1,
+        "winRatePct": 0,
+        "totalPnlUsdt": -0.124117,
+        "totalPnlPct": 0,
+        "feeAdjustedPnlUsdt": -0.124117,
+        "totalFeesUsdt": 0.124117,
+        "averagePnlUsdt": -0.124117,
+        "averagePnlPct": 0,
+        "averageHoldSeconds": 207.69,
+        "averageSlippagePct": 0.151,
+        "profitFactor": 0
       }
     },
     "byHour": {
+      "7": {
+        "count": 4,
+        "wins": 0,
+        "losses": 4,
+        "winRatePct": 0,
+        "totalPnlUsdt": -0.702088,
+        "totalPnlPct": -0.1863,
+        "feeAdjustedPnlUsdt": -0.702088,
+        "totalFeesUsdt": 0.493867,
+        "averagePnlUsdt": -0.175522,
+        "averagePnlPct": -0.0466,
+        "averageHoldSeconds": 192.52,
+        "averageSlippagePct": 0.1613,
+        "profitFactor": 0
+      },
       "19": {
         "count": 12,
         "wins": 2,
@@ -1358,23 +1588,38 @@
         "averageHoldSeconds": 190.69,
         "averageSlippagePct": 0.0991,
         "profitFactor": 0.154
+      },
+      "UNKNOWN": {
+        "count": 1,
+        "wins": 0,
+        "losses": 1,
+        "winRatePct": 0,
+        "totalPnlUsdt": -0.124278,
+        "totalPnlPct": 0,
+        "feeAdjustedPnlUsdt": -0.124278,
+        "totalFeesUsdt": 0.124278,
+        "averagePnlUsdt": -0.124278,
+        "averagePnlPct": 0,
+        "averageHoldSeconds": 15.87,
+        "averageSlippagePct": 0,
+        "profitFactor": 0
       }
     },
     "byBtcRegime": {
       "CHOPPY": {
-        "count": 25,
+        "count": 30,
         "wins": 5,
-        "losses": 20,
-        "winRatePct": 20,
-        "totalPnlUsdt": -5.669581,
-        "totalPnlPct": -1.609,
-        "feeAdjustedPnlUsdt": -5.669581,
-        "totalFeesUsdt": 2.918324,
-        "averagePnlUsdt": -0.226783,
-        "averagePnlPct": -0.0644,
-        "averageHoldSeconds": 163.35,
-        "averageSlippagePct": 0.0634,
-        "profitFactor": 0.104
+        "losses": 25,
+        "winRatePct": 16.67,
+        "totalPnlUsdt": -6.495947,
+        "totalPnlPct": -1.7953,
+        "feeAdjustedPnlUsdt": -6.495947,
+        "totalFeesUsdt": 3.536469,
+        "averagePnlUsdt": -0.216532,
+        "averagePnlPct": -0.0598,
+        "averageHoldSeconds": 162.32,
+        "averageSlippagePct": 0.0743,
+        "profitFactor": 0.092
       },
       "DOWN": {
         "count": 3,
@@ -1407,6 +1652,36 @@
         "averageHoldSeconds": 160.29,
         "averageSlippagePct": 0.0566,
         "profitFactor": 0.106
+      },
+      "ASIA": {
+        "count": 1,
+        "wins": 0,
+        "losses": 1,
+        "winRatePct": 0,
+        "totalPnlUsdt": -0.124278,
+        "totalPnlPct": 0,
+        "feeAdjustedPnlUsdt": -0.124278,
+        "totalFeesUsdt": 0.124278,
+        "averagePnlUsdt": -0.124278,
+        "averagePnlPct": 0,
+        "averageHoldSeconds": 15.87,
+        "averageSlippagePct": 0,
+        "profitFactor": 0
+      },
+      "EUROPE": {
+        "count": 4,
+        "wins": 0,
+        "losses": 4,
+        "winRatePct": 0,
+        "totalPnlUsdt": -0.702088,
+        "totalPnlPct": -0.1863,
+        "feeAdjustedPnlUsdt": -0.702088,
+        "totalFeesUsdt": 0.493867,
+        "averagePnlUsdt": -0.175522,
+        "averagePnlPct": -0.0466,
+        "averageHoldSeconds": 192.52,
+        "averageSlippagePct": 0.1613,
+        "profitFactor": 0
       }
     },
     "byVolatilityRegime": {
@@ -1426,33 +1701,33 @@
         "profitFactor": 0.033
       },
       "NORMAL": {
-        "count": 12,
+        "count": 16,
         "wins": 4,
-        "losses": 8,
-        "winRatePct": 33.33,
-        "totalPnlUsdt": -1.607333,
-        "totalPnlPct": 0.3938,
-        "feeAdjustedPnlUsdt": -1.607333,
-        "totalFeesUsdt": 1.714963,
-        "averagePnlUsdt": -0.133944,
-        "averagePnlPct": 0.0328,
-        "averageHoldSeconds": 136.02,
-        "averageSlippagePct": 0.1203,
-        "profitFactor": 0.267
+        "losses": 12,
+        "winRatePct": 25,
+        "totalPnlUsdt": -2.201099,
+        "totalPnlPct": 0.3059,
+        "feeAdjustedPnlUsdt": -2.201099,
+        "totalFeesUsdt": 2.210345,
+        "averagePnlUsdt": -0.137569,
+        "averagePnlPct": 0.0191,
+        "averageHoldSeconds": 133.28,
+        "averageSlippagePct": 0.1267,
+        "profitFactor": 0.21
       },
       "LOW_VOLATILITY": {
-        "count": 2,
+        "count": 3,
         "wins": 0,
-        "losses": 2,
+        "losses": 3,
         "winRatePct": 0,
-        "totalPnlUsdt": -0.456924,
-        "totalPnlPct": -0.2615,
-        "feeAdjustedPnlUsdt": -0.456924,
-        "totalFeesUsdt": 0.212224,
-        "averagePnlUsdt": -0.228462,
-        "averagePnlPct": -0.1308,
-        "averageHoldSeconds": 130.35,
-        "averageSlippagePct": 0.0711,
+        "totalPnlUsdt": -0.689524,
+        "totalPnlPct": -0.3599,
+        "feeAdjustedPnlUsdt": -0.689524,
+        "totalFeesUsdt": 0.334987,
+        "averagePnlUsdt": -0.229841,
+        "averagePnlPct": -0.12,
+        "averageHoldSeconds": 182.14,
+        "averageSlippagePct": 0.0676,
         "profitFactor": 0
       }
     },
@@ -1503,19 +1778,19 @@
         "profitFactor": 2.012
       },
       "4x": {
-        "count": 9,
+        "count": 14,
         "wins": 1,
-        "losses": 8,
-        "winRatePct": 11.11,
-        "totalPnlUsdt": -2.320839,
-        "totalPnlPct": -0.9089,
-        "feeAdjustedPnlUsdt": -2.320839,
-        "totalFeesUsdt": 1.264414,
-        "averagePnlUsdt": -0.257871,
-        "averagePnlPct": -0.101,
-        "averageHoldSeconds": 113.74,
-        "averageSlippagePct": 0.1378,
-        "profitFactor": 0.031
+        "losses": 13,
+        "winRatePct": 7.14,
+        "totalPnlUsdt": -3.147205,
+        "totalPnlPct": -1.0952,
+        "feeAdjustedPnlUsdt": -3.147205,
+        "totalFeesUsdt": 1.882559,
+        "averagePnlUsdt": -0.2248,
+        "averagePnlPct": -0.0782,
+        "averageHoldSeconds": 129.26,
+        "averageSlippagePct": 0.1346,
+        "profitFactor": 0.023
       }
     },
     "byCondition": {
@@ -1595,34 +1870,34 @@
         "profitFactor": 0.138
       },
       "FOMO_BREAKOUT:LONG:CHOPPY:LOW_VOLATILITY": {
-        "count": 1,
+        "count": 2,
         "wins": 0,
-        "losses": 1,
+        "losses": 2,
         "winRatePct": 0,
-        "totalPnlUsdt": -0.206478,
-        "totalPnlPct": -0.1525,
-        "feeAdjustedPnlUsdt": -0.206478,
-        "totalFeesUsdt": 0.086478,
-        "averagePnlUsdt": -0.206478,
-        "averagePnlPct": -0.1525,
-        "averageHoldSeconds": 158.1,
-        "averageSlippagePct": 0.0509,
+        "totalPnlUsdt": -0.439078,
+        "totalPnlPct": -0.2509,
+        "feeAdjustedPnlUsdt": -0.439078,
+        "totalFeesUsdt": 0.209241,
+        "averagePnlUsdt": -0.219539,
+        "averagePnlPct": -0.1255,
+        "averageHoldSeconds": 221.9,
+        "averageSlippagePct": 0.0558,
         "profitFactor": 0
       },
       "FOMO_BREAKOUT:SHORT:CHOPPY:NORMAL": {
-        "count": 7,
+        "count": 10,
         "wins": 3,
-        "losses": 4,
-        "winRatePct": 42.86,
-        "totalPnlUsdt": -1.144247,
-        "totalPnlPct": 0.2595,
-        "feeAdjustedPnlUsdt": -1.144247,
-        "totalFeesUsdt": 1.11232,
-        "averagePnlUsdt": -0.163464,
-        "averagePnlPct": 0.0371,
-        "averageHoldSeconds": 140.66,
-        "averageSlippagePct": 0.0729,
-        "profitFactor": 0.308
+        "losses": 7,
+        "winRatePct": 30,
+        "totalPnlUsdt": -1.613896,
+        "totalPnlPct": 0.1716,
+        "feeAdjustedPnlUsdt": -1.613896,
+        "totalFeesUsdt": 1.483585,
+        "averagePnlUsdt": -0.16139,
+        "averagePnlPct": 0.0172,
+        "averageHoldSeconds": 127.71,
+        "averageSlippagePct": 0.0943,
+        "profitFactor": 0.24
       },
       "FOMO_BREAKOUT:SHORT:CHOPPY:LOW_VOLATILITY": {
         "count": 1,
@@ -1637,6 +1912,21 @@
         "averagePnlPct": -0.109,
         "averageHoldSeconds": 102.61,
         "averageSlippagePct": 0.0913,
+        "profitFactor": 0
+      },
+      "BREAKOUT:LONG:CHOPPY:NORMAL": {
+        "count": 1,
+        "wins": 0,
+        "losses": 1,
+        "winRatePct": 0,
+        "totalPnlUsdt": -0.124117,
+        "totalPnlPct": 0,
+        "feeAdjustedPnlUsdt": -0.124117,
+        "totalFeesUsdt": 0.124117,
+        "averagePnlUsdt": -0.124117,
+        "averagePnlPct": 0,
+        "averageHoldSeconds": 207.69,
+        "averageSlippagePct": 0.151,
         "profitFactor": 0
       }
     },
@@ -1687,22 +1977,6 @@
         "averagePnlPct": 0.1987,
         "averageHoldSeconds": 153.12,
         "averageSlippagePct": -0.0146,
-        "profitFactor": 999
-      },
-      {
-        "key": "GRTUSDT",
-        "count": 1,
-        "wins": 1,
-        "losses": 0,
-        "winRatePct": 100,
-        "totalPnlUsdt": 0.074124,
-        "totalPnlPct": 0.1745,
-        "feeAdjustedPnlUsdt": 0.074124,
-        "totalFeesUsdt": 0.127261,
-        "averagePnlUsdt": 0.074124,
-        "averagePnlPct": 0.1745,
-        "averageHoldSeconds": 34.69,
-        "averageSlippagePct": 0.7738,
         "profitFactor": 999
       },
       {
@@ -1799,6 +2073,22 @@
         "averagePnlPct": 0.0425,
         "averageHoldSeconds": 665.08,
         "averageSlippagePct": 0,
+        "profitFactor": 0
+      },
+      {
+        "key": "JTOUSDT",
+        "count": 1,
+        "wins": 0,
+        "losses": 1,
+        "winRatePct": 0,
+        "totalPnlUsdt": -0.124117,
+        "totalPnlPct": 0,
+        "feeAdjustedPnlUsdt": -0.124117,
+        "totalFeesUsdt": 0.124117,
+        "averagePnlUsdt": -0.124117,
+        "averagePnlPct": 0,
+        "averageHoldSeconds": 207.69,
+        "averageSlippagePct": 0.151,
         "profitFactor": 0
       }
     ],
@@ -1966,41 +2256,105 @@
     ],
     "bestSetups": [
       {
+        "key": "BREAKOUT",
+        "count": 1,
+        "wins": 0,
+        "losses": 1,
+        "winRatePct": 0,
+        "totalPnlUsdt": -0.124117,
+        "totalPnlPct": 0,
+        "feeAdjustedPnlUsdt": -0.124117,
+        "totalFeesUsdt": 0.124117,
+        "averagePnlUsdt": -0.124117,
+        "averagePnlPct": 0,
+        "averageHoldSeconds": 207.69,
+        "averageSlippagePct": 0.151,
+        "profitFactor": 0
+      },
+      {
         "key": "FOMO_BREAKOUT",
-        "count": 28,
+        "count": 32,
         "wins": 6,
-        "losses": 22,
-        "winRatePct": 21.43,
-        "totalPnlUsdt": -6.10705,
-        "totalPnlPct": -1.464,
-        "feeAdjustedPnlUsdt": -6.10705,
-        "totalFeesUsdt": 3.571593,
-        "averagePnlUsdt": -0.218109,
-        "averagePnlPct": -0.0523,
-        "averageHoldSeconds": 160.29,
-        "averageSlippagePct": 0.0566,
-        "profitFactor": 0.106
+        "losses": 26,
+        "winRatePct": 18.75,
+        "totalPnlUsdt": -6.809299,
+        "totalPnlPct": -1.6503,
+        "feeAdjustedPnlUsdt": -6.809299,
+        "totalFeesUsdt": 4.065621,
+        "averagePnlUsdt": -0.212791,
+        "averagePnlPct": -0.0516,
+        "averageHoldSeconds": 158.33,
+        "averageSlippagePct": 0.065,
+        "profitFactor": 0.096
       }
     ],
     "worstSetups": [
       {
         "key": "FOMO_BREAKOUT",
-        "count": 28,
+        "count": 32,
         "wins": 6,
-        "losses": 22,
-        "winRatePct": 21.43,
-        "totalPnlUsdt": -6.10705,
-        "totalPnlPct": -1.464,
-        "feeAdjustedPnlUsdt": -6.10705,
-        "totalFeesUsdt": 3.571593,
-        "averagePnlUsdt": -0.218109,
-        "averagePnlPct": -0.0523,
-        "averageHoldSeconds": 160.29,
-        "averageSlippagePct": 0.0566,
-        "profitFactor": 0.106
+        "losses": 26,
+        "winRatePct": 18.75,
+        "totalPnlUsdt": -6.809299,
+        "totalPnlPct": -1.6503,
+        "feeAdjustedPnlUsdt": -6.809299,
+        "totalFeesUsdt": 4.065621,
+        "averagePnlUsdt": -0.212791,
+        "averagePnlPct": -0.0516,
+        "averageHoldSeconds": 158.33,
+        "averageSlippagePct": 0.065,
+        "profitFactor": 0.096
+      },
+      {
+        "key": "BREAKOUT",
+        "count": 1,
+        "wins": 0,
+        "losses": 1,
+        "winRatePct": 0,
+        "totalPnlUsdt": -0.124117,
+        "totalPnlPct": 0,
+        "feeAdjustedPnlUsdt": -0.124117,
+        "totalFeesUsdt": 0.124117,
+        "averagePnlUsdt": -0.124117,
+        "averagePnlPct": 0,
+        "averageHoldSeconds": 207.69,
+        "averageSlippagePct": 0.151,
+        "profitFactor": 0
       }
     ],
     "strongestSessions": [
+      {
+        "key": "ASIA",
+        "count": 1,
+        "wins": 0,
+        "losses": 1,
+        "winRatePct": 0,
+        "totalPnlUsdt": -0.124278,
+        "totalPnlPct": 0,
+        "feeAdjustedPnlUsdt": -0.124278,
+        "totalFeesUsdt": 0.124278,
+        "averagePnlUsdt": -0.124278,
+        "averagePnlPct": 0,
+        "averageHoldSeconds": 15.87,
+        "averageSlippagePct": 0,
+        "profitFactor": 0
+      },
+      {
+        "key": "EUROPE",
+        "count": 4,
+        "wins": 0,
+        "losses": 4,
+        "winRatePct": 0,
+        "totalPnlUsdt": -0.702088,
+        "totalPnlPct": -0.1863,
+        "feeAdjustedPnlUsdt": -0.702088,
+        "totalFeesUsdt": 0.493867,
+        "averagePnlUsdt": -0.175522,
+        "averagePnlPct": -0.0466,
+        "averageHoldSeconds": 192.52,
+        "averageSlippagePct": 0.1613,
+        "profitFactor": 0
+      },
       {
         "key": "US",
         "count": 28,
@@ -2034,17 +2388,49 @@
         "averageHoldSeconds": 160.29,
         "averageSlippagePct": 0.0566,
         "profitFactor": 0.106
+      },
+      {
+        "key": "EUROPE",
+        "count": 4,
+        "wins": 0,
+        "losses": 4,
+        "winRatePct": 0,
+        "totalPnlUsdt": -0.702088,
+        "totalPnlPct": -0.1863,
+        "feeAdjustedPnlUsdt": -0.702088,
+        "totalFeesUsdt": 0.493867,
+        "averagePnlUsdt": -0.175522,
+        "averagePnlPct": -0.0466,
+        "averageHoldSeconds": 192.52,
+        "averageSlippagePct": 0.1613,
+        "profitFactor": 0
+      },
+      {
+        "key": "ASIA",
+        "count": 1,
+        "wins": 0,
+        "losses": 1,
+        "winRatePct": 0,
+        "totalPnlUsdt": -0.124278,
+        "totalPnlPct": 0,
+        "feeAdjustedPnlUsdt": -0.124278,
+        "totalFeesUsdt": 0.124278,
+        "averagePnlUsdt": -0.124278,
+        "averagePnlPct": 0,
+        "averageHoldSeconds": 15.87,
+        "averageSlippagePct": 0,
+        "profitFactor": 0
       }
     ],
     "drawdown": {
-      "maxDrawdownUsdt": -6.10705
+      "maxDrawdownUsdt": -6.933416
     }
   },
   "adaptive": {
     "mode": "DEFENSIVE",
     "blacklists": {
       "BILLUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-27T21:50:54.845Z",
+        "until": "2026-05-27T23:34:59.087Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "GRTUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
@@ -2052,11 +2438,11 @@
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "USELESSUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-27T21:51:22.751Z",
+        "until": "2026-05-28T08:11:23.141Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "BEATUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-27T21:52:26.439Z",
+        "until": "2026-05-28T08:12:32.493Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "BOBBOBUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
@@ -2064,15 +2450,15 @@
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "XLMUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-27T21:54:50.057Z",
+        "until": "2026-05-27T23:39:56.372Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "STORJUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-27T21:55:27.806Z",
+        "until": "2026-05-27T23:53:48.550Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "GRASSUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-27T21:55:52.185Z",
+        "until": "2026-05-28T08:22:14.946Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "MAVIAUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
@@ -2084,19 +2470,19 @@
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "ETHFIUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-27T21:56:54.486Z",
+        "until": "2026-05-28T08:18:53.392Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "ARUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-27T21:56:59.503Z",
+        "until": "2026-05-28T08:15:47.522Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "EDENUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-27T21:57:43.066Z",
+        "until": "2026-05-28T00:51:09.572Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "WLDUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-27T21:59:31.829Z",
+        "until": "2026-05-27T23:55:24.346Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "HUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
@@ -2104,7 +2490,7 @@
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "PLAYSOUTUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-27T22:00:40.317Z",
+        "until": "2026-05-27T23:37:53.502Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "WLFIUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
@@ -2112,15 +2498,15 @@
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "USUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-27T22:00:56.043Z",
+        "until": "2026-05-27T23:39:32.871Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "TIAUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-27T22:01:29.641Z",
+        "until": "2026-05-28T08:11:55.794Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "RIVERUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-27T22:01:39.209Z",
+        "until": "2026-05-28T08:17:56.375Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "GUNUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
@@ -2132,11 +2518,11 @@
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "10000NEXUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-27T22:03:10.753Z",
+        "until": "2026-05-28T08:20:45.366Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "XMRUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-27T22:03:42.942Z",
+        "until": "2026-05-28T08:26:51.208Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "ARKMUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
@@ -2144,7 +2530,7 @@
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "NBISUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-27T22:03:59.278Z",
+        "until": "2026-05-27T23:30:43.591Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "UBUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
@@ -2152,7 +2538,7 @@
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "ICPUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-27T22:06:31.178Z",
+        "until": "2026-05-28T08:15:20.153Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "FFUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
@@ -2164,7 +2550,7 @@
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "APEUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-27T22:06:57.518Z",
+        "until": "2026-05-28T08:16:33.375Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "DRIFTUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
@@ -2172,7 +2558,7 @@
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "GENIUSUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-27T22:07:36.531Z",
+        "until": "2026-05-27T23:32:17.184Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "ORDIUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
@@ -2192,7 +2578,7 @@
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "FIDAUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-27T22:09:51.235Z",
+        "until": "2026-05-28T08:24:50.664Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "PLUMEUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
@@ -2200,15 +2586,15 @@
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "OPUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-27T22:13:05.391Z",
+        "until": "2026-05-27T23:40:55.589Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "MONUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-27T22:13:15.996Z",
+        "until": "2026-05-28T08:20:46.318Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "NEARUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-27T22:13:30.698Z",
+        "until": "2026-05-28T08:21:58.564Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "ZECUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
@@ -2216,23 +2602,23 @@
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "VIRTUALUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-27T22:13:36.715Z",
+        "until": "2026-05-28T08:16:55.775Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "SEIUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-27T22:13:37.221Z",
+        "until": "2026-05-28T08:16:56.727Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "ALTUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-27T22:13:38.591Z",
+        "until": "2026-05-28T08:14:21.758Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "PUMPFUNUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-27T22:13:44.174Z",
+        "until": "2026-05-28T08:11:52.727Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "VVVUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-27T22:13:44.387Z",
+        "until": "2026-05-28T08:18:37.611Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "SAHARAUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
@@ -2240,19 +2626,199 @@
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "LITUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-27T22:13:47.150Z",
+        "until": "2026-05-28T00:58:59.583Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       },
       "PENDLEUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-05-27T22:13:47.944Z",
+        "until": "2026-05-28T08:20:37.482Z",
+        "reason": "poor condition stats: 20% winrate over 5 trades"
+      },
+      "HIGHUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-28T08:21:34.202Z",
+        "reason": "poor condition stats: 20% winrate over 5 trades"
+      },
+      "INUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-28T08:18:13.801Z",
+        "reason": "poor condition stats: 20% winrate over 5 trades"
+      },
+      "REQUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-28T08:13:49.791Z",
+        "reason": "poor condition stats: 20% winrate over 5 trades"
+      },
+      "BIOUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-27T23:34:34.525Z",
+        "reason": "poor condition stats: 20% winrate over 5 trades"
+      },
+      "CFGUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-27T23:36:55.079Z",
+        "reason": "poor condition stats: 20% winrate over 5 trades"
+      },
+      "CLOUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-28T08:15:44.378Z",
+        "reason": "poor condition stats: 20% winrate over 5 trades"
+      },
+      "SOXLUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-27T23:37:56.453Z",
+        "reason": "poor condition stats: 20% winrate over 5 trades"
+      },
+      "OPGUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-28T00:50:31.204Z",
+        "reason": "poor condition stats: 20% winrate over 5 trades"
+      },
+      "IRYSUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-28T08:18:58.691Z",
+        "reason": "poor condition stats: 20% winrate over 5 trades"
+      },
+      "GMTUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-28T08:13:52.403Z",
+        "reason": "poor condition stats: 20% winrate over 5 trades"
+      },
+      "PYTHUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-28T08:20:54.381Z",
+        "reason": "poor condition stats: 20% winrate over 5 trades"
+      },
+      "SPXUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-28T08:16:39.205Z",
+        "reason": "poor condition stats: 20% winrate over 5 trades"
+      },
+      "CRVUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-27T23:40:54.352Z",
+        "reason": "poor condition stats: 20% winrate over 5 trades"
+      },
+      "AKTUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-27T23:44:54.045Z",
+        "reason": "poor condition stats: 20% winrate over 5 trades"
+      },
+      "JELLYJELLYUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-28T08:26:59.317Z",
+        "reason": "poor condition stats: 20% winrate over 5 trades"
+      },
+      "POPCATUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-28T08:21:45.468Z",
+        "reason": "poor condition stats: 20% winrate over 5 trades"
+      },
+      "DBRUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-27T23:47:49.526Z",
+        "reason": "poor condition stats: 20% winrate over 5 trades"
+      },
+      "TONUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-27T23:54:40.782Z",
+        "reason": "poor condition stats: 20% winrate over 5 trades"
+      },
+      "PHAUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-28T08:18:54.714Z",
+        "reason": "poor condition stats: 20% winrate over 5 trades"
+      },
+      "ESPORTSUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-28T08:11:52.969Z",
+        "reason": "poor condition stats: 20% winrate over 5 trades"
+      },
+      "RENDERUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-28T00:50:49.668Z",
+        "reason": "poor condition stats: 20% winrate over 5 trades"
+      },
+      "HOMEUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-28T01:00:00.011Z",
+        "reason": "poor condition stats: 20% winrate over 5 trades"
+      },
+      "JTOUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-28T08:11:51.602Z",
+        "reason": "poor condition stats: 20% winrate over 5 trades"
+      },
+      "XPLUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-28T08:11:52.295Z",
+        "reason": "poor condition stats: 20% winrate over 5 trades"
+      },
+      "MUUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-28T08:13:35.978Z",
+        "reason": "poor condition stats: 20% winrate over 5 trades"
+      },
+      "COMPUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-28T08:13:59.378Z",
+        "reason": "poor condition stats: 20% winrate over 5 trades"
+      },
+      "RAVEUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-28T08:15:36.798Z",
+        "reason": "poor condition stats: 20% winrate over 5 trades"
+      },
+      "AZTECUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-28T08:15:39.653Z",
+        "reason": "poor condition stats: 20% winrate over 5 trades"
+      },
+      "ATHUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-28T08:15:41.699Z",
+        "reason": "poor condition stats: 20% winrate over 5 trades"
+      },
+      "AIGENSYNUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-28T08:15:50.669Z",
+        "reason": "poor condition stats: 20% winrate over 5 trades"
+      },
+      "GALAUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-28T08:16:26.428Z",
+        "reason": "poor condition stats: 20% winrate over 5 trades"
+      },
+      "EDGEUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-28T08:16:41.773Z",
+        "reason": "poor condition stats: 20% winrate over 5 trades"
+      },
+      "HYPEUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-28T08:16:48.626Z",
+        "reason": "poor condition stats: 20% winrate over 5 trades"
+      },
+      "ONDOUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-28T08:16:51.485Z",
+        "reason": "poor condition stats: 20% winrate over 5 trades"
+      },
+      "TAOUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-28T08:16:52.874Z",
+        "reason": "poor condition stats: 20% winrate over 5 trades"
+      },
+      "FILUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-28T08:16:57.373Z",
+        "reason": "poor condition stats: 20% winrate over 5 trades"
+      },
+      "EIGENUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-28T08:17:57.542Z",
+        "reason": "poor condition stats: 20% winrate over 5 trades"
+      },
+      "DYDXUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-28T08:18:49.802Z",
+        "reason": "poor condition stats: 20% winrate over 5 trades"
+      },
+      "STRKUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-28T08:20:36.961Z",
+        "reason": "poor condition stats: 20% winrate over 5 trades"
+      },
+      "JUPUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-28T08:20:48.031Z",
+        "reason": "poor condition stats: 20% winrate over 5 trades"
+      },
+      "1000LUNCUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-28T08:21:33.967Z",
+        "reason": "poor condition stats: 20% winrate over 5 trades"
+      },
+      "LABUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-28T08:24:22.169Z",
+        "reason": "poor condition stats: 20% winrate over 5 trades"
+      },
+      "BLENDUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-28T08:24:55.868Z",
+        "reason": "poor condition stats: 20% winrate over 5 trades"
+      },
+      "ZAMAUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-28T08:25:43.342Z",
+        "reason": "poor condition stats: 20% winrate over 5 trades"
+      },
+      "ZROUSDT:FOMO_BREAKOUT:LONG:CHOPPY": {
+        "until": "2026-05-28T08:27:55.470Z",
         "reason": "poor condition stats: 20% winrate over 5 trades"
       }
     },
     "policy": {
       "mode": "DEFENSIVE",
       "sampleSize": 20,
-      "rollingWinRatePct": 25,
-      "rollingPnlUsdt": -3.958196,
+      "rollingWinRatePct": 20,
+      "rollingPnlUsdt": -3.649191,
       "riskMultiplier": 0.51,
       "signalThresholdAdjustment": 12,
       "minSignalScore": 47,

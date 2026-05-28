@@ -2,25 +2,25 @@
   "version": 1,
   "exchange": "BYBIT_V5_LINEAR",
   "strategyProfile": "BYBIT_ADAPTIVE_STAT_SCALP_V2",
-  "updatedAt": "2026-05-27T21:14:16.276Z",
+  "updatedAt": "2026-05-28T07:28:15.613Z",
   "mode": "LIVE",
-  "paused": true,
-  "pauseReason": "adaptive maximum daily trades reached",
+  "paused": false,
+  "pauseReason": null,
   "equity": {
     "startingUsdt": 100,
-    "realizedPnlUsdt": -6.107050709000026,
-    "currentUsdt": 51.366228
+    "realizedPnlUsdt": -6.9334159999999905,
+    "currentUsdt": 50.259892
   },
   "daily": {
-    "date": "2026-05-27",
-    "startingEquity": 57.89879,
-    "tradesOpened": 30,
-    "losingTrades": 22,
-    "realizedPnlUsdt": -6.107051014999952,
-    "lossLocked": false,
-    "feesUsdt": 3.5715937225,
-    "closedTrades": 22,
-    "wins": 5
+    "date": "2026-05-28",
+    "startingEquity": 51.366948,
+    "tradesOpened": 8,
+    "losingTrades": 5,
+    "realizedPnlUsdt": -0.8263656849999897,
+    "feesUsdt": 0.618145145,
+    "wins": 0,
+    "closedTrades": 5,
+    "lossLocked": false
   },
   "ladder": {
     "activeLevel": 1,
@@ -28,10 +28,85 @@
     "levelStartEquity": 100,
     "riskDowngraded": true
   },
-  "openPositions": [],
+  "openPositions": [
+    {
+      "id": "x10-trade-1779953240567-4123",
+      "mode": "LIVE",
+      "status": "OPEN",
+      "symbol": "LITUSDT",
+      "side": "SHORT",
+      "size": "74.8",
+      "notional": 83.2524,
+      "leverage": 3,
+      "entryPrice": 1.1139631,
+      "stopLossPrice": 1.1218,
+      "takeProfitPrice": 1.0973,
+      "peakPrice": 1.113,
+      "trailingStopPrice": null,
+      "openedAt": "2026-05-28T07:27:20.567Z",
+      "plannedEntryPrice": 1.113,
+      "ladderLevel": 1,
+      "signalScore": 66,
+      "baseSignalScore": 84,
+      "signalRegime": "CHOPPY",
+      "setupType": "FOMO_BREAKOUT",
+      "btcMarketRegime": "CHOPPY",
+      "ethMarketRegime": "CHOPPY",
+      "volatilityRegime": "NORMAL",
+      "volumeCondition": "STRONG_VOLUME_SPIKE",
+      "entryMomentumPct": 0.7498660953401343,
+      "spreadPct": 0.008985937008580582,
+      "projectedNetEdgePct": 1.3810140629914194,
+      "roundTripFeePct": 0.11,
+      "breakoutTriggered": false,
+      "microBreakoutTriggered": false,
+      "fastMode": true,
+      "fomoTrigger": true,
+      "fomoTriggered": true,
+      "sessionType": "EUROPE",
+      "adaptiveConfidence": 8.75,
+      "adaptiveScoreAdjustment": -18,
+      "adaptiveRiskMultiplier": 0.45,
+      "adaptiveLeverageMultiplier": 0.794,
+      "adaptiveMode": "DEFENSIVE",
+      "adaptiveReasons": [
+        "sample=32 winrate=18.75% avgPnl=-0.0516%",
+        "sample=30 winrate=16.67% avgPnl=-0.0598%",
+        "sample=10 winrate=30% avgPnl=0.0172%"
+      ],
+      "entryReason": [
+        "FOMO 1m momentum trigger with volume +22",
+        "sudden volume spike +20",
+        "persistent short momentum burst +15",
+        "relaxed RSI window +10",
+        "directional candle strength +10",
+        "tradable volatility +5",
+        "BTC/ETH choppy context penalty -4",
+        "projected edge clears fees/spread +6",
+        "adaptive historical confidence -18"
+      ],
+      "positionIdx": 0,
+      "nativeProtection": "BYBIT_NATIVE_TP_SL_VERIFIED",
+      "tickSize": "0.0001",
+      "entryFeesUsdt": 0.04582845,
+      "exitFeesUsdt": 0,
+      "entrySubmittedAt": "2026-05-28T07:27:20.567Z",
+      "entryReconciliationStartedAt": "2026-05-28T07:27:20.567Z",
+      "entryReconciliationLogged": true,
+      "entryOrderId": "5a5a3571-fb16-411e-83c1-f6675ebaddc0",
+      "entryOrderLinkId": "x10-trade-1779953240567-4123",
+      "entryOrderStatus": "FILLED",
+      "totalExecutionFeesUsdt": 0.04582845,
+      "entryFillLogged": true,
+      "slippagePct": -0.0865,
+      "liquidationPrice": 1.4561,
+      "entryConfirmedAt": "2026-05-28T07:27:22.170Z",
+      "nativeProtectionVerified": true
+    }
+  ],
   "lastPrices": {
     "EDENUSDT": 0.06603,
-    "LITUSDT": 1.1637,
+    "LITUSDT": 1.1155,
     "VVVUSDT": 17.233,
     "TONUSDT": 1.9038,
     "PENDLEUSDT": 1.6341,
@@ -51,10 +126,13 @@
     "DRIFTUSDT": 0.03264,
     "STORJUSDT": 0.10738,
     "ONDOUSDT": 0.3996,
-    "GRTUSDT": 0.0287,
+    "GRTUSDT": 0.0264,
     "FFUSDT": 0.10558,
     "HIGHUSDT": 0.14065,
-    "WLDUSDT": 0.3485
+    "WLDUSDT": 0.3485,
+    "SEIUSDT": 0.06777,
+    "JTOUSDT": 0.5306,
+    "SKYAI1USDT": 0.1818
   },
   "symbolCooldowns": {
     "XLMUSDT": {
@@ -154,10 +232,10 @@
       "lossCooldownUntil": "2026-05-27T21:01:39.231Z"
     },
     "GRTUSDT": {
-      "lastClosedAt": "2026-05-27T20:47:58.305Z",
-      "lastPnlUsdt": 0.074124,
-      "reentryUntil": "2026-05-27T20:49:28.305Z",
-      "lossCooldownUntil": null
+      "lastClosedAt": "2026-05-28T07:26:34.949Z",
+      "lastPnlUsdt": -0.2326,
+      "reentryUntil": "2026-05-28T07:28:04.949Z",
+      "lossCooldownUntil": "2026-05-28T07:41:34.949Z"
     },
     "FFUSDT": {
       "lastClosedAt": "2026-05-27T20:53:54.935Z",
@@ -176,17 +254,35 @@
       "lastPnlUsdt": -0.157989,
       "reentryUntil": "2026-05-27T20:58:43.123Z",
       "lossCooldownUntil": "2026-05-27T21:12:13.123Z"
+    },
+    "SEIUSDT": {
+      "lastClosedAt": "2026-05-28T07:14:08.354Z",
+      "lastPnlUsdt": -0.104638,
+      "reentryUntil": "2026-05-28T07:15:38.354Z",
+      "lossCooldownUntil": "2026-05-28T07:29:08.354Z"
+    },
+    "JTOUSDT": {
+      "lastClosedAt": "2026-05-28T07:18:22.199Z",
+      "lastPnlUsdt": -0.124117,
+      "reentryUntil": "2026-05-28T07:19:52.199Z",
+      "lossCooldownUntil": "2026-05-28T07:33:22.199Z"
+    },
+    "SKYAI1USDT": {
+      "lastClosedAt": "2026-05-28T07:21:04.361Z",
+      "lastPnlUsdt": -0.240733,
+      "reentryUntil": "2026-05-28T07:22:34.361Z",
+      "lossCooldownUntil": "2026-05-28T07:36:04.361Z"
     }
   },
   "performance": {
-    "closedTrades": 28,
+    "closedTrades": 33,
     "wins": 6,
-    "losses": 22,
-    "winRatePct": 21.43,
-    "grossPnlUsdt": -2.53546,
-    "realizedPnlUsdt": -6.10705,
-    "totalFeesUsdt": 3.571593,
-    "averageHoldSeconds": 198.62,
+    "losses": 27,
+    "winRatePct": 18.18,
+    "grossPnlUsdt": -2.743681,
+    "realizedPnlUsdt": -6.933416,
+    "totalFeesUsdt": 4.189738,
+    "averageHoldSeconds": 192.35,
     "bestSymbol": {
       "symbol": "AZTECUSDT",
       "realizedPnlUsdt": 0.281394,
@@ -451,16 +547,16 @@
         "worstTradePnlUsdt": -0.097098
       },
       "GRTUSDT": {
-        "closedTrades": 1,
+        "closedTrades": 2,
         "wins": 1,
-        "losses": 0,
-        "winRatePct": 100,
-        "grossPnlUsdt": 0.201385,
-        "realizedPnlUsdt": 0.074124,
-        "totalFeesUsdt": 0.127261,
-        "averageHoldSeconds": 34.69,
+        "losses": 1,
+        "winRatePct": 50,
+        "grossPnlUsdt": 0.091548,
+        "realizedPnlUsdt": -0.158476,
+        "totalFeesUsdt": 0.250024,
+        "averageHoldSeconds": 160.2,
         "bestTradePnlUsdt": 0.074124,
-        "worstTradePnlUsdt": 0.074124
+        "worstTradePnlUsdt": -0.2326
       },
       "FFUSDT": {
         "closedTrades": 1,
@@ -497,6 +593,42 @@
         "averageHoldSeconds": 102.07,
         "bestTradePnlUsdt": -0.157989,
         "worstTradePnlUsdt": -0.157989
+      },
+      "SEIUSDT": {
+        "closedTrades": 2,
+        "wins": 0,
+        "losses": 2,
+        "winRatePct": 0,
+        "grossPnlUsdt": 0.019229,
+        "realizedPnlUsdt": -0.228916,
+        "totalFeesUsdt": 0.248145,
+        "averageHoldSeconds": 87.78,
+        "bestTradePnlUsdt": -0.104638,
+        "worstTradePnlUsdt": -0.124278
+      },
+      "JTOUSDT": {
+        "closedTrades": 1,
+        "wins": 0,
+        "losses": 1,
+        "winRatePct": 0,
+        "grossPnlUsdt": 0,
+        "realizedPnlUsdt": -0.124117,
+        "totalFeesUsdt": 0.124117,
+        "averageHoldSeconds": 207.69,
+        "bestTradePnlUsdt": -0.124117,
+        "worstTradePnlUsdt": -0.124117
+      },
+      "SKYAI1USDT": {
+        "closedTrades": 1,
+        "wins": 0,
+        "losses": 1,
+        "winRatePct": 0,
+        "grossPnlUsdt": -0.117613,
+        "realizedPnlUsdt": -0.240733,
+        "totalFeesUsdt": 0.12312,
+        "averageHoldSeconds": 116.97,
+        "bestTradePnlUsdt": -0.240733,
+        "worstTradePnlUsdt": -0.240733
       }
     }
   },
