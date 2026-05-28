@@ -29,16 +29,6 @@ function numberValue(name, fallback, options = {}) {
   return value;
 }
 
-function optionalPositiveNumber(name) {
-  const raw = String(process.env[name] || "").trim();
-  if (!raw) return null;
-  const value = Number(raw);
-  if (!Number.isFinite(value) || value <= 0) {
-    throw new Error(`${name} must be a positive number when set; received "${raw}".`);
-  }
-  return value;
-}
-
 function symbolsSet(name) {
   return new Set(
     String(process.env[name] || "")
@@ -87,8 +77,8 @@ function loadConfig() {
     x10Mode: booleanValue("X10_MODE", true),
     learningPhaseMode: booleanValue("LEARNING_PHASE_MODE", true),
     aggressiveLearningPhase: booleanValue("AGGRESSIVE_LEARNING_PHASE", true),
-    continuousExecutionMode: booleanValue("CONTINUOUS_EXECUTION_MODE", true),
-    disableDailyTradeLimits: booleanValue("DISABLE_DAILY_TRADE_LIMITS", true),
+    continuousExecutionMode: true,
+    disableDailyTradeLimits: true,
     forcedMarketSamplingEnabled: booleanValue("FORCED_MARKET_SAMPLING_ENABLED", true),
     forcedMarketSamplingAfterMinutes: numberValue("FORCED_MARKET_SAMPLING_AFTER_MINUTES", 8, { positive: true }),
     forcedSamplingMaxCandidates: numberValue("FORCED_SAMPLING_MAX_CANDIDATES", 2, { positive: true, integer: true, maximum: 10 }),
@@ -106,8 +96,6 @@ function loadConfig() {
     baseRiskPerTradePct: numberValue("BASE_RISK_PER_TRADE_PCT", 4, { positive: true }),
     aggressiveRiskPerTradePct: numberValue("AGGRESSIVE_RISK_PER_TRADE_PCT", 8, { positive: true }),
     aggressiveScoreThreshold: numberValue("AGGRESSIVE_SCORE_THRESHOLD", 72, { positive: true, maximum: 100 }),
-    maxDailyLossPct: numberValue("MAX_DAILY_LOSS_PCT", 20, { positive: true }),
-    maxDailyLossUsdt: optionalPositiveNumber("MAX_DAILY_LOSS_USDT"),
     maxLeverage: numberValue("MAX_LEVERAGE", 8, { positive: true, maximum: 15 }),
     setLeverageOnEntry: booleanValue("SET_LEVERAGE_ON_ENTRY", true),
     acknowledgeHighLeverageRisk: booleanValue("ACKNOWLEDGE_HIGH_LEVERAGE_RISK", false),

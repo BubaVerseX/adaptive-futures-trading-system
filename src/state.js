@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const EXCHANGE_ID = "BYBIT_V5_LINEAR";
 const CURRENT_STRATEGY_PROFILE = "BYBIT_ADAPTIVE_STAT_SCALP_V2";
-const REMOVED_EXECUTION_PAUSE_REASONS = /(?:adaptive\s+)?maximum\s+daily\s+trades|daily\s+trade\s+limit|exploration\s+quota|participation\s+quota/i;
+const REMOVED_EXECUTION_PAUSE_REASONS = /(?:adaptive\s+)?maximum\s+daily\s+trades|daily\s+trade\s+limit|exploration\s+quota|participation\s+quota|maximum\s+daily\s+loss|daily\s+loss|daily\s+drawdown|daily\s+risk/i;
 
 function readJson(file, fallback) {
   try {
@@ -160,7 +160,7 @@ class StateStore {
     this.state.symbolCooldowns = {};
     this.state.performance = emptyPerformance();
     this.state.consecutiveApiErrors = 0;
-    this.log("WARN", "Operating mode changed; daily risk counters reset for the new mode.", {
+    this.log("WARN", "Operating mode changed; performance counters reset for the new mode.", {
       fromMode: priorMode,
       toMode: mode,
     });
@@ -174,7 +174,7 @@ class StateStore {
       this.state.pauseReason = null;
       this.state.daily = null;
       this.state.ladder.riskDowngraded = false;
-      this.log("INFO", "Adaptive statistical scalping profile activated; daily loss baseline will reset from current equity.", {
+      this.log("INFO", "Adaptive statistical scalping profile activated; continuous execution will rebuild performance state from current equity.", {
         strategyProfile: CURRENT_STRATEGY_PROFILE,
       });
     }
@@ -188,6 +188,7 @@ class StateStore {
     this.state.pauseReason = null;
     this.log("WARN", "Continuous execution mode active; removed stale portfolio execution blocker from saved state.", {
       oldReason,
+      dailyShutdownLogicRemoved: true,
     });
   }
 

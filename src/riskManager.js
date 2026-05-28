@@ -30,6 +30,22 @@ function roundedPrice(value, step, roundUp) {
   return Number(rounded.toFixed(decimalPlaces(step)));
 }
 
+function closedLossStreak(trades, mode) {
+  const closed = trades
+    .filter((trade) => trade.mode === mode && trade.status === "CLOSED")
+    .slice()
+    .sort((left, right) => Date.parse(left.exitedAt || left.exitTime || "") - Date.parse(right.exitedAt || right.exitTime || ""));
+  let streak = 0;
+  for (let index = closed.length - 1; index >= 0; index -= 1) {
+    if (Number(closed[index].pnlUsdt || 0) < 0) {
+      streak += 1;
+      continue;
+    }
+    break;
+  }
+  return streak;
+}
+
 class RiskManager {
   constructor(config, store, log, adaptive = null) {
     this.config = config;
@@ -119,11 +135,15 @@ class RiskManager {
         wins: todayClosed.filter((trade) => Number(trade.pnlUsdt) > 0).length,
         closedTrades: todayClosed.length,
         explorationTrades: todayTrades.filter((trade) => trade.explorationTrade).length,
-        lossLocked: false,
+        recoveryModeActive: false,
       };
       state.paused = false;
       state.pauseReason = null;
-      this.log("INFO", "New UTC trading day initialized.", { date, startingEquity: equity.toFixed(4) });
+      this.log("INFO", "New UTC performance day initialized; daily shutdown logic removed.", {
+        date,
+        startingEquity: equity.toFixed(4),
+        continuousExecutionMode: this.config.continuousExecutionMode,
+      });
     }
   }
 
@@ -131,18 +151,62 @@ class RiskManager {
     return percentChange(equity, this.store.state.daily.startingEquity);
   }
 
-  dailyLock(equity) {
+  continuousRecoveryStatus(equity) {
     const daily = this.store.state.daily;
+    if (!daily) {
+      return {
+        active: false,
+        pnlPct: 0,
+        pnlUsdt: 0,
+        losingStreak: 0,
+        riskMultiplier: 1,
+        leverageMultiplier: 1,
+        signalAdjustment: 0,
+      };
+    }
     const pnlPct = this.dailyPerformancePct(equity);
     const pnlUsdt = equity - daily.startingEquity;
-    if (
-      pnlPct <= -this.config.maxDailyLossPct ||
-      (this.config.maxDailyLossUsdt !== null && pnlUsdt <= -this.config.maxDailyLossUsdt)
-    ) {
-      daily.lossLocked = true;
-      return { locked: true, closePositions: true, stopBot: true, reason: "maximum daily loss reached", pnlPct };
+    const losingStreak = closedLossStreak(this.store.trades, this.store.state.mode);
+    const losingTrades = Number(daily.losingTrades || 0);
+    const intensity = Math.max(
+      losingStreak >= 2 ? Math.min(1, losingStreak / 5) : 0,
+      losingTrades >= 3 ? Math.min(1, losingTrades / 8) : 0,
+      pnlPct < 0 ? Math.min(1, Math.abs(pnlPct) / 18) : 0
+    );
+    const active = intensity > 0;
+    const status = {
+      active,
+      pnlPct: Number(pnlPct.toFixed(4)),
+      pnlUsdt: Number(pnlUsdt.toFixed(6)),
+      losingTrades,
+      losingStreak,
+      riskMultiplier: Number((1 - 0.22 * intensity).toFixed(3)),
+      leverageMultiplier: Number((1 - 0.16 * intensity).toFixed(3)),
+      signalAdjustment: Math.ceil(2 * intensity),
+      stopBot: false,
+      closePositions: false,
+      reason: active ? "adaptive recovery mode active; losing streak handled without shutdown" : null,
+    };
+    daily.recoveryModeActive = active;
+    daily.recoveryPnlPct = status.pnlPct;
+    daily.recoveryLosingStreak = losingStreak;
+    if (active) {
+      const noticeKey = `${daily.date}:${Math.floor(Math.abs(pnlPct))}:${losingStreak}:${losingTrades}`;
+      if (daily.recoveryNoticeKey !== noticeKey) {
+        daily.recoveryNoticeKey = noticeKey;
+        this.log("WARN", "Losing streak handled without shutdown; adaptive recovery mode active.", {
+          dailyPnlPct: status.pnlPct,
+          dailyPnlUsdt: status.pnlUsdt,
+          losingTrades,
+          losingStreak,
+          riskMultiplier: status.riskMultiplier,
+          leverageMultiplier: status.leverageMultiplier,
+          continuousLearningPreserved: true,
+          stopBot: false,
+        });
+      }
     }
-    return { locked: false, pnlPct };
+    return status;
   }
 
   profitProtection(equity) {
@@ -184,9 +248,8 @@ class RiskManager {
 
   entryBlockReason(equity, symbol) {
     const state = this.store.state;
-    const dailyProtection = this.dailyLock(equity);
     if (state.paused) {
-      if (this.config.continuousExecutionMode && /(?:adaptive\s+)?maximum\s+daily\s+trades|daily\s+trade|exploration\s+quota|participation\s+quota/i.test(String(state.pauseReason || ""))) {
+      if (this.config.continuousExecutionMode && /(?:adaptive\s+)?maximum\s+daily\s+trades|daily\s+trade|exploration\s+quota|participation\s+quota|maximum\s+daily\s+loss|daily\s+loss|daily\s+drawdown|daily\s+risk/i.test(String(state.pauseReason || ""))) {
         state.paused = false;
         state.pauseReason = null;
         this.log("WARN", "Execution blocker removed; stale portfolio pause cleared in continuous execution mode.", { symbol });
@@ -194,7 +257,6 @@ class RiskManager {
         return state.pauseReason || "manual pause is active";
       }
     }
-    if (dailyProtection.locked) return dailyProtection.reason;
     if (
       !this.config.dryRun &&
       state.openPositions.some((position) =>
@@ -251,6 +313,7 @@ class RiskManager {
     if (signal.qualityPacingActive) {
       qualitySizeMultiplier *= this.config.qualityPacingRiskMultiplier;
     }
+    qualitySizeMultiplier *= Number(signal.continuousRecoveryRiskMultiplier || 1);
     qualitySizeMultiplier *= Number(signal.regimeRiskMultiplier || 1);
     qualitySizeMultiplier *= Number(signal.profitProtectionRiskMultiplier || 1);
     const riskPct = Math.max(
@@ -292,6 +355,7 @@ class RiskManager {
       qualitySizeMultiplier: Number(qualitySizeMultiplier.toFixed(3)),
       highQualityContinuation,
       explorationSizing: Boolean(signal.explorationTrade),
+      continuousRecoveryRiskMultiplier: Number(signal.continuousRecoveryRiskMultiplier || 1),
       riskUsdt: Number(riskUsdt.toFixed(6)),
       stopLossPrice: roundedPrice(signal.price * (isLong ? 1 - stopDistance : 1 + stopDistance), tickSize, !isLong),
       takeProfitPrice: roundedPrice(

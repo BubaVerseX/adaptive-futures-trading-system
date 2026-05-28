@@ -136,7 +136,12 @@ class LadderBot {
     });
     this.log("WARN", "This strategy attempts aggressive growth but cannot guarantee profit.", {
       stopLossPct: this.config.stopLossPct,
-      maxDailyLossPct: this.config.maxDailyLossPct,
+    });
+    this.log("WARN", "Daily shutdown logic removed; 24/7 execution enabled until manual or catastrophic stop.", {
+      continuousExecutionMode: this.config.continuousExecutionMode,
+      dailyTradeLimitsDisabled: this.config.disableDailyTradeLimits,
+      dailyLossShutdownRemoved: true,
+      continuousLearningPreserved: true,
     });
     this.log("WARN", "Focused trading universe enabled; BTC/ETH/SOL mode active.", {
       symbols: this.config.focusedTradingSymbolsList,
@@ -167,7 +172,7 @@ class LadderBot {
         });
       }
       if (this.config.disableDailyTradeLimits) {
-        this.log("WARN", "Daily execution limits disabled; trading continues until manual stop, emergency stop, loss protection, or core safety blocks it.");
+        this.log("WARN", "Daily execution limits disabled; trading continues until manual stop, emergency stop, exchange failure, or core catastrophic safety blocks it.");
       }
     }
 
@@ -316,28 +321,20 @@ class LadderBot {
       await this.managePositions(marketProfile);
       const equity = await this.measureEquity();
       this.risk.updateEquity(equity);
-      const lock = this.risk.dailyLock(equity);
+      const recoveryStatus = this.risk.continuousRecoveryStatus(equity);
       const profitProtection = this.risk.profitProtection(equity);
       if (profitProtection.active) {
         this.store.state.daily.profitProtectionActive = true;
         this.store.state.daily.profitProtectionPnlPct = Number(profitProtection.pnlPct.toFixed(4));
         this.store.saveState();
-        this.log("WARN", "Profit protection mode enabled.", profitProtection);
+        this.log("WARN", "Profit protection sizing mode enabled; entries remain active.", profitProtection);
       } else if (this.store.state.daily) {
         this.store.state.daily.profitProtectionActive = false;
         this.store.state.daily.profitProtectionPnlPct = Number(profitProtection.pnlPct.toFixed(4));
       }
 
-      if (lock.locked) {
-        this.store.state.paused = true;
-        this.store.state.pauseReason = lock.reason;
-        this.store.saveState();
-        this.log("WARN", "New entries halted by daily protection.", { reason: lock.reason, dailyPnlPct: lock.pnlPct.toFixed(3) });
-        if (lock.closePositions) await this.closeAllManagedPositions(lock.reason, true);
-        if (lock.stopBot) {
-          await this.shutdown(lock.reason, { forceClose: true });
-          return;
-        }
+      if (recoveryStatus.active) {
+        this.log("INFO", "Continuous learning preserved; recovery adjusts sizing without pausing execution.", recoveryStatus);
       }
 
       const scan = await this.scanner.scan(marketProfile);
@@ -353,7 +350,7 @@ class LadderBot {
         });
       }
       const candidates = this.candidatesWithForcedSampling(scan, equity);
-      await this.openBestCandidates(candidates, equity, profitProtection);
+      await this.openBestCandidates(candidates, equity, profitProtection, recoveryStatus);
     } catch (error) {
       this.store.state.consecutiveApiErrors += 1;
       this.store.saveState();
@@ -395,13 +392,7 @@ class LadderBot {
       await this.managePositions(null, { priceProtectionOnly: true });
       const equity = await this.measureEquity();
       this.risk.updateEquity(equity);
-      const lock = this.risk.dailyLock(equity);
-      if (lock.locked && lock.closePositions) {
-        this.store.state.paused = true;
-        this.store.state.pauseReason = lock.reason;
-        await this.closeAllManagedPositions(lock.reason, true);
-      }
-      if (lock.stopBot) await this.shutdown(lock.reason, { forceClose: true });
+      this.risk.continuousRecoveryStatus(equity);
     } catch (error) {
       this.log("ERROR", "Fast position-protection monitor failed.", { error: error.message });
       await this.telegram.send(`Position monitor error: ${error.message}`);
@@ -411,9 +402,10 @@ class LadderBot {
     }
   }
 
-  async openBestCandidates(candidates, equity, profitProtection = null) {
+  async openBestCandidates(candidates, equity, profitProtection = null, recoveryStatus = null) {
     const adaptivePolicy = this.adaptive.currentPolicy();
     const protection = profitProtection || { active: false, riskMultiplier: 1, leverageMultiplier: 1, explorationMultiplier: 1, signalAdjustment: 0 };
+    const recovery = recoveryStatus || { active: false, riskMultiplier: 1, leverageMultiplier: 1, signalAdjustment: 0 };
     const maxOpenPositions = adaptivePolicy.maxOpenPositions || this.config.maxOpenPositions;
     const availableSlots = maxOpenPositions - this.store.state.openPositions.length;
     if (availableSlots <= 0) {
@@ -562,6 +554,20 @@ class LadderBot {
       }
       signal.profitProtectionRiskMultiplier = protection.riskMultiplier;
       signal.profitProtectionLeverageMultiplier = protection.leverageMultiplier;
+      signal.continuousRecoveryRiskMultiplier = recovery.riskMultiplier;
+      signal.continuousRecoveryLeverageMultiplier = recovery.leverageMultiplier;
+      signal.continuousRecoverySignalAdjustment = recovery.signalAdjustment;
+      if (recovery.active) {
+        this.log("INFO", "Adaptive recovery mode active; losing streak handled without shutdown.", {
+          symbol: signal.symbol,
+          side: signal.side,
+          dailyPnlPct: recovery.pnlPct,
+          losingStreak: recovery.losingStreak,
+          riskMultiplier: recovery.riskMultiplier,
+          leverageMultiplier: recovery.leverageMultiplier,
+          continuousExecutionMode: this.config.continuousExecutionMode,
+        });
+      }
       signal.qualityPacingActive = adaptivePolicy.qualityPacingActive;
       signal.qualityPacingReason = adaptivePolicy.qualityPacingReason;
       const edgeCheck = this.feeAwareEntryCheck(signal);
@@ -787,16 +793,13 @@ class LadderBot {
       (signal.marketRegimeTags.includes("STRONG_TRENDING_MARKET") || signal.marketRegimeTags.includes("HIGH_VOLATILITY_BREAKOUT_MARKET")) &&
       signal.btcTrendAligned &&
       Number(signal.projectedNetEdgePct || 0) >= this.config.minProjectedEdgePct + 0.25;
-    if (signal.explorationTrade && !highQualityContinuation) {
-      return { rejected: true, reason: "profit protection suppresses exploratory entries after strong daily gains", requiredScore };
-    }
-    if (!highQualityContinuation && Number(signal.score || 0) < requiredScore) {
-      return { rejected: true, reason: "profit protection requires stronger score before adding new risk", requiredScore };
-    }
-    if (Number(signal.convictionScore || 0) < requiredConviction) {
-      return { rejected: true, reason: "profit protection requires stronger conviction", requiredScore, requiredConviction };
-    }
-    return { rejected: false, requiredScore, requiredConviction };
+    return {
+      rejected: false,
+      requiredScore,
+      requiredConviction,
+      highQualityContinuation,
+      reason: "24/7 continuous execution keeps entries active; profit protection only adjusts sizing",
+    };
   }
 
   feeAwareEntryCheck(signal) {
@@ -862,6 +865,7 @@ class LadderBot {
         (policy.maxLeverage || this.config.maxLeverage) *
           Number(signal.adaptiveLeverageMultiplier || 1) *
           Number(signal.regimeLeverageMultiplier || 1) *
+          Number(signal.continuousRecoveryLeverageMultiplier || 1) *
           Number(signal.profitProtectionLeverageMultiplier || 1)
       )
     );
@@ -1823,8 +1827,10 @@ class LadderBot {
       `Adaptive mode: ${adaptivePolicy.mode}, min score ${adaptivePolicy.minSignalScore}, max leverage ${adaptivePolicy.maxLeverage}x`,
       `Focused universe: ${(this.config.focusedTradingSymbolsList || []).join(", ")}`,
       `Continuous execution: ${this.config.continuousExecutionMode ? "active" : "off"}`,
+      `Daily shutdowns: removed; 24/7 execution ${this.config.continuousExecutionMode ? "enabled" : "disabled"}`,
       `Learning phase: ${this.config.learningPhaseMode ? "active" : "off"}, daily trade limits: ${this.config.disableDailyTradeLimits ? "disabled" : "enabled"}`,
       `Quality pacing: ${adaptivePolicy.qualityPacingActive ? `active - ${adaptivePolicy.qualityPacingReason}` : "inactive"}`,
+      `Adaptive recovery: ${daily.recoveryModeActive ? `active, daily PnL ${Number(daily.recoveryPnlPct || 0).toFixed(2)}%, loss streak ${daily.recoveryLosingStreak || 0}` : "inactive"}`,
       `Daily PnL realized: ${Number(daily.realizedPnlUsdt || 0).toFixed(4)} USDT`,
       `Daily trades/losses: ${daily.tradesOpened || 0}/${daily.losingTrades || 0}`,
       `Exploration trades today: ${daily.explorationTrades || 0}/${this.config.disableDailyTradeLimits ? "unlimited" : adaptivePolicy.explorationBudget || 0}`,
@@ -1851,10 +1857,10 @@ class LadderBot {
     if (command === "/resume") {
       const equity = await this.measureEquity();
       if (!this.store.state.daily) this.risk.updateEquity(equity);
-      const lock = this.risk.dailyLock(equity);
-      if (lock.locked || this.emergencyStopRequested()) {
-        return this.telegram.send(`Resume refused: ${lock.reason || "emergency stop file exists"}.`);
+      if (this.emergencyStopRequested()) {
+        return this.telegram.send("Resume refused: emergency stop file exists.");
       }
+      this.risk.continuousRecoveryStatus(equity);
       this.store.state.paused = false;
       this.store.state.pauseReason = null;
       this.store.saveState();
