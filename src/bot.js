@@ -60,6 +60,18 @@ function numeric(value, fallback = 0) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function effectivelyUnchanged(currentValue, intendedValue, tolerancePct = 0.01) {
+  if (intendedValue === undefined || intendedValue === null || intendedValue === "") return true;
+  if (currentValue === undefined || currentValue === null || currentValue === "") return false;
+  const current = Number(currentValue);
+  const intended = Number(intendedValue);
+  if (!Number.isFinite(current) || !Number.isFinite(intended)) {
+    return String(currentValue) === String(intendedValue);
+  }
+  const basis = Math.max(Math.abs(current), Math.abs(intended), 1);
+  return (Math.abs(current - intended) / basis) * 100 < tolerancePct;
+}
+
 function secondsHeld(position) {
   const openedAt = Date.parse(position.openedAt || "");
   if (!Number.isFinite(openedAt)) return 0;
@@ -403,6 +415,15 @@ class LadderBot {
   }
 
   async handleApiRecovery(error, options = {}) {
+    if (Number(error && error.retCode) === 34040 || /(?:34040|not modified)/i.test(String(error && error.message))) {
+      this.log("INFO", "34040 treated as informational; recovery escalation avoided.", {
+        source: options.source || "UNKNOWN",
+        error: error.message,
+        consecutiveApiErrors: this.store.state.consecutiveApiErrors,
+        executionCyclePreserved: true,
+      });
+      return;
+    }
     const source = options.source || "UNKNOWN";
     const countError = options.countError !== false;
     const nonBlocking = Boolean(options.nonBlocking);
@@ -1200,13 +1221,21 @@ class LadderBot {
       rawLeverageResponse: leverageResponse.rawResponse,
       parsedLeverage,
     });
-    if (this.config.setLeverageOnEntry && parsedLeverage !== requestedLeverage) {
+    if (this.config.setLeverageOnEntry && Number.isFinite(parsedLeverage) && effectivelyUnchanged(parsedLeverage, requestedLeverage)) {
+      this.log("INFO", "Unchanged leverage update skipped.", {
+        symbol: signal.symbol,
+        parsedLeverage,
+        requestedLeverage,
+        duplicateProtectionPreventedApiSpam: true,
+      });
+    } else if (this.config.setLeverageOnEntry && parsedLeverage !== requestedLeverage) {
       const updateResponse = await this.client.setLeverage(signal.symbol, requestedLeverage);
       updateSucceeded = true;
-      this.log("WARN", "Configured leverage update accepted for selected live symbol.", {
+      this.log(updateResponse && updateResponse.notModified ? "INFO" : "WARN", updateResponse && updateResponse.notModified ? "34040 treated as informational for leverage update." : "Configured leverage update accepted for selected live symbol.", {
         symbol: signal.symbol,
         requestedLeverage,
         rawLeverageUpdateResponse: updateResponse,
+        recoveryEscalationAvoided: Boolean(updateResponse && updateResponse.notModified),
       });
       leverageResponse = await this.client.getLeverage(signal.symbol, signal.side);
       parsedLeverage = leverageResponse.leverage;
@@ -1507,16 +1536,24 @@ class LadderBot {
               position.tickSize,
               long
             );
-            await this.client.setTradingStop({
+            const trailingUpdate = {
               symbol: position.symbol,
               positionIdx: position.positionIdx,
               takeProfit: String(position.takeProfitPrice),
               stopLoss: String(position.stopLossPrice),
               trailingStop: String(trailingDistance),
               activePrice: String(activePrice),
-            });
+            };
+            const updateResult = await this.applyTradingStopIfChanged(position, trailingUpdate, "trailing stop");
             position.nativeTrailingConfigured = true;
             position.nativeTrailingDistance = trailingDistance;
+            position.nativeTrailingActivePrice = activePrice;
+            if (updateResult && updateResult.skipped) {
+              this.log("INFO", "Unchanged TP/SL update skipped while marking trailing stop as configured.", {
+                symbol: position.symbol,
+                duplicateProtectionPreventedApiSpam: true,
+              });
+            }
           }
           this.store.saveState();
           this.log("INFO", "Trailing stop moved to protect favorable movement.", {
@@ -1980,6 +2017,10 @@ class LadderBot {
         managed.positionIdx = Number(exchange.positionIdx);
         managed.leverage = Number(exchange.leverage) || managed.leverage;
         managed.liquidationPrice = Number(exchange.liqPrice) || null;
+        managed.exchangeTakeProfit = exchange.takeProfit || exchange.tp || managed.exchangeTakeProfit || null;
+        managed.exchangeStopLoss = exchange.stopLoss || exchange.sl || managed.exchangeStopLoss || null;
+        managed.exchangeTrailingStop = exchange.trailingStop || managed.exchangeTrailingStop || null;
+        managed.exchangeTrailingActivePrice = exchange.activePrice || exchange.trailingActive || managed.exchangeTrailingActivePrice || null;
         managed.stopLossPrice =
           managed.side === "LONG"
             ? roundedPrice(entryPrice * (1 - this.config.stopLossPct / 100), managed.tickSize, false)
@@ -2098,20 +2139,94 @@ class LadderBot {
     return distancePct - this.config.stopLossPct < this.config.minLiquidationBufferPct;
   }
 
+  currentTradingStopValues(position) {
+    return {
+      takeProfit: position.nativeTakeProfit || position.exchangeTakeProfit,
+      stopLoss: position.nativeStopLoss || position.exchangeStopLoss,
+      trailingStop: position.nativeTrailingDistance || position.exchangeTrailingStop,
+      activePrice: position.nativeTrailingActivePrice || position.exchangeTrailingActivePrice,
+    };
+  }
+
+  tradingStopUnchanged(position, intended) {
+    const current = this.currentTradingStopValues(position);
+    const checks = [];
+    if (intended.takeProfit !== undefined && intended.takeProfit !== null && intended.takeProfit !== "") {
+      checks.push(effectivelyUnchanged(current.takeProfit, intended.takeProfit));
+    }
+    if (intended.stopLoss !== undefined && intended.stopLoss !== null && intended.stopLoss !== "") {
+      checks.push(effectivelyUnchanged(current.stopLoss, intended.stopLoss));
+    }
+    if (intended.trailingStop !== undefined && intended.trailingStop !== null && intended.trailingStop !== "") {
+      checks.push(effectivelyUnchanged(current.trailingStop, intended.trailingStop));
+    }
+    if (intended.activePrice !== undefined && intended.activePrice !== null && intended.activePrice !== "") {
+      checks.push(effectivelyUnchanged(current.activePrice, intended.activePrice));
+    }
+    return checks.length > 0 && checks.every(Boolean);
+  }
+
+  rememberTradingStopValues(position, intended) {
+    if (intended.takeProfit !== undefined && intended.takeProfit !== null && intended.takeProfit !== "") {
+      position.nativeTakeProfit = intended.takeProfit;
+      position.exchangeTakeProfit = intended.takeProfit;
+    }
+    if (intended.stopLoss !== undefined && intended.stopLoss !== null && intended.stopLoss !== "") {
+      position.nativeStopLoss = intended.stopLoss;
+      position.exchangeStopLoss = intended.stopLoss;
+    }
+    if (intended.trailingStop !== undefined && intended.trailingStop !== null && intended.trailingStop !== "") {
+      position.nativeTrailingDistance = intended.trailingStop;
+      position.exchangeTrailingStop = intended.trailingStop;
+    }
+    if (intended.activePrice !== undefined && intended.activePrice !== null && intended.activePrice !== "") {
+      position.nativeTrailingActivePrice = intended.activePrice;
+      position.exchangeTrailingActivePrice = intended.activePrice;
+    }
+  }
+
+  async applyTradingStopIfChanged(position, intended, reason) {
+    if (this.tradingStopUnchanged(position, intended)) {
+      this.log("INFO", "Unchanged TP/SL update skipped.", {
+        symbol: position.symbol,
+        reason,
+        intended,
+        current: this.currentTradingStopValues(position),
+        duplicateProtectionPreventedApiSpam: true,
+        recoveryEscalationAvoided: true,
+      });
+      this.rememberTradingStopValues(position, intended);
+      return { skipped: true };
+    }
+    const response = await this.client.setTradingStop(intended);
+    if (response && response.notModified) {
+      this.log("INFO", "34040 treated as informational for TP/SL update.", {
+        symbol: position.symbol,
+        reason,
+        recoveryEscalationAvoided: true,
+        executionCyclePreserved: true,
+      });
+    }
+    this.rememberTradingStopValues(position, intended);
+    return response || {};
+  }
+
   async ensureNativeProtection(position) {
-    await this.client.setTradingStop({
+    const intended = {
       symbol: position.symbol,
       positionIdx: position.positionIdx,
       takeProfit: String(position.takeProfitPrice),
       stopLoss: String(position.stopLossPrice),
-    });
+    };
+    const response = await this.applyTradingStopIfChanged(position, intended, "native TP/SL protection");
     position.nativeProtectionVerified = true;
     position.nativeProtection = "BYBIT_NATIVE_TP_SL_VERIFIED";
-    this.log("INFO", "Native Bybit TP/SL protection verified.", {
+    this.log("INFO", response && response.skipped ? "Native Bybit TP/SL protection already current." : "Native Bybit TP/SL protection verified.", {
       symbol: position.symbol,
       stopLossPrice: position.stopLossPrice,
       takeProfitPrice: position.takeProfitPrice,
       positionIdx: position.positionIdx,
+      updateSkipped: Boolean(response && response.skipped),
     });
   }
 

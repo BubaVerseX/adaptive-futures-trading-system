@@ -6,6 +6,7 @@ const WebSocket = require("ws");
 
 const REQUEST_TIMEOUT_MS = 10000;
 const REQUEST_RETRIES = 2;
+const NOT_MODIFIED_CODES = new Set([34040]);
 const ACTIVE_ORDER_STATUSES = new Set(["New", "PartiallyFilled", "Untriggered", "Triggered", "Created"]);
 const ORDER_STATUS_MAP = {
   New: "NEW",
@@ -205,13 +206,25 @@ class BybitClient extends EventEmitter {
           throw emptyError;
         }
         const retCode = Number(payload.retCode);
+        if (retCode !== 0 && NOT_MODIFIED_CODES.has(retCode)) {
+          this.log("INFO", "Bybit 34040 not modified treated as informational.", {
+            retCode,
+            retMsg: payload.retMsg || "not modified",
+            recoveryEscalationAvoided: true,
+          });
+          return { ...(payload.result || {}), notModified: true, retCode, retMsg: payload.retMsg || "not modified" };
+        }
         if (!response.ok || (retCode !== 0 && !acceptedCodes.includes(retCode))) {
           const error = new Error(`Bybit request failed (HTTP ${response.status}, code ${payload.retCode}): ${payload.retMsg || "unknown error"}.`);
+          error.retCode = retCode;
           error.rateLimited = response.status === 429 || retCode === 10006;
           error.retryable = error.rateLimited || response.status >= 500 || [10000, 10002, 10016].includes(retCode);
           throw error;
         }
         if (attempt > 1) this.log("INFO", "Bybit REST connection recovered.", { attempt });
+        if (retCode !== 0 && acceptedCodes.includes(retCode)) {
+          return { ...(payload.result || {}), acceptedRetCode: retCode, retMsg: payload.retMsg || "" };
+        }
         return payload.result || {};
       } catch (caught) {
         lastError = caught.name === "AbortError" ? Object.assign(new Error("Bybit request timed out."), { retryable: true }) : caught;
@@ -404,7 +417,7 @@ class BybitClient extends EventEmitter {
       "/v5/position/set-leverage",
       {},
       { category: this.config.category, symbol, buyLeverage: String(leverage), sellLeverage: String(leverage) },
-      [110043]
+      [110043, 34040]
     );
   }
 
@@ -459,20 +472,26 @@ class BybitClient extends EventEmitter {
   }
 
   async setTradingStop(position) {
-    return this.privateRequest("POST", "/v5/position/trading-stop", {}, {
-      category: this.config.category,
-      symbol: position.symbol,
-      positionIdx: position.positionIdx,
-      tpslMode: "Full",
-      takeProfit: position.takeProfit,
-      stopLoss: position.stopLoss,
-      tpTriggerBy: "MarkPrice",
-      slTriggerBy: "MarkPrice",
-      tpOrderType: "Market",
-      slOrderType: "Market",
-      trailingStop: position.trailingStop,
-      activePrice: position.activePrice,
-    });
+    return this.privateRequest(
+      "POST",
+      "/v5/position/trading-stop",
+      {},
+      {
+        category: this.config.category,
+        symbol: position.symbol,
+        positionIdx: position.positionIdx,
+        tpslMode: "Full",
+        takeProfit: position.takeProfit,
+        stopLoss: position.stopLoss,
+        tpTriggerBy: "MarkPrice",
+        slTriggerBy: "MarkPrice",
+        tpOrderType: "Market",
+        slOrderType: "Market",
+        trailingStop: position.trailingStop,
+        activePrice: position.activePrice,
+      },
+      [34040]
+    );
   }
 
   async cancelAllOrders(symbol) {
