@@ -91,6 +91,34 @@ async function testSignedRestHeaders() {
   assert.ok(!JSON.stringify(events).includes("test-secret"));
 }
 
+async function testBybitNotModifiedIsInformational() {
+  const originalFetch = global.fetch;
+  const { events, log } = logCollector();
+  const client = new BybitClient(config(), log);
+  let requests = 0;
+  global.fetch = async () => {
+    requests += 1;
+    return {
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ retCode: 34040, retMsg: "not modified", result: {} }),
+    };
+  };
+  try {
+    const response = await client.setTradingStop({
+      symbol: "BTCUSDT",
+      positionIdx: 0,
+      takeProfit: "101",
+      stopLoss: "99",
+    });
+    assert.equal(response.notModified, true);
+    assert.equal(requests, 1);
+    assert.ok(events.some((event) => event.message === "Bybit 34040 not modified treated as informational."));
+  } finally {
+    global.fetch = originalFetch;
+  }
+}
+
 async function testUnifiedWalletParsing() {
   const accountLevel = parseUnifiedUsdtBalance({
     list: [
@@ -259,6 +287,46 @@ async function testApiAutoRecoveryDoesNotShutdown() {
   assert.ok(events.some((event) => event.message === "API auto-recovery triggered."));
   assert.ok(events.some((event) => event.message === "Exchange state rebuilt."));
   assert.ok(events.some((event) => event.message === "Execution resumed automatically."));
+}
+
+async function testNotModifiedDoesNotTriggerRecovery() {
+  const { events, log } = logCollector();
+  const bot = new LadderBot(config({ dryRun: true }));
+  bot.log = log;
+  bot.store.state.consecutiveApiErrors = 2;
+  bot.store.saveState = () => {};
+  await bot.handleApiRecovery(new Error("Bybit request failed (HTTP 200, code 34040): not modified."), {
+    source: "TEST",
+    countError: true,
+  });
+  assert.equal(bot.store.state.consecutiveApiErrors, 2);
+  assert.ok(events.some((event) => event.message === "34040 treated as informational; recovery escalation avoided."));
+}
+
+async function testDuplicateTradingStopUpdateSkipped() {
+  const { events, log } = logCollector();
+  const bot = new LadderBot(config({ dryRun: false }));
+  bot.log = log;
+  let calls = 0;
+  bot.client = {
+    setTradingStop: async () => {
+      calls += 1;
+      return {};
+    },
+  };
+  const position = {
+    symbol: "BTCUSDT",
+    positionIdx: 0,
+    takeProfitPrice: 101,
+    stopLossPrice: 99,
+    nativeTakeProfit: "101.000001",
+    nativeStopLoss: "99.000001",
+  };
+  await bot.ensureNativeProtection(position);
+  assert.equal(calls, 0);
+  assert.equal(position.nativeProtectionVerified, true);
+  assert.ok(events.some((event) => event.message === "Unchanged TP/SL update skipped."));
+  assert.ok(events.some((event) => event.message === "Native Bybit TP/SL protection already current."));
 }
 
 function reconciliationBot(position, trade, positions) {
@@ -1343,9 +1411,12 @@ async function testForcedMarketSamplingPromotion() {
 async function run() {
   await testClientContracts();
   await testSignedRestHeaders();
+  await testBybitNotModifiedIsInformational();
   await testUnifiedWalletParsing();
   await testWebSocketTickerAndReconnect();
   await testApiAutoRecoveryDoesNotShutdown();
+  await testNotModifiedDoesNotTriggerRecovery();
+  await testDuplicateTradingStopUpdateSkipped();
   await testReconciliation();
   await testLiveEntrySafetyUsesParsedUtaBalance();
   await testMarketRegimeClassification();
@@ -1364,7 +1435,7 @@ async function run() {
   await testContinuousExecutionClearsStaleTradeLimitPause();
   await testAggressiveLearningCooldownsAreAdvisory();
   await testForcedMarketSamplingPromotion();
-  console.log("Bybit client and bot tests passed: REST signing, UTA balance parsing, live safety balance use, native protection payloads, WebSocket reconnect, API auto-recovery without shutdown, reconciliation, hedge exposure detection, native TP events, regime intelligence, focused BTC/ETH/SOL universe restriction, survivability scoring, exploration path, exploration memory relaxation, fee-aware stats, advisory symbol cooldowns, adaptive learning, cautious active recovery, activity floor, daily shutdown removal, forced market sampling, profit protection sizing, fee-aware entries, dynamic sizing, and continuation holds.");
+  console.log("Bybit client and bot tests passed: REST signing, 34040 informational handling, duplicate TP/SL skip, UTA balance parsing, live safety balance use, native protection payloads, WebSocket reconnect, API auto-recovery without shutdown, reconciliation, hedge exposure detection, native TP events, regime intelligence, focused BTC/ETH/SOL universe restriction, survivability scoring, exploration path, exploration memory relaxation, fee-aware stats, advisory symbol cooldowns, adaptive learning, cautious active recovery, activity floor, daily shutdown removal, forced market sampling, profit protection sizing, fee-aware entries, dynamic sizing, and continuation holds.");
 }
 
 run().catch((error) => {
