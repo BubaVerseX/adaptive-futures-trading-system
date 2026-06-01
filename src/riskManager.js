@@ -292,29 +292,39 @@ class RiskManager {
   sizingPlan(signal, equity, symbolInfo, leverage) {
     const level = this.ladderForEquity(equity);
     const strongSetup = signal.score >= this.config.aggressiveScoreThreshold && !this.store.state.ladder.riskDowngraded;
-    const baseRiskPct = strongSetup ? this.config.aggressiveRiskPerTradePct : this.config.baseRiskPerTradePct;
     const adaptiveRiskMultiplier = Number(signal.adaptiveRiskMultiplier || 1);
     let qualitySizeMultiplier = 1;
     let convictionTier = "TIER_1_EXPLORATORY";
     let tierMarginMin = this.config.tier1MarginMinUsdt;
     let tierMarginMax = this.config.tier1MarginMaxUsdt;
+    let riskAtStopMinPct = this.config.explorationRiskAtStopMinPct;
+    let riskAtStopMaxPct = this.config.explorationRiskAtStopMaxPct;
+    const reasonsForSizingTier = [];
+    const continuationStrength = Number(signal.continuationStrength || 0);
     const highQualityContinuation =
-      Number(signal.convictionScore || 0) >= this.config.minConvictionScore + 18 &&
+      (Number(signal.convictionScore || 0) >= this.config.minConvictionScore + 18 ||
+        continuationStrength >= this.config.continuationMinStrength + 12) &&
       Number(signal.liquidityScore || 0) >= 70 &&
       signal.btcTrendAligned &&
       ["STRONG_VOLUME_SPIKE", "CONFIRMED_VOLUME"].includes(signal.volumeCondition) &&
-      Number(signal.projectedNetEdgePct || 0) >= this.config.minProjectedEdgePct + (signal.highActivityContinuation ? 0.25 : 0.45);
+      Number(signal.projectedNetEdgePct || 0) >= this.config.minProjectedEdgePct + (signal.highActivityContinuation ? 0.2 : 0.35);
     const eliteSetup = Boolean(signal.eliteSetup);
     if (eliteSetup) {
       convictionTier = "TIER_3_ELITE_SETUP";
       tierMarginMin = this.config.tier3MarginMinUsdt;
       tierMarginMax = this.config.tier3MarginMaxUsdt;
-      qualitySizeMultiplier = 1.38;
+      riskAtStopMinPct = this.config.eliteRiskAtStopMinPct;
+      riskAtStopMaxPct = this.config.eliteRiskAtStopMaxPct;
+      qualitySizeMultiplier = continuationStrength >= 82 ? 1.5 : 1.38;
+      reasonsForSizingTier.push("elite setup with high-confluence continuation evidence");
     } else if (highQualityContinuation) {
       convictionTier = "TIER_2_STRONG_SETUP";
       tierMarginMin = this.config.tier2MarginMinUsdt;
       tierMarginMax = this.config.tier2MarginMaxUsdt;
-      qualitySizeMultiplier = 1.12;
+      riskAtStopMinPct = this.config.strongRiskAtStopMinPct;
+      riskAtStopMaxPct = this.config.strongRiskAtStopMaxPct;
+      qualitySizeMultiplier = continuationStrength >= 72 ? 1.22 : 1.12;
+      reasonsForSizingTier.push("strong continuation with liquidity, BTC alignment, volume, and edge");
     } else if (
       Number(signal.convictionScore || 0) < this.config.minConvictionScore + 6 ||
       signal.volatilityRegime === "HIGH_VOLATILITY" ||
@@ -322,12 +332,20 @@ class RiskManager {
       Number(signal.feeEdgeRatio || 0) < this.config.minEdgeToCostRatio + 0.5
     ) {
       qualitySizeMultiplier = signal.volatilityRegime === "NEWS_LIKE_ABNORMAL" ? 0.55 : 0.75;
+      reasonsForSizingTier.push("weak or volatile setup reduced to smaller risk-at-stop sizing");
+    } else {
+      riskAtStopMinPct = this.config.normalRiskAtStopMinPct;
+      riskAtStopMaxPct = this.config.normalRiskAtStopMaxPct;
+      reasonsForSizingTier.push("normal positive-edge continuation sizing");
     }
     if (signal.explorationTrade) {
       convictionTier = "TIER_1_EXPLORATORY";
       tierMarginMin = this.config.tier1MarginMinUsdt;
       tierMarginMax = this.config.tier1MarginMaxUsdt;
+      riskAtStopMinPct = this.config.explorationRiskAtStopMinPct;
+      riskAtStopMaxPct = this.config.explorationRiskAtStopMaxPct;
       qualitySizeMultiplier *= this.config.explorationRiskMultiplier;
+      reasonsForSizingTier.push("exploration trade uses smallest protected risk-at-stop tier");
     }
     if (signal.qualityPacingActive) {
       qualitySizeMultiplier *= this.config.qualityPacingRiskMultiplier;
@@ -335,12 +353,18 @@ class RiskManager {
     qualitySizeMultiplier *= Number(signal.continuousRecoveryRiskMultiplier || 1);
     qualitySizeMultiplier *= Number(signal.regimeRiskMultiplier || 1);
     qualitySizeMultiplier *= Number(signal.profitProtectionRiskMultiplier || 1);
-    const riskPct = Math.max(
-      this.config.baseRiskPerTradePct * this.config.adaptiveRiskMinMultiplier,
-      Math.min(
-        this.config.aggressiveRiskPerTradePct * this.config.adaptiveRiskMaxMultiplier,
-        baseRiskPct * adaptiveRiskMultiplier * qualitySizeMultiplier
-      )
+    const openPositions = Array.isArray(this.store.state.openPositions) ? this.store.state.openPositions : [];
+    const sameDirectionCluster = openPositions.filter((position) => position.side === signal.side).length;
+    const clusterMultiplier = sameDirectionCluster > 0 ? this.config.correlatedClusterRiskMultiplier : 1;
+    if (sameDirectionCluster > 0) {
+      reasonsForSizingTier.push(`correlated BTC/ETH/SOL ${signal.side} cluster reduced size across ${sameDirectionCluster} existing positions`);
+    }
+    const convictionScale = bounded(Math.max(Number(signal.convictionScore || 0), continuationStrength) / 100, 0, 1);
+    const baseRiskAtStopPct = riskAtStopMinPct + (riskAtStopMaxPct - riskAtStopMinPct) * convictionScale;
+    const riskPct = bounded(
+      baseRiskAtStopPct * adaptiveRiskMultiplier * qualitySizeMultiplier * clusterMultiplier,
+      this.config.explorationRiskAtStopMinPct * 0.5,
+      this.config.eliteRiskAtStopMaxPct
     );
     // Position size uses only the unlocked milestone floor, never transient profit above it.
     const sizingEquity = Math.max(0, Math.min(equity, level.floor));
@@ -350,8 +374,9 @@ class RiskManager {
     // Margin cap keeps the bot from using the full account even in aggressive mode.
     const marginCappedNotional = equity * leverage * (this.config.maxMarginUsagePct / 100);
     const configuredNotionalCap = this.config.maxPositionNotionalUsdt || Number.POSITIVE_INFINITY;
+    const sizingConviction = Math.max(Number(signal.convictionScore || 0), continuationStrength * 0.96);
     const targetMarginUsdt = bounded(
-      tierMarginMin + (tierMarginMax - tierMarginMin) * bounded(Number(signal.convictionScore || 0) / 100, 0, 1),
+      tierMarginMin + (tierMarginMax - tierMarginMin) * bounded(sizingConviction / 100, 0, 1),
       tierMarginMin,
       tierMarginMax
     );
@@ -363,6 +388,14 @@ class RiskManager {
     const exchangeMinimumNotional = Math.max(minimumNotional, minimumSize * signal.price);
     const hardNotionalCap = Math.min(riskBasedNotional, marginCappedNotional, configuredNotionalCap);
     let notional = Math.min(hardNotionalCap, tierTargetNotional);
+    if (exchangeMinimumNotional > hardNotionalCap) {
+      return {
+        rejected: true,
+        reason: "exchange minimum would exceed allowed max loss at stop or margin cap",
+        exchangeMinimumNotional,
+        hardNotionalCap,
+      };
+    }
     if (notional < exchangeMinimumNotional && exchangeMinimumNotional <= hardNotionalCap) {
       notional = exchangeMinimumNotional;
     }
@@ -394,13 +427,21 @@ class RiskManager {
       notional: Number((quantity * signal.price).toFixed(6)),
       leverage,
       riskPct,
-      baseRiskPct,
+      baseRiskPct: riskAtStopMaxPct,
       adaptiveRiskMultiplier: Number(adaptiveRiskMultiplier.toFixed(3)),
       qualitySizeMultiplier: Number(qualitySizeMultiplier.toFixed(3)),
       highQualityContinuation,
+      continuationStrength,
+      continuationSetupType: signal.continuationSetupType || "NONE",
       eliteSetup,
       convictionTier,
       targetMarginUsdt: Number(targetMarginUsdt.toFixed(6)),
+      marginUsedUsdt: Number((quantity * signal.price / leverage).toFixed(6)),
+      maxLossAtStopUsdt: Number(((quantity * signal.price) * stopDistance).toFixed(6)),
+      riskPctOfEquity: equity > 0 ? Number((((quantity * signal.price) * stopDistance / equity) * 100).toFixed(4)) : 0,
+      totalOpenPortfolioRiskUsdt: Number(openPositions.reduce((total, position) => total + Number(position.maxLossAtStopUsdt || 0), 0).toFixed(6)),
+      correlatedClusterPositions: sameDirectionCluster,
+      reasonsForSizingTier,
       tierMarginMinUsdt: tierMarginMin,
       tierMarginMaxUsdt: tierMarginMax,
       explorationSizing: Boolean(signal.explorationTrade),

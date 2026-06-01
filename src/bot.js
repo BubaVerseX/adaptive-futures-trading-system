@@ -11,6 +11,10 @@ const { StateStore } = require("./state");
 const { Telegram } = require("./telegram");
 const { percentChange } = require("./indicators");
 const { AdaptiveEngine, sessionType } = require("./adaptiveEngine");
+const { classifyBybitError } = require("./bybitErrors");
+const { ExecutionLedger } = require("./executionLedger");
+const { edgeGate } = require("./costModel");
+const { ProfitObjectiveEngine } = require("./profitObjective");
 
 const PENDING_LIVE_ENTRY_STATUSES = new Set([
   "ENTRY_SUBMITTING",
@@ -87,6 +91,8 @@ class LadderBot {
     this.adaptive = new AdaptiveEngine(config, this.log);
     this.scanner = new Scanner(config, this.client, this.log, this.adaptive);
     this.risk = new RiskManager(config, this.store, this.log, this.adaptive);
+    this.executionLedger = new ExecutionLedger(config, this.log);
+    this.profitObjective = new ProfitObjectiveEngine(config, this.store, this.log);
     this.telegram = new Telegram(config, this.store, this.log);
     this.timer = null;
     this.monitorTimer = null;
@@ -100,11 +106,13 @@ class LadderBot {
     this.lastMarketPersonality = null;
     this.apiRecoveryActive = false;
     this.lastApiRecoveryNoticeAt = 0;
+    this.lastProfitObjectiveReportAt = 0;
     this.startedAt = Date.now();
   }
 
   async start() {
     this.store.load();
+    this.executionLedger.load();
     this.adaptive.load();
     this.adaptive.syncFromClosedTrades(this.store.trades);
     process.once("SIGINT", () => void this.shutdown("CTRL+C / SIGINT"));
@@ -142,6 +150,11 @@ class LadderBot {
       adaptiveMinSignalScore: this.adaptive.currentPolicy().minSignalScore,
       marketRegimeIntelligenceEnabled: this.config.marketRegimeIntelligenceEnabled,
       focusedTradingUniverse: this.config.focusedTradingSymbolsList,
+      continuationEngineEnabled: this.config.continuationEngineEnabled,
+      continuationMinStrength: this.config.continuationMinStrength,
+      macroCandleInterval: this.config.candleIntervalMacro,
+      symbolSpecializationEnabled: this.config.symbolSpecializationEnabled,
+      sessionAggressionEnabled: this.config.sessionAggressionEnabled,
       profitProtectionEnabled: this.config.profitProtectionEnabled,
       scanIntervalMs: this.config.scanIntervalMs,
       scanConcurrency: this.config.scanConcurrency,
@@ -166,6 +179,19 @@ class LadderBot {
       adaptiveFocusModeEnabled: true,
       concentratedLiquidityTradingActive: true,
       focusedExplorationActive: this.config.explorationModeEnabled,
+    });
+    this.log("WARN", "Next-generation continuation engine active.", {
+      continuationBreakoutEntries: this.config.continuationEngineEnabled,
+      pullbackContinuationEntries: this.config.pullbackContinuationEnabled,
+      breakoutRetestEntries: this.config.retestEntryEnabled,
+      momentumResumptionEntries: this.config.momentumResumptionEnabled,
+      trendAccelerationEntries: this.config.trendAccelerationEnabled,
+      oneHourMacroBias: this.config.candleIntervalMacro,
+      smartPositionTiers: {
+        weak: `${this.config.tier1MarginMinUsdt}-${this.config.tier1MarginMaxUsdt} USDT`,
+        strong: `${this.config.tier2MarginMinUsdt}-${this.config.tier2MarginMaxUsdt} USDT`,
+        elite: `${this.config.tier3MarginMinUsdt}-${this.config.tier3MarginMaxUsdt} USDT`,
+      },
     });
     if (this.config.learningPhaseMode) {
       this.log("WARN", "Learning phase mode active; continuous learning priority active.", {
@@ -408,19 +434,37 @@ class LadderBot {
       await this.handleApiRecovery(error, { source: "TRADING_CYCLE", countError: true });
     } finally {
       this.cycleActive = false;
+      this.writePeriodicProfitObjectiveReport();
       if (!this.stopping) {
         this.timer = setTimeout(() => void this.runCycle(), this.config.scanIntervalMs);
       }
     }
   }
 
+  writePeriodicProfitObjectiveReport(force = false) {
+    const intervalMs = Math.max(30000, this.config.scanIntervalMs * 10);
+    if (!force && Date.now() - this.lastProfitObjectiveReportAt < intervalMs) return;
+    try {
+      this.profitObjective.report();
+      this.lastProfitObjectiveReportAt = Date.now();
+      this.log("DEBUG", "Profit objective summary refreshed.", {
+        latestSummary: "data/reports/latest-summary.json",
+      });
+    } catch (error) {
+      this.log("WARN", "Profit objective report update failed.", { error: error.message });
+    }
+  }
+
   async handleApiRecovery(error, options = {}) {
-    if (Number(error && error.retCode) === 34040 || /(?:34040|not modified)/i.test(String(error && error.message))) {
-      this.log("INFO", "34040 treated as informational; recovery escalation avoided.", {
+    const classification = classifyBybitError(error);
+    if (classification.type === "IDEMPOTENT_SUCCESS_OR_NO_CHANGE") {
+      this.log("INFO", "BYBIT_NO_CHANGE_TREATED_AS_SUCCESS", {
         source: options.source || "UNKNOWN",
         error: error.message,
+        classification: classification.type,
         consecutiveApiErrors: this.store.state.consecutiveApiErrors,
         executionCyclePreserved: true,
+        recoveryEscalationAvoided: true,
       });
       return;
     }
@@ -702,6 +746,10 @@ class LadderBot {
         tradeCategory: signal.tradeCategory,
         eliteSetup: signal.eliteSetup,
         marketPersonality: signal.marketPersonality,
+        continuationSetupType: signal.continuationSetupType,
+        continuationStrength: signal.continuationStrength,
+        macroTrend: signal.trend1h,
+        macroAligned: signal.macroAligned,
         highActivityContinuation: signal.highActivityContinuation,
         eliteContinuationCandidate: signal.eliteContinuationCandidate,
         explorationTrade: signal.explorationTrade,
@@ -759,6 +807,9 @@ class LadderBot {
           projectedNetEdgePct: signal.projectedNetEdgePct,
           smartProjectedNetEdgePct: signal.smartProjectedNetEdgePct,
           momentumPersistenceCandles: signal.momentumPersistenceCandles,
+          continuationSetupType: signal.continuationSetupType,
+          continuationStrength: signal.continuationStrength,
+          macroAligned: signal.macroAligned,
         });
       }
       if (signal.eliteContinuationCandidate) {
@@ -768,6 +819,8 @@ class LadderBot {
           score: signal.score,
           convictionScore: signal.convictionScore,
           momentumPersistenceCandles: signal.momentumPersistenceCandles,
+          continuationSetupType: signal.continuationSetupType,
+          continuationStrength: signal.continuationStrength,
           volumeSpike: signal.volumeSpike,
           marketPersonality: signal.marketPersonality,
         });
@@ -807,9 +860,25 @@ class LadderBot {
       }
       signal.qualityPacingActive = adaptivePolicy.qualityPacingActive;
       signal.qualityPacingReason = adaptivePolicy.qualityPacingReason;
+      const flipCheck = this.flipEntryCheck(signal);
+      if (flipCheck.rejected) {
+        this.log("INFO", "Random flip rejected; opposite direction requires confirmed reversal or exceptional post-cost edge.", {
+          symbol: signal.symbol,
+          side: signal.side,
+          reason: flipCheck.reason,
+          previousSide: flipCheck.previousSide,
+          secondsSincePreviousExit: flipCheck.secondsSincePreviousExit,
+          continuationStrength: signal.continuationStrength,
+          projectedNetEdgePct: signal.projectedNetEdgePct,
+          smartProjectedNetEdgePct: signal.smartProjectedNetEdgePct,
+          flipMinNetEdgePct: this.config.flipMinNetEdgePct,
+          flipConfirmationMinStrength: this.config.flipConfirmationMinStrength,
+        });
+        continue;
+      }
       const edgeCheck = this.feeAwareEntryCheck(signal);
       if (edgeCheck.rejected) {
-        this.log("INFO", edgeCheck.microScalp ? "Micro-scalp filtered before execution." : "Low-edge setup rejected by improved fee-aware validation.", {
+        this.log("INFO", edgeCheck.microScalp ? "Micro-scalp filtered before execution." : "EDGE_GATE_REJECTED", {
           symbol: signal.symbol,
           reason: edgeCheck.reason,
           expectedMovePct: signal.expectedMovePct,
@@ -819,11 +888,14 @@ class LadderBot {
           convictionScore: signal.convictionScore,
           requiredProjectedEdgePct: edgeCheck.requiredProjectedEdgePct,
           requiredEdgeToCostRatio: edgeCheck.requiredEdgeToCostRatio,
+          expectedNetEdgeUsdt: edgeCheck.edgeModel && edgeCheck.edgeModel.projectedNetProfitUsdt,
+          expectedTotalCostPct: edgeCheck.edgeModel && edgeCheck.edgeModel.expectedTotalCostPct,
+          edgeReason: edgeCheck.reason,
           qualityPacingActive: adaptivePolicy.qualityPacingActive,
         });
         continue;
       }
-      this.log("INFO", "Fee-adjusted edge approved; projected net edge validated.", {
+      this.log("INFO", "EDGE_GATE_APPROVED", {
         symbol: signal.symbol,
         side: signal.side,
         projectedNetEdgePct: signal.projectedNetEdgePct,
@@ -832,6 +904,10 @@ class LadderBot {
         estimatedTpProbability: signal.estimatedTpProbability,
         feeEdgeRatio: signal.feeEdgeRatio,
         requiredSmartEdgePct: edgeCheck.requiredSmartEdgePct,
+        expectedNetEdgePct: edgeCheck.edgeModel.expectedNetEdgePct,
+        expectedTotalCostPct: edgeCheck.edgeModel.expectedTotalCostPct,
+        expectedRewardCostRatio: edgeCheck.edgeModel.expectedRewardCostRatio,
+        edgeTier: edgeCheck.edgeModel.tier,
       });
       const requestedLeverage = this.adaptiveLeverageForSignal(signal, adaptivePolicy);
       const liveSafety = this.config.dryRun ? { leverage: requestedLeverage } : await this.liveEntrySafety(signal, equity, requestedLeverage);
@@ -846,6 +922,33 @@ class LadderBot {
         this.log("INFO", "Candidate rejected because risk-sized quantity is invalid.", {
           symbol: signal.symbol,
           reason: plan.reason,
+        });
+        continue;
+      }
+      const finalEdgeGate = edgeGate(this.config, signal, plan, allocatedEquity);
+      if (finalEdgeGate.rejected) {
+        this.log("INFO", "EDGE_GATE_REJECTED", {
+          symbol: signal.symbol,
+          side: signal.side,
+          reason: finalEdgeGate.reason,
+          edgeTier: finalEdgeGate.model.tier,
+          expectedNetEdgePct: finalEdgeGate.model.expectedNetEdgePct,
+          expectedNetEdgeUsdt: finalEdgeGate.model.projectedNetProfitUsdt,
+          expectedTotalCostUsdt: finalEdgeGate.model.projectedTotalCostUsdt,
+          projectedMaxLossAtStopUsdt: finalEdgeGate.model.projectedMaxLossAtStopUsdt,
+          requirements: finalEdgeGate.requirements,
+        });
+        continue;
+      }
+      signal.edgeTier = finalEdgeGate.model.tier;
+      signal.edgeModel = finalEdgeGate.model;
+      const portfolioRisk = this.portfolioRiskCheck(signal, plan, allocatedEquity);
+      if (portfolioRisk.rejected) {
+        this.log(portfolioRisk.humanReviewRequired ? "ERROR" : "INFO", portfolioRisk.humanReviewRequired ? "HUMAN_REVIEW_REQUIRED" : "Candidate rejected by portfolio max loss-at-stop control.", {
+          symbol: signal.symbol,
+          side: signal.side,
+          reason: portfolioRisk.reason,
+          portfolioRisk,
         });
         continue;
       }
@@ -864,12 +967,17 @@ class LadderBot {
           feeEdgeRatio: signal.feeEdgeRatio,
           qualitySizeMultiplier: plan.qualitySizeMultiplier,
           adaptiveRiskMultiplier: plan.adaptiveRiskMultiplier,
+          maxLossAtStopUsdt: plan.maxLossAtStopUsdt,
+          riskPctOfEquity: plan.riskPctOfEquity,
+          totalOpenPortfolioRiskUsdt: portfolioRisk.currentRiskUsdt,
         });
         this.log("INFO", "High-quality setup prioritized.", {
           symbol: signal.symbol,
           convictionTier: plan.convictionTier,
           smartProjectedNetEdgePct: signal.smartProjectedNetEdgePct,
           multiTimeframeAligned: signal.multiTimeframeAligned,
+          continuationSetupType: signal.continuationSetupType,
+          continuationStrength: signal.continuationStrength,
         });
       }
       if (plan.eliteSetup) {
@@ -882,6 +990,8 @@ class LadderBot {
           eliteConditionKey: signal.eliteConditionKey,
           smartProjectedNetEdgePct: signal.smartProjectedNetEdgePct,
           estimatedTpProbability: signal.estimatedTpProbability,
+          continuationSetupType: signal.continuationSetupType,
+          continuationStrength: signal.continuationStrength,
         });
         this.log("INFO", "High-confluence setup confirmed; adaptive conviction strong.", {
           symbol: signal.symbol,
@@ -890,6 +1000,7 @@ class LadderBot {
           trendQualityScore: signal.trendQualityScore,
           volumeSpike: signal.volumeSpike,
           multiTimeframeAligned: signal.multiTimeframeAligned,
+          macroAligned: signal.macroAligned,
         });
       } else if (plan.convictionTier === "TIER_2_STRONG_SETUP") {
         this.log("INFO", "Conviction tier upgraded for strong setup.", {
@@ -943,6 +1054,10 @@ class LadderBot {
         convictionTier: plan.convictionTier,
         highActivityContinuation: signal.highActivityContinuation,
         eliteContinuationCandidate: signal.eliteContinuationCandidate,
+        continuationSetupType: signal.continuationSetupType,
+        continuationStrength: signal.continuationStrength,
+        macroTrend: signal.trend1h,
+        macroAligned: signal.macroAligned,
         targetMarginUsdt: plan.targetMarginUsdt,
         riskPct: plan.riskPct,
         qualitySizeMultiplier: plan.qualitySizeMultiplier,
@@ -951,6 +1066,11 @@ class LadderBot {
         stopLossPrice: plan.stopLossPrice,
         takeProfitPrice: plan.takeProfitPrice,
         projectedNetEdgePct: signal.projectedNetEdgePct,
+        expectedNetEdgeUsdt: finalEdgeGate.model.projectedNetProfitUsdt,
+        expectedTotalCostUsdt: finalEdgeGate.model.projectedTotalCostUsdt,
+        projectedMaxLossAtStopUsdt: finalEdgeGate.model.projectedMaxLossAtStopUsdt,
+        totalOpenPortfolioRiskUsdt: portfolioRisk.currentRiskUsdt + portfolioRisk.candidateRiskUsdt,
+        reasonsForSizingTier: plan.reasonsForSizingTier,
         smartProjectedNetEdgePct: signal.smartProjectedNetEdgePct,
         estimatedTpProbability: signal.estimatedTpProbability,
         expectedMovePct: signal.expectedMovePct,
@@ -978,6 +1098,82 @@ class LadderBot {
       (total, position) => total + Number(position.notional || Number(position.size) * position.entryPrice) / Number(position.leverage || 1),
       0
     );
+  }
+
+  totalOpenRiskAtStopUsdt() {
+    return this.store.state.openPositions.reduce((total, position) => total + Number(position.maxLossAtStopUsdt || 0), 0);
+  }
+
+  unresolvedExecutionStateReason() {
+    if (this.apiRecoveryActive || (this.store.state.apiRecovery && this.store.state.apiRecovery.active)) {
+      return "API recovery or exchange state rebuild is active";
+    }
+    const pending = this.store.state.openPositions.find((position) => PENDING_LIVE_ENTRY_STATUSES.has(position.status));
+    if (pending) return `position reconciliation unresolved for ${pending.symbol}`;
+    const unprotected = this.store.state.openPositions.find((position) => {
+      const hasLocalStops = Number(position.stopLossPrice) > 0 && Number(position.takeProfitPrice) > 0;
+      const liveProtectionUnknown = position.mode === "LIVE" && !position.nativeProtectionVerified;
+      return !hasLocalStops || liveProtectionUnknown;
+    });
+    if (unprotected) return `existing ${unprotected.symbol} position is missing verified TP/SL protection`;
+    return null;
+  }
+
+  portfolioRiskCheck(signal, plan, equity) {
+    const unresolved = this.unresolvedExecutionStateReason();
+    if (unresolved) {
+      return { rejected: true, reason: unresolved, humanReviewRequired: true };
+    }
+    const currentRisk = this.totalOpenRiskAtStopUsdt();
+    const candidateRisk = Number(plan.maxLossAtStopUsdt || 0);
+    const explosive = signal.marketPersonality === "EXPLOSIVE_TRENDING" || signal.eliteSetup || signal.eliteContinuationCandidate;
+    const budgetPct = explosive ? this.config.portfolioExplosiveMaxOpenRiskPct : this.config.portfolioMaxOpenRiskPct;
+    const budgetUsdt = equity * (budgetPct / 100);
+    if (currentRisk + candidateRisk > budgetUsdt) {
+      return {
+        rejected: true,
+        reason: "portfolio max loss at stop budget exceeded",
+        currentRiskUsdt: Number(currentRisk.toFixed(6)),
+        candidateRiskUsdt: Number(candidateRisk.toFixed(6)),
+        budgetUsdt: Number(budgetUsdt.toFixed(6)),
+        budgetPct,
+      };
+    }
+    return {
+      rejected: false,
+      currentRiskUsdt: Number(currentRisk.toFixed(6)),
+      candidateRiskUsdt: Number(candidateRisk.toFixed(6)),
+      budgetUsdt: Number(budgetUsdt.toFixed(6)),
+      budgetPct,
+    };
+  }
+
+  executionTypeForSignal(signal) {
+    if (!this.config.enablePostOnlyEntries) return "MARKET_TAKER";
+    const setupType = String(signal.continuationSetupType || signal.setupType || "");
+    const slowerStructure = /PULLBACK|RETEST/.test(setupType);
+    const exceptionalMomentum = Boolean(signal.fomoTrigger || signal.eliteContinuationCandidate || signal.marketPersonality === "EXPLOSIVE_TRENDING");
+    const rewardCost = Number(signal.edgeModel && signal.edgeModel.expectedRewardCostRatio);
+    if (
+      slowerStructure &&
+      !exceptionalMomentum &&
+      Number.isFinite(rewardCost) &&
+      rewardCost >= this.config.edgeNormalMinRewardCostRatio + 0.25
+    ) {
+      return "POST_ONLY_LIMIT";
+    }
+    return "MARKET_TAKER";
+  }
+
+  postOnlyEntryPrice(position, signal) {
+    const tickSize = position.tickSize || (signal.info && signal.info.priceFilter && signal.info.priceFilter.tickSize);
+    const spreadPct = Math.max(Number(signal.spreadPct || 0), 0.01);
+    const offsetPct = Math.min(0.05, Math.max(0.005, spreadPct * 0.55));
+    const rawPrice =
+      position.side === "LONG"
+        ? Number(position.entryPrice) * (1 - offsetPct / 100)
+        : Number(position.entryPrice) * (1 + offsetPct / 100);
+    return roundedPrice(rawPrice, tickSize, position.side === "SHORT");
   }
 
   lastTradeOpenedAtMs() {
@@ -1037,6 +1233,8 @@ class LadderBot {
     const continuationClue =
       signal.fomoTrigger ||
       signal.breakoutTriggered ||
+      Number(signal.continuationStrength || 0) >= this.config.continuationMinStrength ||
+      ["PULLBACK_CONTINUATION", "BREAKOUT_RETEST", "MOMENTUM_RESUMPTION", "TREND_ACCELERATION", "CONTINUATION_BREAKOUT"].includes(signal.continuationSetupType) ||
       Number(signal.momentumPersistenceCandles || 0) >= this.config.minMomentumPersistenceCandles ||
       signal.highActivityContinuation ||
       (signal.btcTrendAligned && Number(signal.trendQualityScore || 0) >= (this.config.highActivityMode ? 52 : 58));
@@ -1060,11 +1258,51 @@ class LadderBot {
     const requiredFeeEdgeRatio = this.config.highActivityMode ? this.config.minEdgeToCostRatio * 0.9 : this.config.minEdgeToCostRatio;
     const requiredSmartEdgePct = this.config.highActivityMode ? this.config.smartEdgeMinNetPct * 0.85 : this.config.smartEdgeMinNetPct;
     const trendStillValid =
-      (signal.multiTimeframeAligned || (this.config.highActivityMode && signal.btcTrendAligned && Number(signal.trendQualityScore || 0) >= 58)) &&
+      (signal.multiTimeframeAligned ||
+        signal.macroAligned ||
+        Number(signal.continuationStrength || 0) >= this.config.continuationMinStrength + 8 ||
+        (this.config.highActivityMode && signal.btcTrendAligned && Number(signal.trendQualityScore || 0) >= 58)) &&
       (signal.breakoutTriggered || signal.fomoTrigger || Number(signal.momentumPersistenceCandles || 0) >= this.config.minMomentumPersistenceCandles) &&
       Number(signal.smartProjectedNetEdgePct || 0) >= requiredSmartEdgePct &&
       Number(signal.feeEdgeRatio || 0) >= requiredFeeEdgeRatio;
     return Boolean(trendStillValid);
+  }
+
+  flipEntryCheck(signal) {
+    const cutoff = Date.now() - Math.max(5, this.config.smartReentryWindowMinutes) * 60 * 1000;
+    const previous = this.store.trades
+      .filter((trade) =>
+        trade.symbol === signal.symbol &&
+        trade.status === "CLOSED" &&
+        Date.parse(trade.exitedAt || trade.exitTime || "") >= cutoff
+      )
+      .sort((left, right) => Date.parse(right.exitedAt || right.exitTime || "") - Date.parse(left.exitedAt || left.exitTime || ""))[0];
+    if (!previous || previous.side === signal.side) return { rejected: false };
+    const previousExitMs = Date.parse(previous.exitedAt || previous.exitTime || "");
+    const secondsSincePreviousExit = Number.isFinite(previousExitMs) ? (Date.now() - previousExitMs) / 1000 : null;
+    const confirmedReversal =
+      Number(signal.continuationStrength || 0) >= this.config.flipConfirmationMinStrength &&
+      (signal.multiTimeframeAligned || signal.macroAligned || signal.breakoutTriggered || signal.fomoTrigger) &&
+      Number(signal.smartProjectedNetEdgePct || signal.projectedNetEdgePct || 0) >= this.config.flipMinNetEdgePct;
+    const exceptionalOppositeEdge =
+      Number(signal.smartProjectedNetEdgePct || signal.projectedNetEdgePct || 0) >= this.config.flipMinNetEdgePct * 1.8 &&
+      Number(signal.feeEdgeRatio || 0) >= this.config.edgeStrongMinRewardCostRatio &&
+      Number(signal.convictionScore || 0) >= this.config.minConvictionScore + 16;
+    if (confirmedReversal || exceptionalOppositeEdge) {
+      return {
+        rejected: false,
+        previousSide: previous.side,
+        secondsSincePreviousExit: secondsSincePreviousExit === null ? null : Number(secondsSincePreviousExit.toFixed(2)),
+        confirmedReversal,
+        exceptionalOppositeEdge,
+      };
+    }
+    return {
+      rejected: true,
+      previousSide: previous.side,
+      secondsSincePreviousExit: secondsSincePreviousExit === null ? null : Number(secondsSincePreviousExit.toFixed(2)),
+      reason: "recent same-symbol opposite trade lacks confirmed reversal or exceptional positive net edge",
+    };
   }
 
   promoteForcedSamplingSignal(signal, inactiveMinutes) {
@@ -1113,10 +1351,28 @@ class LadderBot {
   }
 
   feeAwareEntryCheck(signal) {
+    const netEdgeGate = edgeGate(this.config, signal);
+    if (netEdgeGate.rejected) {
+      return {
+        rejected: true,
+        reason: `EDGE_GATE_REJECTED: ${netEdgeGate.reason}`,
+        requiredProjectedEdgePct: netEdgeGate.requirements.minNetEdgePct,
+        requiredEdgeToCostRatio: netEdgeGate.requirements.minRewardCostRatio,
+        requiredSmartEdgePct: netEdgeGate.requirements.minNetEdgePct,
+        edgeModel: netEdgeGate.model,
+        edgeRequirements: netEdgeGate.requirements,
+      };
+    }
     const qualityMultiplier = signal.qualityPacingActive ? this.config.qualityPacingEdgeMultiplier : 1;
     const highActivityContinuation =
       this.config.highActivityMode &&
-      Boolean(signal.highActivityContinuation || signal.eliteContinuationCandidate || signal.intelligentReentryTriggered || signal.eliteSetup) &&
+      Boolean(
+        signal.highActivityContinuation ||
+          signal.eliteContinuationCandidate ||
+          signal.intelligentReentryTriggered ||
+          signal.eliteSetup ||
+          Number(signal.continuationStrength || 0) >= this.config.continuationMinStrength + 8
+      ) &&
       Number(signal.feeEdgeRatio || 0) >= this.config.explorationMinEdgeToCostRatio &&
       Number(signal.smartProjectedNetEdgePct || signal.projectedNetEdgePct || 0) >= this.config.smartEdgeMinNetPct * 0.75;
     const activityMultiplier = highActivityContinuation ? 0.9 : 1;
@@ -1186,6 +1442,8 @@ class LadderBot {
       requiredProjectedEdgePct: Number(minProjectedEdgePct.toFixed(4)),
       requiredEdgeToCostRatio: Number(minEdgeToCostRatio.toFixed(4)),
       requiredSmartEdgePct: Number(minSmartEdgePct.toFixed(4)),
+      edgeModel: netEdgeGate.model,
+      edgeRequirements: netEdgeGate.requirements,
     };
   }
 
@@ -1222,7 +1480,7 @@ class LadderBot {
       parsedLeverage,
     });
     if (this.config.setLeverageOnEntry && Number.isFinite(parsedLeverage) && effectivelyUnchanged(parsedLeverage, requestedLeverage)) {
-      this.log("INFO", "Unchanged leverage update skipped.", {
+      this.log("INFO", "UNCHANGED_LEVERAGE_UPDATE_SKIPPED", {
         symbol: signal.symbol,
         parsedLeverage,
         requestedLeverage,
@@ -1231,7 +1489,7 @@ class LadderBot {
     } else if (this.config.setLeverageOnEntry && parsedLeverage !== requestedLeverage) {
       const updateResponse = await this.client.setLeverage(signal.symbol, requestedLeverage);
       updateSucceeded = true;
-      this.log(updateResponse && updateResponse.notModified ? "INFO" : "WARN", updateResponse && updateResponse.notModified ? "34040 treated as informational for leverage update." : "Configured leverage update accepted for selected live symbol.", {
+      this.log(updateResponse && updateResponse.notModified ? "INFO" : "WARN", updateResponse && updateResponse.notModified ? "BYBIT_NO_CHANGE_TREATED_AS_SUCCESS" : "Configured leverage update accepted for selected live symbol.", {
         symbol: signal.symbol,
         requestedLeverage,
         rawLeverageUpdateResponse: updateResponse,
@@ -1347,10 +1605,34 @@ class LadderBot {
       moderateChopAccepted: signal.moderateChopAccepted,
       marketPersonality: signal.marketPersonality,
       multiTimeframeAligned: signal.multiTimeframeAligned,
+      trend1h: signal.trend1h,
+      macroTrend: signal.trend1h,
+      macroAligned: signal.macroAligned,
+      macroContradicts: signal.macroContradicts,
+      continuationStrength: signal.continuationStrength,
+      continuationSetupType: signal.continuationSetupType,
+      continuationComponents: signal.continuationComponents,
+      continuationBreakout: signal.continuationBreakout,
+      pullbackContinuation: signal.pullbackContinuation,
+      breakoutRetest: signal.breakoutRetest,
+      momentumResumption: signal.momentumResumption,
+      trendAcceleration: signal.trendAcceleration,
+      intelligentReentryTriggered: signal.intelligentReentryTriggered,
+      eliteContinuationCandidate: signal.eliteContinuationCandidate,
       eliteSetup: signal.eliteSetup,
       eliteConditionKey: signal.eliteConditionKey,
       convictionTier: plan.convictionTier,
       targetMarginUsdt: plan.targetMarginUsdt,
+      marginUsedUsdt: plan.marginUsedUsdt,
+      maxLossAtStopUsdt: plan.maxLossAtStopUsdt,
+      riskPctOfEquity: plan.riskPctOfEquity,
+      totalOpenPortfolioRiskUsdt: plan.totalOpenPortfolioRiskUsdt,
+      reasonsForSizingTier: plan.reasonsForSizingTier,
+      edgeTier: signal.edgeTier,
+      edgeModel: signal.edgeModel,
+      projectedNetProfitUsdt: signal.edgeModel && signal.edgeModel.projectedNetProfitUsdt,
+      projectedTotalCostUsdt: signal.edgeModel && signal.edgeModel.projectedTotalCostUsdt,
+      executionType: this.executionTypeForSignal(signal),
       breakoutTriggered: signal.breakoutTriggered,
       microBreakoutTriggered: signal.microBreakoutTriggered,
       fastMode: signal.fastMode,
@@ -1396,6 +1678,12 @@ class LadderBot {
     // Persist the hard monitored stop before a live entry can be submitted.
     this.store.state.openPositions.push(position);
     this.store.trades.push(trade);
+    this.executionLedger.beginTrade(position, {
+      edgeModel: position.edgeModel,
+      maxLossAtStopUsdt: position.maxLossAtStopUsdt,
+      riskPctOfEquity: position.riskPctOfEquity,
+      executionType: position.executionType,
+    });
     this.store.saveAll();
     try {
       if (!this.config.dryRun) {
@@ -1406,7 +1694,7 @@ class LadderBot {
         });
         position.entryReconciliationLogged = true;
         this.store.saveState();
-        const result = await this.client.placeMarketOrder({
+        const orderPayload = {
           orderLinkId: position.id,
           symbol: position.symbol,
           side: position.side === "LONG" ? "Buy" : "Sell",
@@ -1415,7 +1703,15 @@ class LadderBot {
           reduceOnly: false,
           takeProfit: String(position.takeProfitPrice),
           stopLoss: String(position.stopLossPrice),
-        });
+        };
+        let result;
+        if (position.executionType === "POST_ONLY_LIMIT") {
+          orderPayload.price = String(this.postOnlyEntryPrice(position, signal));
+          orderPayload.postOnly = true;
+          result = await this.client.placeLimitOrder(orderPayload);
+        } else {
+          result = await this.client.placeMarketOrder(orderPayload);
+        }
         position.status = "ENTRY_PENDING_CONFIRMATION";
         trade.status = "ENTRY_PENDING_CONFIRMATION";
         position.entryOrderId = result.orderId;
@@ -1424,8 +1720,14 @@ class LadderBot {
         trade.entryOrderId = result.orderId;
         trade.entryOrderLinkId = position.entryOrderLinkId;
         trade.entryOrderStatus = "NEW";
+        trade.executionType = position.executionType;
+        this.executionLedger.recordOrder(position.id, {
+          orderId: position.entryOrderId,
+          orderLinkId: position.entryOrderLinkId,
+        }, "ENTRY_SUBMITTED");
         this.log("WARN", "ORDER SENT", {
           operation: "ENTRY",
+          executionType: position.executionType,
           symbol: position.symbol,
           side: position.side,
           orderId: position.entryOrderId,
@@ -1434,6 +1736,7 @@ class LadderBot {
           partialTakeProfitPrice: position.partialTakeProfitPrice,
           eliteTrendRider: position.eliteTrendRider,
           nativeStopLoss: position.stopLossPrice,
+          orderLinkId: position.entryOrderLinkId,
         });
         this.store.saveAll();
         await this.reconcileLivePositions();
@@ -1549,8 +1852,9 @@ class LadderBot {
             position.nativeTrailingDistance = trailingDistance;
             position.nativeTrailingActivePrice = activePrice;
             if (updateResult && updateResult.skipped) {
-              this.log("INFO", "Unchanged TP/SL update skipped while marking trailing stop as configured.", {
+              this.log("INFO", "UNCHANGED_TPSL_UPDATE_SKIPPED", {
                 symbol: position.symbol,
+                reason: "trailing stop already configured",
                 duplicateProtectionPreventedApiSpam: true,
               });
             }
@@ -1628,6 +1932,9 @@ class LadderBot {
           pnlPct: pnlPct.toFixed(3),
           holdSeconds: secondsHeld(position).toFixed(1),
           continuationScore: analysis.convictionScore,
+          continuationStrength: analysis.continuationStrength,
+          continuationSetupType: analysis.continuationSetupType,
+          macroAligned: analysis.macroAligned,
           marketRegimeTags: analysis.marketRegimeTags,
           volumeCondition: analysis.volumeCondition,
           momentumPersistenceCandles: analysis.momentumPersistenceCandles,
@@ -1661,8 +1968,17 @@ class LadderBot {
     const continuationRegime = tags.includes("STRONG_TRENDING_MARKET") || tags.includes("HIGH_VOLATILITY_BREAKOUT_MARKET");
     const hostileRegime = tags.includes("SIDEWAYS_CHOP_MARKET") || tags.includes("FAKE_BREAKOUT_ENVIRONMENT") || tags.includes("DEAD_MARKET_CONDITIONS");
     const elite = Boolean(options.elite || position.eliteTrendRider);
-    const requiredScore = this.config.continuationMinScore + (continuationRegime ? -6 : 0) + (hostileRegime ? 8 : 0) + (elite ? -5 : 0);
-    const requiredPnlPct = this.config.continuationMinPnlPct * (continuationRegime ? 0.85 : 1) * (elite ? 0.8 : 1);
+    const strongContinuationStructure =
+      Number(analysis.continuationStrength || position.continuationStrength || 0) >= this.config.continuationMinStrength + 8 ||
+      analysis.macroAligned ||
+      ["PULLBACK_CONTINUATION", "BREAKOUT_RETEST", "MOMENTUM_RESUMPTION", "TREND_ACCELERATION", "CONTINUATION_BREAKOUT"].includes(analysis.continuationSetupType);
+    const requiredScore =
+      this.config.continuationMinScore +
+      (continuationRegime ? -6 : 0) +
+      (hostileRegime && !strongContinuationStructure ? 8 : 0) +
+      (elite ? -7 : 0) +
+      (strongContinuationStructure ? -5 : 0);
+    const requiredPnlPct = this.config.continuationMinPnlPct * (continuationRegime ? 0.85 : 1) * (elite ? 0.72 : 1) * (strongContinuationStructure ? 0.85 : 1);
     return Boolean(
       sameSide &&
       alignedMomentum &&
@@ -1694,6 +2010,10 @@ class LadderBot {
       });
       position.partialCloseOrderId = result.orderId;
       position.partialCloseOrderLinkId = result.orderLinkId;
+      this.executionLedger.recordOrder(position.id, {
+        orderId: position.partialCloseOrderId,
+        orderLinkId: position.partialCloseOrderLinkId,
+      }, "PARTIAL_CLOSE_SUBMITTED");
       this.log("WARN", "ORDER SENT", {
         operation: "PARTIAL_RUNNER_TP",
         symbol: position.symbol,
@@ -1768,6 +2088,10 @@ class LadderBot {
       position.status = "CLOSE_SUBMITTED";
       position.closeOrderId = result.orderId;
       position.closeOrderLinkId = result.orderLinkId;
+      this.executionLedger.recordOrder(position.id, {
+        orderId: position.closeOrderId,
+        orderLinkId: position.closeOrderLinkId,
+      }, "CLOSE_SUBMITTED");
       position.requestedExitPrice = referencePrice;
       position.exitReason = reason;
       this.store.saveState();
@@ -1881,13 +2205,21 @@ class LadderBot {
       position.side === "LONG" ? percentChange(exitPrice, position.entryPrice) : percentChange(position.entryPrice, exitPrice);
     const holdSeconds = secondsHeld(position);
     const trade = this.store.trades.find((item) => item.id === position.id);
+    const closedAt = new Date().toISOString();
+    const previousSameSymbol = this.store.trades
+      .filter((item) => item.id !== position.id && item.symbol === position.symbol && item.status === "CLOSED")
+      .sort((left, right) => Date.parse(right.exitedAt || right.exitTime || "") - Date.parse(left.exitedAt || left.exitTime || ""))[0];
+    const isFlip =
+      previousSameSymbol &&
+      previousSameSymbol.side !== position.side &&
+      Date.parse(position.openedAt || "") - Date.parse(previousSameSymbol.exitedAt || previousSameSymbol.exitTime || "") <= 5 * 60 * 1000;
     let completedTrade = null;
     if (trade) {
       Object.assign(trade, {
         status: "CLOSED",
         exitPrice,
         exitReason: reason,
-        exitedAt: new Date().toISOString(),
+        exitedAt: closedAt,
         holdSeconds: Number(holdSeconds.toFixed(2)),
         grossPnlUsdt: Number(grossPnlUsdt.toFixed(6)),
         feesUsdt: Number(totalFees.toFixed(6)),
@@ -1901,6 +2233,20 @@ class LadderBot {
         estimatedFeesUsdt: Number((fees.estimatedEntryFee + fees.estimatedExitFee + numeric(position.partialRealizedFeesUsdt)).toFixed(6)),
         pnlUsdt: Number(pnlUsdt.toFixed(6)),
         pnlPct: Number(pnlPct.toFixed(4)),
+        netPnlAfterCostsUsdt: Number(pnlUsdt.toFixed(6)),
+        grossPositiveNetNegative: grossPnlUsdt > 0 && pnlUsdt < 0,
+        actualFundingUsdt: numeric(position.actualFundingUsdt),
+        maxLossAtStopUsdt: Number(numeric(position.maxLossAtStopUsdt).toFixed(6)),
+        riskPctOfEquity: Number(numeric(position.riskPctOfEquity).toFixed(4)),
+        executionType: position.executionType || trade.executionType || "MARKET_TAKER",
+        actualSlippagePct: Number(numeric(position.slippagePct).toFixed(4)),
+        isReentry: Boolean(position.intelligentReentryTriggered),
+        isFlip: Boolean(isFlip),
+        marketMode: position.marketPersonality || position.marketRegimeType || position.signalRegime || "UNKNOWN",
+        edgeGateDecision: "APPROVED",
+        projectedNetProfitUsdt: Number(numeric(position.projectedNetProfitUsdt).toFixed(6)),
+        projectedTotalCostUsdt: Number(numeric(position.projectedTotalCostUsdt).toFixed(6)),
+        runnerNetContributionUsdt: Number(numeric(position.partialRealizedPnlUsdt).toFixed(6)),
         result: this.closedPositionReason(position, exitPrice).includes("take profit")
           ? "TP"
           : this.closedPositionReason(position, exitPrice).includes("stop loss")
@@ -1916,8 +2262,19 @@ class LadderBot {
     this.applySymbolCooldown(position.symbol, pnlUsdt);
     this.risk.registerClose(pnlUsdt, totalFees);
     this.store.rebuildPerformance();
+    this.executionLedger.finalize(position.id, {
+      netPnlUsdt: pnlUsdt,
+      grossPnlUsdt,
+      feesUsdt: totalFees,
+      closedAt,
+    });
     if (completedTrade) this.adaptive.recordClosedTrade(completedTrade);
     this.store.saveAll();
+    try {
+      this.profitObjective.report();
+    } catch (error) {
+      this.log("WARN", "Profit objective report update failed.", { error: error.message });
+    }
     if (reason.toLowerCase().includes("take profit")) {
       this.log("WARN", "TP HIT", { symbol: position.symbol, side: position.side, exitPrice });
     }
@@ -2148,20 +2505,32 @@ class LadderBot {
     };
   }
 
+  normalizedTradingStopIntent(position, intended) {
+    const tickSize = position.tickSize || (position.info && position.info.priceFilter && position.info.priceFilter.tickSize);
+    const output = { ...intended };
+    for (const key of ["takeProfit", "stopLoss", "activePrice"]) {
+      if (output[key] !== undefined && output[key] !== null && output[key] !== "" && tickSize) {
+        output[key] = String(roundedPrice(Number(output[key]), tickSize, position.side !== "LONG"));
+      }
+    }
+    return output;
+  }
+
   tradingStopUnchanged(position, intended) {
+    const normalized = this.normalizedTradingStopIntent(position, intended);
     const current = this.currentTradingStopValues(position);
     const checks = [];
-    if (intended.takeProfit !== undefined && intended.takeProfit !== null && intended.takeProfit !== "") {
-      checks.push(effectivelyUnchanged(current.takeProfit, intended.takeProfit));
+    if (normalized.takeProfit !== undefined && normalized.takeProfit !== null && normalized.takeProfit !== "") {
+      checks.push(effectivelyUnchanged(current.takeProfit, normalized.takeProfit));
     }
-    if (intended.stopLoss !== undefined && intended.stopLoss !== null && intended.stopLoss !== "") {
-      checks.push(effectivelyUnchanged(current.stopLoss, intended.stopLoss));
+    if (normalized.stopLoss !== undefined && normalized.stopLoss !== null && normalized.stopLoss !== "") {
+      checks.push(effectivelyUnchanged(current.stopLoss, normalized.stopLoss));
     }
-    if (intended.trailingStop !== undefined && intended.trailingStop !== null && intended.trailingStop !== "") {
-      checks.push(effectivelyUnchanged(current.trailingStop, intended.trailingStop));
+    if (normalized.trailingStop !== undefined && normalized.trailingStop !== null && normalized.trailingStop !== "") {
+      checks.push(effectivelyUnchanged(current.trailingStop, normalized.trailingStop));
     }
-    if (intended.activePrice !== undefined && intended.activePrice !== null && intended.activePrice !== "") {
-      checks.push(effectivelyUnchanged(current.activePrice, intended.activePrice));
+    if (normalized.activePrice !== undefined && normalized.activePrice !== null && normalized.activePrice !== "") {
+      checks.push(effectivelyUnchanged(current.activePrice, normalized.activePrice));
     }
     return checks.length > 0 && checks.every(Boolean);
   }
@@ -2186,28 +2555,36 @@ class LadderBot {
   }
 
   async applyTradingStopIfChanged(position, intended, reason) {
-    if (this.tradingStopUnchanged(position, intended)) {
-      this.log("INFO", "Unchanged TP/SL update skipped.", {
+    const normalized = this.normalizedTradingStopIntent(position, intended);
+    if (this.tradingStopUnchanged(position, normalized)) {
+      this.log("INFO", "UNCHANGED_TPSL_UPDATE_SKIPPED", {
         symbol: position.symbol,
         reason,
-        intended,
+        intended: normalized,
         current: this.currentTradingStopValues(position),
         duplicateProtectionPreventedApiSpam: true,
         recoveryEscalationAvoided: true,
       });
-      this.rememberTradingStopValues(position, intended);
+      this.log("DEBUG", "POSITION_PROTECTION_ALREADY_VALID", {
+        symbol: position.symbol,
+        reason,
+        current: this.currentTradingStopValues(position),
+      });
+      this.rememberTradingStopValues(position, normalized);
+      if (this.executionLedger) this.executionLedger.markProtection(position.id, "CONFIRMED", normalized);
       return { skipped: true };
     }
-    const response = await this.client.setTradingStop(intended);
+    const response = await this.client.setTradingStop(normalized);
     if (response && response.notModified) {
-      this.log("INFO", "34040 treated as informational for TP/SL update.", {
+      this.log("INFO", "BYBIT_NO_CHANGE_TREATED_AS_SUCCESS", {
         symbol: position.symbol,
         reason,
         recoveryEscalationAvoided: true,
         executionCyclePreserved: true,
       });
     }
-    this.rememberTradingStopValues(position, intended);
+    this.rememberTradingStopValues(position, normalized);
+    if (this.executionLedger) this.executionLedger.markProtection(position.id, "CONFIRMED", normalized);
     return response || {};
   }
 
@@ -2340,6 +2717,17 @@ class LadderBot {
       );
     }
     if (!position) return;
+    const logicalTradeId = this.executionLedger.logicalTradeIdForOrder(execution) || position.id;
+    const fillRecord = this.executionLedger.recordFill(logicalTradeId, execution);
+    if (fillRecord.duplicate) {
+      this.log("DEBUG", "Duplicate execution event did not mutate trade accounting.", {
+        symbol: execution.symbol,
+        orderId: execution.orderId,
+        orderLinkId: execution.orderLinkId,
+        execId: execution.execId,
+      });
+      return;
+    }
     this.recordExecutionFee(position, execution);
     this.store.saveAll();
     this.log("DEBUG", "Bybit execution received.", {
@@ -2472,6 +2860,7 @@ class LadderBot {
       });
     }
     this.store.saveAll();
+    this.writePeriodicProfitObjectiveReport(true);
     await this.telegram.send(
       `Bybit Aggressive Scalping Bot stopped: ${reason}. Open managed positions remaining: ${this.store.state.openPositions.length}.`
     );

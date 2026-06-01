@@ -3,10 +3,10 @@
 const crypto = require("node:crypto");
 const EventEmitter = require("node:events");
 const WebSocket = require("ws");
+const { classifyBybitResult } = require("./bybitErrors");
 
 const REQUEST_TIMEOUT_MS = 10000;
 const REQUEST_RETRIES = 2;
-const NOT_MODIFIED_CODES = new Set([34040]);
 const ACTIVE_ORDER_STATUSES = new Set(["New", "PartiallyFilled", "Untriggered", "Triggered", "Created"]);
 const ORDER_STATUS_MAP = {
   New: "NEW",
@@ -205,20 +205,23 @@ class BybitClient extends EventEmitter {
           emptyError.rateLimited = response.status === 429;
           throw emptyError;
         }
-        const retCode = Number(payload.retCode);
-        if (retCode !== 0 && NOT_MODIFIED_CODES.has(retCode)) {
-          this.log("INFO", "Bybit 34040 not modified treated as informational.", {
+        const classification = classifyBybitResult(payload, response.status);
+        const retCode = classification.retCode;
+        if (classification.type === "IDEMPOTENT_SUCCESS_OR_NO_CHANGE") {
+          this.log("INFO", "BYBIT_NO_CHANGE_TREATED_AS_SUCCESS", {
             retCode,
-            retMsg: payload.retMsg || "not modified",
+            retMsg: classification.retMsg,
             recoveryEscalationAvoided: true,
+            apiErrorCounterIgnored: true,
           });
-          return { ...(payload.result || {}), notModified: true, retCode, retMsg: payload.retMsg || "not modified" };
+          return { ...(payload.result || {}), notModified: true, retCode, retMsg: classification.retMsg };
         }
         if (!response.ok || (retCode !== 0 && !acceptedCodes.includes(retCode))) {
           const error = new Error(`Bybit request failed (HTTP ${response.status}, code ${payload.retCode}): ${payload.retMsg || "unknown error"}.`);
           error.retCode = retCode;
-          error.rateLimited = response.status === 429 || retCode === 10006;
-          error.retryable = error.rateLimited || response.status >= 500 || [10000, 10002, 10016].includes(retCode);
+          error.bybitClassification = classification.type;
+          error.rateLimited = classification.rateLimited;
+          error.retryable = classification.retryable;
           throw error;
         }
         if (attempt > 1) this.log("INFO", "Bybit REST connection recovered.", { attempt });
@@ -453,6 +456,33 @@ class BybitClient extends EventEmitter {
       side: order.side,
       orderType: "Market",
       qty: order.qty,
+      positionIdx: order.positionIdx,
+      orderLinkId: order.orderLinkId,
+      reduceOnly: Boolean(order.reduceOnly),
+    };
+    if (!body.reduceOnly) {
+      Object.assign(body, {
+        takeProfit: order.takeProfit,
+        stopLoss: order.stopLoss,
+        tpslMode: "Full",
+        tpOrderType: "Market",
+        slOrderType: "Market",
+        tpTriggerBy: "MarkPrice",
+        slTriggerBy: "MarkPrice",
+      });
+    }
+    return this.privateRequest("POST", "/v5/order/create", {}, body);
+  }
+
+  async placeLimitOrder(order) {
+    const body = {
+      category: this.config.category,
+      symbol: order.symbol,
+      side: order.side,
+      orderType: "Limit",
+      qty: order.qty,
+      price: order.price,
+      timeInForce: order.postOnly ? "PostOnly" : "GTC",
       positionIdx: order.positionIdx,
       orderLinkId: order.orderLinkId,
       reduceOnly: Boolean(order.reduceOnly),
