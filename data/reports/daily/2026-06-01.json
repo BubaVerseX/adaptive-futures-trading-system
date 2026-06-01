@@ -1,0 +1,197 @@
+{
+  "generatedAt": "2026-06-01T18:45:33.556Z",
+  "date": "2026-06-01",
+  "account": {
+    "equity": {
+      "startingUsdt": 100,
+      "realizedPnlUsdt": -46.26037769999997,
+      "currentUsdt": 49.592179
+    },
+    "openPositions": 0,
+    "totalCostsUsdt": 37.684764,
+    "currentRiskLevel": 0
+  },
+  "activity": {
+    "completedTradesToday": 88,
+    "completedTradesAllTime": 564,
+    "continuationTradesToday": 42,
+    "reentriesToday": 4
+  },
+  "quality": {
+    "trades": 88,
+    "netPnlUsdt": -3.503059,
+    "grossPnlUsdt": 0.5754,
+    "feesUsdt": 4.078457,
+    "postCostWinRatePct": 18.1818,
+    "profitFactor": 0.2308,
+    "expectancyUsdt": -0.039807,
+    "averageWinnerUsdt": 0.065679,
+    "averageLoserUsdt": -0.063249,
+    "feeBleedRatio": 1.1643,
+    "grossPositiveButNetNegativeTrades": 16
+  },
+  "breakdown": {
+    "bySymbol": {
+      "ETHUSDT": {
+        "trades": 32,
+        "netPnlUsdt": -1.020341,
+        "grossPnlUsdt": -0.276,
+        "feesUsdt": 0.744341,
+        "postCostWinRatePct": 15.625,
+        "profitFactor": 0.0915,
+        "expectancyUsdt": -0.031886,
+        "averageWinnerUsdt": 0.020546,
+        "averageLoserUsdt": -0.041595,
+        "feeBleedRatio": 0.7295,
+        "grossPositiveButNetNegativeTrades": 4
+      },
+      "SOLUSDT": {
+        "trades": 21,
+        "netPnlUsdt": -0.19189,
+        "grossPnlUsdt": 0,
+        "feesUsdt": 0.191889,
+        "postCostWinRatePct": 23.8095,
+        "profitFactor": 0.2246,
+        "expectancyUsdt": -0.009138,
+        "averageWinnerUsdt": 0.011115,
+        "averageLoserUsdt": -0.015467,
+        "feeBleedRatio": 1,
+        "grossPositiveButNetNegativeTrades": 4
+      },
+      "BTCUSDT": {
+        "trades": 35,
+        "netPnlUsdt": -2.290828,
+        "grossPnlUsdt": 0.8514,
+        "feesUsdt": 3.142227,
+        "postCostWinRatePct": 17.1429,
+        "profitFactor": 0.2804,
+        "expectancyUsdt": -0.065452,
+        "averageWinnerUsdt": 0.148761,
+        "averageLoserUsdt": -0.109772,
+        "feeBleedRatio": 1.3717,
+        "grossPositiveButNetNegativeTrades": 8
+      }
+    },
+    "bySetup": {
+      "MICRO_BREAKOUT": {
+        "trades": 20,
+        "netPnlUsdt": -0.892224,
+        "grossPnlUsdt": 0.2823,
+        "feesUsdt": 1.174524,
+        "postCostWinRatePct": 15,
+        "profitFactor": 0.1082,
+        "expectancyUsdt": -0.044611,
+        "averageWinnerUsdt": 0.036083,
+        "averageLoserUsdt": -0.058851,
+        "feeBleedRatio": 1.3164,
+        "grossPositiveButNetNegativeTrades": 7
+      },
+      "FOMO_BREAKOUT": {
+        "trades": 8,
+        "netPnlUsdt": -0.530084,
+        "grossPnlUsdt": -0.2485,
+        "feesUsdt": 0.281583,
+        "postCostWinRatePct": 0,
+        "profitFactor": 0,
+        "expectancyUsdt": -0.06626,
+        "averageWinnerUsdt": 0,
+        "averageLoserUsdt": -0.06626,
+        "feeBleedRatio": 0.5312,
+        "grossPositiveButNetNegativeTrades": 2
+      },
+      "VOLUME_MOMENTUM": {
+        "trades": 20,
+        "netPnlUsdt": -0.859924,
+        "grossPnlUsdt": 0.1381,
+        "feesUsdt": 0.998023,
+        "postCostWinRatePct": 15,
+        "profitFactor": 0.2738,
+        "expectancyUsdt": -0.042996,
+        "averageWinnerUsdt": 0.108072,
+        "averageLoserUsdt": -0.069655,
+        "feeBleedRatio": 1.1606,
+        "grossPositiveButNetNegativeTrades": 2
+      },
+      "BREAKOUT": {
+        "trades": 3,
+        "netPnlUsdt": -0.208872,
+        "grossPnlUsdt": -0.1095,
+        "feesUsdt": 0.099372,
+        "postCostWinRatePct": 33.3333,
+        "profitFactor": 0.0093,
+        "expectancyUsdt": -0.069624,
+        "averageWinnerUsdt": 0.001971,
+        "averageLoserUsdt": -0.105422,
+        "feeBleedRatio": 0.4758,
+        "grossPositiveButNetNegativeTrades": 0
+      },
+      "MOMENTUM_SCALP": {
+        "trades": 26,
+        "netPnlUsdt": -0.672218,
+        "grossPnlUsdt": 0.7172,
+        "feesUsdt": 1.389418,
+        "postCostWinRatePct": 23.0769,
+        "profitFactor": 0.4619,
+        "expectancyUsdt": -0.025855,
+        "averageWinnerUsdt": 0.096157,
+        "averageLoserUsdt": -0.062458,
+        "feeBleedRatio": 2.0669,
+        "grossPositiveButNetNegativeTrades": 5
+      },
+      "CONTINUATION_BREAKOUT": {
+        "trades": 8,
+        "netPnlUsdt": -0.319105,
+        "grossPnlUsdt": -0.2102,
+        "feesUsdt": 0.108905,
+        "postCostWinRatePct": 25,
+        "profitFactor": 0.0842,
+        "expectancyUsdt": -0.039888,
+        "averageWinnerUsdt": 0.014671,
+        "averageLoserUsdt": -0.058074,
+        "feeBleedRatio": 0.3413,
+        "grossPositiveButNetNegativeTrades": 0
+      },
+      "BREAKOUT_RETEST": {
+        "trades": 3,
+        "netPnlUsdt": -0.020632,
+        "grossPnlUsdt": 0.006,
+        "feesUsdt": 0.026632,
+        "postCostWinRatePct": 33.3333,
+        "profitFactor": 0.3298,
+        "expectancyUsdt": -0.006877,
+        "averageWinnerUsdt": 0.010155,
+        "averageLoserUsdt": -0.015394,
+        "feeBleedRatio": 1.2908,
+        "grossPositiveButNetNegativeTrades": 0
+      }
+    },
+    "byMarketMode": {
+      "WEAK_CHOP": {
+        "trades": 81,
+        "netPnlUsdt": -3.304565,
+        "grossPnlUsdt": 0.5781,
+        "feesUsdt": 3.882663,
+        "postCostWinRatePct": 14.8148,
+        "profitFactor": 0.231,
+        "expectancyUsdt": -0.040797,
+        "averageWinnerUsdt": 0.082734,
+        "averageLoserUsdt": -0.062281,
+        "feeBleedRatio": 1.1749,
+        "grossPositiveButNetNegativeTrades": 16
+      },
+      "FOCUSED_ACTIVE": {
+        "trades": 7,
+        "netPnlUsdt": -0.198494,
+        "grossPnlUsdt": -0.0027,
+        "feesUsdt": 0.195794,
+        "postCostWinRatePct": 57.1429,
+        "profitFactor": 0.2263,
+        "expectancyUsdt": -0.028356,
+        "averageWinnerUsdt": 0.014515,
+        "averageLoserUsdt": -0.085517,
+        "feeBleedRatio": 0.9864,
+        "grossPositiveButNetNegativeTrades": 0
+      }
+    }
+  }
+}
