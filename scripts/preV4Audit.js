@@ -208,6 +208,284 @@ function loadCsvRows(files) {
   return rows;
 }
 
+function firstField(row, names) {
+  for (const name of names) {
+    if (row[name] !== undefined && row[name] !== "") return row[name];
+  }
+  return "";
+}
+
+function parseFeeInfo(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return 0;
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object") {
+      return Object.values(parsed).reduce((total, item) => total + numeric(item), 0);
+    }
+  } catch (_error) {
+    const match = raw.match(/USDT"?\s*:\s*"?(-?\d+(?:\.\d+)?)/i);
+    if (match) return numeric(match[1]);
+  }
+  return numeric(raw);
+}
+
+function parseBybitCsvTimestamp(value) {
+  const raw = String(value || "").trim();
+  const match = raw.match(/^(\d{1,2}):(\d{2})\s+(\d{4})-(\d{2})-(\d{2})$/);
+  if (match) {
+    const [, hour, minute, year, month, day] = match;
+    return Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), 0, 0);
+  }
+  const parsed = Date.parse(raw);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function normalizeBybitCsvOrder(row, index) {
+  const timestampMs =
+    parseBybitCsvTimestamp(firstField(row, ["Order Time(UTC+0)", "Order Time", "Create Time"])) ||
+    parseBybitCsvTimestamp(row["Create Time"]);
+  const filledQuantity = numeric(firstField(row, ["Filled Quantity", "Filled Qty", "Qty"]));
+  const filledPrice = numeric(firstField(row, ["Filled Price", "Average Price", "Avg Fill Price"]));
+  const direction = String(firstField(row, ["Direction", "Side"]) || "UNKNOWN").trim().toUpperCase();
+  const sign = direction === "LONG" ? 1 : direction === "SHORT" ? -1 : 0;
+  return {
+    rowIndex: index,
+    sourceFile: row.sourceFile,
+    symbol: String(firstField(row, ["Market", "Symbol"]) || "UNKNOWN").trim().toUpperCase(),
+    orderQuantity: numeric(firstField(row, ["Order Quantity", "Qty", "Quantity"])),
+    orderPrice: numeric(firstField(row, ["Order Price", "Price"])),
+    triggerPrice: numeric(firstField(row, ["Trigger Price"])),
+    filledQuantity,
+    filledPrice,
+    direction,
+    sign,
+    orderType: String(firstField(row, ["Order Type", "Type"]) || "UNKNOWN").trim().toUpperCase(),
+    orderStatus: String(firstField(row, ["Order Status", "Status"]) || "UNKNOWN").trim().toUpperCase(),
+    orderId: String(firstField(row, ["Order ID", "OrderId", "orderId"]) || "").trim(),
+    timeInForce: String(firstField(row, ["Time In Force"]) || "").trim(),
+    feeUsdt: parseFeeInfo(firstField(row, ["feeInfo", "Fee", "Trading Fee"])),
+    timestampMs,
+    timestamp: timestampMs ? new Date(timestampMs).toISOString() : null,
+    notionalUsdt: filledQuantity && filledPrice ? Math.abs(filledQuantity * filledPrice) : 0,
+  };
+}
+
+function fundingFromCsvRows(rows) {
+  const fundingKeys = rows.length
+    ? Object.keys(rows[0]).filter((key) => /funding/i.test(key))
+    : [];
+  if (!fundingKeys.length) {
+    return {
+      available: false,
+      fundingUsdt: 0,
+      reason: "The imported Bybit order-history CSV has no funding columns. Funding must be imported from Bybit funding/transaction history for exact funding accounting.",
+    };
+  }
+  const fundingUsdt = rows.reduce((total, row) => {
+    return total + fundingKeys.reduce((keyTotal, key) => keyTotal + numeric(row[key]), 0);
+  }, 0);
+  return {
+    available: true,
+    fundingUsdt: round(fundingUsdt),
+    fundingColumns: fundingKeys,
+  };
+}
+
+function summarizeOrderStatuses(orders) {
+  return orders.reduce((statusCounts, order) => {
+    statusCounts[order.orderStatus] = (statusCounts[order.orderStatus] || 0) + 1;
+    return statusCounts;
+  }, {});
+}
+
+function closeCsvLot({ completedTrades, lot, order, closeQuantity, entryFeeUsdt, exitFeeUsdt, sequence }) {
+  const grossPnlUsdt =
+    lot.sign > 0
+      ? (order.filledPrice - lot.price) * closeQuantity
+      : (lot.price - order.filledPrice) * closeQuantity;
+  const totalFeesUsdt = entryFeeUsdt + exitFeeUsdt;
+  const netPnlUsdt = grossPnlUsdt - totalFeesUsdt;
+  completedTrades.push({
+    id: `csv-roundtrip-${String(sequence).padStart(4, "0")}`,
+    source: "BYBIT_ORDER_HISTORY_CSV_RECONSTRUCTED",
+    sourceAssumption: "Direction=Long is treated as positive signed fill; Direction=Short is treated as negative signed fill. Order-history CSV lacks explicit buy/sell reduce-only fields.",
+    status: "CLOSED",
+    symbol: lot.symbol,
+    side: lot.sign > 0 ? "LONG" : "SHORT",
+    size: round(closeQuantity, 8),
+    entryPrice: round(lot.price, 8),
+    exitPrice: round(order.filledPrice, 8),
+    openedAt: lot.openedAt,
+    exitedAt: order.timestamp,
+    holdSeconds: lot.openedAt && order.timestamp ? round((Date.parse(order.timestamp) - Date.parse(lot.openedAt)) / 1000, 2) : 0,
+    entryOrderId: lot.orderId,
+    exitOrderId: order.orderId,
+    orderIds: [lot.orderId, order.orderId].filter(Boolean),
+    grossPnlUsdt: round(grossPnlUsdt),
+    actualEntryFeeUsdt: round(entryFeeUsdt),
+    actualExitFeeUsdt: round(exitFeeUsdt),
+    feesUsdt: round(totalFeesUsdt),
+    actualFundingUsdt: 0,
+    pnlUsdt: round(netPnlUsdt),
+    realizedPnlUsdt: round(netPnlUsdt),
+    tradeCategory: "EXCHANGE_RECONSTRUCTED",
+    setupType: "CSV_RECONSTRUCTED",
+    winLoss: netPnlUsdt > 0 ? "WIN" : netPnlUsdt < 0 ? "LOSS" : "BREAKEVEN",
+  });
+}
+
+function reconstructCsvCompletedTrades(orders) {
+  const filled = orders
+    .filter((order) => order.orderStatus === "FILLED" && order.filledQuantity > 0 && order.filledPrice > 0 && order.sign !== 0 && order.timestampMs)
+    .sort((left, right) => left.timestampMs - right.timestampMs || left.rowIndex - right.rowIndex);
+  const positions = new Map();
+  const completedTrades = [];
+  let sequence = 1;
+
+  for (const order of filled) {
+    if (!positions.has(order.symbol)) positions.set(order.symbol, []);
+    const lots = positions.get(order.symbol);
+    const absoluteOrderQuantity = Math.abs(order.filledQuantity);
+    let remainingQuantity = absoluteOrderQuantity;
+    const incomingFeeUsdt = order.feeUsdt;
+
+    while (remainingQuantity > 1e-12 && lots.length && lots[0].sign !== order.sign) {
+      const lot = lots[0];
+      const closeQuantity = Math.min(remainingQuantity, lot.quantity);
+      const entryFeeUsdt = lot.feeRemainingUsdt * (closeQuantity / lot.quantity);
+      const exitFeeUsdt = incomingFeeUsdt * (closeQuantity / absoluteOrderQuantity);
+      closeCsvLot({
+        completedTrades,
+        lot,
+        order,
+        closeQuantity,
+        entryFeeUsdt,
+        exitFeeUsdt,
+        sequence,
+      });
+      sequence += 1;
+      lot.quantity -= closeQuantity;
+      lot.feeRemainingUsdt -= entryFeeUsdt;
+      remainingQuantity -= closeQuantity;
+      if (lot.quantity <= 1e-12) lots.shift();
+    }
+
+    if (remainingQuantity > 1e-12) {
+      lots.push({
+        symbol: order.symbol,
+        sign: order.sign,
+        quantity: remainingQuantity,
+        price: order.filledPrice,
+        feeRemainingUsdt: incomingFeeUsdt * (remainingQuantity / absoluteOrderQuantity),
+        openedAt: order.timestamp,
+        timestampMs: order.timestampMs,
+        orderId: order.orderId,
+      });
+    }
+  }
+
+  const openLots = [...positions.entries()].flatMap(([positionSymbol, lots]) =>
+    lots.map((lot) => ({
+      symbol: positionSymbol,
+      side: lot.sign > 0 ? "LONG" : "SHORT",
+      quantity: round(lot.quantity, 8),
+      entryPrice: round(lot.price, 8),
+      openedAt: lot.openedAt,
+      entryFeeStillOpenUsdt: round(lot.feeRemainingUsdt),
+      orderId: lot.orderId,
+    }))
+  );
+
+  return {
+    filledOrders: filled,
+    completedTrades,
+    openLots,
+  };
+}
+
+function orderIdsForTrade(trade) {
+  const values = [
+    trade.entryOrderId,
+    trade.exitOrderId,
+    trade.closeOrderId,
+    trade.orderId,
+    trade.entryOrderLinkId,
+    trade.closeOrderLinkId,
+  ];
+  if (Array.isArray(trade.orderIds)) values.push(...trade.orderIds);
+  if (Array.isArray(trade.exchangeOrderIds)) values.push(...trade.exchangeOrderIds);
+  return values.map((value) => String(value || "").trim()).filter(Boolean);
+}
+
+function reconcileLocalAndExchange(localTrades, exchangeTrades, exchangeOrders) {
+  const exchangeOrderIds = exchangeOrders.map((order) => order.orderId).filter(Boolean);
+  const matchedLocalTrades = [];
+  const unmatchedLocalTrades = [];
+  for (const trade of localTrades) {
+    const ids = orderIdsForTrade(trade);
+    const matched = ids.some((id) =>
+      exchangeOrderIds.some((exchangeId) => exchangeId === id || exchangeId.includes(id) || id.includes(exchangeId))
+    );
+    if (matched) matchedLocalTrades.push(trade);
+    else unmatchedLocalTrades.push(trade);
+  }
+  const localSummary = summarizeTrades(localTrades);
+  const exchangeSummary = summarizeTrades(exchangeTrades);
+  return {
+    localClosedTrades: localTrades.length,
+    exchangeFilledOrders: exchangeOrders.length,
+    exchangeReconstructedCompletedTrades: exchangeTrades.length,
+    matchedLocalTradesByOrderId: matchedLocalTrades.length,
+    unmatchedLocalTradesByOrderId: unmatchedLocalTrades.length,
+    unmatchedLocalTradeExamples: unmatchedLocalTrades.slice(0, 20).map((trade) => ({
+      id: trade.id,
+      symbol: symbol(trade),
+      side: side(trade),
+      openedAt: trade.openedAt,
+      exitedAt: trade.exitedAt,
+      netPnlUsdt: round(netPnl(trade)),
+      orderIds: orderIdsForTrade(trade),
+    })),
+    localNetPnlUsdt: localSummary.netRealizedPnlUsdt,
+    exchangeReconstructedNetPnlUsdt: exchangeSummary.netRealizedPnlUsdt,
+    netPnlDifferenceUsdt: round(localSummary.netRealizedPnlUsdt - exchangeSummary.netRealizedPnlUsdt),
+    localFeesUsdt: localSummary.totalFeesUsdt,
+    exchangeActualFeesUsdt: exchangeSummary.totalFeesUsdt,
+    feeDifferenceUsdt: round(localSummary.totalFeesUsdt - exchangeSummary.totalFeesUsdt),
+    assumptions: [
+      "Bybit order-history CSV does not include explicit realized PnL, reduce-only, or funding fields.",
+      "Exchange completed trades were reconstructed FIFO from signed Long/Short fills.",
+      "Local bot records contain richer strategy/setup metadata; CSV records are treated as the fee and fill-price source of truth when present.",
+    ],
+  };
+}
+
+function continuationFlipBucket(trade) {
+  if (trade.isFlip) return "FLIP";
+  if (trade.continuationVsFlip) return String(trade.continuationVsFlip).toUpperCase();
+  if (/CONTINUATION|RETEST|RESUMPTION|ACCELERATION|BREAKOUT/.test(setupType(trade))) return "CONTINUATION";
+  return "OTHER";
+}
+
+function assessEdgeThresholds({ localOverall, exchangeOverall, localTrades }) {
+  const projectedPositiveButLost = localTrades.filter((trade) => numeric(trade.projectedNetProfitUsdt) > 0 && netPnl(trade) < 0);
+  const projectedPositiveNetPnl = summarizeTrades(localTrades.filter((trade) => numeric(trade.projectedNetProfitUsdt) > 0));
+  const feeDragHigh = localOverall.feesAsPctOfGrossProfit > 35 || exchangeOverall.feesAsPctOfGrossProfit > 35;
+  const profitFactorWeak = localOverall.profitFactorAfterCosts < 1 || exchangeOverall.profitFactorAfterCosts < 1;
+  return {
+    status: feeDragHigh || profitFactorWeak ? "EDGE_THRESHOLDS_APPEAR_NECESSARY_AND_SHOULD_NOT_BE_LOOSENED_YET" : "EDGE_THRESHOLDS_LOOK_REASONABLE_ON_AVAILABLE_SAMPLE",
+    projectedPositiveButNetLosingTrades: projectedPositiveButLost.length,
+    projectedPositiveNetPnlSummary: projectedPositiveNetPnl,
+    evidence: [
+      feeDragHigh ? "Fee drag remains material relative to gross profit." : "Fee drag is not dominant on the available sample.",
+      profitFactorWeak ? "Profit factor after costs is still below 1 on available records." : "Profit factor after costs is above 1 on available records.",
+      projectedPositiveButLost.length ? "Some trades with positive projected edge still closed net-negative, so the edge model needs calibration against actual fills." : "No projected-positive net losers were found in the available local records.",
+    ],
+    recommendation: "Do not loosen V4 edge thresholds from this audit alone. Validate in demo or very small controlled live mode and calibrate projected edge against actual net results.",
+  };
+}
+
 function flipAnalysis(trades) {
   const ordered = [...trades].sort((left, right) => tradeTimestamp(left) - tradeTimestamp(right));
   const rapidFlips = [];
@@ -330,12 +608,20 @@ async function main() {
   const state = readJson("data/state.json", {});
   const csvFiles = findCsvFiles(ROOT);
   const csvRows = loadCsvRows(csvFiles);
+  const csvOrders = csvRows.map(normalizeBybitCsvOrder);
+  const csvFunding = fundingFromCsvRows(csvRows);
+  const csvReconstruction = reconstructCsvCompletedTrades(csvOrders);
+  const csvCompletedTrades = csvReconstruction.completedTrades;
+  const csvOverall = summarizeTrades(csvCompletedTrades);
+  const csvBySymbol = groupBy(csvCompletedTrades, symbol);
+  const csvBySide = groupBy(csvCompletedTrades, side);
   const closedTrades = Array.isArray(trades)
     ? trades.filter((trade) => String(trade.status || "").toUpperCase() === "CLOSED")
     : [];
   const memoryTrades = memory && Array.isArray(memory.trades) ? memory.trades : [];
   const allClosed = closedTrades.length ? closedTrades : memoryTrades;
   const overall = summarizeTrades(allClosed);
+  const reconciliation = reconcileLocalAndExchange(allClosed, csvCompletedTrades, csvReconstruction.filledOrders);
   const bySymbol = groupBy(allClosed, symbol);
   const bySide = groupBy(allClosed, side);
   const byCategory = groupBy(allClosed, tradeCategory);
@@ -344,6 +630,7 @@ async function main() {
   const byContinuation = groupBy(allClosed, (trade) =>
     /CONTINUATION|RETEST|RESUMPTION|ACCELERATION|BREAKOUT/.test(setupType(trade)) ? "CONTINUATION_OR_BREAKOUT" : "MOMENTUM_OR_OTHER"
   );
+  const byContinuationFlip = groupBy(allClosed, continuationFlipBucket);
   const byHour = groupBy(allClosed, (trade) => new Date(tradeTimestamp(trade)).getUTCHours());
   const bySession = groupBy(allClosed, sessionOf);
   const byRegime = groupBy(allClosed, (trade) => trade.marketRegimeType || trade.signalRegime || trade.marketRegime || "UNKNOWN");
@@ -389,13 +676,37 @@ async function main() {
       currentStateRealizedPnlUsdt: numeric(state && state.equity && state.equity.realizedPnlUsdt, null),
       latestLogEquityUsdt: logSummary.latestEquityUsdt,
       openPositions: Array.isArray(state.openPositions) ? state.openPositions.length : 0,
-      note: "Equity is based on local state/log records only; provided account CSV was not found.",
+      note: "Equity is based on local state/log records. The imported Bybit CSV is order history, so it verifies fills and fees but not full account-equity history.",
     },
     overall,
     funding: {
-      status: "UNAVAILABLE",
-      reason: "No funding fields were present in local trades/memory, and no Bybit CSV was found.",
+      status: csvFunding.available || allClosed.some((trade) => numeric(trade.actualFundingUsdt || trade.fundingUsdt) !== 0) ? "PARTIAL" : "UNAVAILABLE",
+      csv: csvFunding,
+      localFundingUsdt: round(allClosed.reduce((total, trade) => total + numeric(trade.actualFundingUsdt || trade.fundingUsdt), 0)),
+      reason: csvFunding.available
+        ? "Funding was found in CSV columns."
+        : "No funding fields were present in the imported Bybit order-history CSV. Local records mostly store actualFundingUsdt as zero when available.",
     },
+    bybitCsvAnalysis: {
+      files: csvFiles.map((file) => path.relative(ROOT, file)),
+      rows: csvRows.length,
+      orderStatusCounts: summarizeOrderStatuses(csvOrders),
+      filledOrders: csvReconstruction.filledOrders.length,
+      filledOrderNotionalUsdt: round(csvReconstruction.filledOrders.reduce((total, order) => total + order.notionalUsdt, 0)),
+      totalActualFeesUsdt: round(csvReconstruction.filledOrders.reduce((total, order) => total + order.feeUsdt, 0)),
+      completedTrades: csvCompletedTrades.length,
+      openLotsRemainingAfterCsvReconstruction: csvReconstruction.openLots,
+      overall: csvOverall,
+      bySymbol: csvBySymbol,
+      bySide: csvBySide,
+      completedTradeLedger: csvCompletedTrades,
+      notes: [
+        "The CSV is order history, not Bybit closed-PnL history.",
+        "Completed trades are reconstructed from filled orders with FIFO accounting.",
+        "Funding is unavailable unless a separate funding/transaction export is imported.",
+      ],
+    },
+    reconciliation,
     slippage: {
       averageSlippagePct: round(average(memoryTrades.map((trade) => trade.slippagePct)), 4),
       source: memoryTrades.some((trade) => trade.slippagePct !== undefined) ? "tradeMemory.slippagePct" : "UNAVAILABLE",
@@ -408,6 +719,7 @@ async function main() {
       bySetupType: bySetup,
       explorationVsNormal: byExploration,
       continuationVsOther: byContinuation,
+      continuationVsFlip: byContinuationFlip,
       byHourUtc: byHour,
       bySession,
       byMarketRegime: byRegime,
@@ -444,6 +756,7 @@ async function main() {
         latestOpenRiskUnavailable: "Historical equity-at-entry was not consistently stored. V4 should record maxLossAtStopUsdt and riskPctOfEquity for every future trade.",
       },
     },
+    edgeThresholdAssessment: assessEdgeThresholds({ localOverall: overall, exchangeOverall: csvOverall, localTrades: allClosed }),
     logSummary,
     existingAnalyticsSnapshot: {
       totalPnl: analytics.totalPnl || null,
@@ -478,7 +791,9 @@ async function main() {
         shortHolds.length ? "Many trades closed inside 45 seconds, making fee coverage harder." : null,
         flips.rapidLongShortFlips ? "Rapid same-symbol long/short flips were detected." : null,
       ].filter(Boolean),
-      csvLimitation: csvFiles.length ? null : "No provided Bybit CSV was found, so exchange-native funding and per-fill CSV accounting could not be verified.",
+      csvLimitation: csvFiles.length
+        ? "Imported CSV provides filled orders and fees, but not explicit realized PnL/funding/reduce-only fields. Round trips are reconstructed from signed fills."
+        : "No provided Bybit CSV was found, so exchange-native funding and per-fill CSV accounting could not be verified.",
     },
   };
 
@@ -490,8 +805,17 @@ async function main() {
     sourceAvailability: audit.sourceAvailability,
     accountContext: audit.accountContext,
     overall: audit.overall,
+    bybitCsvAnalysis: {
+      filledOrders: audit.bybitCsvAnalysis.filledOrders,
+      completedTrades: audit.bybitCsvAnalysis.completedTrades,
+      totalActualFeesUsdt: audit.bybitCsvAnalysis.totalActualFeesUsdt,
+      overall: audit.bybitCsvAnalysis.overall,
+      openLotsRemainingAfterCsvReconstruction: audit.bybitCsvAnalysis.openLotsRemainingAfterCsvReconstruction,
+    },
+    reconciliation: audit.reconciliation,
     worstSymbols: audit.badBehaviorDetection.worstSymbols.slice(0, 3),
     worstSetups: audit.badBehaviorDetection.worstSetups.slice(0, 3),
+    edgeThresholdAssessment: audit.edgeThresholdAssessment,
     detectedIssues: audit.conclusions.measuredPrimaryLossDrivers,
   }, null, 2));
 }
