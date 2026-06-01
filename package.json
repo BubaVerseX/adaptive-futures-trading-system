@@ -9,7 +9,8 @@
     "testnet": "BYBIT_TESTNET=true node src/bot.js",
     "live": "BYBIT_TESTNET=false DRY_RUN=false node src/bot.js",
     "test": "node test/bybitBot.test.js",
-    "check": "node --check src/bot.js && node --check src/config.js && node --check src/bybitClient.js && node --check src/indicators.js && node --check src/marketRegime.js && node --check src/scanner.js && node --check src/riskManager.js && node --check src/state.js && node --check src/telegram.js && node --check src/adaptiveEngine.js"
+    "audit:v4": "node scripts/preV4Audit.js",
+    "check": "node --check src/bot.js && node --check src/config.js && node --check src/bybitClient.js && node --check src/bybitErrors.js && node --check src/costModel.js && node --check src/executionLedger.js && node --check src/profitObjective.js && node --check src/indicators.js && node --check src/marketRegime.js && node --check src/scanner.js && node --check src/riskManager.js && node --check src/state.js && node --check src/telegram.js && node --check src/adaptiveEngine.js && node --check scripts/preV4Audit.js"
   },
   "engines": {
     "node": ">=18.0.0"

@@ -48,6 +48,12 @@ function resultType(reason) {
 
 function setupTypeFromSignal(signal = {}) {
   const reasons = Array.isArray(signal.scoreBreakdown) ? signal.scoreBreakdown.join(" ").toLowerCase() : "";
+  if (signal.continuationSetupType && signal.continuationSetupType !== "NONE") return signal.continuationSetupType;
+  if (signal.pullbackContinuation) return "PULLBACK_CONTINUATION";
+  if (signal.breakoutRetest) return "BREAKOUT_RETEST";
+  if (signal.momentumResumption) return "MOMENTUM_RESUMPTION";
+  if (signal.trendAcceleration) return "TREND_ACCELERATION";
+  if (signal.continuationBreakout) return "CONTINUATION_BREAKOUT";
   if (signal.fomoTrigger) return "FOMO_BREAKOUT";
   if (signal.microBreakoutTriggered) return "MICRO_BREAKOUT";
   if (signal.breakoutTriggered || reasons.includes("breakout") || reasons.includes("breakdown")) return "BREAKOUT";
@@ -65,7 +71,45 @@ function eliteConditionKeyFromSignal(signal = {}) {
       : signal.marketRegimeType || signal.marketRegime || signal.regime || "UNKNOWN";
   const momentum = numeric(signal.momentumPersistenceCandles) >= 4 ? "PERSIST_4" : "PERSIST_2";
   const volume = signal.volumeCondition || signal.volumeConditions || "UNKNOWN_VOLUME";
-  return `${signal.symbol || "UNKNOWN"}:${signal.side || "SIDE"}:${signal.setupType || setupTypeFromSignal(signal)}:${regime}:${volume}:${momentum}:${signal.sessionRegime || signal.sessionType || "SESSION"}`;
+  const continuation = signal.continuationSetupType || "NO_CONTINUATION";
+  const macro = signal.macroAligned ? "MACRO_ALIGNED" : signal.macroContradicts ? "MACRO_CONTRA" : "MACRO_NEUTRAL";
+  return `${signal.symbol || "UNKNOWN"}:${signal.side || "SIDE"}:${signal.setupType || setupTypeFromSignal(signal)}:${continuation}:${regime}:${volume}:${momentum}:${macro}:${signal.sessionRegime || signal.sessionType || "SESSION"}`;
+}
+
+function bucketNumber(value, buckets) {
+  const numericValue = numeric(value);
+  for (const bucket of buckets) {
+    if (numericValue <= bucket.max) return bucket.name;
+  }
+  return buckets[buckets.length - 1].name;
+}
+
+function spreadBucket(value) {
+  return bucketNumber(value, [
+    { max: 0.03, name: "TIGHT_SPREAD" },
+    { max: 0.08, name: "NORMAL_SPREAD" },
+    { max: 0.18, name: "WIDE_SPREAD" },
+    { max: Number.POSITIVE_INFINITY, name: "VERY_WIDE_SPREAD" },
+  ]);
+}
+
+function volatilityBucket(value, label) {
+  if (label && label !== "UNKNOWN") return label;
+  return bucketNumber(value, [
+    { max: 0.35, name: "LOW_VOLATILITY" },
+    { max: 0.9, name: "NORMAL_VOLATILITY" },
+    { max: 1.6, name: "HIGH_VOLATILITY" },
+    { max: Number.POSITIVE_INFINITY, name: "ABNORMAL_VOLATILITY" },
+  ]);
+}
+
+function costBucket(value) {
+  return bucketNumber(value, [
+    { max: 0.18, name: "LOW_COST" },
+    { max: 0.35, name: "NORMAL_COST" },
+    { max: 0.6, name: "HIGH_COST" },
+    { max: Number.POSITIVE_INFINITY, name: "VERY_HIGH_COST" },
+  ]);
 }
 
 function summarize(records) {
@@ -258,20 +302,37 @@ class AdaptiveEngine {
       slippagePct: Number.isFinite(slippagePct) ? Number(slippagePct.toFixed(4)) : 0,
       expectedMovePct: numeric(trade.expectedMovePct),
       estimatedRoundTripCostPct: numeric(trade.estimatedRoundTripCostPct),
+      projectedTotalCostUsdt: numeric(trade.projectedTotalCostUsdt),
+      projectedNetProfitUsdt: numeric(trade.projectedNetProfitUsdt),
+      actualFundingUsdt: numeric(trade.actualFundingUsdt),
       feeEdgeRatio: numeric(trade.feeEdgeRatio),
       projectedNetEdgePct: numeric(trade.projectedNetEdgePct),
       convictionScore: numeric(trade.convictionScore),
       convictionTier: trade.convictionTier || "UNCLASSIFIED",
+      edgeTier: trade.edgeTier || "UNCLASSIFIED",
+      sizingTier: trade.convictionTier || trade.edgeTier || trade.tradeCategory || "UNCLASSIFIED",
+      riskPctOfEquity: numeric(trade.riskPctOfEquity),
+      maxLossAtStopUsdt: numeric(trade.maxLossAtStopUsdt),
       eliteSetup: Boolean(trade.eliteSetup),
       eliteConditionKey: trade.eliteConditionKey || eliteConditionKeyFromSignal(trade),
       smartProjectedNetEdgePct: numeric(trade.smartProjectedNetEdgePct),
       estimatedTpProbability: numeric(trade.estimatedTpProbability),
       marketPersonality: trade.marketPersonality || "UNKNOWN",
+      continuationStrength: numeric(trade.continuationStrength),
+      continuationSetupType: trade.continuationSetupType || setupType,
+      continuationComponents: trade.continuationComponents || {},
+      macroTrend: trade.trend1h || trade.macroTrend || "UNKNOWN",
+      macroAligned: Boolean(trade.macroAligned),
+      macroContradicts: Boolean(trade.macroContradicts),
+      trendPersistence: numeric(trade.momentumPersistenceCandles),
       liquidityScore: numeric(trade.liquidityScore),
       trendQualityScore: numeric(trade.trendQualityScore),
       antiChopScore: numeric(trade.antiChopScore),
       tradeCategory: trade.tradeCategory || (trade.explorationTrade ? "EXPLORATION" : "HIGH_CONVICTION"),
       explorationTrade: Boolean(trade.explorationTrade),
+      isReentry: Boolean(trade.isReentry || trade.intelligentReentryTriggered),
+      isFlip: Boolean(trade.isFlip),
+      continuationVsFlip: trade.isFlip ? "FLIP" : /CONTINUATION|RETEST|RESUMPTION|ACCELERATION|BREAKOUT/.test(setupType) ? "CONTINUATION" : "OTHER",
       explorationThresholdSoftened: Boolean(trade.explorationThresholdSoftened),
       explorationMemoryRelaxation: numeric(trade.explorationMemoryRelaxation),
       moderateChopAccepted: Boolean(trade.moderateChopAccepted),
@@ -282,6 +343,13 @@ class AdaptiveEngine {
       breakoutTriggered: Boolean(trade.breakoutTriggered),
       fomoTriggered: Boolean(trade.fomoTrigger || trade.fomoTriggered),
       microBreakoutTriggered: Boolean(trade.microBreakoutTriggered),
+      spreadBucket: trade.spreadBucket || spreadBucket(trade.spreadPct),
+      volatilityBucket: trade.volatilityBucket || volatilityBucket(trade.btcVolatilityPct || trade.atrPct, trade.volatilityRegime),
+      costBucket: trade.costBucket || costBucket(trade.estimatedRoundTripCostPct),
+      grossPositiveNetNegative: Boolean(trade.grossPositiveNetNegative || (numeric(trade.grossPnlUsdt) > 0 && pnlUsdt < 0)),
+      executionType: trade.executionType || "UNKNOWN",
+      runnerPartialTaken: Boolean(trade.runnerPartialTaken),
+      runnerNetContributionUsdt: numeric(trade.runnerNetContributionUsdt || trade.partialRealizedPnlUsdt),
       adaptiveConfidenceAtEntry: numeric(trade.adaptiveConfidence, 50),
       adaptiveModeAtEntry: trade.adaptiveMode || "BASELINE",
     };
@@ -301,15 +369,41 @@ class AdaptiveEngine {
     }
     this.rebuild();
     this.save();
-    this.log("INFO", "Adaptive trade memory updated.", {
+    this.log("INFO", "MEMORY_BUCKET_UPDATED", {
       symbol: record.symbol,
       setupType: record.setupType,
       result: record.result,
       winLoss: record.winLoss,
       realizedPnlUsdt: record.realizedPnlUsdt,
+      feesPaidUsdt: record.feesPaidUsdt,
+      netLearningSource: "completed reconciled trade after available costs",
       rolling20WinRatePct: this.memory.rolling.last20.winRatePct,
       adaptiveMode: this.memory.adaptive.mode,
+      continuationSetupType: record.continuationSetupType,
+      continuationStrength: record.continuationStrength,
+      marketPersonality: record.marketPersonality,
+      macroAligned: record.macroAligned,
     });
+    const bucket =
+      this.memory.stats.byContinuationSetup[record.continuationSetupType] ||
+      this.memory.stats.bySetupType[record.setupType];
+    if (bucket && bucket.count >= this.config.minAdaptiveBucketTrades) {
+      if (bucket.feeAdjustedPnlUsdt > 0 && bucket.profitFactor >= 1.1) {
+        this.log("INFO", "NET_POSITIVE_PATTERN_STRENGTHENED", {
+          setupType: record.continuationSetupType,
+          samples: bucket.count,
+          netPnlUsdt: bucket.feeAdjustedPnlUsdt,
+          profitFactor: bucket.profitFactor,
+        });
+      } else if (bucket.feeAdjustedPnlUsdt < 0 && bucket.profitFactor < 1) {
+        this.log("INFO", "NET_NEGATIVE_PATTERN_DOWNWEIGHTED", {
+          setupType: record.continuationSetupType,
+          samples: bucket.count,
+          netPnlUsdt: bucket.feeAdjustedPnlUsdt,
+          profitFactor: bucket.profitFactor,
+        });
+      }
+    }
   }
 
   rebuild() {
@@ -344,6 +438,28 @@ class AdaptiveEngine {
       (record) => record.eliteConditionKey || eliteConditionKeyFromSignal(record)
     );
     const byMarketPersonality = groupBy(records, (record) => record.marketPersonality || "UNKNOWN");
+    const byContinuationSetup = groupBy(records, (record) => record.continuationSetupType || record.setupType || "UNKNOWN");
+    const byContinuationStrength = groupBy(records, (record) => {
+      const strength = numeric(record.continuationStrength);
+      if (strength >= 80) return "ELITE_80_PLUS";
+      if (strength >= 65) return "STRONG_65_79";
+      if (strength >= 50) return "MODERATE_50_64";
+      return "WEAK_UNDER_50";
+    });
+    const bySymbolContinuation = groupBy(records, (record) =>
+      `${record.symbol}:${record.continuationSetupType || record.setupType || "UNKNOWN"}`
+    );
+    const bySymbolPersonality = groupBy(records, (record) =>
+      `${record.symbol}:${record.marketPersonality || "UNKNOWN"}`
+    );
+    const byMacroAlignment = groupBy(records, (record) =>
+      record.macroAligned ? "MACRO_ALIGNED" : record.macroContradicts ? "MACRO_CONTRA" : "MACRO_NEUTRAL"
+    );
+    const byCostBucket = groupBy(records, (record) => record.costBucket || costBucket(record.estimatedRoundTripCostPct));
+    const bySpreadBucket = groupBy(records, (record) => record.spreadBucket || spreadBucket(record.spreadPct));
+    const bySizeTier = groupBy(records, (record) => record.sizingTier || record.convictionTier || record.edgeTier || "UNKNOWN");
+    const byContinuationFlip = groupBy(records, (record) => record.continuationVsFlip || (record.isFlip ? "FLIP" : "OTHER"));
+    const byExecutionType = groupBy(records, (record) => record.executionType || "UNKNOWN");
 
     this.memory.stats = {
       all: summarize(records),
@@ -362,6 +478,16 @@ class AdaptiveEngine {
       byRegimeSession,
       byEliteCondition,
       byMarketPersonality,
+      byContinuationSetup,
+      byContinuationStrength,
+      bySymbolContinuation,
+      bySymbolPersonality,
+      byMacroAlignment,
+      byCostBucket,
+      bySpreadBucket,
+      bySizeTier,
+      byContinuationFlip,
+      byExecutionType,
       bestSymbols: leaderboard(bySymbol, "best"),
       worstSymbols: leaderboard(bySymbol, "worst"),
       bestSetups: leaderboard(bySetupType, "best"),
@@ -371,6 +497,9 @@ class AdaptiveEngine {
       bestMarketRegimes: leaderboard(byMarketRegimeType, "best"),
       worstMarketRegimes: leaderboard(byMarketRegimeType, "worst"),
       bestEliteConditions: leaderboard(byEliteCondition, "best"),
+      bestContinuationSetups: leaderboard(byContinuationSetup, "best"),
+      worstContinuationSetups: leaderboard(byContinuationSetup, "worst"),
+      bestSymbolSpecializations: leaderboard(bySymbolPersonality, "best"),
       drawdown: drawdown(records),
     };
     this.memory.adaptive.policy = this.buildPolicy();
@@ -591,7 +720,23 @@ class AdaptiveEngine {
       eliteConditionLeaderboard: {
         best: stats.bestEliteConditions || [],
       },
+      continuationLeaderboard: {
+        best: stats.bestContinuationSetups || [],
+        worst: stats.worstContinuationSetups || [],
+      },
+      symbolSpecializationLeaderboard: {
+        best: stats.bestSymbolSpecializations || [],
+      },
       marketPersonalityPerformance: stats.byMarketPersonality || {},
+      continuationPerformance: stats.byContinuationSetup || {},
+      continuationVsFlipPerformance: stats.byContinuationFlip || {},
+      continuationStrengthPerformance: stats.byContinuationStrength || {},
+      symbolContinuationPerformance: stats.bySymbolContinuation || {},
+      macroAlignmentPerformance: stats.byMacroAlignment || {},
+      costBucketPerformance: stats.byCostBucket || {},
+      spreadBucketPerformance: stats.bySpreadBucket || {},
+      sizeTierPerformance: stats.bySizeTier || {},
+      executionTypePerformance: stats.byExecutionType || {},
       regimeSessionPerformance: stats.byRegimeSession || {},
       bestWorstConditions: {
         best: leaderboard(stats.byCondition || {}, "best"),
@@ -671,6 +816,7 @@ class AdaptiveEngine {
       signal.breakoutTriggered ||
         signal.fomoTrigger ||
         signal.microBreakoutTriggered ||
+        numeric(signal.continuationStrength) >= this.config.continuationMinStrength + 12 ||
         (Array.isArray(signal.marketRegimeTags) && signal.marketRegimeTags.includes("HIGH_VOLATILITY_BREAKOUT_MARKET"))
     );
     return Boolean(
@@ -715,6 +861,21 @@ class AdaptiveEngine {
     const regimeSessionStats = this.statsFor("byRegimeSession", `${signal.marketRegimeType || signal.regime}:${currentSession}`);
     const eliteKey = signal.eliteConditionKey || eliteConditionKeyFromSignal(signal);
     const eliteStats = this.statsFor("byEliteCondition", eliteKey);
+    const continuationSetup = signal.continuationSetupType || signal.setupType;
+    const continuationStrength = numeric(signal.continuationStrength);
+    const continuationBucket =
+      continuationStrength >= 80 ? "ELITE_80_PLUS" :
+      continuationStrength >= 65 ? "STRONG_65_79" :
+      continuationStrength >= 50 ? "MODERATE_50_64" :
+      "WEAK_UNDER_50";
+    const continuationStats = this.statsFor("byContinuationSetup", continuationSetup);
+    const continuationStrengthStats = this.statsFor("byContinuationStrength", continuationBucket);
+    const symbolContinuationStats = this.statsFor("bySymbolContinuation", `${signal.symbol}:${continuationSetup}`);
+    const symbolPersonalityStats = this.statsFor("bySymbolPersonality", `${signal.symbol}:${signal.marketPersonality || "UNKNOWN"}`);
+    const macroStats = this.statsFor(
+      "byMacroAlignment",
+      signal.macroAligned ? "MACRO_ALIGNED" : signal.macroContradicts ? "MACRO_CONTRA" : "MACRO_NEUTRAL"
+    );
     const adjustments = [
       this.adjustmentFromStats(setupStats, 0.28),
       this.adjustmentFromStats(symbolStats, 0.24),
@@ -724,6 +885,11 @@ class AdaptiveEngine {
       this.adjustmentFromStats(marketRegimeStats, 0.24 * this.config.regimeMemoryWeight),
       this.adjustmentFromStats(regimeConditionStats, 0.34 * this.config.regimeMemoryWeight),
       this.adjustmentFromStats(regimeSessionStats, 0.2 * this.config.regimeMemoryWeight),
+      this.adjustmentFromStats(continuationStats, 0.28),
+      this.adjustmentFromStats(continuationStrengthStats, 0.18),
+      this.adjustmentFromStats(symbolContinuationStats, 0.3),
+      this.adjustmentFromStats(symbolPersonalityStats, 0.24),
+      this.adjustmentFromStats(macroStats, 0.14),
     ];
     let scoreAdjustment = adjustments.reduce((total, item) => total + item.adjustment, 0);
     const reasons = adjustments.flatMap((item) => item.reasons).filter(Boolean);
@@ -778,6 +944,28 @@ class AdaptiveEngine {
       leverageMultiplier *= 1 + Math.min(0.1, eliteBonus / 90);
       reasons.push(`elite memory matched: ${eliteKey} winrate ${eliteStats.winRatePct}% over ${eliteStats.count} samples`);
     }
+    if (continuationStats && continuationStats.count >= this.config.minAdaptiveBucketTrades && continuationStats.winRatePct >= 52 && continuationStats.feeAdjustedPnlUsdt > 0) {
+      const continuationBonus = clamp((continuationStats.winRatePct - 48) / 12 + Math.min(3, continuationStats.averagePnlPct), 0.75, 6);
+      scoreAdjustment += continuationBonus;
+      riskMultiplier *= 1 + Math.min(0.12, continuationBonus / 70);
+      reasons.push(`adaptive market memory matched continuation ${continuationSetup}: ${continuationStats.winRatePct}% winrate`);
+    }
+    if (this.config.symbolSpecializationEnabled && symbolContinuationStats && symbolContinuationStats.count >= this.config.minAdaptiveBucketTrades) {
+      if (symbolContinuationStats.winRatePct >= 55 && symbolContinuationStats.feeAdjustedPnlUsdt > 0) {
+        scoreAdjustment += 2;
+        riskMultiplier *= 1.04;
+        reasons.push(`symbol specialization memory: ${signal.symbol} ${continuationSetup} has favorable edge`);
+      } else if (symbolContinuationStats.winRatePct <= 35 && symbolContinuationStats.feeAdjustedPnlUsdt < 0) {
+        scoreAdjustment -= 2;
+        riskMultiplier *= 0.92;
+        reasons.push(`symbol specialization caution: ${signal.symbol} ${continuationSetup} has weak history`);
+      }
+    }
+    if (macroStats && macroStats.count >= this.config.minAdaptiveBucketTrades && signal.macroAligned && macroStats.feeAdjustedPnlUsdt > 0) {
+      scoreAdjustment += 1.5;
+      riskMultiplier *= 1.03;
+      reasons.push(`1h macro memory supports aligned trades: ${macroStats.winRatePct}% winrate`);
+    }
     if (numeric(signal.technicalConvictionScore) < this.config.minConvictionScore) {
       riskMultiplier *= 0.75;
       scoreAdjustment -= 5;
@@ -831,7 +1019,7 @@ class AdaptiveEngine {
         reasons.push(`self-tuning regime penalty: ${signal.marketRegimeType} has weak historical performance`);
       }
     }
-    if (sessionStats && sessionStats.count >= this.config.minAdaptiveBucketTrades) {
+    if (this.config.sessionAggressionEnabled && sessionStats && sessionStats.count >= this.config.minAdaptiveBucketTrades) {
       if (sessionStats.winRatePct >= 58 && sessionStats.feeAdjustedPnlUsdt > 0) {
         scoreAdjustment += 1.5;
         riskMultiplier *= 1.03;

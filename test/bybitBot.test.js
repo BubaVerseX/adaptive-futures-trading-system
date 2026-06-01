@@ -10,6 +10,10 @@ const { loadConfig } = require("../src/config");
 const { Scanner } = require("../src/scanner");
 const { AdaptiveEngine } = require("../src/adaptiveEngine");
 const { marketProfileFromBenchmarks, sessionProfile } = require("../src/marketRegime");
+const { classifyBybitError } = require("../src/bybitErrors");
+const { edgeGate } = require("../src/costModel");
+const { ExecutionLedger } = require("../src/executionLedger");
+const { ProfitObjectiveEngine } = require("../src/profitObjective");
 
 function config(overrides = {}) {
   const id = Math.random();
@@ -19,11 +23,13 @@ function config(overrides = {}) {
     apiSecret: "test-secret",
     apiRequestIntervalMs: 1,
     wsReconnectBaseMs: 1,
+    projectRoot: `/private/tmp/bybit-bot-project-${id}`,
     logFile: `/private/tmp/bybit-bot-test-${id}.log`,
     stateFile: `/private/tmp/bybit-bot-state-${id}.json`,
     tradesFile: `/private/tmp/bybit-bot-trades-${id}.json`,
     tradeMemoryFile: `/private/tmp/bybit-bot-memory-${id}.json`,
     analyticsFile: `/private/tmp/bybit-bot-analytics-${id}.json`,
+    executionLedgerFile: `/private/tmp/bybit-bot-ledger-${id}.json`,
     ...overrides,
   };
 }
@@ -113,7 +119,7 @@ async function testBybitNotModifiedIsInformational() {
     });
     assert.equal(response.notModified, true);
     assert.equal(requests, 1);
-    assert.ok(events.some((event) => event.message === "Bybit 34040 not modified treated as informational."));
+    assert.ok(events.some((event) => event.message === "BYBIT_NO_CHANGE_TREATED_AS_SUCCESS"));
   } finally {
     global.fetch = originalFetch;
   }
@@ -300,7 +306,7 @@ async function testNotModifiedDoesNotTriggerRecovery() {
     countError: true,
   });
   assert.equal(bot.store.state.consecutiveApiErrors, 2);
-  assert.ok(events.some((event) => event.message === "34040 treated as informational; recovery escalation avoided."));
+  assert.ok(events.some((event) => event.message === "BYBIT_NO_CHANGE_TREATED_AS_SUCCESS"));
 }
 
 async function testDuplicateTradingStopUpdateSkipped() {
@@ -325,8 +331,99 @@ async function testDuplicateTradingStopUpdateSkipped() {
   await bot.ensureNativeProtection(position);
   assert.equal(calls, 0);
   assert.equal(position.nativeProtectionVerified, true);
-  assert.ok(events.some((event) => event.message === "Unchanged TP/SL update skipped."));
+  assert.ok(events.some((event) => event.message === "UNCHANGED_TPSL_UPDATE_SKIPPED"));
   assert.ok(events.some((event) => event.message === "Native Bybit TP/SL protection already current."));
+}
+
+async function testCentralizedBybitErrorClassification() {
+  const error = new Error("Bybit request failed (HTTP 200, code 34040): not modified.");
+  error.retCode = 34040;
+  const classified = classifyBybitError(error);
+  assert.equal(classified.type, "IDEMPOTENT_SUCCESS_OR_NO_CHANGE");
+  assert.equal(classified.retryable, false);
+  assert.equal(classified.countsAsApiError, false);
+}
+
+async function testExecutionLedgerAggregatesAndDeduplicatesFills() {
+  const { events, log } = logCollector();
+  const cfg = config();
+  const ledger = new ExecutionLedger(cfg, log);
+  ledger.load();
+  ledger.beginTrade({ id: "logical-1", symbol: "BTCUSDT", side: "LONG", mode: "LIVE", status: "ENTRY_SUBMITTED" });
+  ledger.recordOrder("logical-1", { orderId: "order-1", orderLinkId: "link-1" }, "ENTRY_SUBMITTED");
+  assert.equal(ledger.logicalTradeIdForOrder({ orderId: "order-1" }), "logical-1");
+  const fill = { execId: "fill-1", orderId: "order-1", orderLinkId: "link-1", execQty: "0.010", execPrice: "70000", execFee: "0.04" };
+  const first = ledger.recordFill("logical-1", fill);
+  const duplicate = ledger.recordFill("logical-1", fill);
+  assert.equal(first.duplicate, false);
+  assert.equal(duplicate.duplicate, true);
+  assert.equal(Number(ledger.trade("logical-1").totalActualFeeUsdt.toFixed(8)), 0.04);
+  assert.equal(Number(ledger.trade("logical-1").totalFilledQty.toFixed(8)), 0.01);
+  assert.ok(events.some((event) => event.message === "Duplicate execution event ignored by execution ledger."));
+}
+
+async function testNetEdgeGateApprovesOnlyPostCostOpportunities() {
+  const cfg = config();
+  const bad = edgeGate(cfg, {
+    explorationTrade: true,
+    expectedMovePct: 0.2,
+    estimatedTpProbability: 0.35,
+    spreadPct: 0.12,
+    estimatedSlippagePct: 0.1,
+    feeEdgeRatio: 0.9,
+  }, { notional: 20, maxLossAtStopUsdt: 0.16 }, 70);
+  assert.equal(bad.rejected, true);
+  assert.match(bad.reason, /expected net edge|reward\/cost/i);
+
+  const good = edgeGate(cfg, {
+    continuationSetupType: "PULLBACK_CONTINUATION",
+    expectedMovePct: 1.6,
+    estimatedTpProbability: 0.72,
+    continuationStrength: 75,
+    spreadPct: 0.02,
+    estimatedSlippagePct: 0.03,
+    stopDistancePct: cfg.stopLossPct,
+    takeProfitDistancePct: cfg.takeProfitPct,
+  }, { notional: 80, maxLossAtStopUsdt: 0.64 }, 70);
+  assert.equal(good.rejected, false);
+  assert.equal(good.model.tier, "NORMAL_CONTINUATION");
+  assert.ok(good.model.projectedNetProfitUsdt > 0);
+  assert.ok(good.model.projectedTotalCostUsdt > 0);
+}
+
+async function testPortfolioRiskBlocksOnlyCriticalExecutionState() {
+  const bot = new LadderBot(config({ dryRun: false }));
+  bot.store.state = {
+    openPositions: [
+      {
+        id: "unprotected",
+        mode: "LIVE",
+        status: "OPEN",
+        symbol: "BTCUSDT",
+        side: "LONG",
+        stopLossPrice: 99,
+        takeProfitPrice: 101,
+        nativeProtectionVerified: false,
+        maxLossAtStopUsdt: 0.4,
+      },
+    ],
+    apiRecovery: { active: false },
+  };
+  let result = bot.portfolioRiskCheck({ symbol: "ETHUSDT", side: "LONG" }, { maxLossAtStopUsdt: 0.2 }, 70);
+  assert.equal(result.rejected, true);
+  assert.equal(result.humanReviewRequired, true);
+  assert.match(result.reason, /missing verified TP\/SL protection/);
+
+  bot.store.state.openPositions[0].nativeProtectionVerified = true;
+  bot.store.state.openPositions[0].maxLossAtStopUsdt = 0.5;
+  result = bot.portfolioRiskCheck({ symbol: "ETHUSDT", side: "LONG" }, { maxLossAtStopUsdt: 0.4 }, 70);
+  assert.equal(result.rejected, false);
+  assert.equal(result.currentRiskUsdt, 0.5);
+  assert.equal(result.candidateRiskUsdt, 0.4);
+
+  result = bot.portfolioRiskCheck({ symbol: "SOLUSDT", side: "LONG" }, { maxLossAtStopUsdt: 3 }, 70);
+  assert.equal(result.rejected, true);
+  assert.match(result.reason, /portfolio max loss/);
 }
 
 function reconciliationBot(position, trade, positions) {
@@ -574,6 +671,38 @@ async function testSurvivabilityScannerScoring() {
   assert.ok(weak.rejected.some((reason) => reason.includes("volume confirmation")));
   assert.ok(weak.rejected.some((reason) => reason.includes("momentum did not persist")));
   assert.ok(weak.rejected.some((reason) => reason.includes("anti-chop filter")));
+}
+
+async function testNextGenerationContinuationScoring() {
+  const { log } = logCollector();
+  const cfg = config({
+    min24hVolumeUsdt: 100000,
+    continuationEngineEnabled: true,
+    continuationMinStrength: 58,
+    candleIntervalMacro: "60M",
+    minSignalScore: 40,
+    minConvictionScore: 45,
+  });
+  const scanner = new Scanner(cfg, {}, log);
+  scanner.cachedBenchmarkDirections = { BTCUSDT: "UP", ETHUSDT: "UP" };
+  const market = marketProfileFromBenchmarks(cfg, scannerAnalysis(), scannerAnalysis());
+  const signal = scanner.scoreDirection(
+    "LONG",
+    { info: { symbol: "SOLUSDT" }, price: 100, volume: 12000000, spreadPct: 0.025 },
+    scannerAnalysis({ volumeSpike: 2.4, momentumPct: 0.28, lastCandleMomentumPct: 0.12, upMomentumCandles: 4 }),
+    scannerAnalysis({ volumeSpike: 2.0, momentumPct: 0.18, upMomentumCandles: 4 }),
+    scannerAnalysis({ momentumPct: 0.16, upMomentumCandles: 4 }),
+    scannerAnalysis({ momentumPct: 0.12, upMomentumCandles: 3 }),
+    market,
+    []
+  );
+  assert.equal(signal.trend1h, "UP");
+  assert.equal(signal.macroAligned, true);
+  assert.ok(signal.continuationStrength >= cfg.continuationMinStrength);
+  assert.notEqual(signal.continuationSetupType, "NONE");
+  assert.ok(signal.scoreBreakdown.some((reason) => reason.includes("high-frequency continuation engine")));
+  assert.ok(signal.scoreBreakdown.some((reason) => reason.includes("1h macro directional bias aligned")));
+  assert.ok(signal.smartProjectedNetEdgePct > 0);
 }
 
 async function testMarketRegimeClassification() {
@@ -849,7 +978,7 @@ async function testFeeAwareEntryAndDynamicSizing() {
     convictionScore: 90,
   });
   assert.equal(weakSmartEdge.rejected, true);
-  assert.match(weakSmartEdge.reason, /smart edge/i);
+  assert.match(weakSmartEdge.reason, /smart edge|EDGE_GATE/i);
 
   bot.store.state = {
     ladder: { activeLevel: 1, highestUnlockedLevel: 1, levelStartEquity: 100, riskDowngraded: false },
@@ -1071,6 +1200,12 @@ function memoryRecord(overrides = {}) {
     btcInstability: false,
     volatilityRegime: "NORMAL",
     volumeConditions: "CONFIRMED_VOLUME",
+    continuationSetupType: "CONTINUATION_BREAKOUT",
+    continuationStrength: 72,
+    marketPersonality: "HIGH_MOMENTUM_CONTINUATION",
+    macroTrend: "UP",
+    macroAligned: true,
+    macroContradicts: false,
     entryMomentumPct: 0.15,
     spreadPct: 0.04,
     slippagePct: 0.01,
@@ -1145,10 +1280,17 @@ async function testAdaptiveEnginePolicyAndConfidence() {
     btcTrendAligned: true,
     projectedNetEdgePct: 1.2,
     technicalConvictionScore: 80,
+    continuationSetupType: "CONTINUATION_BREAKOUT",
+    continuationStrength: 76,
+    marketPersonality: "HIGH_MOMENTUM_CONTINUATION",
+    macroAligned: true,
   });
   assert.ok(good.scoreAdjustment > 0);
   assert.ok(good.confidence > 50);
   assert.ok(good.reasons.some((reason) => reason.includes("adaptive regime confidence") || reason.includes("strong trending")));
+  assert.ok(good.reasons.some((reason) => reason.includes("adaptive market memory matched continuation") || reason.includes("symbol specialization memory")));
+  assert.ok(confident.analytics.continuationLeaderboard.best.length > 0);
+  assert.ok(confident.analytics.symbolSpecializationLeaderboard.best.length > 0);
 
   const bad = confident.evaluateSignal({
     symbol: "WIFUSDT",
@@ -1417,11 +1559,16 @@ async function run() {
   await testApiAutoRecoveryDoesNotShutdown();
   await testNotModifiedDoesNotTriggerRecovery();
   await testDuplicateTradingStopUpdateSkipped();
+  await testCentralizedBybitErrorClassification();
+  await testExecutionLedgerAggregatesAndDeduplicatesFills();
+  await testNetEdgeGateApprovesOnlyPostCostOpportunities();
+  await testPortfolioRiskBlocksOnlyCriticalExecutionState();
   await testReconciliation();
   await testLiveEntrySafetyUsesParsedUtaBalance();
   await testMarketRegimeClassification();
   await testFocusedUniverseRestriction();
   await testSurvivabilityScannerScoring();
+  await testNextGenerationContinuationScoring();
   await testExplorationSignalPath();
   await testExplorationMemoryRelaxation();
   await testFeeAwareStatsAndSymbolCooldown();
@@ -1435,7 +1582,7 @@ async function run() {
   await testContinuousExecutionClearsStaleTradeLimitPause();
   await testAggressiveLearningCooldownsAreAdvisory();
   await testForcedMarketSamplingPromotion();
-  console.log("Bybit client and bot tests passed: REST signing, 34040 informational handling, duplicate TP/SL skip, UTA balance parsing, live safety balance use, native protection payloads, WebSocket reconnect, API auto-recovery without shutdown, reconciliation, hedge exposure detection, native TP events, regime intelligence, focused BTC/ETH/SOL universe restriction, survivability scoring, exploration path, exploration memory relaxation, fee-aware stats, advisory symbol cooldowns, adaptive learning, cautious active recovery, activity floor, daily shutdown removal, forced market sampling, profit protection sizing, fee-aware entries, dynamic sizing, and continuation holds.");
+  console.log("Bybit client and bot tests passed: REST signing, centralized 34040 no-change handling, duplicate TP/SL skip, execution ledger fill dedupe, net edge gate, portfolio risk-at-stop checks, UTA balance parsing, live safety balance use, native protection payloads, WebSocket reconnect, API auto-recovery without shutdown, reconciliation, hedge exposure detection, native TP events, regime intelligence, focused BTC/ETH/SOL universe restriction, survivability scoring, next-generation continuation scoring, exploration path, exploration memory relaxation, fee-aware stats, advisory symbol cooldowns, adaptive learning, continuation market memory, cautious active recovery, activity floor, daily shutdown removal, forced market sampling, profit protection sizing, fee-aware entries, dynamic sizing, and continuation holds.");
 }
 
 run().catch((error) => {
