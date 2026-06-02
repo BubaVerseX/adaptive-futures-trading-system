@@ -25,8 +25,12 @@ function calculateCostModel(config, signal = {}, plan = null, equityUsdt = 0) {
     numeric(signal.takeProfitDistancePct),
     numeric(config.minExpectedMovePct)
   );
-  const estimatedEntryFeePct = numeric(signal.estimatedEntryFeePct, numeric(config.estimatedFeePctPerSide));
-  const estimatedExitFeePct = numeric(signal.estimatedExitFeePct, numeric(config.estimatedFeePctPerSide));
+  const entryIsMaker = /POST_ONLY|MAKER/i.test(String(signal.executionType || signal.intendedExecutionType || ""));
+  const defaultEntryFeePct = entryIsMaker
+    ? numeric(config.estimatedMakerFeePctPerSide, numeric(config.estimatedFeePctPerSide))
+    : numeric(config.estimatedTakerFeePctPerSide, numeric(config.estimatedFeePctPerSide));
+  const estimatedEntryFeePct = numeric(signal.estimatedEntryFeePct, defaultEntryFeePct);
+  const estimatedExitFeePct = numeric(signal.estimatedExitFeePct, numeric(config.estimatedTakerFeePctPerSide, numeric(config.estimatedFeePctPerSide)));
   const estimatedFundingPct = numeric(signal.estimatedFundingPct, numeric(config.estimatedFundingPct));
   const liveSpreadPct = numeric(signal.spreadPct);
   const conservativeSlippagePct = Math.max(

@@ -75,6 +75,16 @@ function initialState(config) {
       stage: 0,
       shutdownSuppressed: true,
     },
+    liveValidation: config.liveValidationMode
+      ? {
+          level: 0,
+          allocatedEquityLimitUsdt: config.liveValidationMaxAllocatedEquityUsdt,
+          riskState: "RISK_STATE_NORMAL",
+          promotionEligible: false,
+          promotionBlockedReasons: [],
+          namespace: "data/live-validation",
+        }
+      : null,
     telegramUpdateOffset: 0,
   };
 }
@@ -97,6 +107,9 @@ class StateStore {
     this.state.lastPrices = loaded.lastPrices || {};
     this.state.symbolCooldowns = loaded.symbolCooldowns || {};
     this.state.performance = { ...emptyPerformance(), ...(loaded.performance || {}) };
+    this.state.liveValidation = this.config.liveValidationMode
+      ? { ...initialState(this.config).liveValidation, ...(loaded.liveValidation || {}) }
+      : null;
     this.trades = Array.isArray(trades) ? trades : [];
     this.migrateExchange(loaded.exchange);
     this.resetCountersOnModeChange();
@@ -166,6 +179,7 @@ class StateStore {
     this.state.performance = emptyPerformance();
     this.state.consecutiveApiErrors = 0;
     this.state.apiRecovery = defaults.apiRecovery;
+    this.state.liveValidation = defaults.liveValidation;
     this.log("WARN", "Operating mode changed; performance counters reset for the new mode.", {
       fromMode: priorMode,
       toMode: mode,

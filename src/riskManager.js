@@ -34,6 +34,13 @@ function bounded(value, minimum, maximum) {
   return Math.max(minimum, Math.min(maximum, value));
 }
 
+function liveValidationRiskCapPct(config, convictionTier) {
+  if (convictionTier === "TIER_3_ELITE_SETUP") return config.liveValidationEliteRiskAtStopMaxPct;
+  if (convictionTier === "TIER_2_STRONG_SETUP") return config.liveValidationStrongRiskAtStopMaxPct;
+  if (convictionTier === "TIER_1_EXPLORATORY") return config.liveValidationExplorationRiskAtStopMaxPct;
+  return config.liveValidationNormalRiskAtStopMaxPct;
+}
+
 function closedLossStreak(trades, mode) {
   const closed = trades
     .filter((trade) => trade.mode === mode && trade.status === "CLOSED")
@@ -353,6 +360,7 @@ class RiskManager {
     qualitySizeMultiplier *= Number(signal.continuousRecoveryRiskMultiplier || 1);
     qualitySizeMultiplier *= Number(signal.regimeRiskMultiplier || 1);
     qualitySizeMultiplier *= Number(signal.profitProtectionRiskMultiplier || 1);
+    qualitySizeMultiplier *= Number(signal.liveValidationRiskMultiplier || 1);
     const openPositions = Array.isArray(this.store.state.openPositions) ? this.store.state.openPositions : [];
     const sameDirectionCluster = openPositions.filter((position) => position.side === signal.side).length;
     const clusterMultiplier = sameDirectionCluster > 0 ? this.config.correlatedClusterRiskMultiplier : 1;
@@ -361,11 +369,16 @@ class RiskManager {
     }
     const convictionScale = bounded(Math.max(Number(signal.convictionScore || 0), continuationStrength) / 100, 0, 1);
     const baseRiskAtStopPct = riskAtStopMinPct + (riskAtStopMaxPct - riskAtStopMinPct) * convictionScale;
-    const riskPct = bounded(
+    let riskPct = bounded(
       baseRiskAtStopPct * adaptiveRiskMultiplier * qualitySizeMultiplier * clusterMultiplier,
       this.config.explorationRiskAtStopMinPct * 0.5,
       this.config.eliteRiskAtStopMaxPct
     );
+    const validationRiskCapPct = this.config.liveValidationMode ? liveValidationRiskCapPct(this.config, convictionTier) : null;
+    if (validationRiskCapPct !== null && riskPct > validationRiskCapPct) {
+      riskPct = validationRiskCapPct;
+      reasonsForSizingTier.push(`live validation cap applied: max loss at stop <= ${validationRiskCapPct}% of allocated validation equity`);
+    }
     // Position size uses only the unlocked milestone floor, never transient profit above it.
     const sizingEquity = Math.max(0, Math.min(equity, level.floor));
     const riskUsdt = sizingEquity * (riskPct / 100);
@@ -446,6 +459,9 @@ class RiskManager {
       tierMarginMaxUsdt: tierMarginMax,
       explorationSizing: Boolean(signal.explorationTrade),
       continuousRecoveryRiskMultiplier: Number(signal.continuousRecoveryRiskMultiplier || 1),
+      liveValidationRiskMultiplier: Number(signal.liveValidationRiskMultiplier || 1),
+      liveValidationRiskState: signal.liveValidationRiskState || null,
+      liveValidationRiskCapPct: validationRiskCapPct,
       riskUsdt: Number(riskUsdt.toFixed(6)),
       stopLossPrice: roundedPrice(signal.price * (isLong ? 1 - stopDistance : 1 + stopDistance), tickSize, !isLong),
       takeProfitPrice: runnerTakeProfitPrice,

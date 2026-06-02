@@ -3,6 +3,7 @@
 const assert = require("node:assert/strict");
 const EventEmitter = require("node:events");
 const fs = require("node:fs");
+const packageJson = require("../package.json");
 
 const { BybitClient, intervalForApi, normalizedOrderStatus, parseUnifiedUsdtBalance, queryString } = require("../src/bybitClient");
 const { LadderBot } = require("../src/bot");
@@ -14,6 +15,12 @@ const { classifyBybitError } = require("../src/bybitErrors");
 const { edgeGate } = require("../src/costModel");
 const { ExecutionLedger } = require("../src/executionLedger");
 const { ProfitObjectiveEngine } = require("../src/profitObjective");
+const {
+  allocatedEquityLimitUsdt,
+  liveValidationAllocation,
+  promotionEvaluation,
+  riskStateEvaluation,
+} = require("../src/liveValidation");
 
 function config(overrides = {}) {
   const id = Math.random();
@@ -30,6 +37,7 @@ function config(overrides = {}) {
     tradeMemoryFile: `/private/tmp/bybit-bot-memory-${id}.json`,
     analyticsFile: `/private/tmp/bybit-bot-analytics-${id}.json`,
     executionLedgerFile: `/private/tmp/bybit-bot-ledger-${id}.json`,
+    reportsDir: `/private/tmp/bybit-bot-reports-${id}`,
     ...overrides,
   };
 }
@@ -37,6 +45,394 @@ function config(overrides = {}) {
 function logCollector() {
   const events = [];
   return { events, log: (level, message, details = {}) => events.push({ level, message, details }) };
+}
+
+function withEnv(overrides, callback) {
+  const previous = {};
+  for (const key of Object.keys(overrides)) previous[key] = process.env[key];
+  try {
+    for (const [key, value] of Object.entries(overrides)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    return callback();
+  } finally {
+    for (const key of Object.keys(overrides)) {
+      if (previous[key] === undefined) delete process.env[key];
+      else process.env[key] = previous[key];
+    }
+  }
+}
+
+async function testDemoTradingConfigUsesDemoOnlyEndpoints() {
+  const demoConfig = withEnv(
+    {
+      BYBIT_API_KEY: "demo-key",
+      BYBIT_API_SECRET: "demo-secret",
+      BYBIT_DEMO_TRADING: "true",
+      BYBIT_TESTNET: "false",
+      DRY_RUN: "false",
+      ACKNOWLEDGE_DEMO_TRADING: "true",
+      ACKNOWLEDGE_LIVE_TRADING: "false",
+      BYBIT_REST_BASE_URL: "",
+      BYBIT_WS_BASE_URL: "",
+      BYBIT_PUBLIC_WS_BASE_URL: "",
+      BYBIT_PRIVATE_WS_BASE_URL: "",
+    },
+    () => loadConfig()
+  );
+  assert.equal(demoConfig.exchangeEnvironment, "DEMO");
+  assert.equal(demoConfig.restBaseUrl, "https://api-demo.bybit.com");
+  assert.equal(demoConfig.publicWsBaseUrl, "wss://stream.bybit.com");
+  assert.equal(demoConfig.privateWsBaseUrl, "wss://stream-demo.bybit.com");
+  assert.ok(demoConfig.stateFile.endsWith("/data/demo/state.json"));
+  assert.ok(demoConfig.executionLedgerFile.endsWith("/data/demo/executionLedger.json"));
+
+  assert.throws(
+    () =>
+      withEnv(
+        {
+          BYBIT_API_KEY: "demo-key",
+          BYBIT_API_SECRET: "demo-secret",
+          BYBIT_DEMO_TRADING: "true",
+          BYBIT_TESTNET: "false",
+          DRY_RUN: "false",
+          ACKNOWLEDGE_DEMO_TRADING: "true",
+          BYBIT_REST_BASE_URL: "https://api.bybit.com",
+        },
+        () => loadConfig()
+      ),
+    /Demo trading requires BYBIT_REST_BASE_URL/
+  );
+
+  assert.throws(
+    () =>
+      withEnv(
+        {
+          BYBIT_API_KEY: "demo-key",
+          BYBIT_API_SECRET: "demo-secret",
+          BYBIT_DEMO_TRADING: "true",
+          BYBIT_TESTNET: "false",
+          DRY_RUN: "false",
+          ACKNOWLEDGE_DEMO_TRADING: "true",
+          ACKNOWLEDGE_LIVE_TRADING: "true",
+          BYBIT_REST_BASE_URL: "",
+          BYBIT_WS_BASE_URL: "",
+          BYBIT_PUBLIC_WS_BASE_URL: "",
+          BYBIT_PRIVATE_WS_BASE_URL: "",
+        },
+        () => loadConfig()
+      ),
+    /ACKNOWLEDGE_LIVE_TRADING=true/
+  );
+}
+
+async function testLiveValidationConfigGuards() {
+  assert.doesNotMatch(packageJson.scripts["live:validate"], /ACKNOWLEDGE_LIVE_VALIDATION_RISK=true/);
+  assert.doesNotMatch(packageJson.scripts["live:validate"], /ACKNOWLEDGE_LIVE_TRADING=true/);
+  assert.match(packageJson.scripts["live:validate"], /LIVE_VALIDATION_MODE=true/);
+  assert.match(packageJson.scripts["live:validate"], /LIVE_VALIDATION_MAX_ALLOCATED_EQUITY_USDT=10/);
+
+  const liveConfig = withEnv(
+    {
+      BYBIT_API_KEY: "live-key",
+      BYBIT_API_SECRET: "live-secret",
+      BYBIT_DEMO_TRADING: "false",
+      BYBIT_TESTNET: "false",
+      DRY_RUN: "false",
+      LIVE_VALIDATION_MODE: "true",
+      ACKNOWLEDGE_LIVE_VALIDATION_RISK: "true",
+      ACKNOWLEDGE_LIVE_TRADING: "true",
+      ACKNOWLEDGE_HIGH_LEVERAGE_RISK: "true",
+      LIVE_VALIDATION_MAX_ALLOCATED_EQUITY_USDT: "10",
+      BYBIT_REST_BASE_URL: "",
+      BYBIT_WS_BASE_URL: "",
+      BYBIT_PUBLIC_WS_BASE_URL: "",
+      BYBIT_PRIVATE_WS_BASE_URL: "",
+    },
+    () => loadConfig()
+  );
+  assert.equal(liveConfig.exchangeEnvironment, "LIVE_VALIDATION");
+  assert.equal(liveConfig.liveValidationMode, true);
+  assert.equal(liveConfig.restBaseUrl, "https://api.bybit.com");
+  assert.equal(liveConfig.privateWsBaseUrl, "wss://stream.bybit.com");
+  assert.ok(liveConfig.stateFile.endsWith("/data/live-validation/state.json"));
+  assert.ok(liveConfig.executionLedgerFile.endsWith("/data/live-validation/executionLedger.json"));
+
+  assert.throws(
+    () =>
+      withEnv(
+        {
+          BYBIT_API_KEY: "live-key",
+          BYBIT_API_SECRET: "live-secret",
+          BYBIT_DEMO_TRADING: "false",
+          BYBIT_TESTNET: "false",
+          DRY_RUN: "false",
+          LIVE_VALIDATION_MODE: "true",
+          ACKNOWLEDGE_LIVE_VALIDATION_RISK: "false",
+          ACKNOWLEDGE_LIVE_TRADING: "true",
+          ACKNOWLEDGE_HIGH_LEVERAGE_RISK: "true",
+        },
+        () => loadConfig()
+      ),
+    /LIVE VALIDATION NOT STARTED — REAL-MONEY ACKNOWLEDGEMENT REQUIRED/
+  );
+
+  assert.throws(
+    () =>
+      withEnv(
+        {
+          BYBIT_API_KEY: "live-key",
+          BYBIT_API_SECRET: "live-secret",
+          BYBIT_DEMO_TRADING: "false",
+          BYBIT_TESTNET: "false",
+          DRY_RUN: "false",
+          LIVE_VALIDATION_MODE: "true",
+          ACKNOWLEDGE_LIVE_VALIDATION_RISK: "true",
+          ACKNOWLEDGE_LIVE_TRADING: "false",
+          ACKNOWLEDGE_HIGH_LEVERAGE_RISK: "true",
+        },
+        () => loadConfig()
+      ),
+    /LIVE VALIDATION NOT STARTED — REAL-MONEY ACKNOWLEDGEMENT REQUIRED/
+  );
+
+  assert.throws(
+    () =>
+      withEnv(
+        {
+          BYBIT_API_KEY: "live-key",
+          BYBIT_API_SECRET: "live-secret",
+          BYBIT_DEMO_TRADING: "false",
+          BYBIT_TESTNET: "true",
+          DRY_RUN: "false",
+          LIVE_VALIDATION_MODE: "true",
+          ACKNOWLEDGE_LIVE_VALIDATION_RISK: "true",
+          ACKNOWLEDGE_LIVE_TRADING: "true",
+          ACKNOWLEDGE_HIGH_LEVERAGE_RISK: "true",
+        },
+        () => loadConfig()
+      ),
+    /BYBIT_DEMO_TRADING=false and BYBIT_TESTNET=false/
+  );
+
+  assert.throws(
+    () =>
+      withEnv(
+        {
+          BYBIT_API_KEY: "live-key",
+          BYBIT_API_SECRET: "live-secret",
+          BYBIT_DEMO_TRADING: "false",
+          BYBIT_TESTNET: "false",
+          DRY_RUN: "false",
+          LIVE_VALIDATION_MODE: "true",
+          ACKNOWLEDGE_LIVE_VALIDATION_RISK: "true",
+          ACKNOWLEDGE_LIVE_TRADING: "true",
+          ACKNOWLEDGE_HIGH_LEVERAGE_RISK: "true",
+          LIVE_VALIDATION_MAX_ALLOCATED_EQUITY_USDT: "20",
+        },
+        () => loadConfig()
+      ),
+    /cannot exceed 10/
+  );
+
+  assert.throws(
+    () =>
+      withEnv(
+        {
+          BYBIT_API_KEY: "live-key",
+          BYBIT_API_SECRET: "live-secret",
+          BYBIT_DEMO_TRADING: "false",
+          BYBIT_TESTNET: "false",
+          DRY_RUN: "false",
+          LIVE_VALIDATION_MODE: "true",
+          ACKNOWLEDGE_LIVE_VALIDATION_RISK: "true",
+          ACKNOWLEDGE_LIVE_TRADING: "true",
+          ACKNOWLEDGE_HIGH_LEVERAGE_RISK: "true",
+          BYBIT_REST_BASE_URL: "https://api-demo.bybit.com",
+        },
+        () => loadConfig()
+      ),
+    /live mainnet REST endpoint/
+  );
+}
+
+function instrument(symbol, overrides = {}) {
+  return {
+    symbol,
+    status: "Trading",
+    priceFilter: { tickSize: overrides.tickSize || "0.01" },
+    lotSizeFilter: {
+      qtyStep: overrides.qtyStep || "0.001",
+      minOrderQty: overrides.minOrderQty || "0.001",
+      minNotionalValue: overrides.minNotionalValue || "1",
+    },
+  };
+}
+
+async function testLiveValidationStartupChecksProceedWithoutOrders() {
+  const { events, log } = logCollector();
+  let orderCalls = 0;
+  const bot = new LadderBot(config({
+    dryRun: false,
+    liveValidationMode: true,
+    liveValidationMaxAllocatedEquityUsdt: 10,
+    liveValidationPromotionEnabled: true,
+    bybitTestnet: false,
+    bybitDemoTrading: false,
+    exchangeEnvironment: "LIVE_VALIDATION",
+    restBaseUrl: "https://api.bybit.com",
+    publicWsBaseUrl: "wss://stream.bybit.com",
+    privateWsBaseUrl: "wss://stream.bybit.com",
+    acknowledgeLiveValidationRisk: true,
+    acknowledgeLiveTrading: true,
+  }));
+  bot.log = log;
+  bot.store.state = {
+    mode: "LIVE",
+    liveValidation: { level: 0, allocatedEquityLimitUsdt: 10 },
+    openPositions: [],
+    apiRecovery: { active: false },
+    consecutiveApiErrors: 0,
+    equity: { startingUsdt: 70, currentUsdt: 70, realizedPnlUsdt: 0 },
+    ladder: { activeLevel: 1, highestUnlockedLevel: 1, levelStartEquity: 100, riskDowngraded: false },
+    performance: {},
+  };
+  bot.store.trades = [];
+  bot.store.saveState = () => {};
+  bot.store.saveAll = () => {};
+  bot.risk.store = bot.store;
+  bot.client = {
+    getSymbols: async () => [instrument("BTCUSDT"), instrument("ETHUSDT"), instrument("SOLUSDT")],
+    getUsdtBalance: async () => ({ available: 10, equity: 70 }),
+    getPositions: async () => [],
+    placeMarketOrder: async () => {
+      orderCalls += 1;
+    },
+    placeLimitOrder: async () => {
+      orderCalls += 1;
+    },
+  };
+  await bot.initializeLiveSafety();
+  assert.equal(orderCalls, 0);
+  assert.ok(events.some((event) => event.message === "USER_ACKNOWLEDGEMENT_CONFIRMED"));
+  assert.ok(events.some((event) => event.message === "MAINNET_ENDPOINT_CONFIRMED"));
+  assert.ok(events.some((event) => event.message === "VALIDATION_ALLOCATION_LIMIT_USDT"));
+  assert.ok(events.some((event) => event.message === "INSTRUMENT_RULES_LOADED"));
+  assert.ok(events.some((event) => event.message === "MINIMUM_ORDER_FEASIBILITY_CHECK_PASSED"));
+  assert.ok(events.some((event) => event.message === "EXISTING_POSITIONS_RECONCILED"));
+  assert.ok(events.some((event) => event.message === "PROTECTION_STATUS_CONFIRMED"));
+}
+
+async function testLiveValidationInstrumentRuleFailureBlocksExposure() {
+  const { events, log } = logCollector();
+  const bot = new LadderBot(config({
+    dryRun: false,
+    liveValidationMode: true,
+    liveValidationMaxAllocatedEquityUsdt: 10,
+  }));
+  bot.log = log;
+  bot.store.state = {
+    mode: "LIVE",
+    liveValidation: { level: 0, allocatedEquityLimitUsdt: 10 },
+    openPositions: [],
+    apiRecovery: { active: false },
+    consecutiveApiErrors: 0,
+  };
+  bot.store.saveState = () => {};
+  bot.client = {
+    getSymbols: async () => [instrument("BTCUSDT"), instrument("ETHUSDT")],
+  };
+  await assert.rejects(() => bot.loadFocusedInstrumentRules(), /instrument rules missing/);
+  assert.equal(bot.store.state.liveValidation.riskState, "RISK_STATE_PROTECTION_ONLY");
+  assert.ok(events.some((event) => event.message === "HUMAN_REVIEW_REQUIRED"));
+}
+
+function validationTrade(id, pnlUsdt, overrides = {}) {
+  return {
+    id,
+    mode: "LIVE",
+    status: "CLOSED",
+    symbol: "BTCUSDT",
+    side: "LONG",
+    setupType: "TREND_CONTINUATION",
+    continuationSetupType: "TREND_CONTINUATION",
+    pnlUsdt,
+    netPnlAfterCostsUsdt: pnlUsdt,
+    grossPnlUsdt: pnlUsdt + 0.01,
+    feesUsdt: 0.01,
+    exitedAt: new Date(Date.now() + Number(id.replace(/\D/g, "")) * 1000).toISOString(),
+    ...overrides,
+  };
+}
+
+async function testLiveValidationAllocationPromotionAndRiskStates() {
+  const cfg = config({
+    liveValidationMode: true,
+    liveValidationMaxAllocatedEquityUsdt: 10,
+    liveValidationPromotionEnabled: true,
+    liveValidationProtectionDrawdownPct: 15,
+    liveValidationMaxFeeToGrossProfitRatio: 0.65,
+    liveValidationReducedFeeDragRatio: 0.8,
+    liveValidationReducedRiskMultiplier: 0.6,
+  });
+  const state = { liveValidation: { level: 0 }, apiRecovery: { active: false } };
+  assert.equal(allocatedEquityLimitUsdt(cfg, state), 10);
+  assert.equal(liveValidationAllocation(cfg, state, 70, 58), 10);
+  assert.equal(liveValidationAllocation(cfg, state, 7, 58), 7);
+
+  const profitable = Array.from({ length: 50 }, (_, index) => validationTrade(`win-${index}`, 0.03));
+  const promotion = promotionEvaluation({
+    config: cfg,
+    state,
+    trades: profitable,
+    executionLedger: {},
+    openPositions: [],
+    unresolvedReason: null,
+  });
+  assert.equal(promotion.eligible, true);
+  assert.equal(promotion.nextLevel, 1);
+  assert.equal(promotion.nextAllocatedEquityLimitUsdt, 20);
+
+  const losing = Array.from({ length: 50 }, (_, index) => validationTrade(`loss-${index}`, -0.02));
+  const blocked = promotionEvaluation({ config: cfg, state, trades: losing, executionLedger: {}, openPositions: [] });
+  assert.equal(blocked.eligible, false);
+  assert.ok(blocked.blockedReasons.some((reason) => /net PnL/.test(reason)));
+
+  const level2 = promotionEvaluation({
+    config: cfg,
+    state: { liveValidation: { level: 2 }, apiRecovery: { active: false } },
+    trades: profitable.concat(profitable.map((trade, index) => ({ ...trade, id: `w2-${index}` }))),
+    executionLedger: {},
+    openPositions: [],
+  });
+  assert.equal(level2.eligible, false);
+  assert.ok(level2.blockedReasons.some((reason) => /beyond 35 USDT/.test(reason)));
+
+  const reduced = riskStateEvaluation({
+    config: cfg,
+    state,
+    trades: Array.from({ length: 8 }, (_, index) => validationTrade(`r-${index}`, -0.08)),
+    openPositions: [],
+  });
+  assert.equal(reduced.state, "RISK_STATE_REDUCED");
+  assert.equal(reduced.riskMultiplier, 0.6);
+
+  const protection = riskStateEvaluation({
+    config: cfg,
+    state,
+    trades: Array.from({ length: 6 }, (_, index) => validationTrade(`p-${index}`, -0.3)),
+    openPositions: [],
+  });
+  assert.equal(protection.state, "RISK_STATE_PROTECTION_ONLY");
+
+  const unprotected = riskStateEvaluation({
+    config: cfg,
+    state,
+    trades: [],
+    openPositions: [{ mode: "LIVE", symbol: "BTCUSDT", nativeProtectionVerified: false, stopLossPrice: 99, takeProfitPrice: 103 }],
+  });
+  assert.equal(unprotected.state, "RISK_STATE_PROTECTION_ONLY");
 }
 
 async function testClientContracts() {
@@ -1080,6 +1476,234 @@ async function testFeeAwareEntryAndDynamicSizing() {
   assert.ok(explorationPlan.qualitySizeMultiplier <= bot.config.explorationRiskMultiplier);
 }
 
+async function testLiveValidationSizingExecutionAndReentryControls() {
+  const bot = new LadderBot(config({
+    dryRun: false,
+    liveValidationMode: true,
+    liveValidationMaxAllocatedEquityUsdt: 10,
+    liveValidationEliteRiskAtStopMaxPct: 0.75,
+    liveValidationStrongRiskAtStopMaxPct: 0.5,
+    liveValidationNormalRiskAtStopMaxPct: 0.35,
+    liveValidationExplorationRiskAtStopMaxPct: 0.2,
+    enablePostOnlyEntries: true,
+    minEdgeToCostRatio: 1.8,
+  }));
+  bot.store.state = {
+    mode: "LIVE",
+    liveValidation: { level: 0, allocatedEquityLimitUsdt: 10 },
+    ladder: { activeLevel: 1, highestUnlockedLevel: 1, levelStartEquity: 100, riskDowngraded: false },
+    openPositions: [],
+    daily: { startingEquity: 70, tradesOpened: 0, losingTrades: 0, realizedPnlUsdt: 0 },
+    symbolCooldowns: {},
+    apiRecovery: { active: false },
+    consecutiveApiErrors: 0,
+  };
+  bot.risk.store = bot.store;
+  const symbolInfo = {
+    lotSizeFilter: { qtyStep: "0.001", minOrderQty: "0.001", minNotionalValue: "1" },
+    priceFilter: { tickSize: "0.01" },
+  };
+  const elitePlan = bot.risk.sizingPlan(
+    {
+      score: 96,
+      price: 10,
+      side: "LONG",
+      convictionScore: 95,
+      liquidityScore: 90,
+      btcTrendAligned: true,
+      volumeCondition: "STRONG_VOLUME_SPIKE",
+      projectedNetEdgePct: 1.6,
+      smartProjectedNetEdgePct: 1.1,
+      feeEdgeRatio: 4,
+      adaptiveRiskMultiplier: 1.4,
+      eliteSetup: true,
+      liveValidationRiskState: "RISK_STATE_NORMAL",
+      liveValidationRiskMultiplier: 1,
+    },
+    10,
+    symbolInfo,
+    8
+  );
+  assert.equal(elitePlan.rejected, false);
+  assert.equal(elitePlan.liveValidationRiskCapPct, 0.75);
+  assert.ok(elitePlan.riskPctOfEquity <= 0.75);
+  assert.ok(elitePlan.reasonsForSizingTier.some((reason) => /live validation cap/.test(reason)));
+
+  const reducedPlan = bot.risk.sizingPlan(
+    {
+      score: 82,
+      price: 10,
+      side: "LONG",
+      convictionScore: 82,
+      liquidityScore: 82,
+      btcTrendAligned: true,
+      volumeCondition: "STRONG_VOLUME_SPIKE",
+      projectedNetEdgePct: 1.2,
+      feeEdgeRatio: 3,
+      liveValidationRiskState: "RISK_STATE_REDUCED",
+      liveValidationRiskMultiplier: 0.6,
+    },
+    10,
+    symbolInfo,
+    8
+  );
+  assert.equal(reducedPlan.rejected, false);
+  assert.equal(reducedPlan.liveValidationRiskMultiplier, 0.6);
+  assert.ok(reducedPlan.riskPctOfEquity < elitePlan.riskPctOfEquity);
+
+  const makerSignal = {
+    continuationSetupType: "BREAKOUT_RETEST",
+    edgeModel: { expectedRewardCostRatio: bot.config.edgeNormalMinRewardCostRatio + 0.5 },
+  };
+  assert.equal(bot.executionTypeForSignal(makerSignal), "POST_ONLY_LIMIT");
+  assert.equal(bot.executionTypeForSignal({ ...makerSignal, fomoTrigger: true }), "MARKET_TAKER");
+
+  const edgeDetails = bot.liveValidationEdgeExecutionDetails(
+    { symbol: "BTCUSDT", side: "LONG", setupType: "BREAKOUT_RETEST" },
+    { notional: 25, maxLossAtStopUsdt: 0.05 },
+    {
+      projectedGrossProfitUsdt: 0.4,
+      estimatedEntryFeePct: 0.02,
+      estimatedExitFeePct: 0.055,
+      liveSpreadPct: 0.01,
+      conservativeSlippagePct: 0.03,
+      estimatedFundingPct: 0,
+      projectedTotalCostUsdt: 0.025,
+      projectedNetProfitUsdt: 0.18,
+      expectedRewardRiskRatio: 2,
+      expectedRewardCostRatio: 4,
+    }
+  );
+  assert.equal(edgeDetails.edgeGateResult, "APPROVED");
+  assert.equal(edgeDetails.expectedEntryFeeUsdt, 0.005);
+  assert.equal(edgeDetails.expectedExitFeeUsdt, 0.01375);
+
+  bot.store.trades = [
+    validationTrade("recent-loss", -0.2, {
+      symbol: "BTCUSDT",
+      side: "LONG",
+      exitedAt: new Date(Date.now() - 60 * 1000).toISOString(),
+    }),
+  ];
+  const weakReentry = bot.intelligentReentrySignal({
+    symbol: "BTCUSDT",
+    side: "LONG",
+    multiTimeframeAligned: true,
+    breakoutTriggered: true,
+    momentumPersistenceCandles: 2,
+    continuationStrength: bot.config.continuationMinStrength + 2,
+    smartProjectedNetEdgePct: bot.config.smartEdgeMinNetPct,
+    feeEdgeRatio: bot.config.minEdgeToCostRatio,
+    continuationSetupType: "TREND_CONTINUATION",
+  });
+  assert.equal(weakReentry, false);
+
+  const freshReentry = bot.intelligentReentrySignal({
+    symbol: "BTCUSDT",
+    side: "LONG",
+    multiTimeframeAligned: true,
+    breakoutTriggered: true,
+    momentumPersistenceCandles: 3,
+    continuationStrength: bot.config.continuationMinStrength + 14,
+    smartProjectedNetEdgePct: bot.config.smartEdgeMinNetPct + 0.12,
+    feeEdgeRatio: bot.config.minEdgeToCostRatio + 0.3,
+    continuationSetupType: "BREAKOUT_RETEST",
+  });
+  assert.equal(freshReentry, true);
+
+  bot.store.trades = [
+    validationTrade("recent-short", -0.1, {
+      symbol: "ETHUSDT",
+      side: "SHORT",
+      exitedAt: new Date(Date.now() - 30 * 1000).toISOString(),
+    }),
+  ];
+  const flip = bot.flipEntryCheck({
+    symbol: "ETHUSDT",
+    side: "LONG",
+    continuationStrength: 40,
+    smartProjectedNetEdgePct: 0.1,
+    projectedNetEdgePct: 0.1,
+    feeEdgeRatio: 1,
+    convictionScore: 55,
+  });
+  assert.equal(flip.rejected, true);
+}
+
+async function testLiveValidationMinimumOrderFeasibility() {
+  const { events, log } = logCollector();
+  const bot = new LadderBot(config({
+    dryRun: false,
+    liveValidationMode: true,
+    liveValidationMaxAllocatedEquityUsdt: 10,
+    liveValidationNormalRiskAtStopMaxPct: 0.35,
+    liveValidationEliteRiskAtStopMaxPct: 0.75,
+  }));
+  bot.log = log;
+  bot.instrumentRulesBySymbol.set("ETHUSDT", instrument("ETHUSDT", {
+    qtyStep: "0.001",
+    minOrderQty: "0.001",
+    minNotionalValue: "1",
+  }));
+  const feasible = bot.liveValidationOrderFeasibility(
+    {
+      symbol: "ETHUSDT",
+      side: "LONG",
+      price: 100,
+      tradeCategory: "HIGH_CONVICTION",
+    },
+    {
+      size: "0.020",
+      notional: 2,
+      leverage: 8,
+      riskPct: 0.35,
+      liveValidationRiskCapPct: 0.35,
+    },
+    10,
+    {
+      expectedNetEdgePct: 0.5,
+      estimatedEntryFeePct: 0.02,
+      estimatedExitFeePct: 0.055,
+    }
+  );
+  assert.equal(feasible.rejected, false);
+  assert.ok(feasible.finalRoundedMaxLossAtStopUsdt <= feasible.allowedMaxLossAtStopUsdt);
+  assert.ok(events.some((event) => event.message === "FINAL_ROUNDED_MAX_LOSS_AT_STOP_USDT"));
+  assert.ok(events.some((event) => event.message === "LIVE_VALIDATION_ORDER_SIZE_FEASIBLE"));
+
+  bot.instrumentRulesBySymbol.set("BTCUSDT", instrument("BTCUSDT", {
+    qtyStep: "0.001",
+    minOrderQty: "0.100",
+    minNotionalValue: "1",
+  }));
+  const rejected = bot.liveValidationOrderFeasibility(
+    {
+      symbol: "BTCUSDT",
+      side: "LONG",
+      price: 100,
+      eliteSetup: true,
+      tradeCategory: "ELITE_SETUP",
+    },
+    {
+      size: "0.001",
+      notional: 0.1,
+      leverage: 8,
+      riskPct: 0.75,
+      liveValidationRiskCapPct: 0.75,
+    },
+    10,
+    {
+      expectedNetEdgePct: 1,
+      estimatedEntryFeePct: 0.02,
+      estimatedExitFeePct: 0.055,
+    }
+  );
+  assert.equal(rejected.rejected, true);
+  assert.match(rejected.reason, /smallest executable order exceeds/);
+  assert.ok(events.some((event) => event.message === "ORDER_BELOW_EXCHANGE_MINIMUM"));
+  assert.ok(events.some((event) => event.message === "ROUNDED_ORDER_EXCEEDS_RISK_LIMIT"));
+}
+
 async function testProfitProtectionReducesExplorationAndRisk() {
   const bot = new LadderBot(config({
     dryRun: true,
@@ -1551,6 +2175,10 @@ async function testForcedMarketSamplingPromotion() {
 }
 
 async function run() {
+  await testDemoTradingConfigUsesDemoOnlyEndpoints();
+  await testLiveValidationConfigGuards();
+  await testLiveValidationStartupChecksProceedWithoutOrders();
+  await testLiveValidationInstrumentRuleFailureBlocksExposure();
   await testClientContracts();
   await testSignedRestHeaders();
   await testBybitNotModifiedIsInformational();
@@ -1573,6 +2201,9 @@ async function run() {
   await testExplorationMemoryRelaxation();
   await testFeeAwareStatsAndSymbolCooldown();
   await testFeeAwareEntryAndDynamicSizing();
+  await testLiveValidationAllocationPromotionAndRiskStates();
+  await testLiveValidationSizingExecutionAndReentryControls();
+  await testLiveValidationMinimumOrderFeasibility();
   await testProfitProtectionReducesExplorationAndRisk();
   await testMomentumContinuationHoldLogic();
   await testAdaptiveEnginePolicyAndConfidence();
@@ -1582,7 +2213,7 @@ async function run() {
   await testContinuousExecutionClearsStaleTradeLimitPause();
   await testAggressiveLearningCooldownsAreAdvisory();
   await testForcedMarketSamplingPromotion();
-  console.log("Bybit client and bot tests passed: REST signing, centralized 34040 no-change handling, duplicate TP/SL skip, execution ledger fill dedupe, net edge gate, portfolio risk-at-stop checks, UTA balance parsing, live safety balance use, native protection payloads, WebSocket reconnect, API auto-recovery without shutdown, reconciliation, hedge exposure detection, native TP events, regime intelligence, focused BTC/ETH/SOL universe restriction, survivability scoring, next-generation continuation scoring, exploration path, exploration memory relaxation, fee-aware stats, advisory symbol cooldowns, adaptive learning, continuation market memory, cautious active recovery, activity floor, daily shutdown removal, forced market sampling, profit protection sizing, fee-aware entries, dynamic sizing, and continuation holds.");
+  console.log("Bybit client and bot tests passed: REST signing, centralized 34040 no-change handling, duplicate TP/SL skip, execution ledger fill dedupe, net edge gate, portfolio risk-at-stop checks, UTA balance parsing, live safety balance use, native protection payloads, WebSocket reconnect, API auto-recovery without shutdown, reconciliation, hedge exposure detection, native TP events, regime intelligence, focused BTC/ETH/SOL universe restriction, survivability scoring, next-generation continuation scoring, exploration path, exploration memory relaxation, fee-aware stats, advisory symbol cooldowns, adaptive learning, continuation market memory, cautious active recovery, activity floor, daily shutdown removal, forced market sampling, profit protection sizing, fee-aware entries, dynamic sizing, live-validation guards, allocation ladder, risk degradation, promotion checks, execution-cost logging, and continuation holds.");
 }
 
 run().catch((error) => {
