@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "exchange": "BYBIT_V5_LINEAR",
+  "strategyProfile": "BYBIT_ADAPTIVE_STAT_SCALP_V2",
+  "updatedAt": "2026-06-01T19:01:15.098Z",
+  "mode": "LIVE",
+  "paused": false,
+  "pauseReason": null,
+  "equity": {
+    "startingUsdt": 100,
+    "realizedPnlUsdt": 0,
+    "currentUsdt": 100
+  },
+  "daily": null,
+  "ladder": {
+    "activeLevel": 1,
+    "highestUnlockedLevel": 1,
+    "levelStartEquity": 100,
+    "riskDowngraded": false
+  },
+  "openPositions": [],
+  "lastPrices": {},
+  "symbolCooldowns": {},
+  "performance": {
+    "closedTrades": 0,
+    "wins": 0,
+    "losses": 0,
+    "winRatePct": 0,
+    "grossPnlUsdt": 0,
+    "realizedPnlUsdt": 0,
+    "totalFeesUsdt": 0,
+    "averageHoldSeconds": 0,
+    "bestSymbol": null,
+    "worstSymbol": null,
+    "symbols": {}
+  },
+  "consecutiveApiErrors": 0,
+  "apiRecovery": {
+    "active": false,
+    "stage": 0,
+    "shutdownSuppressed": true
+  },
+  "telegramUpdateOffset": 0
+}

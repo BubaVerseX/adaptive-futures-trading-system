@@ -15,6 +15,13 @@ const { classifyBybitError } = require("./bybitErrors");
 const { ExecutionLedger } = require("./executionLedger");
 const { edgeGate } = require("./costModel");
 const { ProfitObjectiveEngine } = require("./profitObjective");
+const {
+  allocatedEquityLimitUsdt,
+  liveValidationAllocation,
+  promotionEvaluation,
+  riskStateEvaluation,
+  summarizeTrades,
+} = require("./liveValidation");
 
 const PENDING_LIVE_ENTRY_STATUSES = new Set([
   "ENTRY_SUBMITTING",
@@ -76,6 +83,21 @@ function effectivelyUnchanged(currentValue, intendedValue, tolerancePct = 0.01) 
   return (Math.abs(current - intended) / basis) * 100 < tolerancePct;
 }
 
+function decimalPlaces(step) {
+  const text = String(step).toLowerCase();
+  if (text.includes("e-")) return Number(text.split("e-")[1]);
+  const decimals = text.split(".")[1];
+  return decimals ? decimals.replace(/0+$/, "").length : 0;
+}
+
+function roundedQuantity(value, step, roundUp) {
+  const increment = Number(step || 0);
+  if (!Number.isFinite(increment) || increment <= 0) return value;
+  const units = value / increment;
+  const rounded = (roundUp ? Math.ceil(units - Number.EPSILON) : Math.floor(units + Number.EPSILON)) * increment;
+  return Number(rounded.toFixed(decimalPlaces(step)));
+}
+
 function secondsHeld(position) {
   const openedAt = Date.parse(position.openedAt || "");
   if (!Number.isFinite(openedAt)) return 0;
@@ -107,6 +129,9 @@ class LadderBot {
     this.apiRecoveryActive = false;
     this.lastApiRecoveryNoticeAt = 0;
     this.lastProfitObjectiveReportAt = 0;
+    this.lastLiveValidationStatusAt = 0;
+    this.activityEvents = [];
+    this.instrumentRulesBySymbol = new Map();
     this.startedAt = Date.now();
   }
 
@@ -120,7 +145,10 @@ class LadderBot {
 
     this.log("INFO", "Starting Bybit Unified Futures Aggressive Scalping Bot.", {
       mode: this.config.dryRun ? "DRY_RUN" : "LIVE",
-      environment: this.config.bybitTestnet ? "TESTNET" : "MAINNET",
+      environment: this.config.exchangeEnvironment,
+      restBaseUrl: this.config.restBaseUrl,
+      publicWsBaseUrl: this.config.publicWsBaseUrl,
+      privateWsBaseUrl: this.config.privateWsBaseUrl,
       accountStartUsdt: this.config.accountStartUsdt,
       x10Mode: this.config.x10Mode,
       learningPhaseMode: this.config.learningPhaseMode,
@@ -162,8 +190,40 @@ class LadderBot {
       positionMonitorIntervalMs: this.config.positionMonitorIntervalMs,
       entryConfirmationTimeoutMs: this.config.entryConfirmationTimeoutMs,
       positionMode: this.config.bybitPositionMode,
+      liveValidationMode: this.config.liveValidationMode,
+      liveValidationMaxAllocatedEquityUsdt: this.config.liveValidationMaxAllocatedEquityUsdt,
+      liveValidationPromotionEnabled: this.config.liveValidationPromotionEnabled,
       emergencyStopFile: path.basename(this.config.emergencyStopFile),
     });
+    if (this.config.bybitDemoTrading) {
+      this.log("WARN", "DEMO TRADING — NO REAL FUNDS AT RISK.", {
+        environment: this.config.exchangeEnvironment,
+        restBaseUrl: this.config.restBaseUrl,
+        publicWsBaseUrl: this.config.publicWsBaseUrl,
+        privateWsBaseUrl: this.config.privateWsBaseUrl,
+        demoDataDir: this.config.dataDir,
+        mainnetLiveAcknowledgement: this.config.acknowledgeLiveTrading,
+      });
+    }
+    if (this.config.liveValidationMode) {
+      this.log("ERROR", "LIVE VALIDATION MODE — REAL FUNDS AT RISK — LIMITED INITIAL RISK PROFILE ACTIVE", {
+        environment: this.config.exchangeEnvironment,
+        restBaseUrl: this.config.restBaseUrl,
+        publicWsBaseUrl: this.config.publicWsBaseUrl,
+        privateWsBaseUrl: this.config.privateWsBaseUrl,
+        dataNamespace: this.config.dataDir,
+        allocationLimitUsdt: this.config.liveValidationMaxAllocatedEquityUsdt,
+        protectionDrawdownPct: this.config.liveValidationProtectionDrawdownPct,
+        protectionDrawdownUsdt: Number((this.config.liveValidationMaxAllocatedEquityUsdt * (this.config.liveValidationProtectionDrawdownPct / 100)).toFixed(6)),
+        promotionEnabled: this.config.liveValidationPromotionEnabled,
+        guaranteedProfit: false,
+      });
+      this.log("WARN", "Live validation is real-money validation, not unrestricted live trading and not a profitability guarantee.", {
+        noDailyTradeCapAdded: true,
+        negativeEdgeForcedEntriesPermitted: false,
+        btcEthSolOnly: this.config.focusedTradingSymbolsList,
+      });
+    }
     this.log("WARN", "This strategy attempts aggressive growth but cannot guarantee profit.", {
       stopLossPct: this.config.stopLossPct,
     });
@@ -251,7 +311,7 @@ class LadderBot {
     this.client.startWebSockets({ privateStream: !this.config.dryRun });
 
     await this.telegram.send(
-      `Bybit Aggressive Scalping Bot started in ${this.config.dryRun ? "DRY RUN" : this.config.bybitTestnet ? "TESTNET LIVE" : "MAINNET LIVE"} mode. Profit is not guaranteed.`
+      `Bybit Aggressive Scalping Bot started in ${this.config.dryRun ? "DRY RUN" : `${this.config.exchangeEnvironment} ORDER`} mode. Profit is not guaranteed.`
     );
     this.telegram.start((command) => this.handleTelegramCommand(command));
     this.schedulePositionMonitor();
@@ -259,6 +319,42 @@ class LadderBot {
   }
 
   async initializeLiveSafety() {
+    if (this.config.liveValidationMode) {
+      this.log("ERROR", "LIVE VALIDATION MODE — REAL FUNDS AT RISK", {
+        limitedInitialRiskProfile: true,
+        guaranteedProfit: false,
+      });
+      this.log("INFO", "USER_ACKNOWLEDGEMENT_CONFIRMED", {
+        acknowledgeLiveValidationRisk: this.config.acknowledgeLiveValidationRisk,
+        acknowledgeLiveTrading: this.config.acknowledgeLiveTrading,
+      });
+      this.log("INFO", "MAINNET_ENDPOINT_CONFIRMED", {
+        restBaseUrl: this.config.restBaseUrl,
+        publicWsBaseUrl: this.config.publicWsBaseUrl,
+        privateWsBaseUrl: this.config.privateWsBaseUrl,
+      });
+      this.log("INFO", "VALIDATION_ALLOCATION_LIMIT_USDT", {
+        allocatedEquityLimitUsdt: this.config.liveValidationMaxAllocatedEquityUsdt,
+        drawdownProtectionPct: this.config.liveValidationProtectionDrawdownPct,
+      });
+      this.log("INFO", "ENVIRONMENT_CONFIRMED_MAINNET", {
+        restBaseUrl: this.config.restBaseUrl,
+        publicWsBaseUrl: this.config.publicWsBaseUrl,
+        privateWsBaseUrl: this.config.privateWsBaseUrl,
+        bybitDemoTrading: this.config.bybitDemoTrading,
+        bybitTestnet: this.config.bybitTestnet,
+      });
+      this.log("INFO", "LIVE_VALIDATION_ACKNOWLEDGED", {
+        acknowledgeLiveValidationRisk: this.config.acknowledgeLiveValidationRisk,
+        acknowledgeLiveTrading: this.config.acknowledgeLiveTrading,
+      });
+      this.log("INFO", "ALLOCATION_LIMIT_CONFIRMED", {
+        allocatedEquityLimitUsdt: this.config.liveValidationMaxAllocatedEquityUsdt,
+        launchMaximumAllowedUsdt: 10,
+        drawdownProtectionPct: this.config.liveValidationProtectionDrawdownPct,
+      });
+      await this.loadFocusedInstrumentRules();
+    }
     await this.client.getUsdtBalance();
     if (this.config.ensurePositionMode) {
       await this.client.switchPositionMode();
@@ -273,10 +369,111 @@ class LadderBot {
       }
     }
     await this.reconcileLivePositions();
+    if (this.config.liveValidationMode) {
+      if (positions.length) {
+        this.unmanagedLiveExposure = true;
+        this.log("ERROR", "HUMAN_REVIEW_REQUIRED", {
+          reason: "Existing mainnet exposure discovered at live-validation startup; new entries remain blocked until manually reviewed.",
+          positions: positions.map((position) => ({ symbol: position.symbol, side: position.side, size: position.size })),
+        });
+      } else {
+        this.log("INFO", "EXISTING_POSITIONS_RECONCILED", {
+          managedOpenPositions: this.store.state.openPositions.length,
+          manuallyOpenPositions: positions.length,
+        });
+      }
+      const unresolved = this.unresolvedExecutionStateReason();
+      this.log(unresolved ? "ERROR" : "INFO", unresolved ? "HUMAN_REVIEW_REQUIRED" : "PROTECTION_STATUS_CONFIRMED", {
+        unresolvedReason: unresolved,
+        openPositions: this.store.state.openPositions.length,
+      });
+      if (!unresolved && !positions.length) {
+        this.log("INFO", "READY_TO_SCAN_FOR_NEW_QUALIFIED_ENTRIES", {
+          opportunityFamilies: [
+            "TREND_CONTINUATION",
+            "PULLBACK_RESUMPTION",
+            "BREAKOUT_RETEST",
+            "MOMENTUM_ACCELERATION",
+            "SAME_DIRECTION_REENTRY",
+            "EXPLORATION_POSITIVE_EDGE",
+          ],
+          noDailyTradeCountCap: true,
+        });
+      }
+      this.writeLiveValidationStatusReport(true);
+    }
     this.log("WARN", "Bybit live trading enabled after safety checks; entries include native TP/SL orders.", {
       positionMode: this.positionMode,
       maxLeverage: this.config.maxLeverage,
     });
+  }
+
+  enterLiveValidationProtectionOnly(reason, details = {}) {
+    if (!this.config.liveValidationMode) return;
+    if (!this.store.state.liveValidation) this.store.state.liveValidation = {};
+    this.store.state.liveValidation.riskState = "RISK_STATE_PROTECTION_ONLY";
+    this.store.state.liveValidation.riskStateReasons = [reason];
+    this.store.state.liveValidation.lastRiskCheckedAt = new Date().toISOString();
+    this.store.saveState();
+    this.log("ERROR", "HUMAN_REVIEW_REQUIRED", {
+      reason,
+      riskState: "RISK_STATE_PROTECTION_ONLY",
+      newEntriesBlocked: true,
+      ...details,
+    });
+  }
+
+  async loadFocusedInstrumentRules() {
+    if (!this.config.liveValidationMode) return this.instrumentRulesBySymbol;
+    try {
+      const symbols = await this.client.getSymbols();
+      const rules = new Map();
+      const missing = [];
+      const loaded = [];
+      for (const symbol of this.config.focusedTradingSymbolsList) {
+        const info = symbols.find((item) => item && item.symbol === symbol);
+        const lot = info && info.lotSizeFilter ? info.lotSizeFilter : {};
+        const price = info && info.priceFilter ? info.priceFilter : {};
+        const hasRequiredRuleData =
+          info &&
+          Number(lot.qtyStep) > 0 &&
+          Number(lot.minOrderQty) > 0 &&
+          Number(price.tickSize) > 0;
+        if (!hasRequiredRuleData) {
+          missing.push(symbol);
+          continue;
+        }
+        rules.set(symbol, info);
+        loaded.push({
+          symbol,
+          tickSize: price.tickSize,
+          qtyStep: lot.qtyStep,
+          minOrderQty: lot.minOrderQty,
+          minNotionalValue: lot.minNotionalValue || null,
+        });
+      }
+      if (missing.length) {
+        const reason = "instrument rules missing for focused live-validation symbols";
+        this.enterLiveValidationProtectionOnly(reason, { missingSymbols: missing });
+        throw new Error(`Live validation startup refused: ${reason}: ${missing.join(", ")}.`);
+      }
+      this.instrumentRulesBySymbol = rules;
+      this.log("INFO", "INSTRUMENT_RULES_LOADED", {
+        focusedSymbols: this.config.focusedTradingSymbolsList,
+        rules: loaded,
+      });
+      this.log("INFO", "MINIMUM_ORDER_FEASIBILITY_CHECK_PASSED", {
+        instrumentRulesLoaded: true,
+        candidateSpecificRiskRecheckBeforeEntry: true,
+        neverIncreaseAboveRiskLimitForExchangeMinimum: true,
+      });
+      return rules;
+    } catch (error) {
+      if (!/Live validation startup refused/.test(error.message)) {
+        this.enterLiveValidationProtectionOnly("instrument-rule load failure blocks new exposure", { error: error.message });
+      }
+      throw error;
+    }
   }
 
   emergencyStopRequested() {
@@ -402,6 +599,11 @@ class LadderBot {
       }
 
       const scan = await this.scanner.scan(marketProfile);
+      if (this.config.liveValidationMode) {
+        for (const candidate of scan.candidates) {
+          this.recordActivityEvent("qualifiedCandidate", { symbol: candidate.symbol, side: candidate.side });
+        }
+      }
       if (scan.hadApiErrors) {
         await this.handleApiRecovery(new Error("partial scan API data failure"), {
           source: "PARTIAL_SCAN",
@@ -435,6 +637,7 @@ class LadderBot {
     } finally {
       this.cycleActive = false;
       this.writePeriodicProfitObjectiveReport();
+      this.writeLiveValidationStatusReport();
       if (!this.stopping) {
         this.timer = setTimeout(() => void this.runCycle(), this.config.scanIntervalMs);
       }
@@ -448,11 +651,320 @@ class LadderBot {
       this.profitObjective.report();
       this.lastProfitObjectiveReportAt = Date.now();
       this.log("DEBUG", "Profit objective summary refreshed.", {
-        latestSummary: "data/reports/latest-summary.json",
+        latestSummary: path.join(this.config.reportsDir || path.join(this.config.projectRoot, "data", "reports"), "latest-summary.json"),
       });
     } catch (error) {
       this.log("WARN", "Profit objective report update failed.", { error: error.message });
     }
+  }
+
+  recordActivityEvent(type, details = {}) {
+    if (!this.config.liveValidationMode) return;
+    const event = { type, time: Date.now(), ...details };
+    this.activityEvents.push(event);
+    const cutoff = Date.now() - 60 * 60 * 1000;
+    this.activityEvents = this.activityEvents.filter((item) => item.time >= cutoff);
+  }
+
+  activityRates() {
+    const cutoff = Date.now() - 60 * 60 * 1000;
+    const events = this.activityEvents.filter((event) => event.time >= cutoff);
+    const count = (type) => events.filter((event) => event.type === type).length;
+    const closed = this.store.trades.filter(
+      (trade) =>
+        trade.status === "CLOSED" &&
+        trade.mode === this.store.state.mode &&
+        Date.parse(trade.exitedAt || trade.exitTime || "") >= cutoff
+    );
+    const executed = Math.max(count("executedTrade"), 1);
+    return {
+      qualifiedCandidatesPerHour: count("qualifiedCandidate"),
+      executedTradesPerHour: count("executedTrade"),
+      rejectedNegativeNetEdgePerHour: count("rejectedNegativeNetEdge"),
+      rejectedRiskBudgetPerHour: count("rejectedRiskBudget"),
+      continuationEntriesPerHour: count("continuationEntry"),
+      netPnlPerExecutedTrade: Number(
+        (closed.reduce((total, trade) => total + numeric(trade.netPnlAfterCostsUsdt, numeric(trade.pnlUsdt)), 0) / executed).toFixed(6)
+      ),
+    };
+  }
+
+  liveValidationPromotionStatus(unresolvedReason = this.unresolvedExecutionStateReason()) {
+    if (!this.config.liveValidationMode) return null;
+    const evaluation = promotionEvaluation({
+      config: this.config,
+      state: this.store.state,
+      trades: this.store.trades,
+      executionLedger: this.executionLedger,
+      openPositions: this.store.state.openPositions,
+      unresolvedReason,
+    });
+    if (!this.store.state.liveValidation) this.store.state.liveValidation = {};
+    this.store.state.liveValidation.level = evaluation.level;
+    this.store.state.liveValidation.allocatedEquityLimitUsdt = evaluation.allocatedEquityLimitUsdt;
+    this.store.state.liveValidation.promotionEligible = evaluation.eligible;
+    this.store.state.liveValidation.promotionBlockedReasons = evaluation.blockedReasons;
+    this.store.state.liveValidation.lastPromotionCheckedAt = new Date().toISOString();
+    if (evaluation.eligible && this.config.liveValidationPromotionEnabled) {
+      this.store.state.liveValidation.level = evaluation.nextLevel;
+      this.store.state.liveValidation.allocatedEquityLimitUsdt = evaluation.nextAllocatedEquityLimitUsdt;
+      this.store.state.liveValidation.lastPromotedAt = new Date().toISOString();
+      this.log("WARN", "PROMOTION_ELIGIBLE", {
+        fromLevel: evaluation.level,
+        toLevel: evaluation.nextLevel,
+        allocatedEquityLimitUsdt: evaluation.nextAllocatedEquityLimitUsdt,
+        verifiedNetPnlUsdt: evaluation.summary.netPnlUsdt,
+        profitFactor: evaluation.summary.profitFactor,
+      });
+    } else {
+      this.log("INFO", evaluation.eligible ? "PROMOTION_ELIGIBLE" : "PROMOTION_BLOCKED_REASON", {
+        liveValidationLevel: evaluation.level,
+        allocatedEquityLimitUsdt: evaluation.allocatedEquityLimitUsdt,
+        promotionEnabled: evaluation.promotionEnabled,
+        eligible: evaluation.eligible,
+        blockedReasons: evaluation.blockedReasons,
+        closedTrades: evaluation.summary.closedTrades,
+        netPnlUsdt: evaluation.summary.netPnlUsdt,
+        profitFactor: evaluation.summary.profitFactor,
+      });
+    }
+    this.store.saveState();
+    return evaluation;
+  }
+
+  liveValidationRiskStatus(unresolvedReason = this.unresolvedExecutionStateReason()) {
+    if (!this.config.liveValidationMode) return null;
+    const status = riskStateEvaluation({
+      config: this.config,
+      state: this.store.state,
+      trades: this.store.trades,
+      openPositions: this.store.state.openPositions,
+      unresolvedReason,
+      trueApiFailure: Number(this.store.state.consecutiveApiErrors || 0) >= this.config.maxConsecutiveApiErrors,
+    });
+    if (!this.store.state.liveValidation) this.store.state.liveValidation = {};
+    this.store.state.liveValidation.riskState = status.state;
+    this.store.state.liveValidation.riskStateReasons = status.reasons;
+    this.store.state.liveValidation.drawdownLimitUsdt = status.drawdownLimitUsdt;
+    this.store.state.liveValidation.lastRiskCheckedAt = new Date().toISOString();
+    this.store.saveState();
+    if (status.state === "RISK_STATE_REDUCED") {
+      this.log("WARN", "LIVE_VALIDATION_RISK_STATE_REDUCED", {
+        reasons: status.reasons,
+        riskMultiplier: status.riskMultiplier,
+        scanningContinuesAtFullSpeed: true,
+        arbitraryTradeBlocking: false,
+      });
+    }
+    if (status.state === "RISK_STATE_PROTECTION_ONLY") {
+      this.log("ERROR", "HUMAN_REVIEW_REQUIRED", {
+        riskState: status.state,
+        reasons: status.reasons,
+        newEntriesBlocked: true,
+        positionMonitoringContinues: true,
+      });
+    }
+    return status;
+  }
+
+  liveValidationAllocatedEquity(accountEquityUsdt, availableBalanceUsdt) {
+    if (!this.config.liveValidationMode) return Math.min(accountEquityUsdt, availableBalanceUsdt);
+    return liveValidationAllocation(this.config, this.store.state, accountEquityUsdt, availableBalanceUsdt);
+  }
+
+  instrumentInfoForSignal(signal) {
+    return this.instrumentRulesBySymbol.get(signal.symbol) || signal.info || {};
+  }
+
+  liveValidationRiskCapForSignal(signal, plan = null) {
+    if (plan && Number.isFinite(Number(plan.liveValidationRiskCapPct))) return Number(plan.liveValidationRiskCapPct);
+    if (signal.eliteSetup || signal.tradeCategory === "ELITE_SETUP" || signal.convictionTier === "TIER_3_ELITE_SETUP") {
+      return this.config.liveValidationEliteRiskAtStopMaxPct;
+    }
+    if (signal.eliteContinuationCandidate || signal.convictionTier === "TIER_2_STRONG_SETUP") {
+      return this.config.liveValidationStrongRiskAtStopMaxPct;
+    }
+    if (signal.explorationTrade || signal.tradeCategory === "EXPLORATION") return this.config.liveValidationExplorationRiskAtStopMaxPct;
+    return this.config.liveValidationNormalRiskAtStopMaxPct;
+  }
+
+  liveValidationOrderFeasibility(signal, plan, allocatedEquity, edgeModel = null) {
+    if (!this.config.liveValidationMode) return { rejected: false };
+    const info = this.instrumentInfoForSignal(signal);
+    const lot = info.lotSizeFilter || {};
+    const priceFilter = info.priceFilter || {};
+    const price = Number(signal.price || plan.entryPrice || 0);
+    const step = Number(lot.qtyStep || 0);
+    const minOrderQty = Number(lot.minOrderQty || 0);
+    const minNotionalValue = Number(lot.minNotionalValue || lot.minOrderAmt || 0);
+    const tickSize = Number(priceFilter.tickSize || 0);
+    const stopDistancePct = Number(signal.stopDistancePct || this.config.stopLossPct);
+    const riskLimitPct = Number(plan.riskPct || this.liveValidationRiskCapForSignal(signal, plan));
+    const allowedMaxLossAtStopUsdt = Number((allocatedEquity * (riskLimitPct / 100)).toFixed(6));
+    if (!(price > 0) || !(step > 0) || !(minOrderQty > 0) || !(tickSize > 0)) {
+      this.log("ERROR", "ORDER_BELOW_EXCHANGE_MINIMUM", {
+        symbol: signal.symbol,
+        reason: "instrument rule data incomplete",
+        price,
+        qtyStep: lot.qtyStep,
+        minOrderQty: lot.minOrderQty,
+        tickSize: priceFilter.tickSize,
+      });
+      return { rejected: true, reason: "instrument rule data incomplete; minimum order feasibility cannot be verified" };
+    }
+    const minQtyFromNotional = minNotionalValue > 0 ? minNotionalValue / price : 0;
+    const minimumExecutableQty = roundedQuantity(Math.max(minOrderQty, minQtyFromNotional), step, true);
+    const minimumExecutableNotional = minimumExecutableQty * price;
+    const minimumExecutableMaxLossAtStopUsdt = minimumExecutableNotional * (stopDistancePct / 100);
+    const plannedQty = roundedQuantity(Number(plan.size || 0), step, false);
+    const plannedNotional = plannedQty * price;
+    const finalRoundedMaxLossAtStopUsdt = plannedNotional * (stopDistancePct / 100);
+    const estimatedEntryFeePct = Number(edgeModel && edgeModel.estimatedEntryFeePct) || this.config.estimatedTakerFeePctPerSide;
+    const estimatedExitFeePct = Number(edgeModel && edgeModel.estimatedExitFeePct) || this.config.estimatedTakerFeePctPerSide;
+    const estimatedFeesUsdt = plannedNotional * ((estimatedEntryFeePct + estimatedExitFeePct) / 100);
+    const projectedNetResultUsdt =
+      edgeModel && Number.isFinite(Number(edgeModel.expectedNetEdgePct))
+        ? plannedNotional * (Number(edgeModel.expectedNetEdgePct) / 100)
+        : Number(edgeModel && edgeModel.projectedNetProfitUsdt) || 0;
+    const details = {
+      symbol: signal.symbol,
+      side: signal.side,
+      price,
+      tickSize,
+      qtyStep: step,
+      minOrderQty,
+      minNotionalValue,
+      minimumExecutableQty,
+      minimumExecutableNotional: Number(minimumExecutableNotional.toFixed(6)),
+      minimumExecutableMaxLossAtStopUsdt: Number(minimumExecutableMaxLossAtStopUsdt.toFixed(6)),
+      plannedQty,
+      plannedNotional: Number(plannedNotional.toFixed(6)),
+      marginRequiredUsdt: Number((plannedNotional / Number(plan.leverage || 1)).toFixed(6)),
+      allowedMaxLossAtStopUsdt,
+      riskLimitPct,
+      estimatedFeesUsdt: Number(estimatedFeesUsdt.toFixed(6)),
+      projectedNetResultUsdt: Number(projectedNetResultUsdt.toFixed(6)),
+    };
+    if (plannedQty < minimumExecutableQty || plannedNotional + Number.EPSILON < minNotionalValue) {
+      this.log("WARN", "ORDER_BELOW_EXCHANGE_MINIMUM", {
+        ...details,
+        reason: "rounded planned order is below Bybit minimum quantity or notional",
+      });
+      if (minimumExecutableMaxLossAtStopUsdt > allowedMaxLossAtStopUsdt + 0.000001) {
+        this.log("WARN", "ROUNDED_ORDER_EXCEEDS_RISK_LIMIT", {
+          ...details,
+          minimumExecutableMaxLossAtStopUsdt: Number(minimumExecutableMaxLossAtStopUsdt.toFixed(6)),
+          finalRoundedMaxLossAtStopUsdt: Number(finalRoundedMaxLossAtStopUsdt.toFixed(6)),
+          reason: "smallest executable Bybit order would exceed active validation risk limit",
+        });
+        return {
+          rejected: true,
+          reason: "smallest executable order exceeds active validation max-loss-at-stop limit",
+          ...details,
+        };
+      }
+      return {
+        rejected: true,
+        reason: "planned order is below exchange minimum; refusing silent size increase",
+        ...details,
+      };
+    }
+    if (finalRoundedMaxLossAtStopUsdt > allowedMaxLossAtStopUsdt + 0.000001) {
+      this.log("WARN", "ROUNDED_ORDER_EXCEEDS_RISK_LIMIT", {
+        ...details,
+        finalRoundedMaxLossAtStopUsdt: Number(finalRoundedMaxLossAtStopUsdt.toFixed(6)),
+        reason: "final rounded order exceeds active validation risk limit",
+      });
+      return {
+        rejected: true,
+        reason: "rounded order exceeds active validation max-loss-at-stop limit",
+        ...details,
+      };
+    }
+    this.log("INFO", "FINAL_ROUNDED_MAX_LOSS_AT_STOP_USDT", {
+      ...details,
+      finalRoundedMaxLossAtStopUsdt: Number(finalRoundedMaxLossAtStopUsdt.toFixed(6)),
+    });
+    this.log("INFO", "LIVE_VALIDATION_ORDER_SIZE_FEASIBLE", {
+      ...details,
+      finalRoundedMaxLossAtStopUsdt: Number(finalRoundedMaxLossAtStopUsdt.toFixed(6)),
+      notionalExposureUsdt: Number(plannedNotional.toFixed(6)),
+      marginRequiredUsdt: Number((plannedNotional / Number(plan.leverage || 1)).toFixed(6)),
+      maxLossAtStopUsdt: Number(finalRoundedMaxLossAtStopUsdt.toFixed(6)),
+    });
+    return {
+      rejected: false,
+      ...details,
+      finalRoundedMaxLossAtStopUsdt: Number(finalRoundedMaxLossAtStopUsdt.toFixed(6)),
+    };
+  }
+
+  liveValidationEdgeExecutionDetails(signal, plan, edgeModel) {
+    const notional = Number(plan.notional || 0);
+    const entryFee = notional * (Number(edgeModel.estimatedEntryFeePct || 0) / 100);
+    const exitFee = notional * (Number(edgeModel.estimatedExitFeePct || 0) / 100);
+    const spreadSlippage = notional * ((Number(edgeModel.liveSpreadPct || 0) + Number(edgeModel.conservativeSlippagePct || 0)) / 100);
+    const funding = notional * (Math.max(0, Number(edgeModel.estimatedFundingPct || 0)) / 100);
+    return {
+      setupType: signal.continuationSetupType || signal.setupType,
+      symbol: signal.symbol,
+      side: signal.side,
+      expectedGrossMoveUsdt: Number(edgeModel.projectedGrossProfitUsdt || 0),
+      expectedEntryFeeUsdt: Number(entryFee.toFixed(6)),
+      expectedExitFeeUsdt: Number(exitFee.toFixed(6)),
+      expectedSpreadAndSlippageUsdt: Number(spreadSlippage.toFixed(6)),
+      expectedFundingUsdt: Number(funding.toFixed(6)),
+      expectedTotalCostUsdt: Number(edgeModel.projectedTotalCostUsdt || 0),
+      expectedNetProfitUsdt: Number(edgeModel.projectedNetProfitUsdt || 0),
+      expectedRewardRiskRatio: Number(edgeModel.expectedRewardRiskRatio || 0),
+      expectedRewardCostRatio: Number(edgeModel.expectedRewardCostRatio || 0),
+      edgeGateResult: "APPROVED",
+    };
+  }
+
+  writeLiveValidationStatusReport(force = false) {
+    if (!this.config.liveValidationMode) return null;
+    const intervalMs = 15 * 60 * 1000;
+    if (!force && Date.now() - this.lastLiveValidationStatusAt < intervalMs) return null;
+    const unresolvedReason = this.unresolvedExecutionStateReason();
+    const riskStatus = this.liveValidationRiskStatus(unresolvedReason);
+    const promotion = this.liveValidationPromotionStatus(unresolvedReason);
+    const summary = summarizeTrades(this.store.trades);
+    const activity = this.activityRates();
+    const report = {
+      generatedAt: new Date().toISOString(),
+      mode: "LIVE_VALIDATION",
+      liveValidationLevel: this.store.state.liveValidation && this.store.state.liveValidation.level,
+      allocatedEquityLimitUsdt: allocatedEquityLimitUsdt(this.config, this.store.state),
+      equityCurrentlyUsedUsdt: Number(this.reservedMarginUsdt().toFixed(6)),
+      totalOpenMaxLossAtStopRiskUsdt: Number(this.totalOpenRiskAtStopUsdt().toFixed(6)),
+      tradesClosedInValidationRun: summary.closedTrades,
+      netPnlAfterActualFeesUsdt: summary.netPnlUsdt,
+      actualFeesUsdt: summary.actualFeesUsdt,
+      grossPositiveButNetNegativeTradeCount: summary.grossPositiveButNetNegativeTrades,
+      postCostWinRatePct: summary.postCostWinRatePct,
+      profitFactor: summary.profitFactor,
+      expectancyPerTradeUsdt: summary.expectancyUsdt,
+      tradesPerHour: activity.executedTradesPerHour,
+      bestPerformingSymbol: summary.bestSymbol,
+      worstPerformingSymbol: summary.worstSymbol,
+      flipTradeNetPnlUsdt: summary.flipNetPnlUsdt,
+      reentryNetPnlUsdt: summary.reentryNetPnlUsdt,
+      continuationNetPnlUsdt: summary.continuationNetPnlUsdt,
+      currentRiskState: riskStatus && riskStatus.state,
+      promotionEligibilityStatus: promotion
+        ? { eligible: promotion.eligible, blockedReasons: promotion.blockedReasons, nextLevel: promotion.nextLevel }
+        : null,
+      activity,
+    };
+    const reportsDir = this.config.reportsDir || path.join(this.config.projectRoot, "data", "live-validation", "reports");
+    const today = new Date().toISOString().slice(0, 10);
+    fs.mkdirSync(path.join(reportsDir, "daily"), { recursive: true });
+    fs.writeFileSync(path.join(reportsDir, "latest-summary.json"), `${JSON.stringify(report, null, 2)}\n`, "utf8");
+    fs.writeFileSync(path.join(reportsDir, "daily", `${today}.json`), `${JSON.stringify(report, null, 2)}\n`, "utf8");
+    this.lastLiveValidationStatusAt = Date.now();
+    this.log("INFO", "LIVE_VALIDATION_STATUS_SUMMARY", report);
+    return report;
   }
 
   async handleApiRecovery(error, options = {}) {
@@ -650,6 +1162,7 @@ class LadderBot {
     const adaptivePolicy = this.adaptive.currentPolicy();
     const protection = profitProtection || { active: false, riskMultiplier: 1, leverageMultiplier: 1, explorationMultiplier: 1, signalAdjustment: 0 };
     const recovery = recoveryStatus || { active: false, riskMultiplier: 1, leverageMultiplier: 1, signalAdjustment: 0 };
+    const liveValidationRisk = this.config.liveValidationMode ? this.liveValidationRiskStatus() : null;
     const maxOpenPositions = adaptivePolicy.maxOpenPositions || this.config.maxOpenPositions;
     const availableSlots = maxOpenPositions - this.store.state.openPositions.length;
     if (availableSlots <= 0) {
@@ -828,6 +1341,18 @@ class LadderBot {
       const block = this.risk.entryBlockReason(equity, signal.symbol);
       if (block) {
         this.log("INFO", "Candidate entry rejected by portfolio safety rule.", { symbol: signal.symbol, reason: block });
+        this.recordActivityEvent("rejectedRiskBudget", { symbol: signal.symbol, reason: block });
+        continue;
+      }
+      if (liveValidationRisk && liveValidationRisk.state === "RISK_STATE_PROTECTION_ONLY") {
+        this.log("ERROR", "Candidate rejected by live-validation protection-only state.", {
+          symbol: signal.symbol,
+          side: signal.side,
+          reasons: liveValidationRisk.reasons,
+          scanningContinues: true,
+          newEntriesBlockedUntilHumanReview: true,
+        });
+        this.recordActivityEvent("rejectedRiskBudget", { symbol: signal.symbol, reason: "LIVE_VALIDATION_PROTECTION_ONLY" });
         continue;
       }
       const protectionCheck = this.profitProtectionEntryCheck(signal, protection);
@@ -847,6 +1372,10 @@ class LadderBot {
       signal.continuousRecoveryRiskMultiplier = recovery.riskMultiplier;
       signal.continuousRecoveryLeverageMultiplier = recovery.leverageMultiplier;
       signal.continuousRecoverySignalAdjustment = recovery.signalAdjustment;
+      if (liveValidationRisk) {
+        signal.liveValidationRiskState = liveValidationRisk.state;
+        signal.liveValidationRiskMultiplier = liveValidationRisk.riskMultiplier;
+      }
       if (recovery.active) {
         this.log("INFO", "Adaptive recovery mode active; losing streak handled without shutdown.", {
           symbol: signal.symbol,
@@ -893,6 +1422,7 @@ class LadderBot {
           edgeReason: edgeCheck.reason,
           qualityPacingActive: adaptivePolicy.qualityPacingActive,
         });
+        this.recordActivityEvent("rejectedNegativeNetEdge", { symbol: signal.symbol, reason: edgeCheck.reason });
         continue;
       }
       this.log("INFO", "EDGE_GATE_APPROVED", {
@@ -913,18 +1443,50 @@ class LadderBot {
       const liveSafety = this.config.dryRun ? { leverage: requestedLeverage } : await this.liveEntrySafety(signal, equity, requestedLeverage);
       if (liveSafety.rejected) {
         this.log("WARN", "Candidate rejected by live order safety check.", { symbol: signal.symbol, reason: liveSafety.reason });
+        this.recordActivityEvent("rejectedRiskBudget", { symbol: signal.symbol, reason: liveSafety.reason });
         continue;
       }
       const allocatedEquity =
-        this.config.dryRun ? equity : Math.min(equity, liveSafety.availableBalanceUsdt);
+        this.config.dryRun ? equity : this.liveValidationAllocatedEquity(equity, liveSafety.availableBalanceUsdt);
+      if (this.config.liveValidationMode && allocatedEquity <= 0) {
+        this.log("ERROR", "Candidate rejected by live-validation allocation guard.", {
+          symbol: signal.symbol,
+          accountEquityUsdt: equity,
+          availableBalanceUsdt: liveSafety.availableBalanceUsdt,
+          allocationLimitUsdt: allocatedEquityLimitUsdt(this.config, this.store.state),
+        });
+        this.recordActivityEvent("rejectedRiskBudget", { symbol: signal.symbol, reason: "LIVE_VALIDATION_ALLOCATION_EMPTY" });
+        continue;
+      }
       const plan = this.risk.sizingPlan(signal, allocatedEquity, signal.info, liveSafety.leverage);
       if (plan.rejected) {
+        if (this.config.liveValidationMode && /exchange minimum|below this symbol/i.test(String(plan.reason || ""))) {
+          const minimumRiskCheck = this.liveValidationOrderFeasibility(
+            signal,
+            {
+              size: "0",
+              notional: 0,
+              leverage: liveSafety.leverage,
+              riskPct: this.liveValidationRiskCapForSignal(signal),
+            },
+            allocatedEquity,
+            edgeCheck.edgeModel
+          );
+          this.log("INFO", "Live-validation minimum order feasibility rejected before entry.", {
+            symbol: signal.symbol,
+            reason: minimumRiskCheck.reason || plan.reason,
+            exchangeMinimumNotional: plan.exchangeMinimumNotional,
+            hardNotionalCap: plan.hardNotionalCap,
+          });
+        }
         this.log("INFO", "Candidate rejected because risk-sized quantity is invalid.", {
           symbol: signal.symbol,
           reason: plan.reason,
         });
+        this.recordActivityEvent("rejectedRiskBudget", { symbol: signal.symbol, reason: plan.reason });
         continue;
       }
+      signal.executionType = this.executionTypeForSignal(signal);
       const finalEdgeGate = edgeGate(this.config, signal, plan, allocatedEquity);
       if (finalEdgeGate.rejected) {
         this.log("INFO", "EDGE_GATE_REJECTED", {
@@ -938,10 +1500,26 @@ class LadderBot {
           projectedMaxLossAtStopUsdt: finalEdgeGate.model.projectedMaxLossAtStopUsdt,
           requirements: finalEdgeGate.requirements,
         });
+        this.recordActivityEvent("rejectedNegativeNetEdge", { symbol: signal.symbol, reason: finalEdgeGate.reason });
         continue;
       }
       signal.edgeTier = finalEdgeGate.model.tier;
       signal.edgeModel = finalEdgeGate.model;
+      const minimumOrderFeasibility = this.liveValidationOrderFeasibility(signal, plan, allocatedEquity, finalEdgeGate.model);
+      if (minimumOrderFeasibility.rejected) {
+        this.log("INFO", "Candidate rejected by live-validation minimum order feasibility check.", {
+          symbol: signal.symbol,
+          side: signal.side,
+          reason: minimumOrderFeasibility.reason,
+          allowedMaxLossAtStopUsdt: minimumOrderFeasibility.allowedMaxLossAtStopUsdt,
+          minimumExecutableMaxLossAtStopUsdt: minimumOrderFeasibility.minimumExecutableMaxLossAtStopUsdt,
+          finalRoundedMaxLossAtStopUsdt: minimumOrderFeasibility.finalRoundedMaxLossAtStopUsdt,
+        });
+        this.recordActivityEvent("rejectedRiskBudget", { symbol: signal.symbol, reason: minimumOrderFeasibility.reason });
+        continue;
+      }
+      plan.finalRoundedMaxLossAtStopUsdt = minimumOrderFeasibility.finalRoundedMaxLossAtStopUsdt;
+      plan.maxLossAtStopUsdt = minimumOrderFeasibility.finalRoundedMaxLossAtStopUsdt;
       const portfolioRisk = this.portfolioRiskCheck(signal, plan, allocatedEquity);
       if (portfolioRisk.rejected) {
         this.log(portfolioRisk.humanReviewRequired ? "ERROR" : "INFO", portfolioRisk.humanReviewRequired ? "HUMAN_REVIEW_REQUIRED" : "Candidate rejected by portfolio max loss-at-stop control.", {
@@ -950,6 +1528,7 @@ class LadderBot {
           reason: portfolioRisk.reason,
           portfolioRisk,
         });
+        this.recordActivityEvent("rejectedRiskBudget", { symbol: signal.symbol, reason: portfolioRisk.reason });
         continue;
       }
       if (
@@ -957,8 +1536,19 @@ class LadderBot {
         allocatedEquity * (this.config.maxTotalMarginUsagePct / 100)
       ) {
         this.log("INFO", "Candidate rejected by aggregate margin allocation cap.", { symbol: signal.symbol });
+        this.recordActivityEvent("rejectedRiskBudget", { symbol: signal.symbol, reason: "AGGREGATE_MARGIN_CAP" });
         continue;
       }
+      const edgeExecutionDetails = this.liveValidationEdgeExecutionDetails(signal, plan, finalEdgeGate.model);
+      this.log("INFO", "EDGE_GATE_APPROVED_WITH_EXECUTION_COSTS", {
+        ...edgeExecutionDetails,
+        allocatedEquityUsdt: Number(allocatedEquity.toFixed(6)),
+        marginUsedUsdt: plan.marginUsedUsdt,
+        notionalExposureUsdt: plan.notional,
+        maxLossAtStopUsdt: plan.maxLossAtStopUsdt,
+        riskPctOfEquity: plan.riskPctOfEquity,
+        liveValidationMode: this.config.liveValidationMode,
+      });
       if (plan.highQualityContinuation && plan.qualitySizeMultiplier > 1) {
         this.log("INFO", "High-conviction setup prioritized with adaptive size increase.", {
           symbol: signal.symbol,
@@ -1088,6 +1678,10 @@ class LadderBot {
         scoreBreakdown: signal.scoreBreakdown,
       });
       await this.openPosition(signal, plan);
+      this.recordActivityEvent("executedTrade", { symbol: signal.symbol, side: signal.side });
+      if (/CONTINUATION|RETEST|RESUMPTION|ACCELERATION|BREAKOUT/i.test(String(signal.continuationSetupType || signal.setupType || ""))) {
+        this.recordActivityEvent("continuationEntry", { symbol: signal.symbol, side: signal.side });
+      }
       opened += 1;
       if (signal.explorationTrade) explorationOpenedThisCycle += 1;
     }
@@ -1265,6 +1859,24 @@ class LadderBot {
       (signal.breakoutTriggered || signal.fomoTrigger || Number(signal.momentumPersistenceCandles || 0) >= this.config.minMomentumPersistenceCandles) &&
       Number(signal.smartProjectedNetEdgePct || 0) >= requiredSmartEdgePct &&
       Number(signal.feeEdgeRatio || 0) >= requiredFeeEdgeRatio;
+    if (this.config.liveValidationMode && numeric(recent.netPnlAfterCostsUsdt, numeric(recent.pnlUsdt)) < 0) {
+      const freshQualifiedContinuation =
+        ["PULLBACK_CONTINUATION", "BREAKOUT_RETEST", "MOMENTUM_RESUMPTION", "TREND_ACCELERATION", "CONTINUATION_BREAKOUT"].includes(
+          signal.continuationSetupType
+        ) &&
+        Number(signal.continuationStrength || 0) >= this.config.continuationMinStrength + 10 &&
+        Number(signal.smartProjectedNetEdgePct || signal.projectedNetEdgePct || 0) >= requiredSmartEdgePct + 0.08 &&
+        Number(signal.feeEdgeRatio || 0) >= requiredFeeEdgeRatio + 0.15;
+      if (!freshQualifiedContinuation) return false;
+      this.log("INFO", "LOSING_REENTRY_REQUIRES_FRESH_QUALIFIED_SETUP", {
+        symbol: signal.symbol,
+        side: signal.side,
+        previousNetPnlUsdt: numeric(recent.netPnlAfterCostsUsdt, numeric(recent.pnlUsdt)),
+        continuationSetupType: signal.continuationSetupType,
+        continuationStrength: signal.continuationStrength,
+        smartProjectedNetEdgePct: signal.smartProjectedNetEdgePct,
+      });
+    }
     return Boolean(trendStillValid);
   }
 
@@ -1632,7 +2244,9 @@ class LadderBot {
       edgeModel: signal.edgeModel,
       projectedNetProfitUsdt: signal.edgeModel && signal.edgeModel.projectedNetProfitUsdt,
       projectedTotalCostUsdt: signal.edgeModel && signal.edgeModel.projectedTotalCostUsdt,
-      executionType: this.executionTypeForSignal(signal),
+      executionType: signal.executionType || this.executionTypeForSignal(signal),
+      makerOrTaker: /POST_ONLY|MAKER/i.test(String(signal.executionType || "")) ? "MAKER_INTENDED" : "TAKER_INTENDED",
+      intendedPrice: signal.price,
       breakoutTriggered: signal.breakoutTriggered,
       microBreakoutTriggered: signal.microBreakoutTriggered,
       fastMode: signal.fastMode,
@@ -1657,6 +2271,17 @@ class LadderBot {
       tickSize: signal.info.priceFilter && signal.info.priceFilter.tickSize,
       entryFeesUsdt: 0,
       exitFeesUsdt: 0,
+      liveValidationMode: this.config.liveValidationMode,
+      liveValidationLevel: this.store.state.liveValidation && this.store.state.liveValidation.level,
+      liveValidationAllocatedEquityLimitUsdt: this.store.state.liveValidation && this.store.state.liveValidation.allocatedEquityLimitUsdt,
+      liveValidationRiskState: signal.liveValidationRiskState,
+      expectedGrossMoveUsdt: signal.edgeModel && signal.edgeModel.projectedGrossProfitUsdt,
+      expectedEntryFeeUsdt: signal.edgeModel && Number((plan.notional * (Number(signal.edgeModel.estimatedEntryFeePct || 0) / 100)).toFixed(6)),
+      expectedExitFeeUsdt: signal.edgeModel && Number((plan.notional * (Number(signal.edgeModel.estimatedExitFeePct || 0) / 100)).toFixed(6)),
+      expectedSpreadAndSlippageUsdt:
+        signal.edgeModel &&
+        Number((plan.notional * ((Number(signal.edgeModel.liveSpreadPct || 0) + Number(signal.edgeModel.conservativeSlippagePct || 0)) / 100)).toFixed(6)),
+      expectedFundingUsdt: signal.edgeModel && Number((plan.notional * (Math.max(0, Number(signal.edgeModel.estimatedFundingPct || 0)) / 100)).toFixed(6)),
     };
     if (!this.config.dryRun) {
       position.entrySubmittedAt = new Date().toISOString();
@@ -1721,6 +2346,8 @@ class LadderBot {
         trade.entryOrderLinkId = position.entryOrderLinkId;
         trade.entryOrderStatus = "NEW";
         trade.executionType = position.executionType;
+        trade.makerOrTaker = position.makerOrTaker;
+        trade.intendedPrice = position.intendedPrice;
         this.executionLedger.recordOrder(position.id, {
           orderId: position.entryOrderId,
           orderLinkId: position.entryOrderLinkId,
@@ -1728,6 +2355,7 @@ class LadderBot {
         this.log("WARN", "ORDER SENT", {
           operation: "ENTRY",
           executionType: position.executionType,
+          makerOrTaker: position.makerOrTaker,
           symbol: position.symbol,
           side: position.side,
           orderId: position.entryOrderId,
@@ -2239,7 +2867,15 @@ class LadderBot {
         maxLossAtStopUsdt: Number(numeric(position.maxLossAtStopUsdt).toFixed(6)),
         riskPctOfEquity: Number(numeric(position.riskPctOfEquity).toFixed(4)),
         executionType: position.executionType || trade.executionType || "MARKET_TAKER",
+        makerOrTaker: position.makerOrTaker || trade.makerOrTaker || "TAKER_INTENDED",
+        intendedPrice: Number(numeric(position.intendedPrice, position.plannedEntryPrice || position.entryPrice).toFixed(8)),
+        averageFillPrice: Number(numeric(position.entryPrice).toFixed(8)),
+        fillLatencyMs: position.fillLatencyMs === null || position.fillLatencyMs === undefined ? null : Number(position.fillLatencyMs),
+        cancelledOrMissedEntry: false,
         actualSlippagePct: Number(numeric(position.slippagePct).toFixed(4)),
+        actualFeeUsdt: Number(totalFees.toFixed(6)),
+        actualEntryFeeUsdt: Number(fees.entryFee.toFixed(6)),
+        actualExitFeeUsdt: Number(fees.exitFee.toFixed(6)),
         isReentry: Boolean(position.intelligentReentryTriggered),
         isFlip: Boolean(isFlip),
         marketMode: position.marketPersonality || position.marketRegimeType || position.signalRegime || "UNKNOWN",
@@ -2275,6 +2911,7 @@ class LadderBot {
     } catch (error) {
       this.log("WARN", "Profit objective report update failed.", { error: error.message });
     }
+    this.writeLiveValidationStatusReport(true);
     if (reason.toLowerCase().includes("take profit")) {
       this.log("WARN", "TP HIT", { symbol: position.symbol, side: position.side, exitPrice });
     }
@@ -2403,14 +3040,19 @@ class LadderBot {
         managed.status = "OPEN";
         if (entryWasPending) {
           managed.entryConfirmedAt = new Date().toISOString();
+          const entrySubmittedMs = Date.parse(managed.entrySubmittedAt || managed.openedAt || "");
+          managed.fillLatencyMs = Number.isFinite(entrySubmittedMs) ? Date.parse(managed.entryConfirmedAt) - entrySubmittedMs : null;
           const trade = this.store.trades.find((item) => item.id === managed.id);
           if (trade) {
             trade.status = "OPEN";
             trade.entryConfirmedAt = managed.entryConfirmedAt;
             trade.entryPrice = entryPrice;
             trade.slippagePct = managed.slippagePct;
+            trade.actualSlippagePct = managed.slippagePct;
             trade.size = String(size);
             trade.positionIdx = managed.positionIdx;
+            trade.fillLatencyMs = managed.fillLatencyMs;
+            trade.averageFillPrice = entryPrice;
           }
           this.risk.registerOpen(Boolean(managed.explorationTrade));
           if (this.store.state.pauseReason === LEGACY_UNKNOWN_ENTRY_PAUSE) {

@@ -116,7 +116,7 @@ class ProfitObjectiveEngine {
         systemProducingPositiveEvidence: summarize(closed.slice(-25)).netPnlUsdt > 0,
       },
     };
-    const reportsDir = path.join(this.config.projectRoot, "data", "reports");
+    const reportsDir = this.config.reportsDir || path.join(this.config.projectRoot, "data", "reports");
     writeJson(path.join(reportsDir, "latest-summary.json"), latestSummary);
     writeJson(path.join(reportsDir, "daily", `${today}.json`), {
       generatedAt: latestSummary.generatedAt,

@@ -570,7 +570,8 @@ class BybitClient extends EventEmitter {
   connectStream(kind) {
     if (this.streamsStopped) return;
     const endpoint = kind === "public" ? "/v5/public/linear" : "/v5/private";
-    const socket = new this.WebSocketImpl(`${this.config.wsBaseUrl}${endpoint}`);
+    const baseUrl = kind === "public" ? this.config.publicWsBaseUrl || this.config.wsBaseUrl : this.config.privateWsBaseUrl || this.config.wsBaseUrl;
+    const socket = new this.WebSocketImpl(`${baseUrl}${endpoint}`);
     this.sockets[kind] = socket;
     socket.on("open", () => {
       const wasReconnect = this.reconnectAttempts[kind] > 0;

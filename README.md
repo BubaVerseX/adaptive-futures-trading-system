@@ -41,6 +41,105 @@ npm install
 
 The bot uses Bybit V5 linear endpoints for instruments, tickers, klines, unified wallet balance, positions, leverage, order creation, open orders, order history, native trading stops, position mode changes, and order cancellation. It uses WebSocket streams for tickers and authenticated order, execution, and position updates.
 
+## V5 Live Validation Mode
+
+`npm run live:validate` is a separate real-money validation profile. It is not unrestricted live mode and it is not a profit guarantee.
+
+The npm script sets live-validation mode, mainnet endpoints, and the 10 USDT allocation default, but it does **not** auto-acknowledge real-money risk. If the acknowledgement variables are missing, startup refuses with:
+
+```text
+LIVE VALIDATION NOT STARTED — REAL-MONEY ACKNOWLEDGEMENT REQUIRED
+```
+
+It refuses to start unless all of these are true:
+
+- `BYBIT_DEMO_TRADING=false`
+- `BYBIT_TESTNET=false`
+- `DRY_RUN=false`
+- `LIVE_VALIDATION_MODE=true`
+- `ACKNOWLEDGE_LIVE_VALIDATION_RISK=true`
+- `ACKNOWLEDGE_LIVE_TRADING=true`
+- `LIVE_VALIDATION_MAX_ALLOCATED_EQUITY_USDT=10`
+- live REST endpoint is `https://api.bybit.com`
+- live private/public WebSocket endpoints are `wss://stream.bybit.com`
+
+Startup prints:
+
+```text
+LIVE VALIDATION MODE — REAL FUNDS AT RISK — LIMITED INITIAL RISK PROFILE ACTIVE
+```
+
+Initial validation uses a 10 USDT allocation even if the account has more equity. Sizing is based on maximum loss at stop against that allocation:
+
+| Tier | Max loss at stop |
+| --- | ---: |
+| `EXPLORATION_POSITIVE_EDGE` | `0.20%` of allocated validation equity |
+| `NORMAL_CONTINUATION` | `0.35%` |
+| `STRONG_CONTINUATION` | `0.50%` |
+| `ELITE_CONTINUATION` | `0.75%` |
+
+The bot logs `marginUsedUsdt`, `notionalExposureUsdt`, and `maxLossAtStopUsdt` separately before entries. Margin or notional is never described as risk.
+
+Before live-validation entries, the bot loads Bybit instrument rules for `BTCUSDT`, `ETHUSDT`, and `SOLUSDT`, including tick size, quantity step, minimum order quantity, and minimum notional/order value where available. Each candidate is checked after risk sizing:
+
+- if the rounded order is below the Bybit minimum, it logs `ORDER_BELOW_EXCHANGE_MINIMUM`
+- if the smallest executable rounded order would exceed the active max-loss-at-stop limit, it logs `ROUNDED_ORDER_EXCEEDS_RISK_LIMIT` and rejects the entry
+- feasible orders log `LIVE_VALIDATION_ORDER_SIZE_FEASIBLE` and `FINAL_ROUNDED_MAX_LOSS_AT_STOP_USDT`
+
+The bot never silently increases size above the active validation risk limit just to satisfy exchange minimums.
+
+Promotion is evidence-based:
+
+- Level 0: 10 USDT allocation.
+- Level 1: 20 USDT allocation only after at least 50 closed validation trades, positive net PnL after actual fees, profit factor at least `1.10`, clean execution ledger, verified protection, no unresolved reconciliation, and acceptable fee ratio.
+- Level 2: 35 USDT allocation only after at least 100 cumulative closed validation trades, positive net PnL, profit factor at least `1.15`, positive last-25 expectancy, bounded drawdown, and stable protection/ledger state.
+- Promotion beyond 35 USDT is not automatic.
+
+Live-validation records are separate:
+
+- `data/live-validation/state.json`
+- `data/live-validation/trades.json`
+- `data/live-validation/tradeMemory.json`
+- `data/live-validation/executionLedger.json`
+- `data/live-validation/analytics.json`
+- `data/live-validation/reports/latest-summary.json`
+- `data/live-validation/reports/daily/YYYY-MM-DD.json`
+
+The mode has no daily trade-count cap. It still rejects negative expected-net-edge entries, unresolved execution state, missing TP/SL protection, unsafe leverage, insufficient wallet balance, and excessive aggregate risk-at-stop. If validation performance deteriorates, it enters `RISK_STATE_REDUCED` and trims sizing by default; it enters `RISK_STATE_PROTECTION_ONLY` only for validation drawdown, unsafe reconciliation/protection state, or repeated true API failures.
+
+To prepare the environment later:
+
+```bash
+cp .env.live-validation.example .env
+nano .env
+```
+
+Fill the API key/secret, then deliberately review and set:
+
+```env
+ACKNOWLEDGE_LIVE_VALIDATION_RISK=true
+ACKNOWLEDGE_LIVE_TRADING=true
+ACKNOWLEDGE_HIGH_LEVERAGE_RISK=true
+```
+
+Then launch:
+
+```bash
+npm run live:validate
+```
+
+Do not run live validation until you have reviewed open Bybit positions manually and accept that it uses real funds.
+
+API key safety:
+
+- use a dedicated Bybit API key for this bot
+- never commit `.env`
+- never print or screenshot the API secret
+- do not expose keys in reports, logs, or screenshots
+- enable only the permissions required for trading plus account/position reads
+- do not enable withdrawal permissions
+- avoid unnecessary fund-transfer permissions
+
 ## Focused BTC/ETH/SOL Universe
 
 The executable trading universe is intentionally restricted to:
@@ -108,6 +207,8 @@ Fee-efficiency controls:
 | Setting | Default |
 | --- | ---: |
 | `ESTIMATED_FEE_PCT_PER_SIDE` | `0.055` |
+| `MAKER_FEE_PCT_PER_SIDE` | `0.020` |
+| `TAKER_FEE_PCT_PER_SIDE` | `0.055` |
 | `ESTIMATED_SLIPPAGE_PCT` | `0.08` |
 | `MIN_PROJECTED_EDGE_PCT` | `0.55` |
 | `MIN_EXPECTED_MOVE_PCT` | `0.95` |
@@ -438,6 +539,49 @@ npm run testnet
 ```
 
 Testnet live mode submits actual Bybit testnet market orders with native TP/SL.
+
+## Run With Bybit Demo Trading Orders
+
+Bybit Demo Trading is not the same as testnet. Demo keys must be created from the main Bybit account after switching into Demo Trading, and the bot enforces the official demo REST/private-WebSocket domains when `BYBIT_DEMO_TRADING=true`.
+
+```bash
+cd /path/to/bybit-v5-futures-hyper-scalper
+cp .env.demo.example .env
+npm install
+nano .env
+```
+
+Fill in only the demo key and secret:
+
+```env
+BYBIT_API_KEY=your_demo_trading_key
+BYBIT_API_SECRET=your_demo_trading_secret
+BYBIT_DEMO_TRADING=true
+BYBIT_TESTNET=false
+DRY_RUN=false
+ACKNOWLEDGE_DEMO_TRADING=true
+ACKNOWLEDGE_HIGH_LEVERAGE_RISK=true
+ACKNOWLEDGE_LIVE_TRADING=false
+BYBIT_REST_BASE_URL=https://api-demo.bybit.com
+BYBIT_WS_BASE_URL=
+BYBIT_PUBLIC_WS_BASE_URL=wss://stream.bybit.com
+BYBIT_PRIVATE_WS_BASE_URL=wss://stream-demo.bybit.com
+```
+
+Then start demo mode:
+
+```bash
+rm -f STOP_BOT.txt
+npm run demo
+```
+
+`npm run demo` forces `BYBIT_DEMO_TRADING=true`, `BYBIT_TESTNET=false`, `DRY_RUN=false`, `ACKNOWLEDGE_DEMO_TRADING=true`, `ACKNOWLEDGE_LIVE_TRADING=false`, `ACKNOWLEDGE_HIGH_LEVERAGE_RISK=true`, and the official demo endpoints for that process. In demo mode the bot writes runtime files under `data/demo/`, so demo analytics, execution ledger, trade memory, state, and logs do not contaminate prior live/local history. The bot refuses to start demo mode if the REST URL is not `https://api-demo.bybit.com`, if the private WebSocket URL is not `wss://stream-demo.bybit.com`, if the public market WebSocket is not `wss://stream.bybit.com`, or if `ACKNOWLEDGE_LIVE_TRADING=true`.
+
+Confirm demo mode in logs by checking for:
+
+```text
+DEMO TRADING — NO REAL FUNDS AT RISK.
+```
 
 ## Mainnet Live Mode
 

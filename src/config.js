@@ -6,6 +6,11 @@ const path = require("node:path");
 
 const PROJECT_ROOT = path.join(__dirname, "..");
 const FOCUSED_TRADING_SYMBOLS = Object.freeze(["BTCUSDT", "ETHUSDT", "SOLUSDT"]);
+const DEMO_REST_BASE_URL = "https://api-demo.bybit.com";
+const DEMO_PRIVATE_WS_BASE_URL = "wss://stream-demo.bybit.com";
+const MAINNET_PUBLIC_WS_BASE_URL = "wss://stream.bybit.com";
+const MAINNET_REST_BASE_URL = "https://api.bybit.com";
+const LIVE_VALIDATION_ACK_MESSAGE = "LIVE VALIDATION NOT STARTED — REAL-MONEY ACKNOWLEDGEMENT REQUIRED";
 
 function booleanValue(name, fallback) {
   const raw = String(process.env[name] ?? fallback).trim().toLowerCase();
@@ -46,26 +51,60 @@ function enumValue(name, fallback, accepted) {
   return value;
 }
 
+function normalizedUrl(value) {
+  return String(value).replace(/\/$/, "");
+}
+
+function hostname(value) {
+  try {
+    return new URL(value).hostname.toLowerCase();
+  } catch (_error) {
+    return "";
+  }
+}
+
 function loadConfig() {
   const bybitTestnet = booleanValue("BYBIT_TESTNET", true);
+  const bybitDemoTrading = booleanValue("BYBIT_DEMO_TRADING", false);
+  const liveValidationMode = booleanValue("LIVE_VALIDATION_MODE", false);
+  const exchangeEnvironment = liveValidationMode ? "LIVE_VALIDATION" : bybitDemoTrading ? "DEMO" : bybitTestnet ? "TESTNET" : "MAINNET";
+  const dataDir = path.join(PROJECT_ROOT, "data", liveValidationMode ? "live-validation" : bybitDemoTrading ? "demo" : "");
+  const defaultRestBaseUrl = bybitDemoTrading
+    ? DEMO_REST_BASE_URL
+    : bybitTestnet
+      ? "https://api-testnet.bybit.com"
+      : MAINNET_REST_BASE_URL;
+  const defaultWsBaseUrl = bybitTestnet ? "wss://stream-testnet.bybit.com" : MAINNET_PUBLIC_WS_BASE_URL;
+  const defaultPublicWsBaseUrl = bybitDemoTrading ? MAINNET_PUBLIC_WS_BASE_URL : defaultWsBaseUrl;
+  const defaultPrivateWsBaseUrl = bybitDemoTrading ? DEMO_PRIVATE_WS_BASE_URL : defaultWsBaseUrl;
+  const restBaseUrl = normalizedUrl(process.env.BYBIT_REST_BASE_URL || defaultRestBaseUrl);
+  const publicWsBaseUrl = normalizedUrl(
+    process.env.BYBIT_PUBLIC_WS_BASE_URL || (!bybitDemoTrading ? process.env.BYBIT_WS_BASE_URL : "") || defaultPublicWsBaseUrl
+  );
+  const privateWsBaseUrl = normalizedUrl(
+    process.env.BYBIT_PRIVATE_WS_BASE_URL || process.env.BYBIT_WS_BASE_URL || defaultPrivateWsBaseUrl
+  );
   const config = {
     projectRoot: PROJECT_ROOT,
-    stateFile: path.join(PROJECT_ROOT, "data", "state.json"),
-    tradesFile: path.join(PROJECT_ROOT, "data", "trades.json"),
-    tradeMemoryFile: path.join(PROJECT_ROOT, "data", "tradeMemory.json"),
-    analyticsFile: path.join(PROJECT_ROOT, "data", "analytics.json"),
-    executionLedgerFile: path.join(PROJECT_ROOT, "data", "executionLedger.json"),
-    logFile: path.join(PROJECT_ROOT, "data", "bybit-bot.log"),
+    dataDir,
+    stateFile: path.join(dataDir, "state.json"),
+    tradesFile: path.join(dataDir, "trades.json"),
+    tradeMemoryFile: path.join(dataDir, "tradeMemory.json"),
+    analyticsFile: path.join(dataDir, "analytics.json"),
+    executionLedgerFile: path.join(dataDir, "executionLedger.json"),
+    reportsDir: path.join(dataDir, "reports"),
+    logFile: path.join(dataDir, "bybit-bot.log"),
     emergencyStopFile: path.join(PROJECT_ROOT, path.basename(process.env.EMERGENCY_STOP_FILE || "STOP_BOT.txt")),
     apiKey: process.env.BYBIT_API_KEY || "",
     apiSecret: process.env.BYBIT_API_SECRET || "",
     bybitTestnet,
-    restBaseUrl: String(
-      process.env.BYBIT_REST_BASE_URL || (bybitTestnet ? "https://api-testnet.bybit.com" : "https://api.bybit.com")
-    ).replace(/\/$/, ""),
-    wsBaseUrl: String(
-      process.env.BYBIT_WS_BASE_URL || (bybitTestnet ? "wss://stream-testnet.bybit.com" : "wss://stream.bybit.com")
-    ).replace(/\/$/, ""),
+    bybitDemoTrading,
+    liveValidationMode,
+    exchangeEnvironment,
+    restBaseUrl,
+    publicWsBaseUrl,
+    privateWsBaseUrl,
+    wsBaseUrl: privateWsBaseUrl,
     recvWindowMs: numberValue("BYBIT_RECV_WINDOW_MS", 5000, { positive: true, integer: true }),
     category: "linear",
     settleCoin: "USDT",
@@ -102,6 +141,19 @@ function loadConfig() {
     setLeverageOnEntry: booleanValue("SET_LEVERAGE_ON_ENTRY", true),
     acknowledgeHighLeverageRisk: booleanValue("ACKNOWLEDGE_HIGH_LEVERAGE_RISK", false),
     acknowledgeLiveTrading: booleanValue("ACKNOWLEDGE_LIVE_TRADING", false),
+    acknowledgeDemoTrading: booleanValue("ACKNOWLEDGE_DEMO_TRADING", false),
+    acknowledgeLiveValidationRisk: booleanValue("ACKNOWLEDGE_LIVE_VALIDATION_RISK", false),
+    liveValidationMaxAllocatedEquityUsdt: numberValue("LIVE_VALIDATION_MAX_ALLOCATED_EQUITY_USDT", 10, { positive: true }),
+    liveValidationPromotionEnabled: booleanValue("LIVE_VALIDATION_PROMOTION_ENABLED", false),
+    liveValidationProtectionDrawdownPct: numberValue("LIVE_VALIDATION_PROTECTION_DRAWDOWN_PCT", 15, { positive: true, maximum: 100 }),
+    liveValidationReducedRiskMultiplier: numberValue("LIVE_VALIDATION_REDUCED_RISK_MULTIPLIER", 0.6, { positive: true, maximum: 1 }),
+    liveValidationMaxFeeToGrossProfitRatio: numberValue("LIVE_VALIDATION_MAX_FEE_TO_GROSS_PROFIT_RATIO", 0.65, { positive: true }),
+    liveValidationReducedFeeDragRatio: numberValue("LIVE_VALIDATION_REDUCED_FEE_DRAG_RATIO", 0.8, { positive: true }),
+    liveValidationMaxPromotionDrawdownPct: numberValue("LIVE_VALIDATION_MAX_PROMOTION_DRAWDOWN_PCT", 15, { positive: true, maximum: 100 }),
+    liveValidationExplorationRiskAtStopMaxPct: numberValue("LIVE_VALIDATION_EXPLORATION_RISK_AT_STOP_MAX_PCT", 0.2, { positive: true, maximum: 5 }),
+    liveValidationNormalRiskAtStopMaxPct: numberValue("LIVE_VALIDATION_NORMAL_RISK_AT_STOP_MAX_PCT", 0.35, { positive: true, maximum: 5 }),
+    liveValidationStrongRiskAtStopMaxPct: numberValue("LIVE_VALIDATION_STRONG_RISK_AT_STOP_MAX_PCT", 0.5, { positive: true, maximum: 5 }),
+    liveValidationEliteRiskAtStopMaxPct: numberValue("LIVE_VALIDATION_ELITE_RISK_AT_STOP_MAX_PCT", 0.75, { positive: true, maximum: 5 }),
     allowShorts: booleanValue("ALLOW_SHORTS", true),
     allowLongs: booleanValue("ALLOW_LONGS", true),
     scanIntervalMs: numberValue("SCAN_INTERVAL_MS", 1200, { positive: true, integer: true }),
@@ -141,6 +193,8 @@ function loadConfig() {
     fomoMomentumPct: numberValue("FOMO_MOMENTUM_PCT", 0.18, { positive: true }),
     minMomentumPersistenceCandles: numberValue("MIN_MOMENTUM_PERSISTENCE_CANDLES", 2, { positive: true, integer: true, maximum: 6 }),
     estimatedFeePctPerSide: numberValue("ESTIMATED_FEE_PCT_PER_SIDE", 0.055, { minimum: 0 }),
+    estimatedMakerFeePctPerSide: numberValue("MAKER_FEE_PCT_PER_SIDE", 0.02, { minimum: 0 }),
+    estimatedTakerFeePctPerSide: numberValue("TAKER_FEE_PCT_PER_SIDE", 0.055, { minimum: 0 }),
     estimatedSlippagePct: numberValue("ESTIMATED_SLIPPAGE_PCT", 0.08, { minimum: 0 }),
     estimatedFundingPct: numberValue("ESTIMATED_FUNDING_PCT", 0, { minimum: -2 }),
     minProjectedEdgePct: numberValue("MIN_PROJECTED_EDGE_PCT", 0.55, { minimum: 0 }),
@@ -338,11 +392,53 @@ function loadConfig() {
   if (!config.allowLongs && !config.allowShorts) {
     throw new Error("At least one of ALLOW_LONGS or ALLOW_SHORTS must be true.");
   }
+  if (config.liveValidationMode && config.dryRun) {
+    throw new Error("LIVE_VALIDATION_MODE=true is a real-money validation profile and requires DRY_RUN=false.");
+  }
+  if (config.liveValidationMode && (config.bybitDemoTrading || config.bybitTestnet)) {
+    throw new Error("LIVE_VALIDATION_MODE=true requires BYBIT_DEMO_TRADING=false and BYBIT_TESTNET=false.");
+  }
+  if (config.liveValidationMode && !config.acknowledgeLiveValidationRisk) {
+    throw new Error(`${LIVE_VALIDATION_ACK_MESSAGE}: set ACKNOWLEDGE_LIVE_VALIDATION_RISK=true deliberately.`);
+  }
+  if (config.liveValidationMode && !config.acknowledgeLiveTrading) {
+    throw new Error(`${LIVE_VALIDATION_ACK_MESSAGE}: set ACKNOWLEDGE_LIVE_TRADING=true deliberately.`);
+  }
+  if (config.liveValidationMode && config.liveValidationMaxAllocatedEquityUsdt > 10) {
+    throw new Error("LIVE_VALIDATION_MAX_ALLOCATED_EQUITY_USDT cannot exceed 10 during initial validation launch.");
+  }
+  if (config.liveValidationMode && hostname(config.restBaseUrl) !== "api.bybit.com") {
+    throw new Error("LIVE_VALIDATION_MODE requires the live mainnet REST endpoint https://api.bybit.com.");
+  }
+  if (config.liveValidationMode && hostname(config.privateWsBaseUrl) !== "stream.bybit.com") {
+    throw new Error("LIVE_VALIDATION_MODE requires the live mainnet private WebSocket endpoint wss://stream.bybit.com.");
+  }
+  if (config.liveValidationMode && hostname(config.publicWsBaseUrl) !== "stream.bybit.com") {
+    throw new Error("LIVE_VALIDATION_MODE requires the live mainnet public WebSocket endpoint wss://stream.bybit.com.");
+  }
+  if (config.bybitDemoTrading && config.bybitTestnet) {
+    throw new Error("BYBIT_DEMO_TRADING=true requires BYBIT_TESTNET=false. Demo Trading is separate from Bybit testnet.");
+  }
+  if (config.bybitDemoTrading && hostname(config.restBaseUrl) !== "api-demo.bybit.com") {
+    throw new Error("Demo trading requires BYBIT_REST_BASE_URL to be blank or https://api-demo.bybit.com.");
+  }
+  if (config.bybitDemoTrading && hostname(config.privateWsBaseUrl) !== "stream-demo.bybit.com") {
+    throw new Error("Demo trading requires BYBIT_PRIVATE_WS_BASE_URL/BYBIT_WS_BASE_URL to be blank or wss://stream-demo.bybit.com.");
+  }
+  if (config.bybitDemoTrading && hostname(config.publicWsBaseUrl) !== "stream.bybit.com") {
+    throw new Error("Demo trading requires public market WebSocket to use wss://stream.bybit.com.");
+  }
+  if (config.bybitDemoTrading && config.acknowledgeLiveTrading) {
+    throw new Error("Demo trading refuses to start while ACKNOWLEDGE_LIVE_TRADING=true. Use demo credentials and the npm run demo launch path.");
+  }
+  if (!config.dryRun && config.bybitDemoTrading && !config.acknowledgeDemoTrading) {
+    throw new Error("Bybit Demo Trading orders require ACKNOWLEDGE_DEMO_TRADING=true.");
+  }
+  if (!config.dryRun && !config.bybitDemoTrading && !config.bybitTestnet && !config.acknowledgeLiveTrading) {
+    throw new Error("Mainnet trading requires ACKNOWLEDGE_LIVE_TRADING=true.");
+  }
   if (!config.dryRun && (!config.apiKey || !config.apiSecret)) {
     throw new Error("DRY_RUN=false requires BYBIT_API_KEY and BYBIT_API_SECRET.");
-  }
-  if (!config.dryRun && !config.bybitTestnet && !config.acknowledgeLiveTrading) {
-    throw new Error("Mainnet trading requires ACKNOWLEDGE_LIVE_TRADING=true.");
   }
   if (!config.dryRun && config.maxLeverage > 3 && !config.acknowledgeHighLeverageRisk) {
     throw new Error("Trading above 3x leverage requires ACKNOWLEDGE_HIGH_LEVERAGE_RISK=true.");
