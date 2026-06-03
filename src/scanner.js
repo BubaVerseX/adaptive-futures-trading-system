@@ -151,7 +151,7 @@ function technicalConvictionScore(config, parts) {
   const edgeScore = bounded((parts.feeEdgeRatio / config.minEdgeToCostRatio) * 15, 0, 15);
   const trendScore = bounded(parts.trendQualityScore * 0.16, 0, 16);
   const liquidity = bounded(parts.liquidityScore * 0.14, 0, 14);
-  const chopPenalty = Math.min(18, parts.chop.score * 4);
+  const chopPenalty = Math.min(config.antiChopConvictionPenaltyMax, parts.chop.score * 4);
   const total = volumeScore + momentumScore + btcScore + breakoutScore + edgeScore + trendScore + liquidity - chopPenalty;
   return {
     score: Number(bounded(total, 0, 100).toFixed(2)),
@@ -500,6 +500,7 @@ class Scanner {
     const direction = long ? "UP" : "DOWN";
     let score = 0;
     const scoreBreakdown = [];
+    let antiChopContribution = 0;
     const rejected = [...(commonReject || [])];
     const mainTrend = emaDirection(main);
     const trend15 = emaDirection(trend);
@@ -746,6 +747,7 @@ class Scanner {
     } else if (regime === "CHOPPY") {
       const penalty = fomoTrigger && hasMomentumPersistence ? Math.ceil(this.config.choppyMarketPenalty / 2) : this.config.choppyMarketPenalty;
       addScore("BTC/ETH choppy context penalty", -penalty);
+      antiChopContribution -= penalty;
     }
     if (marketRegimeTags.includes("STRONG_TRENDING_MARKET") && (supportsMarket || btcSupportsSide)) {
       addScore("strong trending regime continuation boost", 8);
@@ -780,6 +782,7 @@ class Scanner {
           ? 4
           : 10;
       addScore("sideways chop market activity reduction", -chopRegimePenalty);
+      antiChopContribution -= chopRegimePenalty;
     }
     if (marketRegimeTags.includes("FAKE_BREAKOUT_ENVIRONMENT")) {
       addScore("fake breakout environment penalty", this.config.aggressiveLearningPhase ? -5 : this.config.learningPhaseMode ? -5 : -12);
@@ -815,6 +818,7 @@ class Scanner {
       addScore("adaptive market personality switched: momentum continuation", 4);
     } else if (personality === "WEAK_CHOP") {
       addScore("adaptive market personality switched: weak chop", -4);
+      antiChopContribution -= 4;
     }
     if (lowLiquidityRandomSpike) {
       addScore("low-liquidity random spike penalty", -this.config.lowLiquiditySpikePenalty);
@@ -855,20 +859,27 @@ class Scanner {
       projectedNetEdgePct >= this.config.explorationMinProjectedEdgePct &&
       symbolLiquidityScore >= this.config.minLiquidityScore;
     if (chop.score > this.config.maxChopScore && !exceptionalChopBreakout && !moderateChopAccepted) {
-      addScore("anti-chop filter penalty", -Math.min(24, chop.score * 5));
+      const antiChopPenalty = Math.min(this.config.antiChopPenaltyMax, chop.score * 5);
+      addScore("anti-chop filter penalty", -antiChopPenalty);
+      antiChopContribution -= antiChopPenalty;
       rejected.push(`anti-chop filter activated: ${chop.reasons.join("; ")}`);
     } else if (chop.score > 0) {
-      addScore(moderateChopAccepted ? "moderate chop accepted by activity floor" : "minor chop-quality penalty", -Math.min(8, chop.score * 1.5));
+      const minorChopPenalty = Math.min(Math.min(8, this.config.antiChopPenaltyMax), chop.score * 1.5);
+      addScore(moderateChopAccepted ? "moderate chop accepted by activity floor" : "minor chop-quality penalty", -minorChopPenalty);
+      antiChopContribution -= minorChopPenalty;
     }
 
     if (regime === "CHOPPY" && !this.config.allowChoppyMarket) rejected.push("choppy-market entries disabled by configuration");
-    const volumeSurvivabilityFloor = this.config.highActivityMode
+    const baseVolumeSurvivabilityFloor = this.config.highActivityMode
       ? this.config.minVolumeSpike * 0.7
       : this.config.aggressiveLearningPhase
         ? this.config.minVolumeSpike * 0.8
         : this.config.learningPhaseMode
           ? this.config.minVolumeSpike * 0.72
           : this.config.minVolumeSpike;
+    const volumeSurvivabilityFloor = baseVolumeSurvivabilityFloor * (
+      this.config.tradeFrequencyRecoveryMode ? this.config.volumeSurvivabilityRelaxationMultiplier : 1
+    );
     if (volumeSpike < volumeSurvivabilityFloor && !fomoTrigger && !highActivityContinuation) rejected.push("volume confirmation below survivability threshold");
     if (!hasMomentumPersistence && !fomoTrigger && !breakSignal) rejected.push("momentum did not persist long enough");
     if (
@@ -980,7 +991,12 @@ class Scanner {
     });
     baseSignal.technicalConvictionScore = conviction.score;
     baseSignal.convictionComponents = conviction.components;
+    baseSignal.antiChopContribution = Number(antiChopContribution.toFixed(2));
+    baseSignal.volumeSurvivabilityFloor = Number(volumeSurvivabilityFloor.toFixed(4));
+    baseSignal.baseVolumeSurvivabilityFloor = Number(baseVolumeSurvivabilityFloor.toFixed(4));
+    baseSignal.tradeFrequencyRecoveryActive = Boolean(this.config.tradeFrequencyRecoveryMode);
     const signal = this.applyEliteClassification(this.applyAdaptiveLearning(baseSignal));
+    signal.convictionContribution = Number((Number(signal.convictionScore || 0) - Number(signal.requiredConvictionScore || this.config.minConvictionScore)).toFixed(2));
     const policyRequiredScore = this.adaptive && this.config.adaptiveLearningEnabled
       ? this.adaptive.currentPolicy().minSignalScore
       : this.config.minSignalScore;
@@ -1165,11 +1181,16 @@ class Scanner {
         feeEdgeRatio: item.feeEdgeRatio.toFixed(2),
         convictionScore: item.convictionScore,
         technicalConvictionScore: item.technicalConvictionScore,
+        convictionContribution: item.convictionContribution,
         convictionComponents: item.convictionComponents,
         liquidityScore: item.liquidityScore,
         trendQualityScore: item.trendQualityScore,
         antiChopScore: item.antiChopScore,
         antiChopReasons: item.antiChopReasons,
+        antiChopContribution: item.antiChopContribution,
+        volumeSurvivabilityFloor: item.volumeSurvivabilityFloor,
+        baseVolumeSurvivabilityFloor: item.baseVolumeSurvivabilityFloor,
+        tradeFrequencyRecoveryActive: item.tradeFrequencyRecoveryActive,
         moderateChopAccepted: item.moderateChopAccepted,
         volatilityRegime: item.volatilityRegime,
         volumeCondition: item.volumeCondition,
@@ -1191,6 +1212,31 @@ class Scanner {
         fastMode: item.fastMode,
         fomoTrigger: item.fomoTrigger,
         rejected: item.rejected,
+      });
+    }
+    const rejectReasons = {};
+    for (const item of analyses) {
+      for (const reason of item.rejected || []) {
+        const key = String(reason).replace(/:\s.*$/, "");
+        rejectReasons[key] = (rejectReasons[key] || 0) + 1;
+      }
+    }
+    const average = (field) => {
+      if (!analyses.length) return 0;
+      return Number((analyses.reduce((total, item) => total + Number(item[field] || 0), 0) / analyses.length).toFixed(4));
+    };
+    if (this.config.tradeFrequencyRecoveryMode) {
+      this.log("INFO", "TRADE_FREQUENCY_RECOVERY_ACTIVE", {
+        candidateCount: analyses.filter((item) => item.eligible).length,
+        analyzedCount: analyses.length,
+        rejectReasons,
+        antiChopContributionAverage: average("antiChopContribution"),
+        convictionContributionAverage: average("convictionContribution"),
+        adaptiveMinimumScore: this.adaptive && this.config.adaptiveLearningEnabled ? this.adaptive.currentPolicy().minSignalScore : this.config.minSignalScore,
+        minimumConvictionScore: this.config.minConvictionScore,
+        antiChopPenaltyMax: this.config.antiChopPenaltyMax,
+        volumeSurvivabilityRelaxationMultiplier: this.config.volumeSurvivabilityRelaxationMultiplier,
+        qualityPacingStillEnabled: this.config.qualityPacingEnabled,
       });
     }
     this.log("INFO", "Scalping scan completed.", {

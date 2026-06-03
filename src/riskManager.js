@@ -316,7 +316,9 @@ class RiskManager {
       signal.btcTrendAligned &&
       ["STRONG_VOLUME_SPIKE", "CONFIRMED_VOLUME"].includes(signal.volumeCondition) &&
       Number(signal.projectedNetEdgePct || 0) >= this.config.minProjectedEdgePct + (signal.highActivityContinuation ? 0.2 : 0.35);
-    const eliteSetup = Boolean(signal.eliteSetup);
+    const profitQualityTier = String(signal.profitQualityTier || "").toUpperCase();
+    const eliteSetup = Boolean(signal.eliteSetup || profitQualityTier === "ELITE");
+    const profitStrongSetup = profitQualityTier === "STRONG";
     if (eliteSetup) {
       convictionTier = "TIER_3_ELITE_SETUP";
       tierMarginMin = this.config.tier3MarginMinUsdt;
@@ -325,14 +327,14 @@ class RiskManager {
       riskAtStopMaxPct = this.config.eliteRiskAtStopMaxPct;
       qualitySizeMultiplier = continuationStrength >= 82 ? 1.5 : 1.38;
       reasonsForSizingTier.push("elite setup with high-confluence continuation evidence");
-    } else if (highQualityContinuation) {
+    } else if (highQualityContinuation || profitStrongSetup) {
       convictionTier = "TIER_2_STRONG_SETUP";
       tierMarginMin = this.config.tier2MarginMinUsdt;
       tierMarginMax = this.config.tier2MarginMaxUsdt;
       riskAtStopMinPct = this.config.strongRiskAtStopMinPct;
       riskAtStopMaxPct = this.config.strongRiskAtStopMaxPct;
       qualitySizeMultiplier = continuationStrength >= 72 ? 1.22 : 1.12;
-      reasonsForSizingTier.push("strong continuation with liquidity, BTC alignment, volume, and edge");
+      reasonsForSizingTier.push(profitStrongSetup ? "V7 strong profit quality score earned larger protected sizing tier" : "strong continuation with liquidity, BTC alignment, volume, and edge");
     } else if (
       Number(signal.convictionScore || 0) < this.config.minConvictionScore + 6 ||
       signal.volatilityRegime === "HIGH_VOLATILITY" ||
@@ -394,7 +396,7 @@ class RiskManager {
     // Margin cap keeps the bot from using the full account even in aggressive mode.
     const marginCappedNotional = equity * leverage * (this.config.maxMarginUsagePct / 100);
     const configuredNotionalCap = this.config.maxPositionNotionalUsdt || Number.POSITIVE_INFINITY;
-    const sizingConviction = Math.max(Number(signal.convictionScore || 0), continuationStrength * 0.96);
+    const sizingConviction = Math.max(Number(signal.convictionScore || 0), Number(signal.profitQualityScore || 0), continuationStrength * 0.96);
     const targetMarginUsdt = bounded(
       tierMarginMin + (tierMarginMax - tierMarginMin) * bounded(sizingConviction / 100, 0, 1),
       tierMarginMin,
@@ -432,11 +434,17 @@ class RiskManager {
       tickSize,
       !isLong
     );
+    const winnerAmplifier = Boolean(this.config.profitControlledEquityMode && this.config.winnerAmplifierEnabled);
+    const runnerMultiplier = eliteSetup
+      ? this.config.eliteRunnerTakeProfitMultiplier
+      : winnerAmplifier
+        ? Math.max(1.12, Math.min(this.config.runnerTrendExtensionMultiplier, this.config.eliteRunnerTakeProfitMultiplier))
+        : 1;
     const runnerTakeProfitPrice = roundedPrice(
       signal.price * (
         isLong
-          ? 1 + (this.config.takeProfitPct * (eliteSetup ? this.config.eliteRunnerTakeProfitMultiplier : 1)) / 100
-          : 1 - (this.config.takeProfitPct * (eliteSetup ? this.config.eliteRunnerTakeProfitMultiplier : 1)) / 100
+          ? 1 + (this.config.takeProfitPct * runnerMultiplier) / 100
+          : 1 - (this.config.takeProfitPct * runnerMultiplier) / 100
       ),
       tickSize,
       !isLong
@@ -450,7 +458,7 @@ class RiskManager {
       baseRiskPct: riskAtStopMaxPct,
       adaptiveRiskMultiplier: Number(adaptiveRiskMultiplier.toFixed(3)),
       qualitySizeMultiplier: Number(qualitySizeMultiplier.toFixed(3)),
-      highQualityContinuation,
+      highQualityContinuation: highQualityContinuation || profitStrongSetup,
       continuationStrength,
       continuationSetupType: signal.continuationSetupType || "NONE",
       eliteSetup,
@@ -475,9 +483,11 @@ class RiskManager {
       riskUsdt: Number(riskUsdt.toFixed(6)),
       stopLossPrice: roundedPrice(signal.price * (isLong ? 1 - stopDistance : 1 + stopDistance), tickSize, !isLong),
       takeProfitPrice: runnerTakeProfitPrice,
-      partialTakeProfitPrice: eliteSetup ? standardTakeProfitPrice : null,
+      partialTakeProfitPrice: eliteSetup || winnerAmplifier ? standardTakeProfitPrice : null,
       runnerTakeProfitPrice,
       standardTakeProfitPrice,
+      winnerAmplifier,
+      runnerTakeProfitMultiplier: runnerMultiplier,
       ladderLevel: level.level,
       sizingEquity,
       aggressive: strongSetup,

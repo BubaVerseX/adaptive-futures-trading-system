@@ -183,6 +183,23 @@ function loadConfig() {
     profitControlledReducedDrawdownPct: numberValue("PROFIT_CONTROLLED_REDUCED_DRAWDOWN_PCT", 2.5, { positive: true, maximum: 100 }),
     profitControlledStrongOnlyDrawdownPct: numberValue("PROFIT_CONTROLLED_STRONG_ONLY_DRAWDOWN_PCT", 5, { positive: true, maximum: 100 }),
     profitControlledProtectionDrawdownPct: numberValue("PROFIT_CONTROLLED_PROTECTION_DRAWDOWN_PCT", 7.5, { positive: true, maximum: 100 }),
+    profitExpansionMode: booleanValue("PROFIT_EXPANSION_MODE", profitControlledEquityMode ? true : false),
+    profitModeMinQualityScore: numberValue("PROFIT_MODE_MIN_QUALITY_SCORE", 70, { minimum: 0, maximum: 100 }),
+    profitModeStrongQualityScore: numberValue("PROFIT_MODE_STRONG_QUALITY_SCORE", 85, { minimum: 0, maximum: 100 }),
+    profitModeEliteQualityScore: numberValue("PROFIT_MODE_ELITE_QUALITY_SCORE", 95, { minimum: 0, maximum: 100 }),
+    profitModeMinRewardCostRatio: numberValue("PROFIT_MODE_MIN_REWARD_COST_RATIO", 1.85, { positive: true }),
+    profitModeMinNetProfitToCostRatio: numberValue("PROFIT_MODE_MIN_NET_PROFIT_TO_COST_RATIO", 0.35, { minimum: 0 }),
+    tradeFrequencyRecoveryMode: booleanValue("TRADE_FREQUENCY_RECOVERY_MODE", profitControlledEquityMode ? true : false),
+    tradeFrequencyRecoveryMinSignalScore: numberValue("TRADE_FREQUENCY_RECOVERY_MIN_SIGNAL_SCORE", 42, { positive: true, maximum: 100 }),
+    tradeFrequencyRecoveryMinConvictionScore: numberValue("TRADE_FREQUENCY_RECOVERY_MIN_CONVICTION_SCORE", 45, { positive: true, maximum: 100 }),
+    antiChopPenaltyMax: numberValue("ANTI_CHOP_PENALTY_MAX", 10, { minimum: 0, maximum: 30 }),
+    antiChopConvictionPenaltyMax: numberValue("ANTI_CHOP_CONVICTION_PENALTY_MAX", 10, { minimum: 0, maximum: 30 }),
+    volumeSurvivabilityRelaxationMultiplier: numberValue("VOLUME_SURVIVABILITY_RELAXATION_MULTIPLIER", 0.8, { positive: true, maximum: 1 }),
+    winnerAmplifierEnabled: booleanValue("WINNER_AMPLIFIER_ENABLED", profitControlledEquityMode ? true : false),
+    winnerAmplifierPartialTakeProfitPct: numberValue("WINNER_AMPLIFIER_PARTIAL_TAKE_PROFIT_PCT", 50, { positive: true, maximum: 90 }),
+    runnerBreakevenCostCushionPct: numberValue("RUNNER_BREAKEVEN_COST_CUSHION_PCT", 0.08, { minimum: 0 }),
+    runnerAtrTrailingMultiplier: numberValue("RUNNER_ATR_TRAILING_MULTIPLIER", 1.05, { positive: true, maximum: 4 }),
+    runnerTrendExtensionMultiplier: numberValue("RUNNER_TREND_EXTENSION_MULTIPLIER", 1.35, { positive: true, maximum: 4 }),
     forcedExecutionSamplingActive: booleanValue("FORCED_EXECUTION_SAMPLING_ACTIVE", false),
     unconfirmedMicroBreakoutEntries: booleanValue("UNCONFIRMED_MICRO_BREAKOUT_ENTRIES", false),
     allowChoppyMarketUnconditionally: booleanValue("ALLOW_CHOPPY_MARKET_UNCONDITIONALLY", false),
@@ -235,7 +252,7 @@ function loadConfig() {
     minExpectedMovePct: numberValue("MIN_EXPECTED_MOVE_PCT", 0.95, { minimum: 0 }),
     expectedMoveAtrMultiplier: numberValue("EXPECTED_MOVE_ATR_MULTIPLIER", 1.15, { positive: true }),
     minEdgeToCostRatio: numberValue("MIN_EDGE_TO_COST_RATIO", 1.8, { positive: true }),
-    minConvictionScore: numberValue("MIN_CONVICTION_SCORE", 50, { positive: true, maximum: 100 }),
+    minConvictionScore: numberValue("MIN_CONVICTION_SCORE", 45, { positive: true, maximum: 100 }),
     smartEdgeMinNetPct: numberValue("SMART_EDGE_MIN_NET_PCT", 0.22, { minimum: 0 }),
     smartEdgeMinTpProbability: numberValue("SMART_EDGE_MIN_TP_PROBABILITY", 0.46, { minimum: 0, maximum: 1 }),
     smartEdgeCostBufferMultiplier: numberValue("SMART_EDGE_COST_BUFFER_MULTIPLIER", 1.25, { positive: true }),
@@ -377,6 +394,13 @@ function loadConfig() {
   };
 
   if (config.profitControlledEquityMode) {
+    config.profitExpansionMode = true;
+    config.tradeFrequencyRecoveryMode = true;
+    config.minSignalScore = Math.min(config.minSignalScore, config.tradeFrequencyRecoveryMinSignalScore);
+    config.minConvictionScore = Math.min(config.minConvictionScore, config.tradeFrequencyRecoveryMinConvictionScore);
+    config.antiChopPenaltyMax = Math.min(config.antiChopPenaltyMax, 10);
+    config.antiChopConvictionPenaltyMax = Math.min(config.antiChopConvictionPenaltyMax, 10);
+    config.learningPhaseMode = false;
     config.aggressiveLearningPhase = false;
     config.forcedMarketSamplingEnabled = false;
     config.forcedExecutionSamplingActive = false;
@@ -386,6 +410,10 @@ function loadConfig() {
     config.allowChoppyMarket = false;
     config.allowChoppyMarketUnconditionally = false;
     config.unlimitedExplorationBudget = false;
+    config.explorationModeEnabled = false;
+    config.explorationTradeRatio = 0;
+    config.explorationMaxTradesPerDay = 0;
+    config.adaptiveActivityFloorEnabled = false;
     config.disableDailyTradeLimits = true;
     config.dailyTradeLimitsDisabled = true;
     config.continuousExecutionMode = true;
@@ -476,6 +504,12 @@ function loadConfig() {
   }
   if (config.profitControlledProtectionDrawdownPct < config.profitControlledStrongOnlyDrawdownPct) {
     throw new Error("PROFIT_CONTROLLED_PROTECTION_DRAWDOWN_PCT cannot be below PROFIT_CONTROLLED_STRONG_ONLY_DRAWDOWN_PCT.");
+  }
+  if (config.profitModeStrongQualityScore < config.profitModeMinQualityScore) {
+    throw new Error("PROFIT_MODE_STRONG_QUALITY_SCORE cannot be below PROFIT_MODE_MIN_QUALITY_SCORE.");
+  }
+  if (config.profitModeEliteQualityScore < config.profitModeStrongQualityScore) {
+    throw new Error("PROFIT_MODE_ELITE_QUALITY_SCORE cannot be below PROFIT_MODE_STRONG_QUALITY_SCORE.");
   }
   if (config.liveValidationMode && config.dryRun) {
     throw new Error("LIVE_VALIDATION_MODE=true is a real-money validation profile and requires DRY_RUN=false.");

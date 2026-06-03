@@ -228,6 +228,50 @@ V6 disables forced low-quality participation in this live profile:
 
 Scanning remains fast, BTC/ETH/SOL-only, and active. Entries still require positive projected net edge after fees, spread, slippage, and available funding estimates. BTC is allowed only when the earned setup tier and actual exchange minimum size fit the stop-risk cap; ETH and SOL can trade when they are qualified and executable.
 
+### V7 Profit Expansion Mode
+
+V7 is enabled inside profit-controlled mode with `PROFIT_EXPANSION_MODE=true`. It keeps V6 risk controls but forces `PROFIT_MODE`, disables learning-phase exploration behavior, and stops treating trade generation as data collection.
+
+Profit-mode quality scoring:
+
+| Score | Decision |
+| --- | --- |
+| `< 70` | Reject |
+| `70-84` | Normal |
+| `85-94` | Strong |
+| `95+` | Elite |
+
+The score combines trend strength, volume confirmation, spread quality, fee-adjusted expectancy, market regime, and BTC/ETH/SOL symbol performance memory. Sideways chop is not totally disabled, but it must earn a strong or elite score.
+
+Winner amplifier behavior:
+
+- TP1 closes 50% of the position.
+- The remaining 50% becomes a runner.
+- Runner stop moves to breakeven plus cost cushion after TP1.
+- ATR/volatility-aware trailing manages the runner.
+- Strong trend continuation can extend the runner target instead of using a fixed profit cap.
+
+V7 also writes:
+
+```text
+data/profit-controlled-live/reports/expectancy.json
+```
+
+That report tracks expectancy, average winner, average loser, profit factor, fee impact, runner impact, and symbol ranking.
+
+### V7.1 Trade Frequency Recovery Patch
+
+V7.1 keeps V6/V7 risk controls, quality pacing, and fee protection intact, but reduces pre-evaluation suppression in profit-controlled mode:
+
+| Control | Before | V7.1 |
+| --- | ---: | ---: |
+| Adaptive minimum score | `47` observed under pacing | `42` |
+| Minimum conviction score | `50` | `45` |
+| Anti-chop hard score penalty | `-24` max | `-10` max |
+| Volume survivability floor | `100%` of active floor | `80%` of active floor |
+
+The patch does not disable anti-chop or volume validation. It logs `TRADE_FREQUENCY_RECOVERY_ACTIVE` with candidate count, reject reason counts, anti-chop contribution, and conviction contribution so live behavior can be audited without changing portfolio risk.
+
 ## Focused BTC/ETH/SOL Universe
 
 The executable trading universe is intentionally restricted to:
@@ -255,7 +299,7 @@ Defaults now favor active but selective learning-phase participation: the bot st
 | `FOMO_BREAKOUT_MODE` | `true` |
 | `MICRO_BREAKOUT_ENTRIES` | `true` |
 | `MIN_SIGNAL_SCORE` | `42` |
-| `MIN_CONVICTION_SCORE` | `50` |
+| `MIN_CONVICTION_SCORE` | `45` |
 | `MAX_OPEN_POSITIONS` | `3` |
 | `MAX_TRADES_PER_DAY` | ignored while daily limits are disabled |
 | `MAX_LEVERAGE` | `8` |

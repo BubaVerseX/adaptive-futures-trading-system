@@ -2,14 +2,14 @@
   "version": 1,
   "exchange": "BYBIT_V5_LINEAR",
   "strategyProfile": "BYBIT_ADAPTIVE_STAT_SCALP_V2",
-  "updatedAt": "2026-06-03T08:52:01.645Z",
+  "updatedAt": "2026-06-03T12:42:54.996Z",
   "mode": "LIVE",
   "paused": false,
   "pauseReason": null,
   "equity": {
     "startingUsdt": 100,
     "realizedPnlUsdt": 0.29329400000000044,
-    "currentUsdt": 70.064109
+    "currentUsdt": 70.066284
   },
   "daily": {
     "date": "2026-06-03",
@@ -22,11 +22,11 @@
     "closedTrades": 14,
     "explorationTrades": 7,
     "recoveryModeActive": true,
-    "recoveryPnlPct": -0.0723,
+    "recoveryPnlPct": -0.0692,
     "recoveryLosingStreak": 2,
     "recoveryNoticeKey": "2026-06-03:0:2:10",
     "profitProtectionActive": false,
-    "profitProtectionPnlPct": -0.0723
+    "profitProtectionPnlPct": -0.0692
   },
   "ladder": {
     "activeLevel": 1,
@@ -123,8 +123,8 @@
     "active": false,
     "stage": 1,
     "source": "POSITION_MONITOR",
-    "lastError": "Bybit request failed (HTTP 200, code 10002): invalid request, please check your server timestamp or recv_window param: req_timestamp[1780476307865],server_timestamp[1780476322111],recv_window[5000].",
-    "recoveredAt": "2026-06-03T08:45:22.155Z",
+    "lastError": "Bybit request failed (HTTP 200, code 10002): invalid request, please check your server timestamp or recv_window param: req_timestamp[1780489806050],server_timestamp[1780489820110],recv_window[5000].",
+    "recoveredAt": "2026-06-03T12:30:20.051Z",
     "consecutiveApiErrors": 1,
     "shutdownSuppressed": true
   },
@@ -132,17 +132,17 @@
   "profitControlled": {
     "namespace": "data/profit-controlled-live",
     "startEquityUsdt": 69.806622,
-    "lastSizingEquityBaseUsdt": 70.064109,
-    "sizingEquityBaseUsdt": 70.064109,
+    "lastSizingEquityBaseUsdt": 70.066284,
+    "sizingEquityBaseUsdt": 70.066284,
     "usableMarginUsdt": 70.159737,
-    "exchangeReportedTotalEquityUsdt": 70.064109,
+    "exchangeReportedTotalEquityUsdt": 70.066284,
     "riskState": "RISK_STATE_NORMAL",
     "riskStateReasons": [],
     "totalOpenStopRiskPctLimit": 2.25,
     "correlatedClusterStopRiskPctLimit": 1.75,
-    "lastEquityCheckedAt": "2026-06-03T08:52:01.643Z",
+    "lastEquityCheckedAt": "2026-06-03T12:42:49.503Z",
     "drawdownPct": 0,
-    "lastRiskCheckedAt": "2026-06-03T08:51:59.016Z"
+    "lastRiskCheckedAt": "2026-06-03T12:42:52.583Z"
   },
   "telegramUpdateOffset": 0
 }

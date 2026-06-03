@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-06-03T08:44:33.197Z",
+  "updatedAt": "2026-06-03T09:23:21.794Z",
   "trades": [
     {
       "id": "x10-trade-1780408472217-50130",
@@ -8739,7 +8739,7 @@
     }
   },
   "adaptive": {
-    "mode": "LEARNING_PHASE",
+    "mode": "PROFIT_MODE",
     "blacklists": {
       "BTCUSDT:VOLUME_MOMENTUM:SHORT:DOWN": {
         "until": "2026-06-02T20:15:01.019Z",
@@ -8755,7 +8755,7 @@
       }
     },
     "policy": {
-      "mode": "LEARNING_PHASE",
+      "mode": "PROFIT_MODE",
       "sampleSize": 20,
       "rollingWinRatePct": 35,
       "rollingPnlUsdt": 0.070988,
@@ -8763,7 +8763,7 @@
       "recoveryWinRatePct": 50,
       "recoveryPnlUsdt": 0.261378,
       "recoveryAggressionRestored": false,
-      "learningPhaseActive": true,
+      "learningPhaseActive": false,
       "aggressiveLearningPhaseActive": false,
       "highActivityModeActive": true,
       "highActivityAdjustment": -1,
@@ -8774,18 +8774,18 @@
       "shortHoldPressure": false,
       "dailyTradeLimitsDisabled": true,
       "explorationDailyCapDisabled": true,
-      "riskMultiplier": 0.867,
-      "signalThresholdAdjustment": 3,
-      "minSignalScore": 45,
-      "explorationEnabled": true,
-      "explorationBudget": 9007199254740991,
+      "riskMultiplier": 0.79764,
+      "signalThresholdAdjustment": 5,
+      "minSignalScore": 47,
+      "explorationEnabled": false,
+      "explorationBudget": 0,
       "explorationExpansionActive": false,
       "activityFloorEngaged": false,
       "activityFloorSignalRelaxPoints": 0,
       "activityFloorConvictionRelaxPoints": 0,
       "activityFloorChopToleranceBonus": 0,
-      "explorationMinSignalScore": 32,
-      "explorationMinConvictionScore": 38,
+      "explorationMinSignalScore": 33,
+      "explorationMinConvictionScore": 39,
       "regimeSelfTuning": {
         "bestRegime": "STRONG_TRENDING_MARKET",
         "worstRegime": "LOW_LIQUIDITY_MARKET",
