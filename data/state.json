@@ -2,31 +2,31 @@
   "version": 1,
   "exchange": "BYBIT_V5_LINEAR",
   "strategyProfile": "BYBIT_ADAPTIVE_STAT_SCALP_V2",
-  "updatedAt": "2026-06-01T18:45:53.012Z",
+  "updatedAt": "2026-06-02T12:30:37.645Z",
   "mode": "LIVE",
   "paused": false,
   "pauseReason": null,
   "equity": {
     "startingUsdt": 100,
-    "realizedPnlUsdt": -46.26037769999997,
-    "currentUsdt": 49.592377
+    "realizedPnlUsdt": -46.260376999999956,
+    "currentUsdt": 49.594363
   },
   "daily": {
-    "date": "2026-06-01",
-    "startingEquity": 52.759773,
-    "tradesOpened": 88,
-    "losingTrades": 72,
-    "realizedPnlUsdt": -3.503060894999984,
-    "feesUsdt": 4.078460895,
-    "wins": 16,
-    "closedTrades": 88,
-    "explorationTrades": 67,
+    "date": "2026-06-02",
+    "startingEquity": 49.594363,
+    "tradesOpened": 0,
+    "losingTrades": 0,
+    "realizedPnlUsdt": 0,
+    "feesUsdt": 0,
+    "wins": 0,
+    "closedTrades": 0,
+    "explorationTrades": 0,
     "recoveryModeActive": true,
-    "recoveryPnlPct": -6.0038,
+    "recoveryPnlPct": 0,
     "recoveryLosingStreak": 2,
-    "recoveryNoticeKey": "2026-06-01:6:2:72",
+    "recoveryNoticeKey": "2026-06-02:0:2:0",
     "profitProtectionActive": false,
-    "profitProtectionPnlPct": -6.0038
+    "profitProtectionPnlPct": 0
   },
   "ladder": {
     "activeLevel": 1,
@@ -846,10 +846,11 @@
     "active": false,
     "stage": 1,
     "source": "POSITION_MONITOR",
-    "lastError": "Bybit request failed (HTTP 200, code 10002): invalid request, please check your server timestamp or recv_window param: req_timestamp[1780339508529],server_timestamp[1780339524400],recv_window[5000].",
-    "recoveredAt": "2026-06-01T18:45:24.462Z",
+    "lastError": "Bybit request failed (HTTP 200, code 10002): invalid request, please check your server timestamp or recv_window param: req_timestamp[1780403415349],server_timestamp[1780403427566],recv_window[5000].",
+    "recoveredAt": "2026-06-02T12:30:28.917Z",
     "consecutiveApiErrors": 1,
     "shutdownSuppressed": true
   },
+  "liveValidation": null,
   "telegramUpdateOffset": 0
 }

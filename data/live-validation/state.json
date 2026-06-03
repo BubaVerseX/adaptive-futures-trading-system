@@ -1,0 +1,80 @@
+{
+  "version": 1,
+  "exchange": "BYBIT_V5_LINEAR",
+  "strategyProfile": "BYBIT_ADAPTIVE_STAT_SCALP_V2",
+  "updatedAt": "2026-06-02T12:50:02.577Z",
+  "mode": "LIVE",
+  "paused": false,
+  "pauseReason": null,
+  "equity": {
+    "startingUsdt": 100,
+    "realizedPnlUsdt": 0,
+    "currentUsdt": 69.823123
+  },
+  "daily": {
+    "date": "2026-06-02",
+    "startingEquity": 49.58051,
+    "tradesOpened": 0,
+    "losingTrades": 0,
+    "realizedPnlUsdt": 0,
+    "feesUsdt": 0,
+    "wins": 0,
+    "closedTrades": 0,
+    "explorationTrades": 0,
+    "recoveryModeActive": false,
+    "recoveryPnlPct": 40.8278,
+    "recoveryLosingStreak": 0,
+    "recoveryNoticeKey": "2026-06-02:0:0:0",
+    "profitProtectionActive": true,
+    "profitProtectionPnlPct": 40.8278
+  },
+  "ladder": {
+    "activeLevel": 1,
+    "highestUnlockedLevel": 1,
+    "levelStartEquity": 100,
+    "riskDowngraded": true
+  },
+  "openPositions": [],
+  "lastPrices": {},
+  "symbolCooldowns": {},
+  "performance": {
+    "closedTrades": 0,
+    "wins": 0,
+    "losses": 0,
+    "winRatePct": 0,
+    "grossPnlUsdt": 0,
+    "realizedPnlUsdt": 0,
+    "totalFeesUsdt": 0,
+    "averageHoldSeconds": 0,
+    "bestSymbol": null,
+    "worstSymbol": null,
+    "symbols": {}
+  },
+  "consecutiveApiErrors": 1,
+  "apiRecovery": {
+    "active": false,
+    "stage": 1,
+    "source": "POSITION_MONITOR",
+    "lastError": "Bybit request failed (HTTP 200, code 10002): invalid request, please check your server timestamp or recv_window param: req_timestamp[1780404590379],server_timestamp[1780404597424],recv_window[5000].",
+    "recoveredAt": "2026-06-02T12:49:57.345Z",
+    "consecutiveApiErrors": 1,
+    "shutdownSuppressed": true
+  },
+  "liveValidation": {
+    "level": 0,
+    "allocatedEquityLimitUsdt": 10,
+    "riskState": "RISK_STATE_NORMAL",
+    "promotionEligible": false,
+    "promotionBlockedReasons": [
+      "fewer than 50 closed logical live-validation trades",
+      "net PnL after actual fees is not positive",
+      "profit factor below 1.10"
+    ],
+    "namespace": "data/live-validation",
+    "riskStateReasons": [],
+    "drawdownLimitUsdt": 1.5,
+    "lastRiskCheckedAt": "2026-06-02T12:49:55.757Z",
+    "lastPromotionCheckedAt": "2026-06-02T12:37:52.915Z"
+  },
+  "telegramUpdateOffset": 0
+}

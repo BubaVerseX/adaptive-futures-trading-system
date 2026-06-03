@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-02T12:25:37.909Z",
+  "generatedAt": "2026-06-02T13:10:06.228Z",
   "sourceAvailability": {
     "bybitCsv": [
       "data/imports/Bybit-UTA-Perp-OrderHistory-1780229487-1780315887.csv"
@@ -11,14 +11,14 @@
     "stateJson": "available",
     "logFile": {
       "path": "data/bybit-bot.log",
-      "bytes": 1197966025,
-      "linesRead": 1512300
+      "bytes": 1198019165,
+      "linesRead": 1512385
     }
   },
   "accountContext": {
-    "configuredStartEquityUsdt": 52.759773,
-    "currentStateEquityUsdt": 49.592377,
-    "currentStateRealizedPnlUsdt": -46.26037769999997,
+    "configuredStartEquityUsdt": 49.594363,
+    "currentStateEquityUsdt": 49.594363,
+    "currentStateRealizedPnlUsdt": -46.260376999999956,
     "latestLogEquityUsdt": null,
     "openPositions": 0,
     "note": "Equity is based on local state/log records. The imported Bybit CSV is order history, so it verifies fills and fees but not full account-equity history."
@@ -9005,27 +9005,27 @@
   },
   "logSummary": {
     "available": true,
-    "bytes": 1197966025,
-    "linesRead": 1512300,
+    "bytes": 1198019165,
+    "linesRead": 1512385,
     "firstTimestamp": "2026-05-27T18:48:50.023Z",
-    "lastTimestamp": "2026-06-01T18:45:53.516Z",
+    "lastTimestamp": "2026-06-02T12:30:37.644Z",
     "bybit34040Mentions": 23387,
-    "apiRecoveryMentions": 74872,
+    "apiRecoveryMentions": 74879,
     "websocketReconnects": 6522,
     "duplicateProtectionMentions": 2373,
     "entrySignals": 569,
-    "forcedSampling": 960,
+    "forcedSampling": 962,
     "lowEdgeRejections": 4237,
     "latestEquityUsdt": null,
     "latestCycleRisk": null,
     "topMessages": [
       {
         "message": "Bybit authenticated REST request signed.",
-        "count": 442832
+        "count": 442848
       },
       {
         "message": "Bybit UTA wallet balance parsed.",
-        "count": 175519
+        "count": 175527
       },
       {
         "message": "Managed position checked.",
@@ -9033,43 +9033,43 @@
       },
       {
         "message": "High-ranked candidate rejected.",
-        "count": 111686
+        "count": 111689
       },
       {
         "message": "Cycle risk status.",
-        "count": 42480
+        "count": 42482
       },
       {
         "message": "Scalping scan completed.",
-        "count": 42444
+        "count": 42445
       },
       {
         "message": "Adaptive pacing engaged; execution quality improved without disabling continuous execution.",
-        "count": 41684
+        "count": 41686
       },
       {
         "message": "Focused BTC/ETH/SOL universe prepared.",
-        "count": 41660
+        "count": 41662
       },
       {
         "message": "Continuous learning preserved; recovery adjusts sizing without pausing execution.",
-        "count": 41276
+        "count": 41278
       },
       {
         "message": "Smart pacing engaged; low-quality fee bleed is being filtered while activity stays enabled.",
-        "count": 41150
+        "count": 41152
       },
       {
         "message": "Exploration expansion active; adaptive participation increased.",
-        "count": 37895
+        "count": 37897
       },
       {
         "message": "Using cached BTC/ETH market regime for faster scanning.",
-        "count": 37814
+        "count": 37815
       },
       {
         "message": "Cautious active mode enabled; sizing is moderated but execution participation continues.",
-        "count": 31059
+        "count": 31061
       },
       {
         "message": "No setup reached the minimum signal score this cycle.",
@@ -9081,15 +9081,15 @@
       },
       {
         "message": "Top-scoring candidate selected for safety evaluation.",
-        "count": 19552
+        "count": 19553
       },
       {
         "message": "Adaptive exploration active for candidate.",
-        "count": 12326
+        "count": 12327
       },
       {
         "message": "Exploration memory relaxation active.",
-        "count": 12279
+        "count": 12280
       },
       {
         "message": "Candidate entry rejected by portfolio safety rule.",
@@ -9097,7 +9097,7 @@
       },
       {
         "message": "Exploration execution approved; no daily exploration budget is enforced.",
-        "count": 10491
+        "count": 10492
       },
       {
         "message": "WebSocket disconnected; reconnect scheduled.",
@@ -9105,7 +9105,7 @@
       },
       {
         "message": "Fast position-protection monitor failed.",
-        "count": 10089
+        "count": 10090
       },
       {
         "message": "Moderate chop accepted for controlled participation.",
@@ -9117,7 +9117,7 @@
       },
       {
         "message": "Adaptive recovery mode active; losing streak handled without shutdown.",
-        "count": 7265
+        "count": 7266
       }
     ]
   },

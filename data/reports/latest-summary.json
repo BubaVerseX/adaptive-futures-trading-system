@@ -1,21 +1,21 @@
 {
-  "generatedAt": "2026-06-01T18:45:33.556Z",
+  "generatedAt": "2026-06-02T12:30:35.256Z",
   "objective": "MAXIMIZE_DAILY_REALIZED_NET_PNL_WITH_QUALIFIED_HIGH_ACTIVITY",
   "account": {
     "equity": {
       "startingUsdt": 100,
-      "realizedPnlUsdt": -46.26037769999997,
-      "currentUsdt": 49.592179
+      "realizedPnlUsdt": -46.260376999999956,
+      "currentUsdt": 49.594363
     },
     "openPositions": 0,
     "totalCostsUsdt": 37.684764,
     "currentRiskLevel": 0
   },
   "activity": {
-    "completedTradesToday": 88,
+    "completedTradesToday": 0,
     "completedTradesAllTime": 564,
-    "continuationTradesToday": 42,
-    "reentriesToday": 4
+    "continuationTradesToday": 0,
+    "reentriesToday": 0
   },
   "quality": {
     "all": {
@@ -71,17 +71,17 @@
       "grossPositiveButNetNegativeTrades": 8
     },
     "today": {
-      "trades": 88,
-      "netPnlUsdt": -3.503059,
-      "grossPnlUsdt": 0.5754,
-      "feesUsdt": 4.078457,
-      "postCostWinRatePct": 18.1818,
-      "profitFactor": 0.2308,
-      "expectancyUsdt": -0.039807,
-      "averageWinnerUsdt": 0.065679,
-      "averageLoserUsdt": -0.063249,
-      "feeBleedRatio": 1.1643,
-      "grossPositiveButNetNegativeTrades": 16
+      "trades": 0,
+      "netPnlUsdt": 0,
+      "grossPnlUsdt": 0,
+      "feesUsdt": 0,
+      "postCostWinRatePct": 0,
+      "profitFactor": 0,
+      "expectancyUsdt": 0,
+      "averageWinnerUsdt": 0,
+      "averageLoserUsdt": 0,
+      "feeBleedRatio": 0,
+      "grossPositiveButNetNegativeTrades": 0
     }
   },
   "breakdown": {

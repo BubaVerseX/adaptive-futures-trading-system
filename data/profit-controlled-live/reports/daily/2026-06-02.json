@@ -1,0 +1,145 @@
+{
+  "generatedAt": "2026-06-02T23:59:52.026Z",
+  "date": "2026-06-02",
+  "account": {
+    "equity": {
+      "startingUsdt": 100,
+      "realizedPnlUsdt": 0.33009205499997696,
+      "currentUsdt": 70.115532
+    },
+    "openPositions": 0,
+    "totalCostsUsdt": 0.912311,
+    "currentRiskLevel": 0
+  },
+  "activity": {
+    "completedTradesToday": 48,
+    "completedTradesAllTime": 48,
+    "continuationTradesToday": 21,
+    "reentriesToday": 17
+  },
+  "quality": {
+    "trades": 48,
+    "netPnlUsdt": 0.33009,
+    "grossPnlUsdt": 1.2424,
+    "feesUsdt": 0.912311,
+    "postCostWinRatePct": 39.5833,
+    "profitFactor": 1.1938,
+    "expectancyUsdt": 0.006877,
+    "averageWinnerUsdt": 0.107001,
+    "averageLoserUsdt": -0.058722,
+    "feeBleedRatio": 2.7638,
+    "grossPositiveButNetNegativeTrades": 4
+  },
+  "breakdown": {
+    "bySymbol": {
+      "SOLUSDT": {
+        "trades": 32,
+        "netPnlUsdt": 0.046823,
+        "grossPnlUsdt": 0.347,
+        "feesUsdt": 0.300178,
+        "postCostWinRatePct": 40.625,
+        "profitFactor": 1.0965,
+        "expectancyUsdt": 0.001463,
+        "averageWinnerUsdt": 0.040939,
+        "averageLoserUsdt": -0.025547,
+        "feeBleedRatio": 6.4109,
+        "grossPositiveButNetNegativeTrades": 2
+      },
+      "ETHUSDT": {
+        "trades": 12,
+        "netPnlUsdt": 0.211231,
+        "grossPnlUsdt": 0.5266,
+        "feesUsdt": 0.315369,
+        "postCostWinRatePct": 41.6667,
+        "profitFactor": 1.2767,
+        "expectancyUsdt": 0.017603,
+        "averageWinnerUsdt": 0.194937,
+        "averageLoserUsdt": -0.109065,
+        "feeBleedRatio": 1.493,
+        "grossPositiveButNetNegativeTrades": 1
+      },
+      "BTCUSDT": {
+        "trades": 4,
+        "netPnlUsdt": 0.072036,
+        "grossPnlUsdt": 0.3688,
+        "feesUsdt": 0.296764,
+        "postCostWinRatePct": 25,
+        "profitFactor": 1.1586,
+        "expectancyUsdt": 0.018009,
+        "averageWinnerUsdt": 0.526122,
+        "averageLoserUsdt": -0.151362,
+        "feeBleedRatio": 4.1197,
+        "grossPositiveButNetNegativeTrades": 1
+      }
+    },
+    "bySetup": {
+      "MOMENTUM_RESUMPTION": {
+        "trades": 14,
+        "netPnlUsdt": 0.559395,
+        "grossPnlUsdt": 0.8466,
+        "feesUsdt": 0.287205,
+        "postCostWinRatePct": 42.8571,
+        "profitFactor": 2.7465,
+        "expectancyUsdt": 0.039957,
+        "averageWinnerUsdt": 0.146614,
+        "averageLoserUsdt": -0.040036,
+        "feeBleedRatio": 0.5134,
+        "grossPositiveButNetNegativeTrades": 2
+      },
+      "CONTINUATION_BREAKOUT": {
+        "trades": 7,
+        "netPnlUsdt": -0.353701,
+        "grossPnlUsdt": 0.0041,
+        "feesUsdt": 0.357801,
+        "postCostWinRatePct": 28.5714,
+        "profitFactor": 0.6285,
+        "expectancyUsdt": -0.050529,
+        "averageWinnerUsdt": 0.299256,
+        "averageLoserUsdt": -0.190443,
+        "feeBleedRatio": 1.0116,
+        "grossPositiveButNetNegativeTrades": 0
+      },
+      "NONE": {
+        "trades": 27,
+        "netPnlUsdt": 0.124396,
+        "grossPnlUsdt": 0.3917,
+        "feesUsdt": 0.267305,
+        "postCostWinRatePct": 40.7407,
+        "profitFactor": 1.289,
+        "expectancyUsdt": 0.004607,
+        "averageWinnerUsdt": 0.050439,
+        "averageLoserUsdt": -0.026902,
+        "feeBleedRatio": 2.1488,
+        "grossPositiveButNetNegativeTrades": 2
+      }
+    },
+    "byMarketMode": {
+      "WEAK_CHOP": {
+        "trades": 19,
+        "netPnlUsdt": 0.033834,
+        "grossPnlUsdt": 0.2182,
+        "feesUsdt": 0.184367,
+        "postCostWinRatePct": 36.8421,
+        "profitFactor": 1.1162,
+        "expectancyUsdt": 0.001781,
+        "averageWinnerUsdt": 0.046421,
+        "averageLoserUsdt": -0.024259,
+        "feeBleedRatio": 5.4492,
+        "grossPositiveButNetNegativeTrades": 1
+      },
+      "FOCUSED_ACTIVE": {
+        "trades": 29,
+        "netPnlUsdt": 0.296256,
+        "grossPnlUsdt": 1.0242,
+        "feesUsdt": 0.727944,
+        "postCostWinRatePct": 41.3793,
+        "profitFactor": 1.2098,
+        "expectancyUsdt": 0.010216,
+        "averageWinnerUsdt": 0.142339,
+        "averageLoserUsdt": -0.083048,
+        "feeBleedRatio": 2.4571,
+        "grossPositiveButNetNegativeTrades": 3
+      }
+    }
+  }
+}

@@ -11,9 +11,11 @@
     "demo:dry": "BYBIT_DEMO_TRADING=true BYBIT_TESTNET=false DRY_RUN=true ACKNOWLEDGE_LIVE_TRADING=false BYBIT_REST_BASE_URL=https://api-demo.bybit.com BYBIT_PUBLIC_WS_BASE_URL=wss://stream.bybit.com BYBIT_PRIVATE_WS_BASE_URL=wss://stream-demo.bybit.com BYBIT_WS_BASE_URL= node src/bot.js",
     "live": "BYBIT_TESTNET=false DRY_RUN=false node src/bot.js",
     "live:validate": "BYBIT_DEMO_TRADING=false BYBIT_TESTNET=false DRY_RUN=false LIVE_VALIDATION_MODE=true LIVE_VALIDATION_MAX_ALLOCATED_EQUITY_USDT=10 LIVE_VALIDATION_PROMOTION_ENABLED=true BYBIT_REST_BASE_URL=https://api.bybit.com BYBIT_PUBLIC_WS_BASE_URL=wss://stream.bybit.com BYBIT_PRIVATE_WS_BASE_URL=wss://stream.bybit.com BYBIT_WS_BASE_URL= node src/bot.js",
+    "live:profit-controlled": "BYBIT_DEMO_TRADING=false BYBIT_TESTNET=false DRY_RUN=false PROFIT_CONTROLLED_EQUITY_MODE=true PROFIT_CONTROLLED_USE_EXCHANGE_EQUITY=true BYBIT_REST_BASE_URL=https://api.bybit.com BYBIT_PUBLIC_WS_BASE_URL=wss://stream.bybit.com BYBIT_PRIVATE_WS_BASE_URL=wss://stream.bybit.com BYBIT_WS_BASE_URL= node src/bot.js",
+    "setup:profit-controlled": "node scripts/setupProfitControlled.js",
     "test": "node test/bybitBot.test.js",
     "audit:v4": "node scripts/preV4Audit.js",
-    "check": "node --check src/bot.js && node --check src/config.js && node --check src/bybitClient.js && node --check src/bybitErrors.js && node --check src/costModel.js && node --check src/executionLedger.js && node --check src/liveValidation.js && node --check src/profitObjective.js && node --check src/indicators.js && node --check src/marketRegime.js && node --check src/scanner.js && node --check src/riskManager.js && node --check src/state.js && node --check src/telegram.js && node --check src/adaptiveEngine.js && node --check scripts/preV4Audit.js"
+    "check": "node --check src/bot.js && node --check src/config.js && node --check src/bybitClient.js && node --check src/bybitErrors.js && node --check src/costModel.js && node --check src/executionLedger.js && node --check src/liveValidation.js && node --check src/profitControlled.js && node --check src/profitObjective.js && node --check src/indicators.js && node --check src/marketRegime.js && node --check src/scanner.js && node --check src/riskManager.js && node --check src/state.js && node --check src/telegram.js && node --check src/adaptiveEngine.js && node --check scripts/preV4Audit.js && node --check scripts/setupProfitControlled.js"
   },
   "engines": {
     "node": ">=18.0.0"

@@ -11,6 +11,7 @@ const DEMO_PRIVATE_WS_BASE_URL = "wss://stream-demo.bybit.com";
 const MAINNET_PUBLIC_WS_BASE_URL = "wss://stream.bybit.com";
 const MAINNET_REST_BASE_URL = "https://api.bybit.com";
 const LIVE_VALIDATION_ACK_MESSAGE = "LIVE VALIDATION NOT STARTED — REAL-MONEY ACKNOWLEDGEMENT REQUIRED";
+const PROFIT_CONTROLLED_ACK_MESSAGE = "PROFIT-CONTROLLED LIVE NOT STARTED — REAL-MONEY ACKNOWLEDGEMENT REQUIRED";
 
 function booleanValue(name, fallback) {
   const raw = String(process.env[name] ?? fallback).trim().toLowerCase();
@@ -67,8 +68,21 @@ function loadConfig() {
   const bybitTestnet = booleanValue("BYBIT_TESTNET", true);
   const bybitDemoTrading = booleanValue("BYBIT_DEMO_TRADING", false);
   const liveValidationMode = booleanValue("LIVE_VALIDATION_MODE", false);
-  const exchangeEnvironment = liveValidationMode ? "LIVE_VALIDATION" : bybitDemoTrading ? "DEMO" : bybitTestnet ? "TESTNET" : "MAINNET";
-  const dataDir = path.join(PROJECT_ROOT, "data", liveValidationMode ? "live-validation" : bybitDemoTrading ? "demo" : "");
+  const profitControlledEquityMode = booleanValue("PROFIT_CONTROLLED_EQUITY_MODE", false);
+  const exchangeEnvironment = profitControlledEquityMode
+    ? "PROFIT_CONTROLLED_LIVE"
+    : liveValidationMode
+      ? "LIVE_VALIDATION"
+      : bybitDemoTrading
+        ? "DEMO"
+        : bybitTestnet
+          ? "TESTNET"
+          : "MAINNET";
+  const dataDir = path.join(
+    PROJECT_ROOT,
+    "data",
+    profitControlledEquityMode ? "profit-controlled-live" : liveValidationMode ? "live-validation" : bybitDemoTrading ? "demo" : ""
+  );
   const defaultRestBaseUrl = bybitDemoTrading
     ? DEMO_REST_BASE_URL
     : bybitTestnet
@@ -100,6 +114,7 @@ function loadConfig() {
     bybitTestnet,
     bybitDemoTrading,
     liveValidationMode,
+    profitControlledEquityMode,
     exchangeEnvironment,
     restBaseUrl,
     publicWsBaseUrl,
@@ -143,6 +158,7 @@ function loadConfig() {
     acknowledgeLiveTrading: booleanValue("ACKNOWLEDGE_LIVE_TRADING", false),
     acknowledgeDemoTrading: booleanValue("ACKNOWLEDGE_DEMO_TRADING", false),
     acknowledgeLiveValidationRisk: booleanValue("ACKNOWLEDGE_LIVE_VALIDATION_RISK", false),
+    acknowledgeProfitControlledLiveRisk: booleanValue("ACKNOWLEDGE_PROFIT_CONTROLLED_LIVE_RISK", false),
     liveValidationMaxAllocatedEquityUsdt: numberValue("LIVE_VALIDATION_MAX_ALLOCATED_EQUITY_USDT", 10, { positive: true }),
     liveValidationPromotionEnabled: booleanValue("LIVE_VALIDATION_PROMOTION_ENABLED", false),
     liveValidationProtectionDrawdownPct: numberValue("LIVE_VALIDATION_PROTECTION_DRAWDOWN_PCT", 15, { positive: true, maximum: 100 }),
@@ -154,6 +170,24 @@ function loadConfig() {
     liveValidationNormalRiskAtStopMaxPct: numberValue("LIVE_VALIDATION_NORMAL_RISK_AT_STOP_MAX_PCT", 0.35, { positive: true, maximum: 5 }),
     liveValidationStrongRiskAtStopMaxPct: numberValue("LIVE_VALIDATION_STRONG_RISK_AT_STOP_MAX_PCT", 0.5, { positive: true, maximum: 5 }),
     liveValidationEliteRiskAtStopMaxPct: numberValue("LIVE_VALIDATION_ELITE_RISK_AT_STOP_MAX_PCT", 0.75, { positive: true, maximum: 5 }),
+    profitControlledUseExchangeEquity: booleanValue("PROFIT_CONTROLLED_USE_EXCHANGE_EQUITY", true),
+    maxTotalOpenStopRiskPct: numberValue("MAX_TOTAL_OPEN_STOP_RISK_PCT", 2.25, { positive: true, maximum: 10 }),
+    maxCorrelatedClusterStopRiskPct: numberValue("MAX_CORRELATED_CLUSTER_STOP_RISK_PCT", 1.75, { positive: true, maximum: 10 }),
+    profitControlledExplorationMaxStopRiskPct: numberValue("EXPLORATION_MAX_STOP_RISK_PCT", 0.25, { positive: true, maximum: 5 }),
+    profitControlledNormalMaxStopRiskPct: numberValue("NORMAL_MAX_STOP_RISK_PCT", 0.45, { positive: true, maximum: 5 }),
+    profitControlledStrongMaxStopRiskPct: numberValue("STRONG_MAX_STOP_RISK_PCT", 0.85, { positive: true, maximum: 5 }),
+    profitControlledEliteMaxStopRiskPct: numberValue("ELITE_MAX_STOP_RISK_PCT", 1.25, { positive: true, maximum: 5 }),
+    profitControlledMaxLeverage: numberValue("PROFIT_CONTROLLED_MAX_LEVERAGE", 5, { positive: true, maximum: 5 }),
+    profitControlledExplorationMaxLeverage: numberValue("PROFIT_CONTROLLED_EXPLORATION_MAX_LEVERAGE", 3, { positive: true, maximum: 5 }),
+    profitControlledNormalMaxLeverage: numberValue("PROFIT_CONTROLLED_NORMAL_MAX_LEVERAGE", 4, { positive: true, maximum: 5 }),
+    profitControlledReducedDrawdownPct: numberValue("PROFIT_CONTROLLED_REDUCED_DRAWDOWN_PCT", 2.5, { positive: true, maximum: 100 }),
+    profitControlledStrongOnlyDrawdownPct: numberValue("PROFIT_CONTROLLED_STRONG_ONLY_DRAWDOWN_PCT", 5, { positive: true, maximum: 100 }),
+    profitControlledProtectionDrawdownPct: numberValue("PROFIT_CONTROLLED_PROTECTION_DRAWDOWN_PCT", 7.5, { positive: true, maximum: 100 }),
+    forcedExecutionSamplingActive: booleanValue("FORCED_EXECUTION_SAMPLING_ACTIVE", false),
+    unconfirmedMicroBreakoutEntries: booleanValue("UNCONFIRMED_MICRO_BREAKOUT_ENTRIES", false),
+    allowChoppyMarketUnconditionally: booleanValue("ALLOW_CHOPPY_MARKET_UNCONDITIONALLY", false),
+    unlimitedExplorationBudget: booleanValue("UNLIMITED_EXPLORATION_BUDGET", false),
+    dailyTradeLimitsDisabled: booleanValue("DAILY_TRADE_LIMITS_DISABLED", true),
     allowShorts: booleanValue("ALLOW_SHORTS", true),
     allowLongs: booleanValue("ALLOW_LONGS", true),
     scanIntervalMs: numberValue("SCAN_INTERVAL_MS", 1200, { positive: true, integer: true }),
@@ -342,6 +376,24 @@ function loadConfig() {
     maxConsecutiveApiErrors: numberValue("MAX_CONSECUTIVE_API_ERRORS", 5, { positive: true, integer: true }),
   };
 
+  if (config.profitControlledEquityMode) {
+    config.aggressiveLearningPhase = false;
+    config.forcedMarketSamplingEnabled = false;
+    config.forcedExecutionSamplingActive = false;
+    config.fomoBreakoutMode = false;
+    config.microBreakoutEntries = false;
+    config.unconfirmedMicroBreakoutEntries = false;
+    config.allowChoppyMarket = false;
+    config.allowChoppyMarketUnconditionally = false;
+    config.unlimitedExplorationBudget = false;
+    config.disableDailyTradeLimits = true;
+    config.dailyTradeLimitsDisabled = true;
+    config.continuousExecutionMode = true;
+    config.highActivityMode = true;
+    config.enablePostOnlyEntries = true;
+    config.maxLeverage = Math.min(config.maxLeverage, config.profitControlledMaxLeverage);
+  }
+
   const supportedIntervals = new Set(["1M", "3M", "5M", "15M", "30M", "60M", "120M", "240M", "360M", "720M", "1D", "1W", "1MO"]);
   for (const interval of [config.candleIntervalFast, config.candleIntervalMain, config.candleIntervalTrend, config.candleIntervalMacro]) {
     if (!supportedIntervals.has(interval.toUpperCase())) throw new Error(`Unsupported candle interval: ${interval}.`);
@@ -391,6 +443,39 @@ function loadConfig() {
   }
   if (!config.allowLongs && !config.allowShorts) {
     throw new Error("At least one of ALLOW_LONGS or ALLOW_SHORTS must be true.");
+  }
+  if (config.liveValidationMode && config.profitControlledEquityMode) {
+    throw new Error("LIVE_VALIDATION_MODE and PROFIT_CONTROLLED_EQUITY_MODE are separate launch profiles; enable only one.");
+  }
+  if (config.profitControlledEquityMode && config.dryRun) {
+    throw new Error("PROFIT_CONTROLLED_EQUITY_MODE=true is a real-money profile and requires DRY_RUN=false.");
+  }
+  if (config.profitControlledEquityMode && (config.bybitDemoTrading || config.bybitTestnet)) {
+    throw new Error("PROFIT_CONTROLLED_EQUITY_MODE=true requires BYBIT_DEMO_TRADING=false and BYBIT_TESTNET=false.");
+  }
+  if (config.profitControlledEquityMode && !config.acknowledgeProfitControlledLiveRisk) {
+    throw new Error(`${PROFIT_CONTROLLED_ACK_MESSAGE}: set ACKNOWLEDGE_PROFIT_CONTROLLED_LIVE_RISK=true deliberately.`);
+  }
+  if (config.profitControlledEquityMode && !config.acknowledgeLiveTrading) {
+    throw new Error(`${PROFIT_CONTROLLED_ACK_MESSAGE}: set ACKNOWLEDGE_LIVE_TRADING=true deliberately.`);
+  }
+  if (config.profitControlledEquityMode && hostname(config.restBaseUrl) !== "api.bybit.com") {
+    throw new Error("PROFIT_CONTROLLED_EQUITY_MODE requires the live mainnet REST endpoint https://api.bybit.com.");
+  }
+  if (config.profitControlledEquityMode && hostname(config.privateWsBaseUrl) !== "stream.bybit.com") {
+    throw new Error("PROFIT_CONTROLLED_EQUITY_MODE requires the live mainnet private WebSocket endpoint wss://stream.bybit.com.");
+  }
+  if (config.profitControlledEquityMode && hostname(config.publicWsBaseUrl) !== "stream.bybit.com") {
+    throw new Error("PROFIT_CONTROLLED_EQUITY_MODE requires the live mainnet public WebSocket endpoint wss://stream.bybit.com.");
+  }
+  if (config.maxCorrelatedClusterStopRiskPct > config.maxTotalOpenStopRiskPct) {
+    throw new Error("MAX_CORRELATED_CLUSTER_STOP_RISK_PCT cannot exceed MAX_TOTAL_OPEN_STOP_RISK_PCT.");
+  }
+  if (config.profitControlledStrongOnlyDrawdownPct < config.profitControlledReducedDrawdownPct) {
+    throw new Error("PROFIT_CONTROLLED_STRONG_ONLY_DRAWDOWN_PCT cannot be below PROFIT_CONTROLLED_REDUCED_DRAWDOWN_PCT.");
+  }
+  if (config.profitControlledProtectionDrawdownPct < config.profitControlledStrongOnlyDrawdownPct) {
+    throw new Error("PROFIT_CONTROLLED_PROTECTION_DRAWDOWN_PCT cannot be below PROFIT_CONTROLLED_STRONG_ONLY_DRAWDOWN_PCT.");
   }
   if (config.liveValidationMode && config.dryRun) {
     throw new Error("LIVE_VALIDATION_MODE=true is a real-money validation profile and requires DRY_RUN=false.");
