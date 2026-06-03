@@ -629,7 +629,7 @@ class AdaptiveEngine {
     const bestRegime = leaderboard(this.memory.stats.byMarketRegimeType || {}, "best", 1)[0] || null;
     const worstRegime = leaderboard(this.memory.stats.byMarketRegimeType || {}, "worst", 1)[0] || null;
 
-    return {
+    const policy = {
       mode,
       sampleSize: last20.count,
       rollingWinRatePct: last20.winRatePct,
@@ -684,6 +684,29 @@ class AdaptiveEngine {
       maxOpenPositions: clamp(maxOpenPositions, 1, this.config.maxOpenPositions),
       maxTradesPerDay: this.config.disableDailyTradeLimits || continuousExecution ? Number.MAX_SAFE_INTEGER : clamp(maxTradesPerDay, 1, this.config.maxTradesPerDay),
     };
+    if (this.config.profitControlledEquityMode && this.config.profitExpansionMode) {
+      return {
+        ...policy,
+        mode: "PROFIT_MODE",
+        learningPhaseActive: false,
+        aggressiveLearningPhaseActive: false,
+        explorationEnabled: false,
+        explorationBudget: 0,
+        explorationExpansionActive: false,
+        activityFloorEngaged: false,
+        activityFloorSignalRelaxPoints: 0,
+        activityFloorConvictionRelaxPoints: 0,
+        activityFloorChopToleranceBonus: 0,
+        dailyTradeLimitsDisabled: true,
+        explorationDailyCapDisabled: true,
+        highActivityModeActive: true,
+        minSignalScore: this.config.tradeFrequencyRecoveryMode
+          ? this.config.tradeFrequencyRecoveryMinSignalScore
+          : policy.minSignalScore,
+        maxTradesPerDay: Number.MAX_SAFE_INTEGER,
+      };
+    }
+    return policy;
   }
 
   buildAnalytics() {

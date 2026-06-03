@@ -19,10 +19,13 @@ const {
   earnedRiskTier,
   ensureProfitControlledState,
   leverageCapForTier,
+  profitExpectancyReport,
   profitControlledRiskCapPct,
   profitControlledRiskState,
   profitControlledSummary,
+  qualityScoreForSignal,
   sizingEquityBaseFromBalance,
+  symbolPerformanceMemoryV2,
 } = require("./profitControlled");
 const {
   allocatedEquityLimitUsdt,
@@ -456,6 +459,32 @@ class LadderBot {
         highActivityScanningPreserved: true,
         dailyTradeCountCapDisabled: true,
       });
+      this.log("INFO", "PROFIT_MODE_ACTIVE", {
+        adaptiveMode: "PROFIT_MODE",
+        explorationExpansionActive: false,
+        forcedSampling: false,
+        aggressiveLearning: false,
+        unlimitedExploration: false,
+        tradeForDataCollection: false,
+      });
+      this.log("INFO", "WINNER_AMPLIFIER_ENGINE_ACTIVE", {
+        enabled: this.config.winnerAmplifierEnabled,
+        tp1PartialPct: this.config.winnerAmplifierPartialTakeProfitPct,
+        runnerBreakevenAfterTp1: true,
+        atrTrailingStop: this.config.trailingStopEnabled,
+      });
+      if (this.config.tradeFrequencyRecoveryMode) {
+        this.log("INFO", "TRADE_FREQUENCY_RECOVERY_ACTIVE", {
+          adaptiveMinimumScore: this.adaptive.currentPolicy().minSignalScore,
+          minimumConvictionScore: this.config.minConvictionScore,
+          antiChopPenaltyMax: this.config.antiChopPenaltyMax,
+          antiChopConvictionPenaltyMax: this.config.antiChopConvictionPenaltyMax,
+          volumeSurvivabilityRelaxationMultiplier: this.config.volumeSurvivabilityRelaxationMultiplier,
+          qualityPacingEnabled: this.config.qualityPacingEnabled,
+          feeModelUnchanged: true,
+          portfolioRiskUnchanged: true,
+        });
+      }
       this.log("INFO", "DAILY_TRADE_COUNT_CAP_DISABLED", {
         disableDailyTradeLimits: this.config.disableDailyTradeLimits,
         dailyTradeLimitsDisabled: this.config.dailyTradeLimitsDisabled,
@@ -467,7 +496,7 @@ class LadderBot {
           "BREAKOUT_RETEST",
           "MOMENTUM_ACCELERATION",
           "SAME_DIRECTION_REENTRY",
-          "SMALL_POSITIVE_EDGE_EXPLORATION",
+          "PROFIT_QUALIFIED_CONTINUATION",
         ],
       });
       this.log("INFO", "PORTFOLIO_STOP_RISK_LIMIT_CONFIRMED", {
@@ -1288,8 +1317,33 @@ class LadderBot {
     fs.mkdirSync(path.join(reportsDir, "daily"), { recursive: true });
     fs.writeFileSync(path.join(reportsDir, "latest-summary.json"), `${JSON.stringify(report, null, 2)}\n`, "utf8");
     fs.writeFileSync(path.join(reportsDir, "daily", `${today}.json`), `${JSON.stringify(report, null, 2)}\n`, "utf8");
+    this.writeProfitExpectancyReport();
     this.lastProfitControlledStatusAt = Date.now();
     this.log("INFO", "PROFIT_CONTROLLED_STATUS_SUMMARY", report);
+    return report;
+  }
+
+  writeProfitExpectancyReport() {
+    if (!this.config.profitControlledEquityMode) return null;
+    const reportsDir = this.config.reportsDir || path.join(this.config.projectRoot, "data", "profit-controlled-live", "reports");
+    fs.mkdirSync(reportsDir, { recursive: true });
+    const report = profitExpectancyReport(this.store.trades);
+    fs.writeFileSync(path.join(reportsDir, "expectancy.json"), `${JSON.stringify(report, null, 2)}\n`, "utf8");
+    this.log("INFO", "PORTFOLIO_EXPECTANCY_REPORT_UPDATED", {
+      file: path.join(reportsDir, "expectancy.json"),
+      expectancyUsdt: report.expectancyUsdt,
+      averageWinnerUsdt: report.averageWinnerUsdt,
+      averageLoserUsdt: report.averageLoserUsdt,
+      profitFactor: report.profitFactor,
+      feeImpact: report.feeImpact,
+      runnerImpact: report.runnerImpact,
+      symbolRanking: report.symbolRanking.map((item) => ({
+        symbol: item.symbol,
+        weight: item.weight,
+        rolling50NetPnlUsdt: item.rolling50.netPnlUsdt,
+        rolling100NetPnlUsdt: item.rolling100.netPnlUsdt,
+      })),
+    });
     return report;
   }
 
@@ -1515,6 +1569,12 @@ class LadderBot {
         });
         continue;
       }
+      if (this.config.profitControlledEquityMode && this.config.profitExpansionMode) {
+        signal.explorationTrade = false;
+        signal.forcedMarketSampling = false;
+        signal.explorationExpansionActive = false;
+        signal.adaptivePolicyMode = "PROFIT_MODE";
+      }
       if (signal.explorationTrade) {
         const dailyExplorationTrades = Number(this.store.state.daily.explorationTrades || 0);
         const explorationBudget = adaptivePolicy.explorationBudget;
@@ -1726,6 +1786,7 @@ class LadderBot {
       if (
         profitControlledRisk &&
         profitControlledRisk.requireStrongOrElite &&
+        !this.config.profitExpansionMode &&
         !["STRONG_CONTINUATION", "ELITE_CONTINUATION"].includes(profitControlledEarnedTier)
       ) {
         this.log("INFO", "Candidate rejected by profit-controlled strong-only risk state.", {
@@ -1806,6 +1867,54 @@ class LadderBot {
         expectedRewardCostRatio: edgeCheck.edgeModel.expectedRewardCostRatio,
         edgeTier: edgeCheck.edgeModel.tier,
       });
+      const profitQuality = this.profitModeQualityCheck(signal, edgeCheck.edgeModel);
+      if (profitQuality.rejected) {
+        this.recordActivityEvent("rejectedNegativeNetEdge", { symbol: signal.symbol, reason: profitQuality.reason });
+        this.logProfitControlledPreMutationRejection(signal, profitQuality.reason, {
+          profitQualityScore: profitQuality.score,
+          profitQualityTier: profitQuality.rawTier,
+          qualityComponents: profitQuality.components,
+        });
+        continue;
+      }
+      if (
+        profitControlledRisk &&
+        profitControlledRisk.requireStrongOrElite &&
+        !["STRONG", "ELITE"].includes(profitQuality.tier)
+      ) {
+        this.log("INFO", "Candidate rejected by profit-controlled strong-only risk state.", {
+          symbol: signal.symbol,
+          side: signal.side,
+          profitQualityTier: profitQuality.tier,
+          profitQualityScore: profitQuality.score,
+          riskState: profitControlledRisk.state,
+          reasons: profitControlledRisk.reasons,
+          scanningContinues: profitControlledRisk.allowScanning,
+        });
+        this.recordActivityEvent("rejectedRiskBudget", { symbol: signal.symbol, reason: "PROFIT_CONTROLLED_STRONG_ONLY_QUALITY_REQUIRED" });
+        this.logProfitControlledPreMutationRejection(signal, "PROFIT_CONTROLLED_STRONG_ONLY_QUALITY_REQUIRED", {
+          profitQualityScore: profitQuality.score,
+          profitQualityTier: profitQuality.tier,
+          riskState: profitControlledRisk.state,
+        });
+        continue;
+      }
+      if (profitQuality.tier === "ELITE") {
+        this.log("WARN", "V7_ELITE_QUALITY_SETUP_DETECTED", {
+          symbol: signal.symbol,
+          side: signal.side,
+          qualityScore: profitQuality.score,
+          qualityComponents: profitQuality.components,
+          winnerAmplifierEnabled: this.config.winnerAmplifierEnabled,
+        });
+      } else if (profitQuality.tier === "STRONG") {
+        this.log("INFO", "V7_STRONG_QUALITY_SETUP_ACCEPTED", {
+          symbol: signal.symbol,
+          side: signal.side,
+          qualityScore: profitQuality.score,
+          qualityComponents: profitQuality.components,
+        });
+      }
       this.recordActivityEvent("edgeApprovedCandidate", { symbol: signal.symbol, side: signal.side });
       const requestedLeverage = this.config.profitControlledEquityMode
         ? this.profitControlledLeverageForSignal(signal, adaptivePolicy)
@@ -1936,6 +2045,32 @@ class LadderBot {
           edgeTier: finalEdgeGate.model.tier,
         });
         continue;
+      }
+      if (this.config.profitControlledEquityMode && this.config.profitExpansionMode) {
+        const rewardCost = Number(finalEdgeGate.model.expectedRewardCostRatio || 0);
+        const projectedNetProfitUsdt = Number(finalEdgeGate.model.projectedNetProfitUsdt || 0);
+        const projectedTotalCostUsdt = Number(finalEdgeGate.model.projectedTotalCostUsdt || 0);
+        const minimumRewardCost = Math.max(this.config.profitModeMinRewardCostRatio, finalEdgeGate.requirements.minRewardCostRatio);
+        const minimumNetProfitUsdt = projectedTotalCostUsdt * this.config.profitModeMinNetProfitToCostRatio;
+        if (projectedNetProfitUsdt <= 0 || rewardCost < minimumRewardCost || projectedNetProfitUsdt < minimumNetProfitUsdt) {
+          this.log("INFO", "FEE_KILLER_REJECTED_FINAL_SIZED_ENTRY", {
+            symbol: signal.symbol,
+            side: signal.side,
+            projectedNetProfitUsdt,
+            projectedTotalCostUsdt,
+            expectedRewardCostRatio: rewardCost,
+            minimumRewardCostRatio: minimumRewardCost,
+            minimumNetProfitUsdt,
+            noGrossPositiveNetNegativeIntentionalEntries: true,
+          });
+          this.recordActivityEvent("rejectedNegativeNetEdge", { symbol: signal.symbol, reason: "FEE_KILLER_FINAL_SIZED_ENTRY" });
+          this.logProfitControlledPreMutationRejection(signal, "FEE_KILLER_FINAL_SIZED_ENTRY", {
+            projectedNetProfitUsdt,
+            projectedTotalCostUsdt,
+            expectedRewardCostRatio: rewardCost,
+          });
+          continue;
+        }
       }
       signal.edgeTier = finalEdgeGate.model.tier;
       signal.edgeModel = finalEdgeGate.model;
@@ -2569,6 +2704,62 @@ class LadderBot {
     };
   }
 
+  profitModeQualityCheck(signal, edgeModel = {}) {
+    if (!this.config.profitControlledEquityMode || !this.config.profitExpansionMode) {
+      return { rejected: false, score: null, tier: null, reason: "profit expansion mode inactive" };
+    }
+    const memory = symbolPerformanceMemoryV2(this.store.trades, signal.symbol);
+    const quality = qualityScoreForSignal(this.config, signal, edgeModel, memory);
+    signal.profitQualityScore = quality.score;
+    signal.profitQualityTier = quality.tier === "REJECT" ? null : quality.tier;
+    signal.symbolPerformanceMemoryV2 = quality.symbolMemory;
+    signal.adaptiveMode = "PROFIT_MODE";
+    signal.adaptivePolicyMode = "PROFIT_MODE";
+    signal.explorationTrade = false;
+    signal.forcedMarketSampling = false;
+    if (quality.tier === "ELITE") {
+      signal.eliteSetup = true;
+      signal.tradeCategory = "ELITE_SETUP";
+      signal.eliteContinuationCandidate = true;
+    } else if (quality.tier === "STRONG") {
+      signal.highQualityContinuation = true;
+      if (!signal.tradeCategory || signal.tradeCategory === "EXPLORATION") signal.tradeCategory = "STRONG_CONTINUATION";
+    } else if (quality.tier === "NORMAL") {
+      if (!signal.tradeCategory || signal.tradeCategory === "EXPLORATION") signal.tradeCategory = "NORMAL_CONTINUATION";
+    }
+    this.log(quality.rejected ? "INFO" : "INFO", quality.rejected ? "PROFIT_MODE_QUALITY_REJECTED" : "PROFIT_MODE_QUALITY_APPROVED", {
+      symbol: signal.symbol,
+      side: signal.side,
+      score: quality.score,
+      tier: quality.tier,
+      rawTier: quality.rawTier,
+      reason: quality.reason,
+      components: quality.components,
+      thresholds: quality.thresholds,
+      symbolMemoryBias: memory.bias,
+      symbolMemoryWeight: memory.weight,
+      rolling50: memory.rolling50,
+      rolling100: memory.rolling100,
+    });
+    if (!quality.rejected && memory.bias === "STRENGTHENED") {
+      this.log("INFO", "SYMBOL_PERFORMANCE_MEMORY_V2_STRENGTHENED", {
+        symbol: signal.symbol,
+        weight: memory.weight,
+        rolling50: memory.rolling50,
+        rolling100: memory.rolling100,
+      });
+    } else if (!quality.rejected && memory.bias === "DOWNWEIGHTED") {
+      this.log("INFO", "SYMBOL_PERFORMANCE_MEMORY_V2_DOWNWEIGHTED", {
+        symbol: signal.symbol,
+        weight: memory.weight,
+        neverDisabled: true,
+        rolling50: memory.rolling50,
+        rolling100: memory.rolling100,
+      });
+    }
+    return quality;
+  }
+
   feeAwareEntryCheck(signal) {
     const netEdgeGate = edgeGate(this.config, signal);
     if (netEdgeGate.rejected) {
@@ -2646,6 +2837,34 @@ class LadderBot {
         requiredEdgeToCostRatio: Number(minEdgeToCostRatio.toFixed(4)),
         requiredSmartEdgePct: Number(minSmartEdgePct.toFixed(4)),
       };
+    }
+    if (this.config.profitControlledEquityMode && this.config.profitExpansionMode) {
+      const rewardCost = Number(netEdgeGate.model.expectedRewardCostRatio || signal.feeEdgeRatio || 0);
+      const projectedNetProfitUsdt = Number(netEdgeGate.model.projectedNetProfitUsdt || 0);
+      const projectedTotalCostUsdt = Number(netEdgeGate.model.projectedTotalCostUsdt || 0);
+      const requiredRewardCost = Math.max(this.config.profitModeMinRewardCostRatio, minEdgeToCostRatio);
+      const requiredNetToCost = projectedTotalCostUsdt * this.config.profitModeMinNetProfitToCostRatio;
+      const hasProjectedUsdt = projectedTotalCostUsdt > 0 || Number(netEdgeGate.model.projectedGrossProfitUsdt || 0) > 0;
+      if ((hasProjectedUsdt && projectedNetProfitUsdt <= 0) || Number(netEdgeGate.model.expectedNetEdgePct || 0) <= 0) {
+        return {
+          rejected: true,
+          reason: "fee killer rejected candidate: projected net result after costs is not positive",
+          requiredProjectedEdgePct: Number(minProjectedEdgePct.toFixed(4)),
+          requiredEdgeToCostRatio: Number(requiredRewardCost.toFixed(4)),
+          requiredSmartEdgePct: Number(minSmartEdgePct.toFixed(4)),
+          edgeModel: netEdgeGate.model,
+        };
+      }
+      if (rewardCost < requiredRewardCost || (hasProjectedUsdt && projectedNetProfitUsdt < requiredNetToCost)) {
+        return {
+          rejected: true,
+          reason: "fee killer rejected candidate: projected reward is too small relative to total execution cost",
+          requiredProjectedEdgePct: Number(minProjectedEdgePct.toFixed(4)),
+          requiredEdgeToCostRatio: Number(requiredRewardCost.toFixed(4)),
+          requiredSmartEdgePct: Number(minSmartEdgePct.toFixed(4)),
+          edgeModel: netEdgeGate.model,
+        };
+      }
     }
     if (Number(signal.convictionScore) < minConvictionScore) {
       return {
@@ -2854,9 +3073,13 @@ class LadderBot {
       partialTakeProfitPrice: plan.partialTakeProfitPrice,
       runnerTakeProfitPrice: plan.runnerTakeProfitPrice,
       standardTakeProfitPrice: plan.standardTakeProfitPrice,
-      eliteTrendRider: Boolean(plan.eliteSetup && this.config.eliteTrendRiderEnabled),
-      runnerPartialPct: plan.eliteSetup ? this.config.elitePartialTakeProfitPct : 0,
+      eliteTrendRider: Boolean((plan.eliteSetup || plan.winnerAmplifier) && this.config.eliteTrendRiderEnabled),
+      winnerAmplifier: Boolean(plan.winnerAmplifier),
+      runnerPartialPct: plan.winnerAmplifier ? this.config.winnerAmplifierPartialTakeProfitPct : plan.eliteSetup ? this.config.elitePartialTakeProfitPct : 0,
+      runnerTakeProfitMultiplier: plan.runnerTakeProfitMultiplier,
       runnerPartialTaken: false,
+      runnerStopMovedToBreakeven: false,
+      runnerExtensionCount: 0,
       peakPrice: signal.price,
       trailingStopPrice: null,
       openedAt: new Date().toISOString(),
@@ -2892,6 +3115,7 @@ class LadderBot {
       volatilityRegime: signal.volatilityRegime,
       volumeCondition: signal.volumeCondition,
       entryMomentumPct: signal.entryMomentumPct,
+      atrPct: signal.atrPct,
       spreadPct: signal.spreadPct,
       projectedNetEdgePct: signal.projectedNetEdgePct,
       smartProjectedNetEdgePct: signal.smartProjectedNetEdgePct,
@@ -2923,6 +3147,9 @@ class LadderBot {
       intelligentReentryTriggered: signal.intelligentReentryTriggered,
       eliteContinuationCandidate: signal.eliteContinuationCandidate,
       eliteSetup: signal.eliteSetup,
+      profitQualityScore: signal.profitQualityScore,
+      profitQualityTier: signal.profitQualityTier,
+      symbolPerformanceMemoryV2: signal.symbolPerformanceMemoryV2,
       eliteConditionKey: signal.eliteConditionKey,
       convictionTier: plan.convictionTier,
       targetMarginUsdt: plan.targetMarginUsdt,
@@ -3140,9 +3367,9 @@ class LadderBot {
         ? percentChange(position.peakPrice, position.entryPrice)
         : percentChange(position.entryPrice, position.peakPrice);
 
-      const runnerTrailingMultiplier =
-        position.eliteTrendRider && position.runnerPartialTaken ? this.config.eliteRunnerTrailingDistanceMultiplier : 1;
-      const trailingDistancePct = this.config.trailingDistancePct * Number(position.regimeTrailingDistanceMultiplier || 1) * runnerTrailingMultiplier;
+      const trailingDistancePct = position.eliteTrendRider && position.runnerPartialTaken
+        ? this.runnerTrailingDistancePct(position)
+        : this.config.trailingDistancePct * Number(position.regimeTrailingDistanceMultiplier || 1);
       const trailingStartPct = this.config.trailingStartPct * Number(position.regimeHoldMultiplier && position.regimeHoldMultiplier > 1 ? 1.05 : 1);
       if (this.config.trailingStopEnabled && favorablePct >= trailingStartPct) {
         const candidateStop = long
@@ -3218,20 +3445,30 @@ class LadderBot {
         const analysis = options.priceProtectionOnly ? null : await this.scanner.analysisForPosition(position, regime);
         const continuation = analysis ? this.strongMomentumContinuation(position, analysis, pnlPct, { elite: true }) : true;
         if (continuation) {
-          await this.closePartialPosition(position, price, "elite trend rider partial take profit", this.config.elitePartialTakeProfitPct / 100);
-          this.log("WARN", "Elite trend rider activated; partial runner enabled.", {
+          await this.closePartialPosition(position, price, "winner amplifier TP1 partial take profit", Number(position.runnerPartialPct || this.config.winnerAmplifierPartialTakeProfitPct) / 100);
+          await this.moveRunnerStopToBreakeven(position);
+          this.log("WARN", "Winner amplifier activated; TP1 secured and runner enabled.", {
             symbol: position.symbol,
             side: position.side,
             partialTakeProfitPrice: position.partialTakeProfitPrice,
             runnerTakeProfitPrice: position.runnerTakeProfitPrice,
             remainingSize: position.size,
-            trailingDistanceMultiplier: this.config.eliteRunnerTrailingDistanceMultiplier,
+            runnerPartialPct: position.runnerPartialPct,
+            trailingDistancePct: this.runnerTrailingDistancePct(position, analysis),
           });
-          await this.telegram.send(`Elite runner enabled: ${position.symbol} ${position.side}; partial TP taken and runner is trailing.`);
+          await this.telegram.send(`Profit runner enabled: ${position.symbol} ${position.side}; TP1 partial taken and runner is trailing.`);
           continue;
         }
       }
       if ((long && price >= position.takeProfitPrice) || (!long && price <= position.takeProfitPrice)) {
+        if (position.runnerPartialTaken) {
+          const analysis = options.priceProtectionOnly ? null : await this.scanner.analysisForPosition(position, regime);
+          const continuation = analysis ? this.strongMomentumContinuation(position, analysis, pnlPct, { elite: true }) : false;
+          if (continuation) {
+            await this.extendRunnerTarget(position, price, analysis);
+            continue;
+          }
+        }
         await this.closePosition(position, price, "take profit hit");
         continue;
       }
@@ -3276,10 +3513,127 @@ class LadderBot {
           });
           continue;
         }
+        if (this.feeSizedExit(position, pnlPct) && !trendReversed) {
+          this.log("INFO", "Tiny profit exit avoided; expected value preservation kept position open.", {
+            symbol: position.symbol,
+            side: position.side,
+            pnlPct: pnlPct.toFixed(3),
+            estimatedRoundTripCostPct: position.estimatedRoundTripCostPct,
+            feeEdgeRatio: position.feeEdgeRatio,
+          });
+          continue;
+        }
         await this.closePosition(position, price, "momentum disappeared");
       }
     }
     this.store.saveState();
+  }
+
+  runnerTrailingDistancePct(position, analysis = null) {
+    const atrPct = Math.max(numeric(analysis && analysis.atrPct), numeric(position.atrPct));
+    const volatilityMultiplier =
+      position.volatilityRegime === "HIGH_VOLATILITY" || (analysis && analysis.volatilityRegime === "HIGH_VOLATILITY")
+        ? 1.18
+        : position.volatilityRegime === "NEWS_LIKE_ABNORMAL"
+          ? 1.35
+          : 1;
+    const regimeMultiplier = Number(position.regimeTrailingDistanceMultiplier || 1);
+    return Math.max(
+      this.config.trailingDistancePct * regimeMultiplier,
+      atrPct * this.config.runnerAtrTrailingMultiplier * volatilityMultiplier,
+      this.config.trailingDistancePct * this.config.eliteRunnerTrailingDistanceMultiplier * 0.85
+    );
+  }
+
+  breakevenStopPrice(position) {
+    const long = position.side === "LONG";
+    const costPct =
+      Math.max(
+        numeric(position.estimatedRoundTripCostPct),
+        numeric(position.roundTripFeePct) + numeric(position.spreadPct) + this.config.estimatedSlippagePct
+      ) + this.config.runnerBreakevenCostCushionPct;
+    const raw = long
+      ? position.entryPrice * (1 + costPct / 100)
+      : position.entryPrice * (1 - costPct / 100);
+    return roundedPrice(raw, position.tickSize, !long);
+  }
+
+  async moveRunnerStopToBreakeven(position) {
+    if (!position.runnerPartialTaken || position.runnerStopMovedToBreakeven) return;
+    const long = position.side === "LONG";
+    const breakevenStop = this.breakevenStopPrice(position);
+    const improves = long ? breakevenStop > Number(position.stopLossPrice) : breakevenStop < Number(position.stopLossPrice);
+    if (!improves) return;
+    position.stopLossPrice = breakevenStop;
+    position.runnerStopMovedToBreakeven = true;
+    if (!this.config.dryRun) {
+      await this.applyTradingStopIfChanged(position, {
+        symbol: position.symbol,
+        positionIdx: position.positionIdx,
+        takeProfit: String(position.takeProfitPrice),
+        stopLoss: String(position.stopLossPrice),
+      }, "runner breakeven protection");
+    }
+    const trade = this.store.trades.find((item) => item.id === position.id);
+    if (trade) {
+      trade.stopLossPrice = position.stopLossPrice;
+      trade.runnerStopMovedToBreakeven = true;
+    }
+    this.store.saveAll();
+    this.log("WARN", "RUNNER_STOP_MOVED_TO_BREAKEVEN", {
+      symbol: position.symbol,
+      side: position.side,
+      breakevenStopPrice: position.stopLossPrice,
+      costCushionPct: this.config.runnerBreakevenCostCushionPct,
+      runnerPartialTaken: true,
+    });
+  }
+
+  async extendRunnerTarget(position, price, analysis = null) {
+    const long = position.side === "LONG";
+    const distancePct = Math.max(
+      this.runnerTrailingDistancePct(position, analysis) * this.config.runnerTrendExtensionMultiplier,
+      this.config.takeProfitPct * 0.55
+    );
+    const candidate = roundedPrice(
+      price * (long ? 1 + distancePct / 100 : 1 - distancePct / 100),
+      position.tickSize,
+      !long
+    );
+    const improves = long ? candidate > Number(position.takeProfitPrice) : candidate < Number(position.takeProfitPrice);
+    if (!improves) return;
+    position.takeProfitPrice = candidate;
+    position.runnerTakeProfitPrice = candidate;
+    position.runnerExtensionCount = Number(position.runnerExtensionCount || 0) + 1;
+    if (!this.config.dryRun) {
+      await this.applyTradingStopIfChanged(position, {
+        symbol: position.symbol,
+        positionIdx: position.positionIdx,
+        takeProfit: String(position.takeProfitPrice),
+        stopLoss: String(position.stopLossPrice),
+      }, "dynamic runner extension");
+    }
+    const trade = this.store.trades.find((item) => item.id === position.id);
+    if (trade) {
+      trade.takeProfitPrice = position.takeProfitPrice;
+      trade.runnerTakeProfitPrice = position.runnerTakeProfitPrice;
+      trade.runnerExtensionCount = position.runnerExtensionCount;
+    }
+    this.store.saveAll();
+    this.log("WARN", "DYNAMIC_RUNNER_EXTENSION_ACTIVE", {
+      symbol: position.symbol,
+      side: position.side,
+      newRunnerTakeProfitPrice: position.takeProfitPrice,
+      extensionDistancePct: Number(distancePct.toFixed(4)),
+      continuationStrength: analysis && analysis.continuationStrength,
+      trendStrengthIncreased: analysis && Number(analysis.continuationStrength || 0) > Number(position.continuationStrength || 0),
+      fixedProfitCapUsed: false,
+    });
+  }
+
+  feeSizedExit(position, pnlPct) {
+    const costPct = Math.max(numeric(position.estimatedRoundTripCostPct), numeric(position.roundTripFeePct) * 2);
+    return pnlPct > 0 && pnlPct <= costPct + this.config.breakevenCostCushionPct;
   }
 
   strongMomentumContinuation(position, analysis, pnlPct, options = {}) {
@@ -3527,6 +3881,13 @@ class LadderBot {
     const pnlPct =
       position.side === "LONG" ? percentChange(exitPrice, position.entryPrice) : percentChange(position.entryPrice, exitPrice);
     const holdSeconds = secondsHeld(position);
+    const maxFavorableExcursionPct =
+      position.side === "LONG"
+        ? percentChange(numeric(position.peakPrice, position.entryPrice), position.entryPrice)
+        : percentChange(position.entryPrice, numeric(position.peakPrice, position.entryPrice));
+    const runnerNetContributionUsdt = position.runnerPartialTaken
+      ? pnlUsdt - numeric(position.partialRealizedPnlUsdt)
+      : 0;
     const trade = this.store.trades.find((item) => item.id === position.id);
     const closedAt = new Date().toISOString();
     const previousSameSymbol = this.store.trades
@@ -3577,7 +3938,11 @@ class LadderBot {
         edgeGateDecision: "APPROVED",
         projectedNetProfitUsdt: Number(numeric(position.projectedNetProfitUsdt).toFixed(6)),
         projectedTotalCostUsdt: Number(numeric(position.projectedTotalCostUsdt).toFixed(6)),
-        runnerNetContributionUsdt: Number(numeric(position.partialRealizedPnlUsdt).toFixed(6)),
+        runnerNetContributionUsdt: Number(runnerNetContributionUsdt.toFixed(6)),
+        runnerExtensionCount: Number(position.runnerExtensionCount || 0),
+        runnerStopMovedToBreakeven: Boolean(position.runnerStopMovedToBreakeven),
+        maximumFavorableExcursionPct: Number(numeric(maxFavorableExcursionPct).toFixed(4)),
+        profitGivenBackPct: Number(Math.max(0, numeric(maxFavorableExcursionPct) - pnlPct).toFixed(4)),
         result: this.closedPositionReason(position, exitPrice).includes("take profit")
           ? "TP"
           : this.closedPositionReason(position, exitPrice).includes("stop loss")
@@ -3739,15 +4104,18 @@ class LadderBot {
             ? roundedPrice(entryPrice * (1 + this.config.takeProfitPct / 100), managed.tickSize, false)
             : roundedPrice(entryPrice * (1 - this.config.takeProfitPct / 100), managed.tickSize, true);
         managed.partialTakeProfitPrice = managed.eliteTrendRider ? managed.standardTakeProfitPrice : null;
+        const managedRunnerMultiplier =
+          managed.runnerTakeProfitMultiplier ||
+          (managed.eliteSetup ? this.config.eliteRunnerTakeProfitMultiplier : managed.winnerAmplifier ? this.config.runnerTrendExtensionMultiplier : 1);
         managed.takeProfitPrice =
           managed.side === "LONG"
             ? roundedPrice(
-                entryPrice * (1 + (this.config.takeProfitPct * (managed.eliteTrendRider ? this.config.eliteRunnerTakeProfitMultiplier : 1)) / 100),
+                entryPrice * (1 + (this.config.takeProfitPct * managedRunnerMultiplier) / 100),
                 managed.tickSize,
                 false
               )
             : roundedPrice(
-                entryPrice * (1 - (this.config.takeProfitPct * (managed.eliteTrendRider ? this.config.eliteRunnerTakeProfitMultiplier : 1)) / 100),
+                entryPrice * (1 - (this.config.takeProfitPct * managedRunnerMultiplier) / 100),
                 managed.tickSize,
                 true
               );
