@@ -140,6 +140,94 @@ API key safety:
 - do not enable withdrawal permissions
 - avoid unnecessary fund-transfer permissions
 
+## V6 Profit-Controlled Equity Mode
+
+`npm run live:profit-controlled` is a separate real-money mainnet profile built on the V4/V5 profit-first systems. It is not demo mode, not testnet, and not a profit guarantee.
+
+This mode fixes the old fixed `10 USDT` allocation problem by reading fresh Bybit-reported equity and usable margin before trading cycles and before possible entries. It still limits every position by maximum loss at stop and never treats margin or notional exposure as risk.
+
+Profit-controlled startup refuses unless all of these are true in `.env`:
+
+- `PROFIT_CONTROLLED_EQUITY_MODE=true`
+- `BYBIT_DEMO_TRADING=false`
+- `BYBIT_TESTNET=false`
+- `DRY_RUN=false`
+- `ACKNOWLEDGE_PROFIT_CONTROLLED_LIVE_RISK=true`
+- `ACKNOWLEDGE_LIVE_TRADING=true`
+- live REST endpoint is `https://api.bybit.com`
+- live private/public WebSocket endpoints are `wss://stream.bybit.com`
+
+The launch script sets the mode and mainnet endpoints, but it does **not** set acknowledgement flags. If acknowledgement is missing, startup refuses with:
+
+```text
+PROFIT-CONTROLLED LIVE NOT STARTED — REAL-MONEY ACKNOWLEDGEMENT REQUIRED
+```
+
+To prepare `.env` deliberately:
+
+```bash
+npm run setup:profit-controlled
+```
+
+The setup script verifies that `BYBIT_API_KEY` and `BYBIT_API_SECRET` already exist without printing them, creates a timestamped `.env` backup, preserves the key and secret exactly as-is, and asks you to type:
+
+```text
+I ACCEPT PROFIT CONTROLLED LIVE RISK
+```
+
+Only after that exact phrase does it set the real-money acknowledgement flags and the non-secret V6 settings. It does not start the bot.
+
+After reviewing `.env`, the later launch command is:
+
+```bash
+npm run live:profit-controlled
+```
+
+Startup must print:
+
+```text
+PROFIT-CONTROLLED LIVE MODE — REAL FUNDS AT RISK — NO PROFIT GUARANTEE
+USER_ACKNOWLEDGEMENT_CONFIRMED
+MAINNET_ENDPOINT_CONFIRMED
+API_KEY_PRESENT_BUT_NOT_PRINTED
+EXCHANGE_REPORTED_TOTAL_EQUITY_USDT
+USABLE_MARGIN_USDT
+SIZING_EQUITY_BASE_USDT
+EXISTING_POSITIONS_RECONCILED
+INSTRUMENT_RULES_LOADED
+FORCED_NEGATIVE_EDGE_PARTICIPATION_DISABLED
+HIGH_ACTIVITY_SCANNING_PRESERVED
+PORTFOLIO_STOP_RISK_LIMIT_CONFIRMED
+READY_TO_SCAN_FOR_NET_POSITIVE_QUALIFIED_ENTRIES
+```
+
+Initial V6 loss-at-stop caps use the fresh sizing equity base:
+
+| Tier | Max loss at stop |
+| --- | ---: |
+| `EXPLORATION_POSITIVE_EDGE` | `0.25%` |
+| `NORMAL_CONTINUATION` | `0.45%` |
+| `STRONG_CONTINUATION` | `0.85%` |
+| `ELITE_CONTINUATION` | `1.25%` |
+
+Portfolio controls allow multiple BTC/ETH/SOL positions when actual stop-risk fits:
+
+- total open loss-at-stop risk limit: `2.25%` of sizing equity
+- same-direction correlated BTC/ETH/SOL cluster limit: `1.75%`
+- up to three simultaneous positions may remain open when risk and protection checks pass
+
+V6 disables forced low-quality participation in this live profile:
+
+- forced market sampling off
+- forced execution sampling off
+- FOMO breakout mode off
+- unconfirmed micro-breakout entries off
+- unconditional choppy-market permission off
+- unlimited exploration budget off
+- aggressive learning phase off
+
+Scanning remains fast, BTC/ETH/SOL-only, and active. Entries still require positive projected net edge after fees, spread, slippage, and available funding estimates. BTC is allowed only when the earned setup tier and actual exchange minimum size fit the stop-risk cap; ETH and SOL can trade when they are qualified and executable.
+
 ## Focused BTC/ETH/SOL Universe
 
 The executable trading universe is intentionally restricted to:

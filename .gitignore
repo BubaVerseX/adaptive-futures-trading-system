@@ -6,3 +6,4 @@ STOP_BOT.txt
 .env
 node_modules
 logs
+.env.backup-*

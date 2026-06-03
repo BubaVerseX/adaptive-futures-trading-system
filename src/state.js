@@ -85,6 +85,20 @@ function initialState(config) {
           namespace: "data/live-validation",
         }
       : null,
+    profitControlled: config.profitControlledEquityMode
+      ? {
+          namespace: "data/profit-controlled-live",
+          startEquityUsdt: null,
+          lastSizingEquityBaseUsdt: null,
+          sizingEquityBaseUsdt: null,
+          usableMarginUsdt: null,
+          exchangeReportedTotalEquityUsdt: null,
+          riskState: "RISK_STATE_NORMAL",
+          riskStateReasons: [],
+          totalOpenStopRiskPctLimit: config.maxTotalOpenStopRiskPct,
+          correlatedClusterStopRiskPctLimit: config.maxCorrelatedClusterStopRiskPct,
+        }
+      : null,
     telegramUpdateOffset: 0,
   };
 }
@@ -109,6 +123,9 @@ class StateStore {
     this.state.performance = { ...emptyPerformance(), ...(loaded.performance || {}) };
     this.state.liveValidation = this.config.liveValidationMode
       ? { ...initialState(this.config).liveValidation, ...(loaded.liveValidation || {}) }
+      : null;
+    this.state.profitControlled = this.config.profitControlledEquityMode
+      ? { ...initialState(this.config).profitControlled, ...(loaded.profitControlled || {}) }
       : null;
     this.trades = Array.isArray(trades) ? trades : [];
     this.migrateExchange(loaded.exchange);
@@ -180,6 +197,7 @@ class StateStore {
     this.state.consecutiveApiErrors = 0;
     this.state.apiRecovery = defaults.apiRecovery;
     this.state.liveValidation = defaults.liveValidation;
+    this.state.profitControlled = defaults.profitControlled;
     this.log("WARN", "Operating mode changed; performance counters reset for the new mode.", {
       fromMode: priorMode,
       toMode: mode,

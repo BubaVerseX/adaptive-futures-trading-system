@@ -1,6 +1,7 @@
 "use strict";
 
 const { percentChange } = require("./indicators");
+const { profitControlledRiskCapPct } = require("./profitControlled");
 
 const LADDER = [
   { level: 1, floor: 100, target: 130 },
@@ -361,6 +362,7 @@ class RiskManager {
     qualitySizeMultiplier *= Number(signal.regimeRiskMultiplier || 1);
     qualitySizeMultiplier *= Number(signal.profitProtectionRiskMultiplier || 1);
     qualitySizeMultiplier *= Number(signal.liveValidationRiskMultiplier || 1);
+    qualitySizeMultiplier *= Number(signal.profitControlledRiskMultiplier || 1);
     const openPositions = Array.isArray(this.store.state.openPositions) ? this.store.state.openPositions : [];
     const sameDirectionCluster = openPositions.filter((position) => position.side === signal.side).length;
     const clusterMultiplier = sameDirectionCluster > 0 ? this.config.correlatedClusterRiskMultiplier : 1;
@@ -379,8 +381,13 @@ class RiskManager {
       riskPct = validationRiskCapPct;
       reasonsForSizingTier.push(`live validation cap applied: max loss at stop <= ${validationRiskCapPct}% of allocated validation equity`);
     }
+    const profitControlledRiskCap = this.config.profitControlledEquityMode ? profitControlledRiskCapPct(this.config, convictionTier) : null;
+    if (profitControlledRiskCap !== null && riskPct > profitControlledRiskCap) {
+      riskPct = profitControlledRiskCap;
+      reasonsForSizingTier.push(`profit-controlled equity cap applied: max loss at stop <= ${profitControlledRiskCap}% of exchange sizing equity`);
+    }
     // Position size uses only the unlocked milestone floor, never transient profit above it.
-    const sizingEquity = Math.max(0, Math.min(equity, level.floor));
+    const sizingEquity = this.config.profitControlledEquityMode ? Math.max(0, equity) : Math.max(0, Math.min(equity, level.floor));
     const riskUsdt = sizingEquity * (riskPct / 100);
     const stopDistance = this.config.stopLossPct / 100;
     const riskBasedNotional = riskUsdt / stopDistance;
@@ -462,6 +469,9 @@ class RiskManager {
       liveValidationRiskMultiplier: Number(signal.liveValidationRiskMultiplier || 1),
       liveValidationRiskState: signal.liveValidationRiskState || null,
       liveValidationRiskCapPct: validationRiskCapPct,
+      profitControlledRiskMultiplier: Number(signal.profitControlledRiskMultiplier || 1),
+      profitControlledRiskState: signal.profitControlledRiskState || null,
+      profitControlledRiskCapPct: profitControlledRiskCap,
       riskUsdt: Number(riskUsdt.toFixed(6)),
       stopLossPrice: roundedPrice(signal.price * (isLong ? 1 - stopDistance : 1 + stopDistance), tickSize, !isLong),
       takeProfitPrice: runnerTakeProfitPrice,
