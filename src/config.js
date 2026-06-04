@@ -189,6 +189,24 @@ function loadConfig() {
     profitModeEliteQualityScore: numberValue("PROFIT_MODE_ELITE_QUALITY_SCORE", 95, { minimum: 0, maximum: 100 }),
     profitModeMinRewardCostRatio: numberValue("PROFIT_MODE_MIN_REWARD_COST_RATIO", 1.85, { positive: true }),
     profitModeMinNetProfitToCostRatio: numberValue("PROFIT_MODE_MIN_NET_PROFIT_TO_COST_RATIO", 0.35, { minimum: 0 }),
+    professionalTrendEngineEnabled: booleanValue("PROFESSIONAL_TREND_ENGINE_ENABLED", profitControlledEquityMode ? true : false),
+    multiTimeframeTrendEngineEnabled: booleanValue("MULTI_TIMEFRAME_TREND_ENGINE_ENABLED", profitControlledEquityMode ? true : false),
+    macroOppositeRequiresElite: booleanValue("MACRO_OPPOSITE_REQUIRES_ELITE", profitControlledEquityMode ? true : false),
+    mtfStrongAlignmentScore: numberValue("MTF_STRONG_ALIGNMENT_SCORE", 82, { minimum: 0, maximum: 100 }),
+    mtfOppositionPenaltyScore: numberValue("MTF_OPPOSITION_PENALTY_SCORE", 28, { minimum: 0, maximum: 60 }),
+    convictionThresholdTrending: numberValue("CONVICTION_THRESHOLD_TRENDING", 46, { positive: true, maximum: 100 }),
+    convictionThresholdBreakout: numberValue("CONVICTION_THRESHOLD_BREAKOUT", 44, { positive: true, maximum: 100 }),
+    convictionThresholdSidewaysChop: numberValue("CONVICTION_THRESHOLD_SIDEWAYS_CHOP", 42, { positive: true, maximum: 100 }),
+    convictionThresholdVolatile: numberValue("CONVICTION_THRESHOLD_VOLATILE", 45, { positive: true, maximum: 100 }),
+    convictionThresholdPanic: numberValue("CONVICTION_THRESHOLD_PANIC", 50, { positive: true, maximum: 100 }),
+    expectancyOptimizerEnabled: booleanValue("EXPECTANCY_OPTIMIZER_ENABLED", profitControlledEquityMode ? true : false),
+    expectancyOptimizerWindowTrades: numberValue("EXPECTANCY_OPTIMIZER_WINDOW_TRADES", 50, { positive: true, integer: true }),
+    expectancyFeeDragTightenRatio: numberValue("EXPECTANCY_FEE_DRAG_TIGHTEN_RATIO", 0.65, { minimum: 0 }),
+    expectancyEntryTighteningPoints: numberValue("EXPECTANCY_ENTRY_TIGHTENING_POINTS", 2, { minimum: 0, maximum: 8 }),
+    expectancyContinuationBoostPoints: numberValue("EXPECTANCY_CONTINUATION_BOOST_POINTS", 3, { minimum: 0, maximum: 8 }),
+    expectancyRunnerExtensionBoost: numberValue("EXPECTANCY_RUNNER_EXTENSION_BOOST", 1.08, { positive: true, maximum: 1.5 }),
+    nearMissLearningEnabled: booleanValue("NEAR_MISS_LEARNING_ENABLED", profitControlledEquityMode ? true : false),
+    nearMissMaxPointGap: numberValue("NEAR_MISS_MAX_POINT_GAP", 5, { positive: true, maximum: 20 }),
     tradeFrequencyRecoveryMode: booleanValue("TRADE_FREQUENCY_RECOVERY_MODE", profitControlledEquityMode ? true : false),
     tradeFrequencyRecoveryMinSignalScore: numberValue("TRADE_FREQUENCY_RECOVERY_MIN_SIGNAL_SCORE", 42, { positive: true, maximum: 100 }),
     tradeFrequencyRecoveryMinConvictionScore: numberValue("TRADE_FREQUENCY_RECOVERY_MIN_CONVICTION_SCORE", 45, { positive: true, maximum: 100 }),
@@ -395,6 +413,10 @@ function loadConfig() {
 
   if (config.profitControlledEquityMode) {
     config.profitExpansionMode = true;
+    config.professionalTrendEngineEnabled = true;
+    config.multiTimeframeTrendEngineEnabled = true;
+    config.expectancyOptimizerEnabled = true;
+    config.nearMissLearningEnabled = true;
     config.tradeFrequencyRecoveryMode = true;
     config.minSignalScore = Math.min(config.minSignalScore, config.tradeFrequencyRecoveryMinSignalScore);
     config.minConvictionScore = Math.min(config.minConvictionScore, config.tradeFrequencyRecoveryMinConvictionScore);

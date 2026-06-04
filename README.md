@@ -272,6 +272,48 @@ V7.1 keeps V6/V7 risk controls, quality pacing, and fee protection intact, but r
 
 The patch does not disable anti-chop or volume validation. It logs `TRADE_FREQUENCY_RECOVERY_ACTIVE` with candidate count, reject reason counts, anti-chop contribution, and conviction contribution so live behavior can be audited without changing portfolio risk.
 
+### V8 Professional Trend Engine
+
+V8 keeps V7 risk protections and fee gates intact while improving setup quality through multi-timeframe confirmation and rolling post-cost expectancy feedback.
+
+Multi-timeframe trend engine:
+
+| Timeframe | Role |
+| --- | --- |
+| `1m` | Entry trigger |
+| `5m` | Confirmation |
+| `15m` | Trend direction |
+| `1h` | Macro bias |
+
+The scanner writes `multiTimeframeTrendScore` from `0-100` and logs `MULTI_TIMEFRAME_ALIGNMENT`. Full 1m/5m/15m/1h alignment boosts continuation quality; 15m plus 1h opposition is heavily penalized; 1h opposition requires an elite setup.
+
+Regime V2 labels are logged as `MARKET_REGIME_V2`:
+
+- `TRENDING`: continuation trades preferred.
+- `BREAKOUT`: slightly higher qualified participation.
+- `SIDEWAYS_CHOP`: only strong or elite quality setups should pass.
+- `VOLATILE`: sizing can be reduced slightly, without changing portfolio risk caps.
+- `PANIC`: elite-only participation.
+
+Adaptive conviction thresholds in V8:
+
+| Regime | Threshold |
+| --- | ---: |
+| `TRENDING` | `46` |
+| `BREAKOUT` | `44` |
+| `SIDEWAYS_CHOP` | `42` |
+| `VOLATILE` | `45` |
+| `PANIC` | `50` |
+
+The expectancy optimizer evaluates every 50 closed trades and updates:
+
+```text
+data/profit-controlled-live/reports/expectancy.json
+data/profit-controlled-live/reports/system-health.json
+```
+
+It tracks average winner, average loser, expectancy, profit factor, fee impact, runner contribution, BTC/ETH/SOL rolling 50 and 100 trade memory, and near-miss stats. Fee drag can slightly tighten quality requirements; profitable continuation patterns can receive a small weighting boost; positive runner contribution can allow longer runner extension. Stop-loss safety, liquidation protection, leverage caps, and portfolio open-risk caps are not loosened.
+
 ## Focused BTC/ETH/SOL Universe
 
 The executable trading universe is intentionally restricted to:

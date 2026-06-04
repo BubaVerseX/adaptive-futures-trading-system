@@ -18,14 +18,16 @@ const { ProfitObjectiveEngine } = require("./profitObjective");
 const {
   earnedRiskTier,
   ensureProfitControlledState,
+  expectancyOptimizer,
   leverageCapForTier,
   profitExpectancyReport,
   profitControlledRiskCapPct,
   profitControlledRiskState,
   profitControlledSummary,
+  profitSystemHealthReport,
   qualityScoreForSignal,
   sizingEquityBaseFromBalance,
-  symbolPerformanceMemoryV2,
+  symbolPerformanceMemoryV3,
 } = require("./profitControlled");
 const {
   allocatedEquityLimitUsdt,
@@ -473,6 +475,25 @@ class LadderBot {
         runnerBreakevenAfterTp1: true,
         atrTrailingStop: this.config.trailingStopEnabled,
       });
+      this.log("INFO", "V8_PROFESSIONAL_TREND_ENGINE_ACTIVE", {
+        multiTimeframeTrendEngineEnabled: this.config.multiTimeframeTrendEngineEnabled,
+        timeframes: {
+          entryTrigger: this.config.candleIntervalFast,
+          confirmation: this.config.candleIntervalMain,
+          trendDirection: this.config.candleIntervalTrend,
+          macroBias: this.config.candleIntervalMacro,
+        },
+        macroOppositeRequiresElite: this.config.macroOppositeRequiresElite,
+        expectancyOptimizerEnabled: this.config.expectancyOptimizerEnabled,
+        nearMissLearningEnabled: this.config.nearMissLearningEnabled,
+      });
+      this.log("INFO", "ADAPTIVE_CONVICTION_ACTIVE", {
+        TRENDING: this.config.convictionThresholdTrending,
+        BREAKOUT: this.config.convictionThresholdBreakout,
+        SIDEWAYS_CHOP: this.config.convictionThresholdSidewaysChop,
+        VOLATILE: this.config.convictionThresholdVolatile,
+        PANIC: this.config.convictionThresholdPanic,
+      });
       if (this.config.tradeFrequencyRecoveryMode) {
         this.log("INFO", "TRADE_FREQUENCY_RECOVERY_ACTIVE", {
           adaptiveMinimumScore: this.adaptive.currentPolicy().minSignalScore,
@@ -809,6 +830,9 @@ class LadderBot {
       }
 
       const scan = await this.scanner.scan(marketProfile);
+      if (this.config.profitControlledEquityMode && this.config.nearMissLearningEnabled) {
+        this.updateNearMissStats(scan.nearMisses || [], scan.analyses || []);
+      }
       if (this.config.liveValidationMode || this.config.profitControlledEquityMode) {
         for (const candidate of scan.candidates) {
           this.recordActivityEvent("qualifiedCandidate", { symbol: candidate.symbol, side: candidate.side });
@@ -1274,6 +1298,68 @@ class LadderBot {
     return report;
   }
 
+  updateNearMissStats(nearMisses = [], analyses = []) {
+    const profile = ensureProfitControlledState(this.store.state, this.config);
+    const stats = profile.nearMissStats || {
+      tracked: 0,
+      correctRejects: 0,
+      missedOpportunities: 0,
+      unresolved: 0,
+      bySymbol: {},
+      byRegime: {},
+      pending: [],
+      recent: [],
+    };
+    const latestBySymbol = new Map((analyses || []).map((item) => [item.symbol, item]));
+    const stillPending = [];
+    for (const miss of stats.pending || []) {
+      const latest = latestBySymbol.get(miss.symbol);
+      if (!latest || !(numeric(miss.price) > 0)) {
+        stillPending.push(miss);
+        continue;
+      }
+      const movePct = ((numeric(latest.price) - numeric(miss.price)) / numeric(miss.price)) * 100;
+      const directionalMovePct = miss.direction === "LONG" ? movePct : -movePct;
+      const favorableThreshold = Math.max(0.05, numeric(miss.expectedMovePct) * 0.45);
+      const adverseThreshold = Math.max(0.05, this.config.stopLossPct * 0.35);
+      if (directionalMovePct >= favorableThreshold) {
+        stats.missedOpportunities += 1;
+        stats.recent.push({ ...miss, observedAt: new Date().toISOString(), outcome: "MISSED_OPPORTUNITY", directionalMovePct: Number(directionalMovePct.toFixed(4)) });
+      } else if (directionalMovePct <= -adverseThreshold) {
+        stats.correctRejects += 1;
+        stats.recent.push({ ...miss, observedAt: new Date().toISOString(), outcome: "CORRECT_REJECT", directionalMovePct: Number(directionalMovePct.toFixed(4)) });
+      } else {
+        stillPending.push(miss);
+      }
+    }
+    for (const miss of nearMisses) {
+      const key = `${miss.symbol}:${miss.direction}:${miss.regime}`;
+      const record = {
+        ...miss,
+        key,
+        trackedAt: miss.timestamp || new Date().toISOString(),
+      };
+      stats.tracked += 1;
+      stats.bySymbol[miss.symbol] = (stats.bySymbol[miss.symbol] || 0) + 1;
+      stats.byRegime[miss.regime || "UNKNOWN"] = (stats.byRegime[miss.regime || "UNKNOWN"] || 0) + 1;
+      stats.recent.push(record);
+      stillPending.push(record);
+      this.log("INFO", "NEAR_MISS_TRACKED", {
+        symbol: miss.symbol,
+        direction: miss.direction,
+        conviction: miss.conviction,
+        regime: miss.regime,
+        gap: miss.gap,
+      });
+    }
+    stats.recent = stats.recent.slice(-100);
+    stats.pending = stillPending.slice(-100);
+    stats.unresolved = stats.pending.length;
+    profile.nearMissStats = stats;
+    this.store.saveState();
+    return stats;
+  }
+
   writeProfitControlledStatusReport(force = false) {
     if (!this.config.profitControlledEquityMode) return null;
     const intervalMs = 15 * 60 * 1000;
@@ -1318,6 +1404,7 @@ class LadderBot {
     fs.writeFileSync(path.join(reportsDir, "latest-summary.json"), `${JSON.stringify(report, null, 2)}\n`, "utf8");
     fs.writeFileSync(path.join(reportsDir, "daily", `${today}.json`), `${JSON.stringify(report, null, 2)}\n`, "utf8");
     this.writeProfitExpectancyReport();
+    this.writeProfitSystemHealthReport();
     this.lastProfitControlledStatusAt = Date.now();
     this.log("INFO", "PROFIT_CONTROLLED_STATUS_SUMMARY", report);
     return report;
@@ -1327,7 +1414,7 @@ class LadderBot {
     if (!this.config.profitControlledEquityMode) return null;
     const reportsDir = this.config.reportsDir || path.join(this.config.projectRoot, "data", "profit-controlled-live", "reports");
     fs.mkdirSync(reportsDir, { recursive: true });
-    const report = profitExpectancyReport(this.store.trades);
+    const report = profitExpectancyReport(this.store.trades, this.config);
     fs.writeFileSync(path.join(reportsDir, "expectancy.json"), `${JSON.stringify(report, null, 2)}\n`, "utf8");
     this.log("INFO", "PORTFOLIO_EXPECTANCY_REPORT_UPDATED", {
       file: path.join(reportsDir, "expectancy.json"),
@@ -1343,6 +1430,32 @@ class LadderBot {
         rolling50NetPnlUsdt: item.rolling50.netPnlUsdt,
         rolling100NetPnlUsdt: item.rolling100.netPnlUsdt,
       })),
+    });
+    return report;
+  }
+
+  writeProfitSystemHealthReport() {
+    if (!this.config.profitControlledEquityMode) return null;
+    const reportsDir = this.config.reportsDir || path.join(this.config.projectRoot, "data", "profit-controlled-live", "reports");
+    fs.mkdirSync(reportsDir, { recursive: true });
+    const report = profitSystemHealthReport(this.store.trades, this.config);
+    const profile = this.store.state.profitControlled || {};
+    report.nearMissStats = profile.nearMissStats || {
+      tracked: 0,
+      correctRejects: 0,
+      missedOpportunities: 0,
+      pending: [],
+    };
+    fs.writeFileSync(path.join(reportsDir, "system-health.json"), `${JSON.stringify(report, null, 2)}\n`, "utf8");
+    this.log("INFO", "SYSTEM_HEALTH_REPORT_UPDATED", {
+      file: path.join(reportsDir, "system-health.json"),
+      expectancy: report.expectancy,
+      profitFactor: report.profitFactor,
+      feeDragRatio: report.feeDragRatio,
+      bestSymbol: report.bestSymbol && report.bestSymbol.key,
+      worstSymbol: report.worstSymbol && report.worstSymbol.key,
+      runnerContribution: report.runnerContribution,
+      nearMissStats: report.nearMissStats,
     });
     return report;
   }
@@ -1650,6 +1763,11 @@ class LadderBot {
         continuationStrength: signal.continuationStrength,
         macroTrend: signal.trend1h,
         macroAligned: signal.macroAligned,
+        multiTimeframeTrendScore: signal.multiTimeframeTrendScore,
+        multiTimeframeDirections: signal.multiTimeframeDirections,
+        marketRegimeV2: signal.marketRegimeV2,
+        marketRegimeV2Participation: signal.marketRegimeV2Participation,
+        adaptiveConvictionThreshold: signal.adaptiveConvictionThreshold,
         highActivityContinuation: signal.highActivityContinuation,
         eliteContinuationCandidate: signal.eliteContinuationCandidate,
         explorationTrade: signal.explorationTrade,
@@ -2708,11 +2826,15 @@ class LadderBot {
     if (!this.config.profitControlledEquityMode || !this.config.profitExpansionMode) {
       return { rejected: false, score: null, tier: null, reason: "profit expansion mode inactive" };
     }
-    const memory = symbolPerformanceMemoryV2(this.store.trades, signal.symbol);
-    const quality = qualityScoreForSignal(this.config, signal, edgeModel, memory);
+    const memory = symbolPerformanceMemoryV3(this.store.trades, signal.symbol);
+    const optimizer = this.config.expectancyOptimizerEnabled ? expectancyOptimizer(this.store.trades, this.config) : null;
+    const quality = qualityScoreForSignal(this.config, signal, edgeModel, memory, optimizer);
     signal.profitQualityScore = quality.score;
     signal.profitQualityTier = quality.tier === "REJECT" ? null : quality.tier;
     signal.symbolPerformanceMemoryV2 = quality.symbolMemory;
+    signal.symbolPerformanceMemoryV3 = quality.symbolMemory;
+    signal.expectancyOptimizer = optimizer;
+    signal.runnerExtensionOptimizerMultiplier = optimizer && optimizer.runnerContributionPositive ? optimizer.runnerExtensionMultiplier : 1;
     signal.adaptiveMode = "PROFIT_MODE";
     signal.adaptivePolicyMode = "PROFIT_MODE";
     signal.explorationTrade = false;
@@ -2740,16 +2862,34 @@ class LadderBot {
       symbolMemoryWeight: memory.weight,
       rolling50: memory.rolling50,
       rolling100: memory.rolling100,
+      expectancyOptimizer: optimizer,
     });
+    if (optimizer) {
+      this.log("INFO", "EXPECTANCY_OPTIMIZER_ACTIVE", {
+        symbol: signal.symbol,
+        closedTrades: optimizer.closedTrades,
+        evaluatedEveryClosedTrades: optimizer.evaluatedEveryClosedTrades,
+        averageWinner: optimizer.lastWindow.averageWinnerUsdt,
+        averageLoser: optimizer.lastWindow.averageLoserUsdt,
+        expectancy: optimizer.lastWindow.expectancyUsdt,
+        profitFactor: optimizer.lastWindow.profitFactor,
+        feeImpact: optimizer.lastWindow.feeImpactRatio,
+        runnerContribution: optimizer.lastWindow.runnerContributionUsdt,
+        feeDragTighteningActive: optimizer.feeDragTighteningActive,
+        continuationOutperforming: optimizer.continuationOutperforming,
+        runnerContributionPositive: optimizer.runnerContributionPositive,
+      });
+    }
     if (!quality.rejected && memory.bias === "STRENGTHENED") {
-      this.log("INFO", "SYMBOL_PERFORMANCE_MEMORY_V2_STRENGTHENED", {
+      this.log("INFO", "SYMBOL_PERFORMANCE_MEMORY_V3_STRENGTHENED", {
         symbol: signal.symbol,
         weight: memory.weight,
         rolling50: memory.rolling50,
         rolling100: memory.rolling100,
+        neverDisabled: true,
       });
     } else if (!quality.rejected && memory.bias === "DOWNWEIGHTED") {
-      this.log("INFO", "SYMBOL_PERFORMANCE_MEMORY_V2_DOWNWEIGHTED", {
+      this.log("INFO", "SYMBOL_PERFORMANCE_MEMORY_V3_DOWNWEIGHTED", {
         symbol: signal.symbol,
         weight: memory.weight,
         neverDisabled: true,
@@ -2790,9 +2930,9 @@ class LadderBot {
       (signal.explorationTrade ? this.config.explorationMinProjectedEdgePct : this.config.minProjectedEdgePct) * qualityMultiplier * activityMultiplier;
     const minEdgeToCostRatio =
       (signal.explorationTrade ? this.config.explorationMinEdgeToCostRatio : this.config.minEdgeToCostRatio) * qualityMultiplier * activityMultiplier;
-    const minConvictionScore =
-      (signal.explorationTrade ? this.config.explorationMinConvictionScore : this.config.minConvictionScore) +
-      (signal.qualityPacingActive ? (signal.explorationTrade ? 2 : 3) : 0);
+    const baseConvictionScore =
+      Number(signal.requiredConvictionScore || signal.adaptiveConvictionThreshold || (signal.explorationTrade ? this.config.explorationMinConvictionScore : this.config.minConvictionScore));
+    const minConvictionScore = baseConvictionScore + (signal.qualityPacingActive ? (signal.explorationTrade ? 2 : 3) : 0);
     const minExpectedMovePct = this.config.minExpectedMovePct * (signal.explorationTrade ? 0.75 : 1) * activityMultiplier;
     const minSmartEdgePct = this.config.smartEdgeMinNetPct * (signal.explorationTrade ? 0.65 : 1) * qualityMultiplier * activityMultiplier;
     const smartProjectedNetEdgePct = Number.isFinite(Number(signal.smartProjectedNetEdgePct))
@@ -3089,6 +3229,8 @@ class LadderBot {
       baseSignalScore: signal.baseScore,
       signalRegime: signal.regime,
       marketRegimeType: signal.marketRegimeType,
+      marketRegimeV2: signal.marketRegimeV2,
+      marketRegimeV2Participation: signal.marketRegimeV2Participation,
       marketRegimeTags: signal.marketRegimeTags,
       marketRegimeConfidence: signal.marketRegimeConfidence,
       regimeAggressionMultiplier: signal.regimeAggressionMultiplier,
@@ -3132,6 +3274,9 @@ class LadderBot {
       moderateChopAccepted: signal.moderateChopAccepted,
       marketPersonality: signal.marketPersonality,
       multiTimeframeAligned: signal.multiTimeframeAligned,
+      multiTimeframeTrendScore: signal.multiTimeframeTrendScore,
+      multiTimeframeDirections: signal.multiTimeframeDirections,
+      adaptiveConvictionThreshold: signal.adaptiveConvictionThreshold,
       trend1h: signal.trend1h,
       macroTrend: signal.trend1h,
       macroAligned: signal.macroAligned,
@@ -3150,6 +3295,9 @@ class LadderBot {
       profitQualityScore: signal.profitQualityScore,
       profitQualityTier: signal.profitQualityTier,
       symbolPerformanceMemoryV2: signal.symbolPerformanceMemoryV2,
+      symbolPerformanceMemoryV3: signal.symbolPerformanceMemoryV3,
+      expectancyOptimizer: signal.expectancyOptimizer,
+      runnerExtensionOptimizerMultiplier: signal.runnerExtensionOptimizerMultiplier,
       eliteConditionKey: signal.eliteConditionKey,
       convictionTier: plan.convictionTier,
       targetMarginUsdt: plan.targetMarginUsdt,
@@ -3591,8 +3739,9 @@ class LadderBot {
 
   async extendRunnerTarget(position, price, analysis = null) {
     const long = position.side === "LONG";
+    const optimizerMultiplier = Number(position.runnerExtensionOptimizerMultiplier || 1);
     const distancePct = Math.max(
-      this.runnerTrailingDistancePct(position, analysis) * this.config.runnerTrendExtensionMultiplier,
+      this.runnerTrailingDistancePct(position, analysis) * this.config.runnerTrendExtensionMultiplier * optimizerMultiplier,
       this.config.takeProfitPct * 0.55
     );
     const candidate = roundedPrice(
@@ -3627,6 +3776,7 @@ class LadderBot {
       extensionDistancePct: Number(distancePct.toFixed(4)),
       continuationStrength: analysis && analysis.continuationStrength,
       trendStrengthIncreased: analysis && Number(analysis.continuationStrength || 0) > Number(position.continuationStrength || 0),
+      expectancyOptimizerRunnerMultiplier: optimizerMultiplier,
       fixedProfitCapUsed: false,
     });
   }
