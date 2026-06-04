@@ -44,6 +44,87 @@ function trendStrength(analysis) {
   return Number(clamp(emaScore + momentumScore + persistenceScore + bodyScore + rangeScore + (alignedMomentum ? 6 : 0), 0, 100).toFixed(2));
 }
 
+function marketRegimeV2(config, marketProfile = {}, parts = {}) {
+  const tags = new Set(marketProfile.tags || []);
+  const atrPct = Math.max(numeric(parts.atrPct), numeric(marketProfile.avgAtrPct), numeric(marketProfile.btcVolatilityPct));
+  const highVolatility = atrPct >= numeric(config.regimeHighVolatilityAtrPct, 0.7);
+  const panicVolatility =
+    parts.volatilityRegime === "NEWS_LIKE_ABNORMAL" ||
+    atrPct >= numeric(config.abnormalVolatilityAtrPct, 1.6) ||
+    (Boolean(marketProfile.btcInstability) && highVolatility && (parts.btcContradictsSide || tags.has("FAKE_BREAKOUT_ENVIRONMENT")));
+  const breakout =
+    tags.has("HIGH_VOLATILITY_BREAKOUT_MARKET") ||
+    (parts.breakSignal && parts.volumeSpike >= numeric(config.minVolumeSpike, 1.18) + 0.2) ||
+    (parts.multiTimeframeTrendScore >= 72 && parts.volumeSpike >= numeric(config.minVolumeSpike, 1.18) + 0.45);
+  const trending =
+    tags.has("STRONG_TRENDING_MARKET") ||
+    (marketProfile.direction && marketProfile.direction !== "CHOPPY" && parts.multiTimeframeTrendScore >= 64);
+  const chop =
+    tags.has("SIDEWAYS_CHOP_MARKET") ||
+    tags.has("FAKE_BREAKOUT_ENVIRONMENT") ||
+    tags.has("DEAD_MARKET_CONDITIONS") ||
+    marketProfile.direction === "CHOPPY";
+
+  if (panicVolatility) {
+    return {
+      regime: "PANIC",
+      participation: "ELITE_ONLY",
+      convictionThreshold: 50,
+      scoreAdjustment: -8,
+      riskMultiplier: 0.75,
+      reasons: ["panic volatility or unstable BTC/exchange regime requires elite-only participation"],
+    };
+  }
+  if (breakout) {
+    return {
+      regime: "BREAKOUT",
+      participation: "HIGHER_PARTICIPATION",
+      convictionThreshold: 44,
+      scoreAdjustment: 3,
+      riskMultiplier: 1,
+      reasons: ["breakout or volatility expansion supports qualified continuation participation"],
+    };
+  }
+  if (trending) {
+    return {
+      regime: "TRENDING",
+      participation: "CONTINUATION_PREFERRED",
+      convictionThreshold: 46,
+      scoreAdjustment: 4,
+      riskMultiplier: 1,
+      reasons: ["trend structure supports continuation-first execution"],
+    };
+  }
+  if (highVolatility) {
+    return {
+      regime: "VOLATILE",
+      participation: "REDUCED_SIZE",
+      convictionThreshold: 45,
+      scoreAdjustment: -1,
+      riskMultiplier: 0.92,
+      reasons: ["volatility is elevated; keep scanning but reduce sizing slightly"],
+    };
+  }
+  if (chop) {
+    return {
+      regime: "SIDEWAYS_CHOP",
+      participation: "STRONG_SETUPS_ONLY",
+      convictionThreshold: 42,
+      scoreAdjustment: -2,
+      riskMultiplier: 1,
+      reasons: ["sideways chop allows only qualified strong or elite post-cost setups"],
+    };
+  }
+  return {
+    regime: "SIDEWAYS_CHOP",
+    participation: "STRONG_SETUPS_ONLY",
+    convictionThreshold: 42,
+    scoreAdjustment: -1,
+    riskMultiplier: 1,
+    reasons: ["neutral regime defaults to selective chop handling"],
+  };
+}
+
 function sessionProfile(timestamp = Date.now()) {
   const date = new Date(timestamp || Date.now());
   const hour = date.getUTCHours();
@@ -356,6 +437,7 @@ function signalRegimeTags(config, marketProfile, parts) {
 
 module.exports = {
   marketProfileFromBenchmarks,
+  marketRegimeV2,
   neutralProfile,
   profileFromDirection,
   sessionProfile,

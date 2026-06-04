@@ -91,17 +91,24 @@ function performanceForRows(rows = []) {
   const netPnlUsdt = rows.reduce((total, trade) => total + tradeNetPnl(trade), 0);
   const winPnlUsdt = wins.reduce((total, trade) => total + tradeNetPnl(trade), 0);
   const lossPnlUsdt = losses.reduce((total, trade) => total + Math.abs(tradeNetPnl(trade)), 0);
+  const totalFeesUsdt = rows.reduce((total, trade) => total + tradeFees(trade), 0);
+  const grossProfitUsdt = rows.reduce((total, trade) => total + Math.max(0, tradeGrossPnl(trade)), 0);
   const runnerContributionUsdt = rows.reduce((total, trade) => total + numeric(trade.runnerNetContributionUsdt), 0);
   return {
     samples: rows.length,
     winRatePct: rows.length ? round((wins.length / rows.length) * 100, 4) : 0,
     netPnlUsdt: round(netPnlUsdt),
     profitFactor: lossPnlUsdt ? round(winPnlUsdt / lossPnlUsdt, 4) : winPnlUsdt > 0 ? 999 : 0,
+    expectancyUsdt: rows.length ? round(netPnlUsdt / rows.length) : 0,
+    averageWinnerUsdt: wins.length ? round(winPnlUsdt / wins.length) : 0,
+    averageLoserUsdt: losses.length ? round(-lossPnlUsdt / losses.length) : 0,
+    totalFeesUsdt: round(totalFeesUsdt),
+    feeImpactRatio: grossProfitUsdt > 0 ? round(totalFeesUsdt / grossProfitUsdt, 4) : totalFeesUsdt > 0 ? 999 : 0,
     runnerContributionUsdt: round(runnerContributionUsdt),
   };
 }
 
-function symbolPerformanceMemoryV2(trades = [], symbol) {
+function symbolPerformanceMemoryV3(trades = [], symbol) {
   const rows = closedSymbolTrades(trades, symbol);
   const rolling50 = performanceForRows(rows.slice(-50));
   const rolling100 = performanceForRows(rows.slice(-100));
@@ -123,11 +130,20 @@ function symbolPerformanceMemoryV2(trades = [], symbol) {
     rolling100,
     weight,
     bias: weight > 1.03 ? "STRENGTHENED" : weight < 0.97 ? "DOWNWEIGHTED" : "NEUTRAL",
+    neverDisabled: true,
   };
 }
 
+function symbolPerformanceMemoryV2(trades = [], symbol) {
+  return symbolPerformanceMemoryV3(trades, symbol);
+}
+
+function symbolPerformanceMemoryV3Map(trades = []) {
+  return Object.fromEntries(FOCUSED_SYMBOLS.map((symbol) => [symbol, symbolPerformanceMemoryV3(trades, symbol)]));
+}
+
 function symbolPerformanceMemoryV2Map(trades = []) {
-  return Object.fromEntries(FOCUSED_SYMBOLS.map((symbol) => [symbol, symbolPerformanceMemoryV2(trades, symbol)]));
+  return symbolPerformanceMemoryV3Map(trades);
 }
 
 function volumeQualityScore(signal = {}) {
@@ -173,7 +189,45 @@ function expectancyQualityScore(config = {}, signal = {}, edgeModel = {}) {
   return clamp(netScore + costScore + riskScore, 0, 100);
 }
 
-function qualityScoreForSignal(config = {}, signal = {}, edgeModel = {}, symbolMemory = null) {
+function expectancyOptimizer(trades = [], config = {}) {
+  const rows = closedTrades(trades);
+  const windowSize = Math.max(1, numeric(config.expectancyOptimizerWindowTrades, 50));
+  const windowRows = rows.slice(-windowSize);
+  const all = performanceForRows(rows);
+  const rolling = performanceForRows(windowRows);
+  const continuationRows = windowRows.filter((trade) =>
+    /CONTINUATION|RETEST|RESUMPTION|ACCELERATION|BREAKOUT/i.test(String(trade.continuationSetupType || trade.setupType || trade.tradeCategory || ""))
+  );
+  const runnerRows = windowRows.filter((trade) => trade.runnerPartialTaken || numeric(trade.runnerNetContributionUsdt) !== 0);
+  const continuation = performanceForRows(continuationRows);
+  const runner = performanceForRows(runnerRows);
+  const feeDragRatio = rolling.feeImpactRatio;
+  const feeDragTighteningActive =
+    rolling.samples >= Math.min(windowSize, 10) &&
+    feeDragRatio >= numeric(config.expectancyFeeDragTightenRatio, 0.65);
+  const continuationOutperforming =
+    continuation.samples >= 5 &&
+    continuation.expectancyUsdt > rolling.expectancyUsdt &&
+    continuation.profitFactor >= Math.max(1.01, rolling.profitFactor);
+  const runnerContributionPositive = runner.runnerContributionUsdt > 0 || rolling.runnerContributionUsdt > 0;
+  return {
+    evaluatedEveryClosedTrades: windowSize,
+    nextEvaluationAtClosedTrade: rows.length + (windowSize - (rows.length % windowSize || windowSize)),
+    closedTrades: rows.length,
+    lastWindow: rolling,
+    fullHistory: all,
+    continuation,
+    runner,
+    feeDragTighteningActive,
+    entryTighteningPoints: feeDragTighteningActive ? numeric(config.expectancyEntryTighteningPoints, 2) : 0,
+    continuationOutperforming,
+    continuationWeightBoostPoints: continuationOutperforming ? numeric(config.expectancyContinuationBoostPoints, 3) : 0,
+    runnerContributionPositive,
+    runnerExtensionMultiplier: runnerContributionPositive ? numeric(config.expectancyRunnerExtensionBoost, 1.08) : 1,
+  };
+}
+
+function qualityScoreForSignal(config = {}, signal = {}, edgeModel = {}, symbolMemory = null, optimizer = null) {
   const trend = clamp(
     Math.max(
       numeric(signal.trendQualityScore),
@@ -201,12 +255,21 @@ function qualityScoreForSignal(config = {}, signal = {}, edgeModel = {}, symbolM
   if (tags.includes("STRONG_TRENDING_MARKET") && /CONTINUATION|RETEST|RESUMPTION|ACCELERATION|BREAKOUT/i.test(String(signal.continuationSetupType || signal.setupType || ""))) {
     score += 4;
   }
+  if (numeric(signal.multiTimeframeTrendScore) >= numeric(config.mtfStrongAlignmentScore, 82)) {
+    score += 3;
+  } else if (numeric(signal.multiTimeframeTrendScore) < 35) {
+    score -= 4;
+  }
+  if (optimizer && optimizer.continuationOutperforming && /CONTINUATION|RETEST|RESUMPTION|ACCELERATION|BREAKOUT/i.test(String(signal.continuationSetupType || signal.setupType || ""))) {
+    score += numeric(optimizer.continuationWeightBoostPoints, 0);
+  }
   if (tags.includes("SIDEWAYS_CHOP_MARKET") || tags.includes("FAKE_BREAKOUT_ENVIRONMENT")) {
     score -= 5;
   }
   score = round(clamp(score, 0, 100), 2);
-  const normalThreshold = numeric(config.profitModeMinQualityScore, 70);
-  const strongThreshold = numeric(config.profitModeStrongQualityScore, 85);
+  const thresholdTightening = optimizer && optimizer.feeDragTighteningActive ? numeric(config.expectancyEntryTighteningPoints, 2) : 0;
+  const normalThreshold = numeric(config.profitModeMinQualityScore, 70) + thresholdTightening;
+  const strongThreshold = numeric(config.profitModeStrongQualityScore, 85) + Math.ceil(thresholdTightening / 2);
   const eliteThreshold = numeric(config.profitModeEliteQualityScore, 95);
   const tier = score >= eliteThreshold ? "ELITE" : score >= strongThreshold ? "STRONG" : score >= normalThreshold ? "NORMAL" : "REJECT";
   const chopRequiresStrong =
@@ -230,6 +293,8 @@ function qualityScoreForSignal(config = {}, signal = {}, edgeModel = {}, symbolM
       regime: round(regime, 2),
       symbolMemory: round(memoryScore, 2),
       symbolMemoryWeight: numeric(memory.weight, 1),
+      multiTimeframeTrend: round(numeric(signal.multiTimeframeTrendScore), 2),
+      expectancyOptimizer: optimizer && optimizer.continuationOutperforming ? round(numeric(optimizer.continuationWeightBoostPoints), 2) : 0,
     },
     thresholds: {
       rejectBelow: normalThreshold,
@@ -238,10 +303,11 @@ function qualityScoreForSignal(config = {}, signal = {}, edgeModel = {}, symbolM
       elite: eliteThreshold,
     },
     symbolMemory: memory,
+    expectancyOptimizer: optimizer,
   };
 }
 
-function profitExpectancyReport(trades = []) {
+function profitExpectancyReport(trades = [], config = {}) {
   const rows = closedTrades(trades);
   const winners = rows.filter((trade) => tradeNetPnl(trade) > 0);
   const losers = rows.filter((trade) => tradeNetPnl(trade) < 0);
@@ -249,7 +315,8 @@ function profitExpectancyReport(trades = []) {
   const totalFees = rows.reduce((total, trade) => total + tradeFees(trade), 0);
   const grossProfit = rows.reduce((total, trade) => total + Math.max(0, tradeGrossPnl(trade)), 0);
   const runnerImpact = rows.reduce((total, trade) => total + numeric(trade.runnerNetContributionUsdt), 0);
-  const symbolMemory = symbolPerformanceMemoryV2Map(rows);
+  const symbolMemory = symbolPerformanceMemoryV3Map(rows);
+  const optimizer = expectancyOptimizer(rows, config);
   const symbolRanking = Object.values(symbolMemory).sort((left, right) => {
     if (right.rolling100.netPnlUsdt !== left.rolling100.netPnlUsdt) return right.rolling100.netPnlUsdt - left.rolling100.netPnlUsdt;
     return right.weight - left.weight;
@@ -271,7 +338,44 @@ function profitExpectancyReport(trades = []) {
       runnerTrades: rows.filter((trade) => trade.runnerPartialTaken).length,
       averageRunnerContributionUsdt: rows.length ? round(runnerImpact / rows.length) : 0,
     },
+    optimizer,
     symbolRanking,
+  };
+}
+
+function rankByNetPnl(grouped) {
+  return Object.entries(grouped)
+    .map(([key, rows]) => ({ key, ...performanceForRows(rows) }))
+    .sort((left, right) => right.netPnlUsdt - left.netPnlUsdt);
+}
+
+function groupRows(rows, selector) {
+  return rows.reduce((groups, row) => {
+    const key = selector(row) || "UNKNOWN";
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(row);
+    return groups;
+  }, {});
+}
+
+function profitSystemHealthReport(trades = [], config = {}) {
+  const rows = closedTrades(trades);
+  const expectancy = profitExpectancyReport(rows, config);
+  const bySymbol = rankByNetPnl(groupRows(rows, (trade) => trade.symbol));
+  const bySetup = rankByNetPnl(groupRows(rows, (trade) => trade.continuationSetupType || trade.setupType || trade.tradeCategory));
+  return {
+    generatedAt: new Date().toISOString(),
+    closedTrades: rows.length,
+    expectancy: expectancy.expectancyUsdt,
+    profitFactor: expectancy.profitFactor,
+    feeDragRatio: expectancy.feeImpact.feeToGrossProfitRatio,
+    bestSymbol: bySymbol[0] || null,
+    worstSymbol: bySymbol.length ? bySymbol[bySymbol.length - 1] : null,
+    bestSetup: bySetup[0] || null,
+    worstSetup: bySetup.length ? bySetup[bySetup.length - 1] : null,
+    runnerContribution: expectancy.runnerImpact,
+    optimizer: expectancy.optimizer,
+    symbolPerformanceMemoryV3: expectancy.symbolRanking,
   };
 }
 
@@ -365,13 +469,17 @@ function profitControlledSummary(trades = [], currentEquityUsdt = 0, startEquity
 module.exports = {
   earnedRiskTier,
   ensureProfitControlledState,
+  expectancyOptimizer,
   leverageCapForTier,
   profitExpectancyReport,
   qualityScoreForSignal,
   profitControlledRiskCapPct,
   profitControlledRiskState,
   profitControlledSummary,
+  profitSystemHealthReport,
   sizingEquityBaseFromBalance,
   symbolPerformanceMemoryV2,
   symbolPerformanceMemoryV2Map,
+  symbolPerformanceMemoryV3,
+  symbolPerformanceMemoryV3Map,
 };
