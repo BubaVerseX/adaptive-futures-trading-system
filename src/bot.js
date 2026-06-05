@@ -20,13 +20,16 @@ const {
   ensureProfitControlledState,
   expectancyOptimizer,
   leverageCapForTier,
+  profitEdgeReport,
   profitExpectancyReport,
   profitControlledRiskCapPct,
   profitControlledRiskState,
   profitControlledSummary,
   profitSystemHealthReport,
+  regimePerformanceMemory,
   qualityScoreForSignal,
   sizingEquityBaseFromBalance,
+  setupRankingMemory,
   symbolPerformanceMemoryV3,
 } = require("./profitControlled");
 const {
@@ -472,8 +475,19 @@ class LadderBot {
       this.log("INFO", "WINNER_AMPLIFIER_ENGINE_ACTIVE", {
         enabled: this.config.winnerAmplifierEnabled,
         tp1PartialPct: this.config.winnerAmplifierPartialTakeProfitPct,
+        runnerPct: 100 - this.config.winnerAmplifierPartialTakeProfitPct,
         runnerBreakevenAfterTp1: true,
         atrTrailingStop: this.config.trailingStopEnabled,
+      });
+      this.log("INFO", "V9_EDGE_MAXIMIZATION_ENGINE_ACTIVE", {
+        edgeMaximizationMode: this.config.edgeMaximizationMode,
+        normalQualitySizeMultiplier: this.config.qualitySizeMultiplierNormal,
+        strongQualitySizeMultiplier: this.config.qualitySizeMultiplierStrong,
+        eliteQualitySizeMultiplier: this.config.qualitySizeMultiplierElite,
+        setupRankingBoostProfitFactor: this.config.setupRankingBoostProfitFactor,
+        regimeMemoryBoostProfitFactor: this.config.regimeMemoryBoostProfitFactor,
+        riskControlsUnchanged: true,
+        feeProtectionUnchanged: true,
       });
       this.log("INFO", "V8_PROFESSIONAL_TREND_ENGINE_ACTIVE", {
         multiTimeframeTrendEngineEnabled: this.config.multiTimeframeTrendEngineEnabled,
@@ -1405,6 +1419,7 @@ class LadderBot {
     fs.writeFileSync(path.join(reportsDir, "daily", `${today}.json`), `${JSON.stringify(report, null, 2)}\n`, "utf8");
     this.writeProfitExpectancyReport();
     this.writeProfitSystemHealthReport();
+    this.writeProfitEdgeReport();
     this.lastProfitControlledStatusAt = Date.now();
     this.log("INFO", "PROFIT_CONTROLLED_STATUS_SUMMARY", report);
     return report;
@@ -1456,6 +1471,25 @@ class LadderBot {
       worstSymbol: report.worstSymbol && report.worstSymbol.key,
       runnerContribution: report.runnerContribution,
       nearMissStats: report.nearMissStats,
+    });
+    return report;
+  }
+
+  writeProfitEdgeReport() {
+    if (!this.config.profitControlledEquityMode) return null;
+    const reportsDir = this.config.reportsDir || path.join(this.config.projectRoot, "data", "profit-controlled-live", "reports");
+    fs.mkdirSync(reportsDir, { recursive: true });
+    const report = profitEdgeReport(this.store.trades, this.config);
+    fs.writeFileSync(path.join(reportsDir, "edge-report.json"), `${JSON.stringify(report, null, 2)}\n`, "utf8");
+    this.log("INFO", "EDGE_REPORT_UPDATED", {
+      file: path.join(reportsDir, "edge-report.json"),
+      bestSetup: report.bestSetup && report.bestSetup.key,
+      worstSetup: report.worstSetup && report.worstSetup.key,
+      bestRegime: report.bestRegime && report.bestRegime.key,
+      worstRegime: report.worstRegime && report.worstRegime.key,
+      profitFactor: report.profitFactor,
+      expectancy: report.expectancy,
+      runnerContribution: report.runnerContribution,
     });
     return report;
   }
@@ -1765,6 +1799,8 @@ class LadderBot {
         macroAligned: signal.macroAligned,
         multiTimeframeTrendScore: signal.multiTimeframeTrendScore,
         multiTimeframeDirections: signal.multiTimeframeDirections,
+        marketBreadthScore: signal.marketBreadthScore,
+        marketBreadthDirections: signal.marketBreadthDirections,
         marketRegimeV2: signal.marketRegimeV2,
         marketRegimeV2Participation: signal.marketRegimeV2Participation,
         adaptiveConvictionThreshold: signal.adaptiveConvictionThreshold,
@@ -2828,11 +2864,15 @@ class LadderBot {
     }
     const memory = symbolPerformanceMemoryV3(this.store.trades, signal.symbol);
     const optimizer = this.config.expectancyOptimizerEnabled ? expectancyOptimizer(this.store.trades, this.config) : null;
-    const quality = qualityScoreForSignal(this.config, signal, edgeModel, memory, optimizer);
+    const setupMemory = this.config.edgeMaximizationMode ? setupRankingMemory(this.store.trades, signal, this.config) : null;
+    const regimeMemory = this.config.edgeMaximizationMode ? regimePerformanceMemory(this.store.trades, signal, this.config) : null;
+    const quality = qualityScoreForSignal(this.config, signal, edgeModel, memory, optimizer, { setupMemory, regimeMemory });
     signal.profitQualityScore = quality.score;
     signal.profitQualityTier = quality.tier === "REJECT" ? null : quality.tier;
     signal.symbolPerformanceMemoryV2 = quality.symbolMemory;
     signal.symbolPerformanceMemoryV3 = quality.symbolMemory;
+    signal.setupRankingMemory = setupMemory;
+    signal.regimePerformanceMemory = regimeMemory;
     signal.expectancyOptimizer = optimizer;
     signal.runnerExtensionOptimizerMultiplier = optimizer && optimizer.runnerContributionPositive ? optimizer.runnerExtensionMultiplier : 1;
     signal.adaptiveMode = "PROFIT_MODE";
@@ -2860,6 +2900,8 @@ class LadderBot {
       thresholds: quality.thresholds,
       symbolMemoryBias: memory.bias,
       symbolMemoryWeight: memory.weight,
+      setupRankingMemory: setupMemory,
+      regimePerformanceMemory: regimeMemory,
       rolling50: memory.rolling50,
       rolling100: memory.rolling100,
       expectancyOptimizer: optimizer,
@@ -2895,6 +2937,24 @@ class LadderBot {
         neverDisabled: true,
         rolling50: memory.rolling50,
         rolling100: memory.rolling100,
+      });
+    }
+    if (setupMemory) {
+      this.log("INFO", "SETUP_RANKING_ENGINE_ACTIVE", {
+        key: setupMemory.key,
+        weight: setupMemory.weight,
+        bias: setupMemory.bias,
+        performance: setupMemory.performance,
+        neverDisabled: true,
+      });
+    }
+    if (regimeMemory) {
+      this.log("INFO", "REGIME_PERFORMANCE_MEMORY_ACTIVE", {
+        key: regimeMemory.key,
+        weight: regimeMemory.weight,
+        bias: regimeMemory.bias,
+        performance: regimeMemory.performance,
+        neverDisabled: true,
       });
     }
     return quality;
@@ -3249,6 +3309,10 @@ class LadderBot {
       forcedSamplingOriginalRejections: signal.forcedSamplingOriginalRejections,
       btcMarketRegime: signal.btcTrend,
       ethMarketRegime: signal.ethTrend,
+      marketBreadthScore: signal.marketBreadthScore,
+      marketBreadthDirections: signal.marketBreadthDirections,
+      marketBreadthAlignedCount: signal.marketBreadthAlignedCount,
+      marketBreadthConflictCount: signal.marketBreadthConflictCount,
       btcTrendStrength: signal.btcTrendStrength,
       ethTrendStrength: signal.ethTrendStrength,
       btcVolatilityPct: signal.btcVolatilityPct,
@@ -3296,6 +3360,8 @@ class LadderBot {
       profitQualityTier: signal.profitQualityTier,
       symbolPerformanceMemoryV2: signal.symbolPerformanceMemoryV2,
       symbolPerformanceMemoryV3: signal.symbolPerformanceMemoryV3,
+      setupRankingMemory: signal.setupRankingMemory,
+      regimePerformanceMemory: signal.regimePerformanceMemory,
       expectancyOptimizer: signal.expectancyOptimizer,
       runnerExtensionOptimizerMultiplier: signal.runnerExtensionOptimizerMultiplier,
       eliteConditionKey: signal.eliteConditionKey,

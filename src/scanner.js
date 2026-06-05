@@ -112,6 +112,28 @@ function convictionThresholdForRegime(config, regimeV2) {
   return config.minConvictionScore;
 }
 
+function marketBreadthScore(side, directions = {}) {
+  const expected = side === "LONG" ? "UP" : "DOWN";
+  const opposite = side === "LONG" ? "DOWN" : "UP";
+  const symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT"];
+  const values = symbols.map((symbol) => directions[symbol] || "CHOPPY");
+  const aligned = values.filter((direction) => direction === expected).length;
+  const conflicting = values.filter((direction) => direction === opposite).length;
+  const neutral = values.filter((direction) => direction === "CHOPPY").length;
+  let score = 50 + aligned * 15 - conflicting * 18 - neutral * 4;
+  if (aligned === 3) score += 12;
+  if (conflicting >= 2) score -= 12;
+  return {
+    score: Number(bounded(score, 0, 100).toFixed(2)),
+    directions: Object.fromEntries(symbols.map((symbol, index) => [symbol, values[index]])),
+    aligned,
+    conflicting,
+    neutral,
+    allAligned: aligned === 3,
+    mixed: aligned > 0 && conflicting > 0,
+  };
+}
+
 function liquidityScore(config, volume24hUsdt, spreadPct) {
   const volumeMultiple = config.min24hVolumeUsdt > 0 ? volume24hUsdt / config.min24hVolumeUsdt : 10;
   const volumeScore = bounded(Math.log10(Math.max(1, volumeMultiple)) * 35 + Math.min(30, volumeMultiple * 3), 0, 65);
@@ -385,6 +407,7 @@ class Scanner {
     this.cachedMarketProfile = null;
     this.cachedRegimeExpiresAt = 0;
     this.cachedBenchmarkDirections = { BTCUSDT: "CHOPPY", ETHUSDT: "CHOPPY" };
+    this.cachedFocusedDirections = { BTCUSDT: "CHOPPY", ETHUSDT: "CHOPPY", SOLUSDT: "CHOPPY" };
     this.focusUniverseLogged = false;
   }
 
@@ -542,6 +565,7 @@ class Scanner {
       this.log("DEBUG", "Symbol rejected: missing required candle history.", { symbol: item.info.symbol });
       return null;
     }
+    this.cachedFocusedDirections[item.info.symbol] = emaDirection(main);
     // Volatility and fast moves are entry inputs in this profile, not hard rejections.
     const technicalReject = [];
 
@@ -612,6 +636,11 @@ class Scanner {
     const btcSupportsSide = long ? btcTrend === "UP" : btcTrend === "DOWN";
     const btcContradictsSide = long ? btcTrend === "DOWN" : btcTrend === "UP";
     const ethSupportsSide = long ? ethTrend === "UP" : ethTrend === "DOWN";
+    const breadth = marketBreadthScore(side, {
+      BTCUSDT: item.info.symbol === "BTCUSDT" ? mainTrend : this.cachedFocusedDirections.BTCUSDT || btcTrend,
+      ETHUSDT: item.info.symbol === "ETHUSDT" ? mainTrend : this.cachedFocusedDirections.ETHUSDT || ethTrend,
+      SOLUSDT: item.info.symbol === "SOLUSDT" ? mainTrend : this.cachedFocusedDirections.SOLUSDT || "CHOPPY",
+    });
     const body = this.config.fastMode && fast.bodyDirection === direction ? fast : main;
     const strongBody = body.bodyStrength >= (this.config.fastMode ? 0.42 : 0.5) && body.bodyDirection === direction;
     const volatileEnough = Math.max(fast.atrPct, main.atrPct) >= 0.15;
@@ -805,6 +834,11 @@ class Scanner {
     }
     if (ethSupportsSide) {
       addScore("ETH trend alignment", 4);
+    }
+    if (breadth.allAligned) {
+      addScore("market breadth alignment boost", 5);
+    } else if (breadth.mixed || breadth.conflicting >= 2) {
+      addScore("market breadth conflict reduction", -5);
     }
     if (this.config.multiTimeframeTrendEngineEnabled) {
       if (mtf.score >= this.config.mtfStrongAlignmentScore) {
@@ -1021,6 +1055,10 @@ class Scanner {
       moderateChopAccepted,
       btcTrend,
       ethTrend,
+      marketBreadthScore: breadth.score,
+      marketBreadthDirections: breadth.directions,
+      marketBreadthAlignedCount: breadth.aligned,
+      marketBreadthConflictCount: breadth.conflicting,
       btcTrendAligned: btcSupportsSide,
       multiTimeframeAligned,
       multiTimeframeTrendScore: mtf.score,
@@ -1330,6 +1368,10 @@ class Scanner {
         multiTimeframeDirections: item.multiTimeframeDirections,
         multiTimeframeAllAligned: item.multiTimeframeAllAligned,
         multiTimeframeTrendAndMacroOpposite: item.multiTimeframeTrendAndMacroOpposite,
+        marketBreadthScore: item.marketBreadthScore,
+        marketBreadthDirections: item.marketBreadthDirections,
+        marketBreadthAlignedCount: item.marketBreadthAlignedCount,
+        marketBreadthConflictCount: item.marketBreadthConflictCount,
         marketRegimeV2: item.marketRegimeV2,
         marketRegimeV2Participation: item.marketRegimeV2Participation,
         adaptiveConvictionThreshold: item.adaptiveConvictionThreshold,
@@ -1473,4 +1515,4 @@ class Scanner {
   }
 }
 
-module.exports = { Scanner, multiTimeframeTrendConfirmation };
+module.exports = { Scanner, marketBreadthScore, multiTimeframeTrendConfirmation };

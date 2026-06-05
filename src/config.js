@@ -207,6 +207,14 @@ function loadConfig() {
     expectancyRunnerExtensionBoost: numberValue("EXPECTANCY_RUNNER_EXTENSION_BOOST", 1.08, { positive: true, maximum: 1.5 }),
     nearMissLearningEnabled: booleanValue("NEAR_MISS_LEARNING_ENABLED", profitControlledEquityMode ? true : false),
     nearMissMaxPointGap: numberValue("NEAR_MISS_MAX_POINT_GAP", 5, { positive: true, maximum: 20 }),
+    edgeMaximizationMode: booleanValue("EDGE_MAXIMIZATION_MODE", profitControlledEquityMode ? true : false),
+    qualitySizeMultiplierNormal: numberValue("QUALITY_SIZE_MULTIPLIER_NORMAL", 1, { positive: true, maximum: 1.5 }),
+    qualitySizeMultiplierStrong: numberValue("QUALITY_SIZE_MULTIPLIER_STRONG", 1.2, { positive: true, maximum: 1.5 }),
+    qualitySizeMultiplierElite: numberValue("QUALITY_SIZE_MULTIPLIER_ELITE", 1.5, { positive: true, maximum: 1.5 }),
+    setupRankingBoostProfitFactor: numberValue("SETUP_RANKING_BOOST_PROFIT_FACTOR", 1.3, { positive: true }),
+    setupRankingReduceProfitFactor: numberValue("SETUP_RANKING_REDUCE_PROFIT_FACTOR", 1, { positive: true }),
+    regimeMemoryBoostProfitFactor: numberValue("REGIME_MEMORY_BOOST_PROFIT_FACTOR", 1.3, { positive: true }),
+    regimeMemoryReduceProfitFactor: numberValue("REGIME_MEMORY_REDUCE_PROFIT_FACTOR", 1, { positive: true }),
     tradeFrequencyRecoveryMode: booleanValue("TRADE_FREQUENCY_RECOVERY_MODE", profitControlledEquityMode ? true : false),
     tradeFrequencyRecoveryMinSignalScore: numberValue("TRADE_FREQUENCY_RECOVERY_MIN_SIGNAL_SCORE", 42, { positive: true, maximum: 100 }),
     tradeFrequencyRecoveryMinConvictionScore: numberValue("TRADE_FREQUENCY_RECOVERY_MIN_CONVICTION_SCORE", 45, { positive: true, maximum: 100 }),
@@ -417,6 +425,8 @@ function loadConfig() {
     config.multiTimeframeTrendEngineEnabled = true;
     config.expectancyOptimizerEnabled = true;
     config.nearMissLearningEnabled = true;
+    config.edgeMaximizationMode = true;
+    config.winnerAmplifierPartialTakeProfitPct = 30;
     config.tradeFrequencyRecoveryMode = true;
     config.minSignalScore = Math.min(config.minSignalScore, config.tradeFrequencyRecoveryMinSignalScore);
     config.minConvictionScore = Math.min(config.minConvictionScore, config.tradeFrequencyRecoveryMinConvictionScore);

@@ -245,8 +245,8 @@ The score combines trend strength, volume confirmation, spread quality, fee-adju
 
 Winner amplifier behavior:
 
-- TP1 closes 50% of the position.
-- The remaining 50% becomes a runner.
+- TP1 closes 30% of the position in profit-controlled edge mode.
+- The remaining 70% becomes a runner.
 - Runner stop moves to breakeven plus cost cushion after TP1.
 - ATR/volatility-aware trailing manages the runner.
 - Strong trend continuation can extend the runner target instead of using a fixed profit cap.
@@ -313,6 +313,25 @@ data/profit-controlled-live/reports/system-health.json
 ```
 
 It tracks average winner, average loser, expectancy, profit factor, fee impact, runner contribution, BTC/ETH/SOL rolling 50 and 100 trade memory, and near-miss stats. Fee drag can slightly tighten quality requirements; profitable continuation patterns can receive a small weighting boost; positive runner contribution can allow longer runner extension. Stop-loss safety, liquidation protection, leverage caps, and portfolio open-risk caps are not loosened.
+
+### V9 Edge Maximization Engine
+
+V9 keeps the V8 trend/expectancy stack and focuses on improving profit factor, expectancy, and average winner without weakening risk controls.
+
+- Winner expansion now uses a `30%` TP1 close and leaves a `70%` ATR/volatility-aware runner.
+- Setup ranking tracks symbol-specific families such as `BTCUSDT:BREAKOUT`, `ETHUSDT:CONTINUATION`, and `SOLUSDT:CONTINUATION`.
+- Setup and regime memories store trade count, win rate, profit factor, expectancy, average winner, average loser, drawdown, and runner contribution.
+- Profit factor above `1.3` creates a soft boost; profit factor below `1.0` reduces weighting. No setup, regime, or symbol is fully disabled by memory.
+- V9 quality-size multipliers are `1.0x` normal, `1.2x` strong, and `1.5x` elite, still clamped by existing stop-risk, correlation, leverage, margin, and portfolio limits.
+- `marketBreadthScore` compares BTC, ETH, and SOL trend direction. Full alignment adds confidence; conflicting breadth reduces confidence.
+
+V9 writes:
+
+```text
+data/profit-controlled-live/reports/edge-report.json
+```
+
+The edge report includes best/worst setup, best/worst regime, runner contribution, profit factor, expectancy, average winner, and average loser.
 
 ## Focused BTC/ETH/SOL Universe
 
