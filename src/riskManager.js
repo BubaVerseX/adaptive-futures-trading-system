@@ -319,22 +319,23 @@ class RiskManager {
     const profitQualityTier = String(signal.profitQualityTier || "").toUpperCase();
     const eliteSetup = Boolean(signal.eliteSetup || profitQualityTier === "ELITE");
     const profitStrongSetup = profitQualityTier === "STRONG";
+    const profitNormalSetup = profitQualityTier === "NORMAL";
     if (eliteSetup) {
       convictionTier = "TIER_3_ELITE_SETUP";
       tierMarginMin = this.config.tier3MarginMinUsdt;
       tierMarginMax = this.config.tier3MarginMaxUsdt;
       riskAtStopMinPct = this.config.eliteRiskAtStopMinPct;
       riskAtStopMaxPct = this.config.eliteRiskAtStopMaxPct;
-      qualitySizeMultiplier = continuationStrength >= 82 ? 1.5 : 1.38;
-      reasonsForSizingTier.push("elite setup with high-confluence continuation evidence");
+      qualitySizeMultiplier = this.config.edgeMaximizationMode ? this.config.qualitySizeMultiplierElite : continuationStrength >= 82 ? 1.5 : 1.38;
+      reasonsForSizingTier.push(this.config.edgeMaximizationMode ? "V9 elite quality score uses 1.5x protected sizing multiplier" : "elite setup with high-confluence continuation evidence");
     } else if (highQualityContinuation || profitStrongSetup) {
       convictionTier = "TIER_2_STRONG_SETUP";
       tierMarginMin = this.config.tier2MarginMinUsdt;
       tierMarginMax = this.config.tier2MarginMaxUsdt;
       riskAtStopMinPct = this.config.strongRiskAtStopMinPct;
       riskAtStopMaxPct = this.config.strongRiskAtStopMaxPct;
-      qualitySizeMultiplier = continuationStrength >= 72 ? 1.22 : 1.12;
-      reasonsForSizingTier.push(profitStrongSetup ? "V7 strong profit quality score earned larger protected sizing tier" : "strong continuation with liquidity, BTC alignment, volume, and edge");
+      qualitySizeMultiplier = this.config.edgeMaximizationMode ? this.config.qualitySizeMultiplierStrong : continuationStrength >= 72 ? 1.22 : 1.12;
+      reasonsForSizingTier.push(profitStrongSetup && this.config.edgeMaximizationMode ? "V9 strong quality score uses 1.2x protected sizing multiplier" : profitStrongSetup ? "V7 strong profit quality score earned larger protected sizing tier" : "strong continuation with liquidity, BTC alignment, volume, and edge");
     } else if (
       Number(signal.convictionScore || 0) < this.config.minConvictionScore + 6 ||
       signal.volatilityRegime === "HIGH_VOLATILITY" ||
@@ -346,7 +347,8 @@ class RiskManager {
     } else {
       riskAtStopMinPct = this.config.normalRiskAtStopMinPct;
       riskAtStopMaxPct = this.config.normalRiskAtStopMaxPct;
-      reasonsForSizingTier.push("normal positive-edge continuation sizing");
+      qualitySizeMultiplier = profitNormalSetup && this.config.edgeMaximizationMode ? this.config.qualitySizeMultiplierNormal : qualitySizeMultiplier;
+      reasonsForSizingTier.push(profitNormalSetup && this.config.edgeMaximizationMode ? "V9 normal quality score uses 1.0x protected sizing multiplier" : "normal positive-edge continuation sizing");
     }
     if (signal.explorationTrade) {
       convictionTier = "TIER_1_EXPLORATORY";

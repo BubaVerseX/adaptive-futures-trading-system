@@ -94,6 +94,14 @@ function performanceForRows(rows = []) {
   const totalFeesUsdt = rows.reduce((total, trade) => total + tradeFees(trade), 0);
   const grossProfitUsdt = rows.reduce((total, trade) => total + Math.max(0, tradeGrossPnl(trade)), 0);
   const runnerContributionUsdt = rows.reduce((total, trade) => total + numeric(trade.runnerNetContributionUsdt), 0);
+  let cumulative = 0;
+  let peak = 0;
+  let maxDrawdownUsdt = 0;
+  for (const trade of rows) {
+    cumulative += tradeNetPnl(trade);
+    peak = Math.max(peak, cumulative);
+    maxDrawdownUsdt = Math.max(maxDrawdownUsdt, peak - cumulative);
+  }
   return {
     samples: rows.length,
     winRatePct: rows.length ? round((wins.length / rows.length) * 100, 4) : 0,
@@ -105,7 +113,104 @@ function performanceForRows(rows = []) {
     totalFeesUsdt: round(totalFeesUsdt),
     feeImpactRatio: grossProfitUsdt > 0 ? round(totalFeesUsdt / grossProfitUsdt, 4) : totalFeesUsdt > 0 ? 999 : 0,
     runnerContributionUsdt: round(runnerContributionUsdt),
+    averageRunnerProfitUsdt: rows.length ? round(runnerContributionUsdt / rows.length) : 0,
+    maxDrawdownUsdt: round(maxDrawdownUsdt),
   };
+}
+
+function setupFamily(value = "") {
+  const text = String(value || "UNKNOWN").toUpperCase();
+  if (/BREAKOUT/.test(text)) return "BREAKOUT";
+  if (/CONTINUATION|RETEST|RESUMPTION|ACCELERATION/.test(text)) return "CONTINUATION";
+  if (/FLIP|REVERSAL/.test(text)) return "FLIP";
+  if (/SCALP|MOMENTUM/.test(text)) return "MOMENTUM";
+  return text || "UNKNOWN";
+}
+
+function setupRankingKey(item = {}) {
+  const symbol = String(item.symbol || "UNKNOWN").toUpperCase();
+  const family = setupFamily(item.continuationSetupType || item.setupType || item.tradeCategory);
+  return `${symbol}:${family}`;
+}
+
+function memoryWeightFromPerformance(performance, boostPf = 1.3, reducePf = 1) {
+  if (!performance || performance.samples < 5) {
+    return { weight: 1, bias: "NEUTRAL", reason: "small sample; no strong weighting" };
+  }
+  if (performance.profitFactor > boostPf && performance.expectancyUsdt > 0) {
+    return { weight: 1.1, bias: "BOOST", reason: `profit factor ${performance.profitFactor} above ${boostPf}` };
+  }
+  if (performance.profitFactor < reducePf || performance.expectancyUsdt < 0) {
+    return { weight: 0.9, bias: "REDUCE", reason: `profit factor ${performance.profitFactor} below ${reducePf} or expectancy negative` };
+  }
+  return { weight: 1, bias: "NEUTRAL", reason: "performance is neutral" };
+}
+
+function setupRankingMemory(trades = [], signal = {}, config = {}) {
+  const rows = closedTrades(trades);
+  const grouped = groupRows(rows, setupRankingKey);
+  const key = setupRankingKey(signal);
+  const performance = performanceForRows(grouped[key] || []);
+  const weighting = memoryWeightFromPerformance(
+    performance,
+    numeric(config.setupRankingBoostProfitFactor, 1.3),
+    numeric(config.setupRankingReduceProfitFactor, 1)
+  );
+  return {
+    key,
+    setupFamily: setupFamily(signal.continuationSetupType || signal.setupType || signal.tradeCategory),
+    performance,
+    ...weighting,
+    neverDisabled: true,
+  };
+}
+
+function setupRankingReport(trades = [], config = {}) {
+  const grouped = groupRows(closedTrades(trades), setupRankingKey);
+  return rankByNetPnl(grouped).map((item) => ({
+    ...item,
+    weighting: memoryWeightFromPerformance(
+      item,
+      numeric(config.setupRankingBoostProfitFactor, 1.3),
+      numeric(config.setupRankingReduceProfitFactor, 1)
+    ),
+    neverDisabled: true,
+  }));
+}
+
+function regimeKey(item = {}) {
+  return String(item.marketRegimeV2 || item.marketRegimeType || item.marketRegime || "UNKNOWN").toUpperCase();
+}
+
+function regimePerformanceMemory(trades = [], signal = {}, config = {}) {
+  const rows = closedTrades(trades);
+  const grouped = groupRows(rows, regimeKey);
+  const key = regimeKey(signal);
+  const performance = performanceForRows(grouped[key] || []);
+  const weighting = memoryWeightFromPerformance(
+    performance,
+    numeric(config.regimeMemoryBoostProfitFactor, 1.3),
+    numeric(config.regimeMemoryReduceProfitFactor, 1)
+  );
+  return {
+    key,
+    performance,
+    ...weighting,
+    neverDisabled: true,
+  };
+}
+
+function regimePerformanceReport(trades = [], config = {}) {
+  const grouped = groupRows(closedTrades(trades), regimeKey);
+  return rankByNetPnl(grouped).map((item) => ({
+    ...item,
+    weighting: memoryWeightFromPerformance(
+      item,
+      numeric(config.regimeMemoryBoostProfitFactor, 1.3),
+      numeric(config.regimeMemoryReduceProfitFactor, 1)
+    ),
+    neverDisabled: true,
+  }));
 }
 
 function symbolPerformanceMemoryV3(trades = [], symbol) {
@@ -227,7 +332,7 @@ function expectancyOptimizer(trades = [], config = {}) {
   };
 }
 
-function qualityScoreForSignal(config = {}, signal = {}, edgeModel = {}, symbolMemory = null, optimizer = null) {
+function qualityScoreForSignal(config = {}, signal = {}, edgeModel = {}, symbolMemory = null, optimizer = null, edgeMemory = {}) {
   const trend = clamp(
     Math.max(
       numeric(signal.trendQualityScore),
@@ -244,6 +349,8 @@ function qualityScoreForSignal(config = {}, signal = {}, edgeModel = {}, symbolM
   const regime = regimeQualityScore(signal);
   const memory = symbolMemory || { weight: 1, rolling50: { samples: 0 }, rolling100: { samples: 0 } };
   const memoryScore = clamp(58 + (numeric(memory.weight, 1) - 1) * 145, 35, 84);
+  const setupMemory = edgeMemory.setupMemory || { weight: 1, bias: "NEUTRAL" };
+  const regimeMemory = edgeMemory.regimeMemory || { weight: 1, bias: "NEUTRAL" };
   let score =
     trend * 0.25 +
     volume * 0.17 +
@@ -251,6 +358,10 @@ function qualityScoreForSignal(config = {}, signal = {}, edgeModel = {}, symbolM
     expectancy * 0.28 +
     regime * 0.12 +
     memoryScore * 0.05;
+  score += (numeric(setupMemory.weight, 1) - 1) * 18;
+  score += (numeric(regimeMemory.weight, 1) - 1) * 12;
+  if (numeric(signal.marketBreadthScore) >= 80) score += 3;
+  else if (numeric(signal.marketBreadthScore) > 0 && numeric(signal.marketBreadthScore) < 45) score -= 3;
   const tags = Array.isArray(signal.marketRegimeTags) ? signal.marketRegimeTags : [];
   if (tags.includes("STRONG_TRENDING_MARKET") && /CONTINUATION|RETEST|RESUMPTION|ACCELERATION|BREAKOUT/i.test(String(signal.continuationSetupType || signal.setupType || ""))) {
     score += 4;
@@ -293,6 +404,9 @@ function qualityScoreForSignal(config = {}, signal = {}, edgeModel = {}, symbolM
       regime: round(regime, 2),
       symbolMemory: round(memoryScore, 2),
       symbolMemoryWeight: numeric(memory.weight, 1),
+      setupRankingWeight: numeric(setupMemory.weight, 1),
+      regimeMemoryWeight: numeric(regimeMemory.weight, 1),
+      marketBreadth: round(numeric(signal.marketBreadthScore), 2),
       multiTimeframeTrend: round(numeric(signal.multiTimeframeTrendScore), 2),
       expectancyOptimizer: optimizer && optimizer.continuationOutperforming ? round(numeric(optimizer.continuationWeightBoostPoints), 2) : 0,
     },
@@ -303,6 +417,8 @@ function qualityScoreForSignal(config = {}, signal = {}, edgeModel = {}, symbolM
       elite: eliteThreshold,
     },
     symbolMemory: memory,
+    setupMemory,
+    regimeMemory,
     expectancyOptimizer: optimizer,
   };
 }
@@ -376,6 +492,29 @@ function profitSystemHealthReport(trades = [], config = {}) {
     runnerContribution: expectancy.runnerImpact,
     optimizer: expectancy.optimizer,
     symbolPerformanceMemoryV3: expectancy.symbolRanking,
+  };
+}
+
+function profitEdgeReport(trades = [], config = {}) {
+  const rows = closedTrades(trades);
+  const expectancy = profitExpectancyReport(rows, config);
+  const setupRanking = setupRankingReport(rows, config);
+  const regimeRanking = regimePerformanceReport(rows, config);
+  return {
+    generatedAt: new Date().toISOString(),
+    closedTrades: rows.length,
+    bestSetup: setupRanking[0] || null,
+    worstSetup: setupRanking.length ? setupRanking[setupRanking.length - 1] : null,
+    bestRegime: regimeRanking[0] || null,
+    worstRegime: regimeRanking.length ? regimeRanking[regimeRanking.length - 1] : null,
+    runnerContribution: expectancy.runnerImpact,
+    profitFactor: expectancy.profitFactor,
+    expectancy: expectancy.expectancyUsdt,
+    averageWinner: expectancy.averageWinnerUsdt,
+    averageLoser: expectancy.averageLoserUsdt,
+    setupRanking,
+    regimeRanking,
+    symbolRanking: expectancy.symbolRanking,
   };
 }
 
@@ -471,13 +610,18 @@ module.exports = {
   ensureProfitControlledState,
   expectancyOptimizer,
   leverageCapForTier,
+  profitEdgeReport,
   profitExpectancyReport,
   qualityScoreForSignal,
   profitControlledRiskCapPct,
   profitControlledRiskState,
   profitControlledSummary,
   profitSystemHealthReport,
+  regimePerformanceMemory,
+  regimePerformanceReport,
   sizingEquityBaseFromBalance,
+  setupRankingMemory,
+  setupRankingReport,
   symbolPerformanceMemoryV2,
   symbolPerformanceMemoryV2Map,
   symbolPerformanceMemoryV3,
