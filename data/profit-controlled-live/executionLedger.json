@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-06-05T18:36:54.474Z",
+  "updatedAt": "2026-06-06T19:03:59.649Z",
   "logicalTrades": {
     "x10-trade-1780408472217-50130": {
       "logicalTradeId": "x10-trade-1780408472217-50130",
@@ -9666,6 +9666,1750 @@
       "finalGrossPnlUsdt": 0.17789999999999964,
       "finalFeesUsdt": 0.017314885000000002,
       "closedAt": "2026-06-05T18:36:54.473Z"
+    },
+    "x10-trade-1780686045847-59625": {
+      "logicalTradeId": "x10-trade-1780686045847-59625",
+      "symbol": "SOLUSDT",
+      "side": "SHORT",
+      "mode": "LIVE",
+      "orderLinkIds": [
+        "x10-trade-1780686045847-59625",
+        "x10-close-1780687236210-12117"
+      ],
+      "exchangeOrderIds": [
+        "848c508a-be76-41d0-9802-8d76a7e6ad18",
+        "a22bbf98-2fa4-4345-b3ad-3439ec86cfbe"
+      ],
+      "fillIds": [
+        "6d2ade3b-48ca-5e34-ae71-9eb411a5d586",
+        "4ab7b002-f675-5ce6-90e4-1a6e6a493908"
+      ],
+      "totalFilledQty": 0.2,
+      "weightedAverageFillPrice": 62.235,
+      "totalActualFeeUsdt": 0.00684585,
+      "lifecycleState": "CLOSED",
+      "tpSlConfirmationState": "CONFIRMED",
+      "finalNetResultUsdt": 0.06815415000000001,
+      "createdAt": "2026-06-05T19:00:45.847Z",
+      "updatedAt": "2026-06-05T19:20:41.540Z",
+      "edgeModel": {
+        "tier": "NORMAL_CONTINUATION",
+        "expectedGrossMovePct": 2.1,
+        "estimatedEntryFeePct": 0.055,
+        "estimatedExitFeePct": 0.055,
+        "estimatedFundingPct": 0,
+        "liveSpreadPct": 0.016,
+        "conservativeSlippagePct": 0.08,
+        "expectedTotalCostPct": 0.206,
+        "probabilityAdjustedMovePct": 1.3423,
+        "expectedNetEdgePct": 1.0848,
+        "stopDistancePct": 0.8,
+        "takeProfitDistancePct": 2.1,
+        "expectedRewardRiskRatio": 2.625,
+        "expectedRewardCostRatio": 10.1947,
+        "projectedGrossProfitUsdt": 0.131334,
+        "projectedTotalCostUsdt": 0.012883,
+        "projectedNetProfitUsdt": 0.067846,
+        "projectedMaxLossAtStopUsdt": 0.050032,
+        "riskPctOfEquity": 0.0715
+      },
+      "maxLossAtStopUsdt": 0.050032,
+      "riskPctOfEquity": 0.0715,
+      "executionType": "MARKET_TAKER",
+      "protection": {
+        "symbol": "SOLUSDT",
+        "positionIdx": 0,
+        "takeProfit": "60.83",
+        "stopLoss": "63.11",
+        "updatedAt": "2026-06-05T19:00:51.233Z"
+      },
+      "finalGrossPnlUsdt": 0.07500000000000001,
+      "finalFeesUsdt": 0.00684585,
+      "closedAt": "2026-06-05T19:20:41.534Z"
+    },
+    "x10-trade-1780686990506-88354": {
+      "logicalTradeId": "x10-trade-1780686990506-88354",
+      "symbol": "ETHUSDT",
+      "side": "SHORT",
+      "mode": "LIVE",
+      "orderLinkIds": [
+        "x10-trade-1780686990506-88354",
+        "x10-close-1780687506260-32780"
+      ],
+      "exchangeOrderIds": [
+        "01197f1a-41c3-461b-80df-4a32207d7c38",
+        "cfa7ccb3-9e0c-4d76-b256-83b3aecba472"
+      ],
+      "fillIds": [
+        "0376c174-e9d9-58e8-beb2-8f9bf11134ab",
+        "5354abaf-5116-5c9c-acaa-ce9caf295a4a"
+      ],
+      "totalFilledQty": 0.02,
+      "weightedAverageFillPrice": 1549.375,
+      "totalActualFeeUsdt": 0.01704313,
+      "lifecycleState": "CLOSED",
+      "tpSlConfirmationState": "CONFIRMED",
+      "finalNetResultUsdt": -0.12044312999999919,
+      "createdAt": "2026-06-05T19:16:30.507Z",
+      "updatedAt": "2026-06-05T19:25:07.316Z",
+      "edgeModel": {
+        "tier": "ELITE_CONTINUATION",
+        "expectedGrossMovePct": 1.2984,
+        "estimatedEntryFeePct": 0.055,
+        "estimatedExitFeePct": 0.055,
+        "estimatedFundingPct": 0,
+        "liveSpreadPct": 0.0006,
+        "conservativeSlippagePct": 0.08,
+        "expectedTotalCostPct": 0.1906,
+        "probabilityAdjustedMovePct": 1.0663,
+        "expectedNetEdgePct": 0.828,
+        "stopDistancePct": 0.8,
+        "takeProfitDistancePct": 2.1,
+        "expectedRewardRiskRatio": 2.625,
+        "expectedRewardCostRatio": 6.8103,
+        "projectedGrossProfitUsdt": 0.200131,
+        "projectedTotalCostUsdt": 0.029386,
+        "projectedNetProfitUsdt": 0.127624,
+        "projectedMaxLossAtStopUsdt": 0.123311,
+        "riskPctOfEquity": 0.1934
+      },
+      "maxLossAtStopUsdt": 0.123311,
+      "riskPctOfEquity": 0.1934,
+      "executionType": "MARKET_TAKER",
+      "protection": {
+        "symbol": "ETHUSDT",
+        "positionIdx": 0,
+        "takeProfit": "1493.95",
+        "stopLoss": "1556.57",
+        "updatedAt": "2026-06-05T19:16:34.953Z"
+      },
+      "finalGrossPnlUsdt": -0.10339999999999919,
+      "finalFeesUsdt": 0.01704313,
+      "closedAt": "2026-06-05T19:25:07.312Z"
+    },
+    "x10-trade-1780711320817-70407": {
+      "logicalTradeId": "x10-trade-1780711320817-70407",
+      "symbol": "ETHUSDT",
+      "side": "SHORT",
+      "mode": "LIVE",
+      "orderLinkIds": [
+        "x10-trade-1780711320817-70407",
+        "x10-close-1780713080136-75289"
+      ],
+      "exchangeOrderIds": [
+        "50d396c0-3691-4cd2-9e0a-55c620766ae1",
+        "4e4e295a-3518-413e-a88b-f15eaf006f4d"
+      ],
+      "fillIds": [
+        "4b720ea2-8e6e-592e-8703-961869c69be0",
+        "2893791a-4132-56f8-9546-10ee6c583433"
+      ],
+      "totalFilledQty": 0.02,
+      "weightedAverageFillPrice": 1576.435,
+      "totalActualFeeUsdt": 0.017340790000000002,
+      "lifecycleState": "CLOSED",
+      "tpSlConfirmationState": "CONFIRMED",
+      "finalNetResultUsdt": 0.05335920999999936,
+      "createdAt": "2026-06-06T02:02:00.817Z",
+      "updatedAt": "2026-06-06T02:31:23.281Z",
+      "edgeModel": {
+        "tier": "NORMAL_CONTINUATION",
+        "expectedGrossMovePct": 0.95,
+        "estimatedEntryFeePct": 0.055,
+        "estimatedExitFeePct": 0.055,
+        "estimatedFundingPct": 0,
+        "liveSpreadPct": 0.0006,
+        "conservativeSlippagePct": 0.08,
+        "expectedTotalCostPct": 0.1906,
+        "probabilityAdjustedMovePct": 0.5978,
+        "expectedNetEdgePct": 0.3595,
+        "stopDistancePct": 0.8,
+        "takeProfitDistancePct": 2.1,
+        "expectedRewardRiskRatio": 2.625,
+        "expectedRewardCostRatio": 4.9834,
+        "projectedGrossProfitUsdt": 0.15004,
+        "projectedTotalCostUsdt": 0.030108,
+        "projectedNetProfitUsdt": 0.056778,
+        "projectedMaxLossAtStopUsdt": 0.12635,
+        "riskPctOfEquity": 0.1806
+      },
+      "maxLossAtStopUsdt": 0.12635,
+      "riskPctOfEquity": 0.1806,
+      "executionType": "MARKET_TAKER",
+      "protection": {
+        "symbol": "ETHUSDT",
+        "positionIdx": 0,
+        "takeProfit": "1535.09",
+        "stopLoss": "1592.51",
+        "updatedAt": "2026-06-06T02:02:05.582Z"
+      },
+      "finalGrossPnlUsdt": 0.07069999999999936,
+      "finalFeesUsdt": 0.017340790000000002,
+      "closedAt": "2026-06-06T02:31:23.274Z"
+    },
+    "x10-trade-1780711371312-9371": {
+      "logicalTradeId": "x10-trade-1780711371312-9371",
+      "symbol": "SOLUSDT",
+      "side": "SHORT",
+      "mode": "LIVE",
+      "orderLinkIds": [
+        "x10-trade-1780711371312-9371",
+        "x10-close-1780713092361-16831"
+      ],
+      "exchangeOrderIds": [
+        "29af5cea-1435-498d-9bbb-1c7ad0b50faf",
+        "696d5d1b-6221-481c-978a-d9d281098066"
+      ],
+      "fillIds": [
+        "58462b37-a54f-5313-aa29-1ab653030232",
+        "7080a53c-7be7-5f9e-8703-18b947d36c14"
+      ],
+      "totalFilledQty": 0.2,
+      "weightedAverageFillPrice": 63.63,
+      "totalActualFeeUsdt": 0.0069993,
+      "lifecycleState": "CLOSED",
+      "tpSlConfirmationState": "CONFIRMED",
+      "finalNetResultUsdt": 0.013000699999999574,
+      "createdAt": "2026-06-06T02:02:51.312Z",
+      "updatedAt": "2026-06-06T02:31:32.924Z",
+      "edgeModel": {
+        "tier": "NORMAL_CONTINUATION",
+        "expectedGrossMovePct": 0.95,
+        "estimatedEntryFeePct": 0.055,
+        "estimatedExitFeePct": 0.055,
+        "estimatedFundingPct": 0,
+        "liveSpreadPct": 0.0157,
+        "conservativeSlippagePct": 0.08,
+        "expectedTotalCostPct": 0.2057,
+        "probabilityAdjustedMovePct": 0.5415,
+        "expectedNetEdgePct": 0.2844,
+        "stopDistancePct": 0.8,
+        "takeProfitDistancePct": 2.1,
+        "expectedRewardRiskRatio": 2.625,
+        "expectedRewardCostRatio": 4.6185,
+        "projectedGrossProfitUsdt": 0.060525,
+        "projectedTotalCostUsdt": 0.013105,
+        "projectedNetProfitUsdt": 0.018118,
+        "projectedMaxLossAtStopUsdt": 0.050968,
+        "riskPctOfEquity": 0.0788
+      },
+      "maxLossAtStopUsdt": 0.050968,
+      "riskPctOfEquity": 0.0788,
+      "executionType": "MARKET_TAKER",
+      "protection": {
+        "symbol": "SOLUSDT",
+        "positionIdx": 0,
+        "takeProfit": "61.93",
+        "stopLoss": "64.24",
+        "updatedAt": "2026-06-06T02:02:55.162Z"
+      },
+      "finalGrossPnlUsdt": 0.019999999999999574,
+      "finalFeesUsdt": 0.0069993,
+      "closedAt": "2026-06-06T02:31:32.918Z"
+    },
+    "x10-trade-1780716284460-19880": {
+      "logicalTradeId": "x10-trade-1780716284460-19880",
+      "symbol": "ETHUSDT",
+      "side": "SHORT",
+      "mode": "LIVE",
+      "orderLinkIds": [
+        "x10-trade-1780716284460-19880",
+        "x10-close-1780717529285-14109"
+      ],
+      "exchangeOrderIds": [
+        "f27009ff-4e5a-4a9d-92ad-baf09f8591f6",
+        "46bd9e4a-df2e-45a5-8aee-d7613143914c"
+      ],
+      "fillIds": [
+        "12f87c0a-938e-5a3c-b5d5-57d3b97549ec",
+        "5c529c77-2a73-519b-aa08-4725e94685c8"
+      ],
+      "totalFilledQty": 0.02,
+      "weightedAverageFillPrice": 1561.7,
+      "totalActualFeeUsdt": 0.017178699999999998,
+      "lifecycleState": "CLOSED",
+      "tpSlConfirmationState": "CONFIRMED",
+      "finalNetResultUsdt": -0.01867870000000091,
+      "createdAt": "2026-06-06T03:24:44.461Z",
+      "updatedAt": "2026-06-06T03:45:30.532Z",
+      "edgeModel": {
+        "tier": "NORMAL_CONTINUATION",
+        "expectedGrossMovePct": 0.95,
+        "estimatedEntryFeePct": 0.055,
+        "estimatedExitFeePct": 0.055,
+        "estimatedFundingPct": 0,
+        "liveSpreadPct": 0.0006,
+        "conservativeSlippagePct": 0.08,
+        "expectedTotalCostPct": 0.1906,
+        "probabilityAdjustedMovePct": 0.5597,
+        "expectedNetEdgePct": 0.3214,
+        "stopDistancePct": 0.8,
+        "takeProfitDistancePct": 2.1,
+        "expectedRewardRiskRatio": 2.625,
+        "expectedRewardCostRatio": 4.9832,
+        "projectedGrossProfitUsdt": 0.148585,
+        "projectedTotalCostUsdt": 0.029817,
+        "projectedNetProfitUsdt": 0.050275,
+        "projectedMaxLossAtStopUsdt": 0.125124,
+        "riskPctOfEquity": 0.1787
+      },
+      "maxLossAtStopUsdt": 0.125124,
+      "riskPctOfEquity": 0.1787,
+      "executionType": "MARKET_TAKER",
+      "protection": {
+        "symbol": "ETHUSDT",
+        "positionIdx": 0,
+        "takeProfit": "1517.33",
+        "stopLoss": "1574.1",
+        "updatedAt": "2026-06-06T03:24:48.395Z"
+      },
+      "finalGrossPnlUsdt": -0.0015000000000009095,
+      "finalFeesUsdt": 0.017178699999999998,
+      "closedAt": "2026-06-06T03:45:30.525Z"
+    },
+    "x10-trade-1780716688424-4446": {
+      "logicalTradeId": "x10-trade-1780716688424-4446",
+      "symbol": "SOLUSDT",
+      "side": "SHORT",
+      "mode": "LIVE",
+      "orderLinkIds": [
+        "x10-trade-1780716688424-4446",
+        "x10-close-1780717083836-41080"
+      ],
+      "exchangeOrderIds": [
+        "22270a83-5237-4d55-bed4-ba4722441f3a",
+        "d508fa63-fda2-4c99-9360-8c611694a891"
+      ],
+      "fillIds": [
+        "c16623ad-8a24-523c-b3ee-b6120b50ccaf",
+        "7cecb7fa-e709-576e-a32f-b136b17ccf4d"
+      ],
+      "totalFilledQty": 0.6,
+      "weightedAverageFillPrice": 62.955,
+      "totalActualFeeUsdt": 0.02077515,
+      "lifecycleState": "CLOSED",
+      "tpSlConfirmationState": "CONFIRMED",
+      "finalNetResultUsdt": -0.05977515000000076,
+      "createdAt": "2026-06-06T03:31:28.425Z",
+      "updatedAt": "2026-06-06T03:38:05.719Z",
+      "edgeModel": {
+        "tier": "NORMAL_CONTINUATION",
+        "expectedGrossMovePct": 1.1376,
+        "estimatedEntryFeePct": 0.055,
+        "estimatedExitFeePct": 0.055,
+        "estimatedFundingPct": 0,
+        "liveSpreadPct": 0.0159,
+        "conservativeSlippagePct": 0.08,
+        "expectedTotalCostPct": 0.2059,
+        "probabilityAdjustedMovePct": 0.8256,
+        "expectedNetEdgePct": 0.5682,
+        "stopDistancePct": 0.8,
+        "takeProfitDistancePct": 2.1,
+        "expectedRewardRiskRatio": 2.625,
+        "expectedRewardCostRatio": 5.5251,
+        "projectedGrossProfitUsdt": 0.214635,
+        "projectedTotalCostUsdt": 0.038848,
+        "projectedNetProfitUsdt": 0.107201,
+        "projectedMaxLossAtStopUsdt": 0.150936,
+        "riskPctOfEquity": 0.2426
+      },
+      "maxLossAtStopUsdt": 0.150936,
+      "riskPctOfEquity": 0.2426,
+      "executionType": "MARKET_TAKER",
+      "protection": {
+        "symbol": "SOLUSDT",
+        "positionIdx": 0,
+        "takeProfit": "61.11",
+        "stopLoss": "63.4",
+        "updatedAt": "2026-06-06T03:31:29.876Z"
+      },
+      "finalGrossPnlUsdt": -0.03900000000000076,
+      "finalFeesUsdt": 0.02077515,
+      "closedAt": "2026-06-06T03:38:05.711Z"
+    },
+    "x10-trade-1780717151392-70678": {
+      "logicalTradeId": "x10-trade-1780717151392-70678",
+      "symbol": "SOLUSDT",
+      "side": "SHORT",
+      "mode": "LIVE",
+      "orderLinkIds": [
+        "x10-trade-1780717151392-70678",
+        "x10-close-1780717508120-52094"
+      ],
+      "exchangeOrderIds": [
+        "b373e5b6-726e-4ec6-b84b-dd09f0339d3e",
+        "ad1396e4-a292-4871-91b6-ed960b8c195c"
+      ],
+      "fillIds": [
+        "25d4ccd0-dec6-5625-97cd-10abf37c4531",
+        "5c5d8edb-0436-5ff5-80d2-3a659541f369"
+      ],
+      "totalFilledQty": 0.4,
+      "weightedAverageFillPrice": 62.83,
+      "totalActualFeeUsdt": 0.0138226,
+      "lifecycleState": "CLOSED",
+      "tpSlConfirmationState": "CONFIRMED",
+      "finalNetResultUsdt": -0.02182259999999983,
+      "createdAt": "2026-06-06T03:39:11.393Z",
+      "updatedAt": "2026-06-06T03:45:10.845Z",
+      "edgeModel": {
+        "tier": "NORMAL_CONTINUATION",
+        "expectedGrossMovePct": 0.95,
+        "estimatedEntryFeePct": 0.055,
+        "estimatedExitFeePct": 0.055,
+        "estimatedFundingPct": 0,
+        "liveSpreadPct": 0.0159,
+        "conservativeSlippagePct": 0.08,
+        "expectedTotalCostPct": 0.2059,
+        "probabilityAdjustedMovePct": 0.589,
+        "expectedNetEdgePct": 0.3316,
+        "stopDistancePct": 0.8,
+        "takeProfitDistancePct": 2.1,
+        "expectedRewardRiskRatio": 2.625,
+        "expectedRewardCostRatio": 4.6136,
+        "projectedGrossProfitUsdt": 0.119415,
+        "projectedTotalCostUsdt": 0.025883,
+        "projectedNetProfitUsdt": 0.041683,
+        "projectedMaxLossAtStopUsdt": 0.10056,
+        "riskPctOfEquity": 0.1618
+      },
+      "maxLossAtStopUsdt": 0.10056,
+      "riskPctOfEquity": 0.1618,
+      "executionType": "MARKET_TAKER",
+      "protection": {
+        "symbol": "SOLUSDT",
+        "positionIdx": 0,
+        "takeProfit": "61.04",
+        "stopLoss": "63.33",
+        "updatedAt": "2026-06-06T03:39:15.521Z"
+      },
+      "finalGrossPnlUsdt": -0.00799999999999983,
+      "finalFeesUsdt": 0.0138226,
+      "closedAt": "2026-06-06T03:45:10.837Z"
+    },
+    "x10-trade-1780717660415-35830": {
+      "logicalTradeId": "x10-trade-1780717660415-35830",
+      "symbol": "ETHUSDT",
+      "side": "SHORT",
+      "mode": "LIVE",
+      "orderLinkIds": [
+        "x10-trade-1780717660415-35830",
+        "x10-close-1780717845467-69510"
+      ],
+      "exchangeOrderIds": [
+        "78defb7f-4ecf-4426-a6ff-cc182f979abe",
+        "46284e30-d1b5-4cd5-a2cb-3d95927992c9"
+      ],
+      "fillIds": [
+        "df2e6a83-b692-5d01-bc1b-98886a98b9df",
+        "7577bc10-86ff-5021-a10c-523f12630576"
+      ],
+      "totalFilledQty": 0.02,
+      "weightedAverageFillPrice": 1561.135,
+      "totalActualFeeUsdt": 0.01717249,
+      "lifecycleState": "CLOSED",
+      "tpSlConfirmationState": "CONFIRMED",
+      "finalNetResultUsdt": -0.06227248999999991,
+      "createdAt": "2026-06-06T03:47:40.416Z",
+      "updatedAt": "2026-06-06T03:50:47.089Z",
+      "edgeModel": {
+        "tier": "NORMAL_CONTINUATION",
+        "expectedGrossMovePct": 0.95,
+        "estimatedEntryFeePct": 0.055,
+        "estimatedExitFeePct": 0.055,
+        "estimatedFundingPct": 0,
+        "liveSpreadPct": 0.0006,
+        "conservativeSlippagePct": 0.08,
+        "expectedTotalCostPct": 0.1906,
+        "probabilityAdjustedMovePct": 0.6667,
+        "expectedNetEdgePct": 0.4284,
+        "stopDistancePct": 0.8,
+        "takeProfitDistancePct": 2.1,
+        "expectedRewardRiskRatio": 2.625,
+        "expectedRewardCostRatio": 4.9832,
+        "projectedGrossProfitUsdt": 0.148042,
+        "projectedTotalCostUsdt": 0.029708,
+        "projectedNetProfitUsdt": 0.066753,
+        "projectedMaxLossAtStopUsdt": 0.124667,
+        "riskPctOfEquity": 0.1783
+      },
+      "maxLossAtStopUsdt": 0.124667,
+      "riskPctOfEquity": 0.1783,
+      "executionType": "MARKET_TAKER",
+      "protection": {
+        "symbol": "ETHUSDT",
+        "positionIdx": 0,
+        "takeProfit": "1514.56",
+        "stopLoss": "1571.22",
+        "updatedAt": "2026-06-06T03:47:45.347Z"
+      },
+      "finalGrossPnlUsdt": -0.04509999999999991,
+      "finalFeesUsdt": 0.01717249,
+      "closedAt": "2026-06-06T03:50:47.083Z"
+    },
+    "x10-trade-1780717934628-76928": {
+      "logicalTradeId": "x10-trade-1780717934628-76928",
+      "symbol": "SOLUSDT",
+      "side": "SHORT",
+      "mode": "LIVE",
+      "orderLinkIds": [
+        "x10-trade-1780717934628-76928",
+        "x10-close-1780718129963-84376"
+      ],
+      "exchangeOrderIds": [
+        "31382b9e-6539-46b0-bddd-58b8b52cb912",
+        "101791f1-6605-4b99-ae2a-2a662e9770cb"
+      ],
+      "fillIds": [
+        "38de4996-3b98-50ba-91a9-88129bf5ad53",
+        "0a35394f-a965-5d28-abe1-c779e4d92603"
+      ],
+      "totalFilledQty": 0.2,
+      "weightedAverageFillPrice": 62.74000000000001,
+      "totalActualFeeUsdt": 0.0069014,
+      "lifecycleState": "CLOSED",
+      "tpSlConfirmationState": "CONFIRMED",
+      "finalNetResultUsdt": -0.02190139999999986,
+      "createdAt": "2026-06-06T03:52:14.628Z",
+      "updatedAt": "2026-06-06T03:55:32.445Z",
+      "edgeModel": {
+        "tier": "NORMAL_CONTINUATION",
+        "expectedGrossMovePct": 0.95,
+        "estimatedEntryFeePct": 0.055,
+        "estimatedExitFeePct": 0.055,
+        "estimatedFundingPct": 0,
+        "liveSpreadPct": 0.016,
+        "conservativeSlippagePct": 0.08,
+        "expectedTotalCostPct": 0.206,
+        "probabilityAdjustedMovePct": 0.5415,
+        "expectedNetEdgePct": 0.2841,
+        "stopDistancePct": 0.8,
+        "takeProfitDistancePct": 2.1,
+        "expectedRewardRiskRatio": 2.625,
+        "expectedRewardCostRatio": 4.6128,
+        "projectedGrossProfitUsdt": 0.059565,
+        "projectedTotalCostUsdt": 0.012913,
+        "projectedNetProfitUsdt": 0.017811,
+        "projectedMaxLossAtStopUsdt": 0.05016,
+        "riskPctOfEquity": 0.0718
+      },
+      "maxLossAtStopUsdt": 0.05016,
+      "riskPctOfEquity": 0.0718,
+      "executionType": "MARKET_TAKER",
+      "protection": {
+        "symbol": "SOLUSDT",
+        "positionIdx": 0,
+        "takeProfit": "60.9",
+        "stopLoss": "63.18",
+        "updatedAt": "2026-06-06T03:52:18.582Z"
+      },
+      "finalGrossPnlUsdt": -0.014999999999999859,
+      "finalFeesUsdt": 0.0069014,
+      "closedAt": "2026-06-06T03:55:32.439Z"
+    },
+    "x10-trade-1780717948946-5029": {
+      "logicalTradeId": "x10-trade-1780717948946-5029",
+      "symbol": "ETHUSDT",
+      "side": "SHORT",
+      "mode": "LIVE",
+      "orderLinkIds": [
+        "x10-trade-1780717948946-5029",
+        "x10-close-1780718131323-4253"
+      ],
+      "exchangeOrderIds": [
+        "80d8e110-5574-4f4e-961b-1d05c95e826a",
+        "02054293-95c7-4fef-b365-44a3a1f35ade"
+      ],
+      "fillIds": [
+        "7ee6f8f0-f4ed-566e-aebe-0df686068cdb",
+        "60e41e9b-b76a-5548-8a34-70fd9f6006a8"
+      ],
+      "totalFilledQty": 0.02,
+      "weightedAverageFillPrice": 1561.695,
+      "totalActualFeeUsdt": 0.01717865,
+      "lifecycleState": "CLOSED",
+      "tpSlConfirmationState": "CONFIRMED",
+      "finalNetResultUsdt": -0.04627865000000082,
+      "createdAt": "2026-06-06T03:52:28.947Z",
+      "updatedAt": "2026-06-06T03:55:32.499Z",
+      "edgeModel": {
+        "tier": "NORMAL_CONTINUATION",
+        "expectedGrossMovePct": 0.95,
+        "estimatedEntryFeePct": 0.055,
+        "estimatedExitFeePct": 0.055,
+        "estimatedFundingPct": 0,
+        "liveSpreadPct": 0.0006,
+        "conservativeSlippagePct": 0.08,
+        "expectedTotalCostPct": 0.1906,
+        "probabilityAdjustedMovePct": 0.543,
+        "expectedNetEdgePct": 0.3047,
+        "stopDistancePct": 0.8,
+        "takeProfitDistancePct": 2.1,
+        "expectedRewardRiskRatio": 2.625,
+        "expectedRewardCostRatio": 4.9832,
+        "projectedGrossProfitUsdt": 0.148184,
+        "projectedTotalCostUsdt": 0.029737,
+        "projectedNetProfitUsdt": 0.047531,
+        "projectedMaxLossAtStopUsdt": 0.124786,
+        "riskPctOfEquity": 0.1827
+      },
+      "maxLossAtStopUsdt": 0.124786,
+      "riskPctOfEquity": 0.1827,
+      "executionType": "MARKET_TAKER",
+      "protection": {
+        "symbol": "ETHUSDT",
+        "positionIdx": 0,
+        "takeProfit": "1515.99",
+        "stopLoss": "1572.71",
+        "updatedAt": "2026-06-06T03:52:33.028Z"
+      },
+      "finalGrossPnlUsdt": -0.02910000000000082,
+      "finalFeesUsdt": 0.01717865,
+      "closedAt": "2026-06-06T03:55:32.498Z"
+    },
+    "x10-trade-1780718718922-87506": {
+      "logicalTradeId": "x10-trade-1780718718922-87506",
+      "symbol": "ETHUSDT",
+      "side": "SHORT",
+      "mode": "LIVE",
+      "orderLinkIds": [
+        "x10-trade-1780718718922-87506",
+        "x10-close-1780719910796-87322"
+      ],
+      "exchangeOrderIds": [
+        "21fd1c16-e59a-49f0-b247-074e9c1341d5",
+        "ba7a10bd-ab1f-414a-be17-6ee19b0d674b"
+      ],
+      "fillIds": [
+        "79be3169-ac7e-57a1-982a-061b96e8b392",
+        "0e9e7482-eb1a-5c51-ba71-7ab3458905f8"
+      ],
+      "totalFilledQty": 0.02,
+      "weightedAverageFillPrice": 1548.89,
+      "totalActualFeeUsdt": 0.01703779,
+      "lifecycleState": "CLOSED",
+      "tpSlConfirmationState": "CONFIRMED",
+      "finalNetResultUsdt": 0.10946220999999864,
+      "createdAt": "2026-06-06T04:05:18.923Z",
+      "updatedAt": "2026-06-06T04:25:15.890Z",
+      "edgeModel": {
+        "tier": "NORMAL_CONTINUATION",
+        "expectedGrossMovePct": 1.8808,
+        "estimatedEntryFeePct": 0.055,
+        "estimatedExitFeePct": 0.055,
+        "estimatedFundingPct": 0,
+        "liveSpreadPct": 0.0006,
+        "conservativeSlippagePct": 0.08,
+        "expectedTotalCostPct": 0.1906,
+        "probabilityAdjustedMovePct": 1.1435,
+        "expectedNetEdgePct": 0.9052,
+        "stopDistancePct": 0.8,
+        "takeProfitDistancePct": 2.1,
+        "expectedRewardRiskRatio": 2.625,
+        "expectedRewardCostRatio": 9.8657,
+        "projectedGrossProfitUsdt": 0.292489,
+        "projectedTotalCostUsdt": 0.029647,
+        "projectedNetProfitUsdt": 0.140775,
+        "projectedMaxLossAtStopUsdt": 0.124409,
+        "riskPctOfEquity": 0.1782
+      },
+      "maxLossAtStopUsdt": 0.124409,
+      "riskPctOfEquity": 0.1782,
+      "executionType": "MARKET_TAKER",
+      "protection": {
+        "symbol": "ETHUSDT",
+        "positionIdx": 0,
+        "takeProfit": "1510.96",
+        "stopLoss": "1567.49",
+        "updatedAt": "2026-06-06T04:05:20.690Z"
+      },
+      "finalGrossPnlUsdt": 0.12649999999999864,
+      "finalFeesUsdt": 0.01703779,
+      "closedAt": "2026-06-06T04:25:15.883Z"
+    },
+    "x10-trade-1780718723591-11014": {
+      "logicalTradeId": "x10-trade-1780718723591-11014",
+      "symbol": "SOLUSDT",
+      "side": "SHORT",
+      "mode": "LIVE",
+      "orderLinkIds": [
+        "x10-trade-1780718723591-11014"
+      ],
+      "exchangeOrderIds": [
+        "b5233e8e-fa01-4a03-a22e-59d1ad321d84",
+        "e151ba16-098d-4b53-9454-bc4945a66517"
+      ],
+      "fillIds": [
+        "fd715773-31b3-5296-b151-29c4b683d70e",
+        "73432c02-2230-59d7-8930-3af312195bf3"
+      ],
+      "totalFilledQty": 0.2,
+      "weightedAverageFillPrice": 62.150000000000006,
+      "totalActualFeeUsdt": 0.0068365000000000006,
+      "lifecycleState": "CLOSED",
+      "tpSlConfirmationState": "CONFIRMED",
+      "finalNetResultUsdt": 0.05516349999999975,
+      "createdAt": "2026-06-06T04:05:23.592Z",
+      "updatedAt": "2026-06-06T04:16:31.848Z",
+      "edgeModel": {
+        "tier": "NORMAL_CONTINUATION",
+        "expectedGrossMovePct": 2.1,
+        "estimatedEntryFeePct": 0.055,
+        "estimatedExitFeePct": 0.055,
+        "estimatedFundingPct": 0,
+        "liveSpreadPct": 0.016,
+        "conservativeSlippagePct": 0.08,
+        "expectedTotalCostPct": 0.206,
+        "probabilityAdjustedMovePct": 1.4154,
+        "expectedNetEdgePct": 1.1579,
+        "stopDistancePct": 0.8,
+        "takeProfitDistancePct": 2.1,
+        "expectedRewardRiskRatio": 2.625,
+        "expectedRewardCostRatio": 10.1936,
+        "projectedGrossProfitUsdt": 0.131145,
+        "projectedTotalCostUsdt": 0.012865,
+        "projectedNetProfitUsdt": 0.07231,
+        "projectedMaxLossAtStopUsdt": 0.04996,
+        "riskPctOfEquity": 0.0758
+      },
+      "maxLossAtStopUsdt": 0.04996,
+      "riskPctOfEquity": 0.0758,
+      "executionType": "MARKET_TAKER",
+      "protection": {
+        "symbol": "SOLUSDT",
+        "positionIdx": 0,
+        "takeProfit": "60.69",
+        "stopLoss": "62.96",
+        "updatedAt": "2026-06-06T04:12:01.148Z",
+        "trailingStop": "0.38",
+        "activePrice": "61.77"
+      },
+      "finalGrossPnlUsdt": 0.06199999999999975,
+      "finalFeesUsdt": 0.0068365000000000006,
+      "closedAt": "2026-06-06T04:16:31.840Z"
+    },
+    "x10-trade-1780719604386-60288": {
+      "logicalTradeId": "x10-trade-1780719604386-60288",
+      "symbol": "BTCUSDT",
+      "side": "SHORT",
+      "mode": "LIVE",
+      "orderLinkIds": [
+        "x10-trade-1780719604386-60288",
+        "x10-close-1780719911983-52804"
+      ],
+      "exchangeOrderIds": [
+        "20d6dc83-3b91-4f5e-9a88-6ef4011a1fb3",
+        "e38905c8-93e8-401b-8df2-ae11b98aa746"
+      ],
+      "fillIds": [
+        "47bc31f7-3aa1-57c1-a665-22d80d101ce2",
+        "a3b9d704-bdb5-5012-9b9d-88611b414048"
+      ],
+      "totalFilledQty": 0.002,
+      "weightedAverageFillPrice": 60075.950000000004,
+      "totalActualFeeUsdt": 0.06608354999999999,
+      "lifecycleState": "CLOSED",
+      "tpSlConfirmationState": "CONFIRMED",
+      "finalNetResultUsdt": -0.18948355000000144,
+      "createdAt": "2026-06-06T04:20:04.387Z",
+      "updatedAt": "2026-06-06T04:25:45.537Z",
+      "edgeModel": {
+        "tier": "ELITE_CONTINUATION",
+        "expectedGrossMovePct": 2.0523,
+        "estimatedEntryFeePct": 0.055,
+        "estimatedExitFeePct": 0.055,
+        "estimatedFundingPct": 0,
+        "liveSpreadPct": 0.0002,
+        "conservativeSlippagePct": 0.08,
+        "expectedTotalCostPct": 0.1902,
+        "probabilityAdjustedMovePct": 1.8266,
+        "expectedNetEdgePct": 1.5889,
+        "stopDistancePct": 0.8,
+        "takeProfitDistancePct": 2.1,
+        "expectedRewardRiskRatio": 2.625,
+        "expectedRewardCostRatio": 10.7923,
+        "projectedGrossProfitUsdt": 1.230912,
+        "projectedTotalCostUsdt": 0.114055,
+        "projectedNetProfitUsdt": 0.952943,
+        "projectedMaxLossAtStopUsdt": 0.479811,
+        "riskPctOfEquity": 0.7273
+      },
+      "maxLossAtStopUsdt": 0.479811,
+      "riskPctOfEquity": 0.7273,
+      "executionType": "MARKET_TAKER",
+      "protection": {
+        "symbol": "BTCUSDT",
+        "positionIdx": 0,
+        "takeProfit": "58049.6",
+        "stopLoss": "60482.7",
+        "updatedAt": "2026-06-06T04:20:14.873Z"
+      },
+      "finalGrossPnlUsdt": -0.12340000000000145,
+      "finalFeesUsdt": 0.06608354999999999,
+      "closedAt": "2026-06-06T04:25:45.532Z"
+    },
+    "x10-trade-1780719693663-73612": {
+      "logicalTradeId": "x10-trade-1780719693663-73612",
+      "symbol": "SOLUSDT",
+      "side": "SHORT",
+      "mode": "LIVE",
+      "orderLinkIds": [
+        "x10-trade-1780719693663-73612"
+      ],
+      "exchangeOrderIds": [
+        "3acad773-13fb-4278-9602-491889121f02",
+        "036c7089-5e78-4e2f-81a5-241d27beb603"
+      ],
+      "fillIds": [
+        "5fa5e46e-285e-5a88-9a47-44fdad0114cd",
+        "17dbd85f-db1a-5e72-a572-7979123fb2ed",
+        "94c27cc5-d14e-5d66-8c57-53227b91f89a"
+      ],
+      "totalFilledQty": 0.4,
+      "weightedAverageFillPrice": 61.050000000000004,
+      "totalActualFeeUsdt": 0.013431000000000002,
+      "lifecycleState": "CLOSED",
+      "tpSlConfirmationState": "CONFIRMED",
+      "finalNetResultUsdt": 0.06256900000000051,
+      "createdAt": "2026-06-06T04:21:33.663Z",
+      "updatedAt": "2026-06-06T04:36:08.930Z",
+      "edgeModel": {
+        "tier": "NORMAL_CONTINUATION",
+        "expectedGrossMovePct": 1.8629,
+        "estimatedEntryFeePct": 0.055,
+        "estimatedExitFeePct": 0.055,
+        "estimatedFundingPct": 0,
+        "liveSpreadPct": 0.0163,
+        "conservativeSlippagePct": 0.08,
+        "expectedTotalCostPct": 0.2063,
+        "probabilityAdjustedMovePct": 1.3136,
+        "expectedNetEdgePct": 1.0557,
+        "stopDistancePct": 0.8,
+        "takeProfitDistancePct": 2.1,
+        "expectedRewardRiskRatio": 2.625,
+        "expectedRewardCostRatio": 9.0283,
+        "projectedGrossProfitUsdt": 0.22809,
+        "projectedTotalCostUsdt": 0.025264,
+        "projectedNetProfitUsdt": 0.129258,
+        "projectedMaxLossAtStopUsdt": 0.097952,
+        "riskPctOfEquity": 0.1925
+      },
+      "maxLossAtStopUsdt": 0.097952,
+      "riskPctOfEquity": 0.1925,
+      "executionType": "MARKET_TAKER",
+      "protection": {
+        "symbol": "SOLUSDT",
+        "positionIdx": 0,
+        "takeProfit": "59.51",
+        "stopLoss": "61.73",
+        "updatedAt": "2026-06-06T04:33:59.601Z",
+        "trailingStop": "0.42",
+        "activePrice": "60.53"
+      },
+      "finalGrossPnlUsdt": 0.07600000000000051,
+      "finalFeesUsdt": 0.013431,
+      "closedAt": "2026-06-06T04:36:08.922Z"
+    },
+    "x10-trade-1780720059694-61146": {
+      "logicalTradeId": "x10-trade-1780720059694-61146",
+      "symbol": "ETHUSDT",
+      "side": "SHORT",
+      "mode": "LIVE",
+      "orderLinkIds": [
+        "x10-trade-1780720059694-61146",
+        "x10-close-1780720843741-9713"
+      ],
+      "exchangeOrderIds": [
+        "b08890e7-b757-49a3-b24d-740d18ccb927",
+        "ae3e3489-876d-4fa7-a1ac-e1ca8aeffebf"
+      ],
+      "fillIds": [
+        "04c1dcf4-8e71-5a7f-866a-c670c6b0b89b",
+        "e18955eb-83b4-5689-a6d0-4b6aee548027"
+      ],
+      "totalFilledQty": 0.02,
+      "weightedAverageFillPrice": 1523.4950000000001,
+      "totalActualFeeUsdt": 0.01675845,
+      "lifecycleState": "CLOSED",
+      "tpSlConfirmationState": "CONFIRMED",
+      "finalNetResultUsdt": 0.05474155000000091,
+      "createdAt": "2026-06-06T04:27:39.695Z",
+      "updatedAt": "2026-06-06T04:40:47.168Z",
+      "edgeModel": {
+        "tier": "NORMAL_CONTINUATION",
+        "expectedGrossMovePct": 0.95,
+        "estimatedEntryFeePct": 0.055,
+        "estimatedExitFeePct": 0.055,
+        "estimatedFundingPct": 0,
+        "liveSpreadPct": 0.0007,
+        "conservativeSlippagePct": 0.08,
+        "expectedTotalCostPct": 0.1907,
+        "probabilityAdjustedMovePct": 0.638,
+        "expectedNetEdgePct": 0.3997,
+        "stopDistancePct": 0.8,
+        "takeProfitDistancePct": 2.1,
+        "expectedRewardRiskRatio": 2.625,
+        "expectedRewardCostRatio": 4.9829,
+        "projectedGrossProfitUsdt": 0.145894,
+        "projectedTotalCostUsdt": 0.029279,
+        "projectedNetProfitUsdt": 0.061384,
+        "projectedMaxLossAtStopUsdt": 0.122858,
+        "riskPctOfEquity": 0.1842
+      },
+      "maxLossAtStopUsdt": 0.122858,
+      "riskPctOfEquity": 0.1842,
+      "executionType": "MARKET_TAKER",
+      "protection": {
+        "symbol": "ETHUSDT",
+        "positionIdx": 0,
+        "takeProfit": "1483.98",
+        "stopLoss": "1539.49",
+        "updatedAt": "2026-06-06T04:38:19.435Z",
+        "trailingStop": "10.27",
+        "activePrice": "1509.63"
+      },
+      "finalGrossPnlUsdt": 0.07150000000000091,
+      "finalFeesUsdt": 0.01675845,
+      "closedAt": "2026-06-06T04:40:47.161Z"
+    },
+    "x10-trade-1780720456390-54723": {
+      "logicalTradeId": "x10-trade-1780720456390-54723",
+      "symbol": "BTCUSDT",
+      "side": "SHORT",
+      "mode": "LIVE",
+      "orderLinkIds": [
+        "x10-trade-1780720456390-54723",
+        "x10-close-1780721101624-88222"
+      ],
+      "exchangeOrderIds": [
+        "705999a7-1d98-4b72-bb3f-895d62f7a416",
+        "169f7e0e-9ccb-41c0-a34e-926d7a63c019"
+      ],
+      "fillIds": [
+        "1724564d-278d-53f6-b674-7524ffb605ce",
+        "dedb4ea5-e101-5a68-bec8-f7d6bd42070b"
+      ],
+      "totalFilledQty": 0.002,
+      "weightedAverageFillPrice": 59651.6,
+      "totalActualFeeUsdt": 0.06561676999999999,
+      "lifecycleState": "CLOSED",
+      "tpSlConfirmationState": "CONFIRMED",
+      "finalNetResultUsdt": -0.27321676999999855,
+      "createdAt": "2026-06-06T04:34:16.390Z",
+      "updatedAt": "2026-06-06T04:45:05.076Z",
+      "edgeModel": {
+        "tier": "ELITE_CONTINUATION",
+        "expectedGrossMovePct": 1.2841,
+        "estimatedEntryFeePct": 0.055,
+        "estimatedExitFeePct": 0.055,
+        "estimatedFundingPct": 0,
+        "liveSpreadPct": 0.0002,
+        "conservativeSlippagePct": 0.08,
+        "expectedTotalCostPct": 0.1902,
+        "probabilityAdjustedMovePct": 1.2071,
+        "expectedNetEdgePct": 0.9693,
+        "stopDistancePct": 0.8,
+        "takeProfitDistancePct": 2.1,
+        "expectedRewardRiskRatio": 2.625,
+        "expectedRewardCostRatio": 6.7525,
+        "projectedGrossProfitUsdt": 0.765014,
+        "projectedTotalCostUsdt": 0.113294,
+        "projectedNetProfitUsdt": 0.577496,
+        "projectedMaxLossAtStopUsdt": 0.476606,
+        "riskPctOfEquity": 0.7583
+      },
+      "maxLossAtStopUsdt": 0.476606,
+      "riskPctOfEquity": 0.7583,
+      "executionType": "MARKET_TAKER",
+      "protection": {
+        "symbol": "BTCUSDT",
+        "positionIdx": 0,
+        "takeProfit": "57607.3",
+        "stopLoss": "60021.9",
+        "updatedAt": "2026-06-06T04:34:21.200Z"
+      },
+      "finalGrossPnlUsdt": -0.20759999999999854,
+      "finalFeesUsdt": 0.06561676999999999,
+      "closedAt": "2026-06-06T04:45:05.070Z"
+    },
+    "x10-trade-1780720708619-14571": {
+      "logicalTradeId": "x10-trade-1780720708619-14571",
+      "symbol": "SOLUSDT",
+      "side": "SHORT",
+      "mode": "LIVE",
+      "orderLinkIds": [
+        "x10-trade-1780720708619-14571",
+        "x10-close-1780721103633-74565"
+      ],
+      "exchangeOrderIds": [
+        "87b78bfa-b9a4-4a02-9c36-124feeaab2d8",
+        "1a429445-1c60-4d7c-bebb-336efb10cf1f"
+      ],
+      "fillIds": [
+        "63309152-20b0-55e4-8fcc-c1c30fde088e",
+        "7e46a99e-a46d-5fe3-8016-21991f338231"
+      ],
+      "totalFilledQty": 0.6,
+      "weightedAverageFillPrice": 60.51,
+      "totalActualFeeUsdt": 0.0199683,
+      "lifecycleState": "CLOSED",
+      "tpSlConfirmationState": "CONFIRMED",
+      "finalNetResultUsdt": -0.0199683,
+      "createdAt": "2026-06-06T04:38:28.619Z",
+      "updatedAt": "2026-06-06T04:45:05.655Z",
+      "edgeModel": {
+        "tier": "NORMAL_CONTINUATION",
+        "expectedGrossMovePct": 2.1,
+        "estimatedEntryFeePct": 0.055,
+        "estimatedExitFeePct": 0.055,
+        "estimatedFundingPct": 0,
+        "liveSpreadPct": 0.0165,
+        "conservativeSlippagePct": 0.08,
+        "expectedTotalCostPct": 0.2065,
+        "probabilityAdjustedMovePct": 1.662,
+        "expectedNetEdgePct": 1.4039,
+        "stopDistancePct": 0.8,
+        "takeProfitDistancePct": 2.1,
+        "expectedRewardRiskRatio": 2.625,
+        "expectedRewardCostRatio": 10.1673,
+        "projectedGrossProfitUsdt": 0.380835,
+        "projectedTotalCostUsdt": 0.037457,
+        "projectedNetProfitUsdt": 0.254591,
+        "projectedMaxLossAtStopUsdt": 0.14508,
+        "riskPctOfEquity": 0.3149
+      },
+      "maxLossAtStopUsdt": 0.14508,
+      "riskPctOfEquity": 0.3149,
+      "executionType": "MARKET_TAKER",
+      "protection": {
+        "symbol": "SOLUSDT",
+        "positionIdx": 0,
+        "takeProfit": "58.82",
+        "stopLoss": "61.02",
+        "updatedAt": "2026-06-06T04:38:32.880Z"
+      },
+      "finalGrossPnlUsdt": 0,
+      "finalFeesUsdt": 0.0199683,
+      "closedAt": "2026-06-06T04:45:05.651Z"
+    },
+    "x10-trade-1780721855705-75525": {
+      "logicalTradeId": "x10-trade-1780721855705-75525",
+      "symbol": "SOLUSDT",
+      "side": "SHORT",
+      "mode": "LIVE",
+      "orderLinkIds": [
+        "x10-trade-1780721855705-75525",
+        "x10-close-1780722040255-45923"
+      ],
+      "exchangeOrderIds": [
+        "09d5a3a2-79ca-4efd-b4ca-366abf8bb856",
+        "4b9039cd-0ed2-40d8-bd87-5d5af940df84"
+      ],
+      "fillIds": [
+        "3400b309-d59a-5e17-bc25-2f8c577fe481",
+        "9ebcdce4-4290-54dc-84e6-a0c87099ca7f"
+      ],
+      "totalFilledQty": 0.2,
+      "weightedAverageFillPrice": 60.64999999999999,
+      "totalActualFeeUsdt": 0.0066715,
+      "lifecycleState": "CLOSED",
+      "tpSlConfirmationState": "CONFIRMED",
+      "finalNetResultUsdt": -0.011671499999999717,
+      "createdAt": "2026-06-06T04:57:35.706Z",
+      "updatedAt": "2026-06-06T05:00:41.854Z",
+      "edgeModel": {
+        "tier": "NORMAL_CONTINUATION",
+        "expectedGrossMovePct": 1.9621,
+        "estimatedEntryFeePct": 0.055,
+        "estimatedExitFeePct": 0.055,
+        "estimatedFundingPct": 0,
+        "liveSpreadPct": 0.0165,
+        "conservativeSlippagePct": 0.08,
+        "expectedTotalCostPct": 0.2065,
+        "probabilityAdjustedMovePct": 1.2522,
+        "expectedNetEdgePct": 0.9941,
+        "stopDistancePct": 0.8,
+        "takeProfitDistancePct": 2.1,
+        "expectedRewardRiskRatio": 2.625,
+        "expectedRewardCostRatio": 9.5021,
+        "projectedGrossProfitUsdt": 0.118999,
+        "projectedTotalCostUsdt": 0.012523,
+        "projectedNetProfitUsdt": 0.060291,
+        "projectedMaxLossAtStopUsdt": 0.04852,
+        "riskPctOfEquity": 0.0697
+      },
+      "maxLossAtStopUsdt": 0.04852,
+      "riskPctOfEquity": 0.0697,
+      "executionType": "MARKET_TAKER",
+      "protection": {
+        "symbol": "SOLUSDT",
+        "positionIdx": 0,
+        "takeProfit": "58.93",
+        "stopLoss": "61.13",
+        "updatedAt": "2026-06-06T04:57:40.157Z"
+      },
+      "finalGrossPnlUsdt": -0.0049999999999997165,
+      "finalFeesUsdt": 0.0066715,
+      "closedAt": "2026-06-06T05:00:41.848Z"
+    },
+    "x10-trade-1780722085368-95563": {
+      "logicalTradeId": "x10-trade-1780722085368-95563",
+      "symbol": "SOLUSDT",
+      "side": "SHORT",
+      "mode": "LIVE",
+      "orderLinkIds": [
+        "x10-trade-1780722085368-95563"
+      ],
+      "exchangeOrderIds": [
+        "8018b5c4-5f27-4f85-a078-caf71809426e",
+        "65660973-2a32-47bb-b212-85142d00140d"
+      ],
+      "fillIds": [
+        "bf28a89d-1f3f-58f2-aa61-2a97928d35dc",
+        "129596d2-d723-5949-a1db-e322eba0212b"
+      ],
+      "totalFilledQty": 0.2,
+      "weightedAverageFillPrice": 60.63,
+      "totalActualFeeUsdt": 0.0066692999999999995,
+      "lifecycleState": "CLOSED",
+      "tpSlConfirmationState": "CONFIRMED",
+      "finalNetResultUsdt": -0.056669300000000006,
+      "createdAt": "2026-06-06T05:01:25.369Z",
+      "updatedAt": "2026-06-06T05:10:04.927Z",
+      "edgeModel": {
+        "tier": "NORMAL_CONTINUATION",
+        "expectedGrossMovePct": 1.769,
+        "estimatedEntryFeePct": 0.055,
+        "estimatedExitFeePct": 0.055,
+        "estimatedFundingPct": 0,
+        "liveSpreadPct": 0.0166,
+        "conservativeSlippagePct": 0.08,
+        "expectedTotalCostPct": 0.2066,
+        "probabilityAdjustedMovePct": 1.0465,
+        "expectedNetEdgePct": 0.7883,
+        "stopDistancePct": 0.8,
+        "takeProfitDistancePct": 2.1,
+        "expectedRewardRiskRatio": 2.625,
+        "expectedRewardCostRatio": 8.5641,
+        "projectedGrossProfitUsdt": 0.106845,
+        "projectedTotalCostUsdt": 0.012476,
+        "projectedNetProfitUsdt": 0.047615,
+        "projectedMaxLossAtStopUsdt": 0.04832,
+        "riskPctOfEquity": 0.0694
+      },
+      "maxLossAtStopUsdt": 0.04832,
+      "riskPctOfEquity": 0.0694,
+      "executionType": "MARKET_TAKER",
+      "protection": {
+        "symbol": "SOLUSDT",
+        "positionIdx": 0,
+        "takeProfit": "58.67",
+        "stopLoss": "60.87",
+        "updatedAt": "2026-06-06T05:01:29.875Z"
+      },
+      "finalGrossPnlUsdt": -0.05,
+      "finalFeesUsdt": 0.0066692999999999995,
+      "closedAt": "2026-06-06T05:10:04.923Z"
+    },
+    "x10-trade-1780722101075-52847": {
+      "logicalTradeId": "x10-trade-1780722101075-52847",
+      "symbol": "ETHUSDT",
+      "side": "SHORT",
+      "mode": "LIVE",
+      "orderLinkIds": [
+        "x10-trade-1780722101075-52847",
+        "x10-close-1780722602021-57582"
+      ],
+      "exchangeOrderIds": [
+        "687c0c91-af62-44c1-a3e5-a6c8d3310442",
+        "35ead6fe-42bc-48b4-a7b6-3eec8af5e709"
+      ],
+      "fillIds": [
+        "6b7c0838-61eb-50b2-b6f2-d71b9bf768fb",
+        "0f79e631-0554-5af9-b67e-461a363e339f"
+      ],
+      "totalFilledQty": 0.02,
+      "weightedAverageFillPrice": 1518.205,
+      "totalActualFeeUsdt": 0.01670026,
+      "lifecycleState": "CLOSED",
+      "tpSlConfirmationState": "CONFIRMED",
+      "finalNetResultUsdt": -0.11700025999999972,
+      "createdAt": "2026-06-06T05:01:41.076Z",
+      "updatedAt": "2026-06-06T05:10:06.020Z",
+      "edgeModel": {
+        "tier": "NORMAL_CONTINUATION",
+        "expectedGrossMovePct": 1.2276,
+        "estimatedEntryFeePct": 0.055,
+        "estimatedExitFeePct": 0.055,
+        "estimatedFundingPct": 0,
+        "liveSpreadPct": 0.0007,
+        "conservativeSlippagePct": 0.08,
+        "expectedTotalCostPct": 0.1907,
+        "probabilityAdjustedMovePct": 0.8556,
+        "expectedNetEdgePct": 0.6172,
+        "stopDistancePct": 0.8,
+        "takeProfitDistancePct": 2.1,
+        "expectedRewardRiskRatio": 2.625,
+        "expectedRewardCostRatio": 6.4386,
+        "projectedGrossProfitUsdt": 0.185881,
+        "projectedTotalCostUsdt": 0.02887,
+        "projectedNetProfitUsdt": 0.093462,
+        "projectedMaxLossAtStopUsdt": 0.121136,
+        "riskPctOfEquity": 0.182
+      },
+      "maxLossAtStopUsdt": 0.121136,
+      "riskPctOfEquity": 0.182,
+      "executionType": "MARKET_TAKER",
+      "protection": {
+        "symbol": "ETHUSDT",
+        "positionIdx": 0,
+        "takeProfit": "1469.76",
+        "stopLoss": "1524.75",
+        "updatedAt": "2026-06-06T05:01:45.931Z"
+      },
+      "finalGrossPnlUsdt": -0.10029999999999972,
+      "finalFeesUsdt": 0.01670026,
+      "closedAt": "2026-06-06T05:10:06.015Z"
+    },
+    "x10-trade-1780722882745-99046": {
+      "logicalTradeId": "x10-trade-1780722882745-99046",
+      "symbol": "SOLUSDT",
+      "side": "SHORT",
+      "mode": "LIVE",
+      "orderLinkIds": [
+        "x10-trade-1780722882745-99046",
+        "x10-close-1780723067295-93167"
+      ],
+      "exchangeOrderIds": [
+        "33d2ee16-3973-4cc8-ad5e-bb5ef96e2282",
+        "e3676aa4-3869-4bfd-9803-a1bb9ad93889"
+      ],
+      "fillIds": [
+        "834a000c-432b-50a9-88ba-77696fa2414e",
+        "1c92c68a-4bc8-5d4e-99cb-06f931a155e7"
+      ],
+      "totalFilledQty": 0.2,
+      "weightedAverageFillPrice": 60.720000000000006,
+      "totalActualFeeUsdt": 0.0066792,
+      "lifecycleState": "CLOSED",
+      "tpSlConfirmationState": "CONFIRMED",
+      "finalNetResultUsdt": -0.013679200000000028,
+      "createdAt": "2026-06-06T05:14:42.746Z",
+      "updatedAt": "2026-06-06T05:17:48.594Z",
+      "edgeModel": {
+        "tier": "NORMAL_CONTINUATION",
+        "expectedGrossMovePct": 1.216,
+        "estimatedEntryFeePct": 0.055,
+        "estimatedExitFeePct": 0.055,
+        "estimatedFundingPct": 0,
+        "liveSpreadPct": 0.0165,
+        "conservativeSlippagePct": 0.08,
+        "expectedTotalCostPct": 0.2065,
+        "probabilityAdjustedMovePct": 0.7645,
+        "expectedNetEdgePct": 0.5064,
+        "stopDistancePct": 0.8,
+        "takeProfitDistancePct": 2.1,
+        "expectedRewardRiskRatio": 2.625,
+        "expectedRewardCostRatio": 5.8894,
+        "projectedGrossProfitUsdt": 0.073801,
+        "projectedTotalCostUsdt": 0.012531,
+        "projectedNetProfitUsdt": 0.030731,
+        "projectedMaxLossAtStopUsdt": 0.048552,
+        "riskPctOfEquity": 0.07
+      },
+      "maxLossAtStopUsdt": 0.048552,
+      "riskPctOfEquity": 0.07,
+      "executionType": "MARKET_TAKER",
+      "protection": {
+        "symbol": "SOLUSDT",
+        "positionIdx": 0,
+        "takeProfit": "58.96",
+        "stopLoss": "61.16",
+        "updatedAt": "2026-06-06T05:14:48.660Z"
+      },
+      "finalGrossPnlUsdt": -0.007000000000000029,
+      "finalFeesUsdt": 0.0066792,
+      "closedAt": "2026-06-06T05:17:48.586Z"
+    },
+    "x10-trade-1780742939159-83953": {
+      "logicalTradeId": "x10-trade-1780742939159-83953",
+      "symbol": "ETHUSDT",
+      "side": "SHORT",
+      "mode": "LIVE",
+      "orderLinkIds": [
+        "x10-trade-1780742939159-83953",
+        "x10-close-1780743122752-9261"
+      ],
+      "exchangeOrderIds": [
+        "c2128382-4343-4133-8871-3c8a9af9b717",
+        "5cdfed93-0863-4247-8a25-ab3a1c13f3e2"
+      ],
+      "fillIds": [
+        "6cd26f7f-bea5-57f4-aaaf-776de3f5b2f0",
+        "924293cd-178d-5d92-bf4b-0b0beda8d739"
+      ],
+      "totalFilledQty": 0.02,
+      "weightedAverageFillPrice": 1537.655,
+      "totalActualFeeUsdt": 0.01691421,
+      "lifecycleState": "CLOSED",
+      "tpSlConfirmationState": "CONFIRMED",
+      "finalNetResultUsdt": -0.07091421000000091,
+      "createdAt": "2026-06-06T10:48:59.161Z",
+      "updatedAt": "2026-06-06T10:52:03.536Z",
+      "edgeModel": {
+        "tier": "NORMAL_CONTINUATION",
+        "expectedGrossMovePct": 1.0391,
+        "estimatedEntryFeePct": 0.055,
+        "estimatedExitFeePct": 0.055,
+        "estimatedFundingPct": 0,
+        "liveSpreadPct": 0.0007,
+        "conservativeSlippagePct": 0.08,
+        "expectedTotalCostPct": 0.1907,
+        "probabilityAdjustedMovePct": 0.7612,
+        "expectedNetEdgePct": 0.5229,
+        "stopDistancePct": 0.8,
+        "takeProfitDistancePct": 2.1,
+        "expectedRewardRiskRatio": 2.625,
+        "expectedRewardCostRatio": 5.4505,
+        "projectedGrossProfitUsdt": 0.159631,
+        "projectedTotalCostUsdt": 0.029287,
+        "projectedNetProfitUsdt": 0.080321,
+        "projectedMaxLossAtStopUsdt": 0.122894,
+        "riskPctOfEquity": 0.1772
+      },
+      "maxLossAtStopUsdt": 0.122894,
+      "riskPctOfEquity": 0.1772,
+      "executionType": "MARKET_TAKER",
+      "protection": {
+        "symbol": "ETHUSDT",
+        "positionIdx": 0,
+        "takeProfit": "1491.49",
+        "stopLoss": "1547.28",
+        "updatedAt": "2026-06-06T10:49:03.146Z"
+      },
+      "finalGrossPnlUsdt": -0.05400000000000091,
+      "finalFeesUsdt": 0.01691421,
+      "closedAt": "2026-06-06T10:52:03.528Z"
+    },
+    "x10-trade-1780758150520-63569": {
+      "logicalTradeId": "x10-trade-1780758150520-63569",
+      "symbol": "ETHUSDT",
+      "side": "SHORT",
+      "mode": "LIVE",
+      "orderLinkIds": [
+        "x10-trade-1780758150520-63569",
+        "x10-close-1780759297834-68374"
+      ],
+      "exchangeOrderIds": [
+        "0f9b70cf-96eb-4570-8c0e-7e5a68fbb156",
+        "dd6cd893-8751-4585-a9ed-78127a106bb8"
+      ],
+      "fillIds": [
+        "510c7b4e-ddf8-5a12-b8c1-982183595569",
+        "46c0a2fb-d2f3-545f-9bc0-e62479be8ab1"
+      ],
+      "totalFilledQty": 0.02,
+      "weightedAverageFillPrice": 1555.845,
+      "totalActualFeeUsdt": 0.0171143,
+      "lifecycleState": "CLOSED",
+      "tpSlConfirmationState": "CONFIRMED",
+      "finalNetResultUsdt": -0.02661430000000045,
+      "createdAt": "2026-06-06T15:02:30.521Z",
+      "updatedAt": "2026-06-06T15:21:41.259Z",
+      "edgeModel": {
+        "tier": "NORMAL_CONTINUATION",
+        "expectedGrossMovePct": 1.0621,
+        "estimatedEntryFeePct": 0.055,
+        "estimatedExitFeePct": 0.055,
+        "estimatedFundingPct": 0,
+        "liveSpreadPct": 0.0006,
+        "conservativeSlippagePct": 0.08,
+        "expectedTotalCostPct": 0.1906,
+        "probabilityAdjustedMovePct": 0.6744,
+        "expectedNetEdgePct": 0.4361,
+        "stopDistancePct": 0.8,
+        "takeProfitDistancePct": 2.1,
+        "expectedRewardRiskRatio": 2.625,
+        "expectedRewardCostRatio": 5.571,
+        "projectedGrossProfitUsdt": 0.165197,
+        "projectedTotalCostUsdt": 0.029653,
+        "projectedNetProfitUsdt": 0.067834,
+        "projectedMaxLossAtStopUsdt": 0.124434,
+        "riskPctOfEquity": 0.1796
+      },
+      "maxLossAtStopUsdt": 0.124434,
+      "riskPctOfEquity": 0.1796,
+      "executionType": "MARKET_TAKER",
+      "protection": {
+        "symbol": "ETHUSDT",
+        "positionIdx": 0,
+        "takeProfit": "1511.48",
+        "stopLoss": "1568.03",
+        "updatedAt": "2026-06-06T15:02:35.053Z"
+      },
+      "finalGrossPnlUsdt": -0.009500000000000454,
+      "finalFeesUsdt": 0.0171143,
+      "closedAt": "2026-06-06T15:21:41.253Z"
+    },
+    "x10-trade-1780758333595-97917": {
+      "logicalTradeId": "x10-trade-1780758333595-97917",
+      "symbol": "SOLUSDT",
+      "side": "SHORT",
+      "mode": "LIVE",
+      "orderLinkIds": [
+        "x10-trade-1780758333595-97917",
+        "x10-close-1780760054720-81030"
+      ],
+      "exchangeOrderIds": [
+        "1173b55e-ce0f-4edd-88e4-3f8759546335",
+        "1ef52894-5f2a-4eae-9439-5c9792321332"
+      ],
+      "fillIds": [
+        "83f0908d-542e-5b64-a836-3200be0bc2fa",
+        "ff64921d-0126-583d-b243-61bdb7c33dff"
+      ],
+      "totalFilledQty": 0.2,
+      "weightedAverageFillPrice": 61.755,
+      "totalActualFeeUsdt": 0.00679305,
+      "lifecycleState": "CLOSED",
+      "tpSlConfirmationState": "CONFIRMED",
+      "finalNetResultUsdt": -0.00679305,
+      "createdAt": "2026-06-06T15:05:33.596Z",
+      "updatedAt": "2026-06-06T15:34:16.375Z",
+      "edgeModel": {
+        "tier": "NORMAL_CONTINUATION",
+        "expectedGrossMovePct": 2.1,
+        "estimatedEntryFeePct": 0.055,
+        "estimatedExitFeePct": 0.055,
+        "estimatedFundingPct": 0,
+        "liveSpreadPct": 0.0162,
+        "conservativeSlippagePct": 0.08,
+        "expectedTotalCostPct": 0.2062,
+        "probabilityAdjustedMovePct": 1.4574,
+        "expectedNetEdgePct": 1.1997,
+        "stopDistancePct": 0.8,
+        "takeProfitDistancePct": 2.1,
+        "expectedRewardRiskRatio": 2.625,
+        "expectedRewardCostRatio": 10.1849,
+        "projectedGrossProfitUsdt": 0.129717,
+        "projectedTotalCostUsdt": 0.012736,
+        "projectedNetProfitUsdt": 0.074103,
+        "projectedMaxLossAtStopUsdt": 0.049416,
+        "riskPctOfEquity": 0.0803
+      },
+      "maxLossAtStopUsdt": 0.049416,
+      "riskPctOfEquity": 0.0803,
+      "executionType": "MARKET_TAKER",
+      "protection": {
+        "symbol": "SOLUSDT",
+        "positionIdx": 0,
+        "takeProfit": "60",
+        "stopLoss": "62.25",
+        "updatedAt": "2026-06-06T15:05:37.811Z"
+      },
+      "finalGrossPnlUsdt": 0,
+      "finalFeesUsdt": 0.00679305,
+      "closedAt": "2026-06-06T15:34:16.368Z"
+    },
+    "x10-trade-1780759451924-24023": {
+      "logicalTradeId": "x10-trade-1780759451924-24023",
+      "symbol": "ETHUSDT",
+      "side": "SHORT",
+      "mode": "LIVE",
+      "orderLinkIds": [
+        "x10-trade-1780759451924-24023",
+        "x10-close-1780759638462-83989"
+      ],
+      "exchangeOrderIds": [
+        "2cfce2e9-0229-48b5-9d25-41e1f5b73637",
+        "fc748985-b2ad-4821-a5d2-d7403873d903"
+      ],
+      "fillIds": [
+        "d631b560-3219-58f5-8a18-78f7fedc3f2a",
+        "ebd04b07-6022-5d55-80ce-b6d0cb0af445"
+      ],
+      "totalFilledQty": 0.02,
+      "weightedAverageFillPrice": 1552.4799999999998,
+      "totalActualFeeUsdt": 0.01707728,
+      "lifecycleState": "CLOSED",
+      "tpSlConfirmationState": "CONFIRMED",
+      "finalNetResultUsdt": -0.037777279999999365,
+      "createdAt": "2026-06-06T15:24:11.925Z",
+      "updatedAt": "2026-06-06T15:27:21.020Z",
+      "edgeModel": {
+        "tier": "NORMAL_CONTINUATION",
+        "expectedGrossMovePct": 0.95,
+        "estimatedEntryFeePct": 0.055,
+        "estimatedExitFeePct": 0.055,
+        "estimatedFundingPct": 0,
+        "liveSpreadPct": 0.0006,
+        "conservativeSlippagePct": 0.08,
+        "expectedTotalCostPct": 0.1906,
+        "probabilityAdjustedMovePct": 0.5795,
+        "expectedNetEdgePct": 0.3412,
+        "stopDistancePct": 0.8,
+        "takeProfitDistancePct": 2.1,
+        "expectedRewardRiskRatio": 2.625,
+        "expectedRewardCostRatio": 4.9831,
+        "projectedGrossProfitUsdt": 0.147387,
+        "projectedTotalCostUsdt": 0.029577,
+        "projectedNetProfitUsdt": 0.052934,
+        "projectedMaxLossAtStopUsdt": 0.124115,
+        "riskPctOfEquity": 0.1875
+      },
+      "maxLossAtStopUsdt": 0.124115,
+      "riskPctOfEquity": 0.1875,
+      "executionType": "MARKET_TAKER",
+      "protection": {
+        "symbol": "ETHUSDT",
+        "positionIdx": 0,
+        "takeProfit": "1507.46",
+        "stopLoss": "1563.86",
+        "updatedAt": "2026-06-06T15:24:13.889Z"
+      },
+      "finalGrossPnlUsdt": -0.020699999999999365,
+      "finalFeesUsdt": 0.01707728,
+      "closedAt": "2026-06-06T15:27:21.013Z"
+    },
+    "x10-trade-1780766631912-30290": {
+      "logicalTradeId": "x10-trade-1780766631912-30290",
+      "symbol": "ETHUSDT",
+      "side": "SHORT",
+      "mode": "LIVE",
+      "orderLinkIds": [
+        "x10-trade-1780766631912-30290",
+        "x10-close-1780767054994-33827"
+      ],
+      "exchangeOrderIds": [
+        "3e06cd4c-754f-4b53-9e9e-146b98518572",
+        "73d31ca3-3e31-4f92-9be9-507031fad5bb"
+      ],
+      "fillIds": [
+        "2c171c49-139c-5f82-9e8f-6ded82c523a3",
+        "08b7df85-968c-592f-833d-ae8fd05688dc"
+      ],
+      "totalFilledQty": 0.02,
+      "weightedAverageFillPrice": 1558.3799999999999,
+      "totalActualFeeUsdt": 0.01714218,
+      "lifecycleState": "CLOSED",
+      "tpSlConfirmationState": "CONFIRMED",
+      "finalNetResultUsdt": -0.05154218000000055,
+      "createdAt": "2026-06-06T17:23:51.913Z",
+      "updatedAt": "2026-06-06T17:30:56.299Z",
+      "edgeModel": {
+        "tier": "NORMAL_CONTINUATION",
+        "expectedGrossMovePct": 0.95,
+        "estimatedEntryFeePct": 0.055,
+        "estimatedExitFeePct": 0.055,
+        "estimatedFundingPct": 0,
+        "liveSpreadPct": 0.0006,
+        "conservativeSlippagePct": 0.08,
+        "expectedTotalCostPct": 0.1906,
+        "probabilityAdjustedMovePct": 0.6118,
+        "expectedNetEdgePct": 0.3735,
+        "stopDistancePct": 0.8,
+        "takeProfitDistancePct": 2.1,
+        "expectedRewardRiskRatio": 2.625,
+        "expectedRewardCostRatio": 4.9832,
+        "projectedGrossProfitUsdt": 0.147908,
+        "projectedTotalCostUsdt": 0.029682,
+        "projectedNetProfitUsdt": 0.058151,
+        "projectedMaxLossAtStopUsdt": 0.124554,
+        "riskPctOfEquity": 0.1799
+      },
+      "maxLossAtStopUsdt": 0.124554,
+      "riskPctOfEquity": 0.1799,
+      "executionType": "MARKET_TAKER",
+      "protection": {
+        "symbol": "ETHUSDT",
+        "positionIdx": 0,
+        "takeProfit": "1512.48",
+        "stopLoss": "1569.06",
+        "updatedAt": "2026-06-06T17:24:05.056Z"
+      },
+      "finalGrossPnlUsdt": -0.03440000000000055,
+      "finalFeesUsdt": 0.01714218,
+      "closedAt": "2026-06-06T17:30:56.295Z"
+    },
+    "x10-trade-1780767494889-73830": {
+      "logicalTradeId": "x10-trade-1780767494889-73830",
+      "symbol": "ETHUSDT",
+      "side": "SHORT",
+      "mode": "LIVE",
+      "orderLinkIds": [
+        "x10-trade-1780767494889-73830",
+        "x10-close-1780768836192-8615"
+      ],
+      "exchangeOrderIds": [
+        "778264b8-2d64-43e9-9d35-f5a1a691e0d0",
+        "728c9451-d6fb-44ca-8eea-094ece46491c"
+      ],
+      "fillIds": [
+        "7f72f753-4bb4-52c0-8d05-23b2a6b4bfb1",
+        "76d04c79-3eae-5619-adc0-a4151657ad1d"
+      ],
+      "totalFilledQty": 0.02,
+      "weightedAverageFillPrice": 1554.73,
+      "totalActualFeeUsdt": 0.01710204,
+      "lifecycleState": "CLOSED",
+      "tpSlConfirmationState": "CONFIRMED",
+      "finalNetResultUsdt": 0.031697960000001094,
+      "createdAt": "2026-06-06T17:38:14.890Z",
+      "updatedAt": "2026-06-06T18:00:37.904Z",
+      "edgeModel": {
+        "tier": "NORMAL_CONTINUATION",
+        "expectedGrossMovePct": 0.963,
+        "estimatedEntryFeePct": 0.055,
+        "estimatedExitFeePct": 0.055,
+        "estimatedFundingPct": 0,
+        "liveSpreadPct": 0.0006,
+        "conservativeSlippagePct": 0.08,
+        "expectedTotalCostPct": 0.1906,
+        "probabilityAdjustedMovePct": 0.6395,
+        "expectedNetEdgePct": 0.4012,
+        "stopDistancePct": 0.8,
+        "takeProfitDistancePct": 2.1,
+        "expectedRewardRiskRatio": 2.625,
+        "expectedRewardCostRatio": 5.0515,
+        "projectedGrossProfitUsdt": 0.14992,
+        "projectedTotalCostUsdt": 0.029678,
+        "projectedNetProfitUsdt": 0.062449,
+        "projectedMaxLossAtStopUsdt": 0.12454,
+        "riskPctOfEquity": 0.18
+      },
+      "maxLossAtStopUsdt": 0.12454,
+      "riskPctOfEquity": 0.18,
+      "executionType": "MARKET_TAKER",
+      "protection": {
+        "symbol": "ETHUSDT",
+        "positionIdx": 0,
+        "takeProfit": "1513.03",
+        "stopLoss": "1569.63",
+        "updatedAt": "2026-06-06T17:38:54.823Z"
+      },
+      "finalGrossPnlUsdt": 0.04880000000000109,
+      "finalFeesUsdt": 0.01710204,
+      "closedAt": "2026-06-06T18:00:37.848Z"
+    },
+    "x10-trade-1780769361319-72686": {
+      "logicalTradeId": "x10-trade-1780769361319-72686",
+      "symbol": "SOLUSDT",
+      "side": "SHORT",
+      "mode": "LIVE",
+      "orderLinkIds": [
+        "x10-trade-1780769361319-72686",
+        "x10-close-1780769473393-91354"
+      ],
+      "exchangeOrderIds": [
+        "cedff2f9-2876-41e8-862d-4b5ef11f70d6",
+        "f0c7a543-4ec5-4d3b-9bec-116db6188ade"
+      ],
+      "fillIds": [
+        "5dd639e7-939f-5ea5-b630-fc0e66e1418c",
+        "5c838747-4eb1-5309-995c-39de99f1aee3"
+      ],
+      "totalFilledQty": 0.2,
+      "weightedAverageFillPrice": 61.525,
+      "totalActualFeeUsdt": 0.0067677499999999995,
+      "lifecycleState": "CLOSED",
+      "tpSlConfirmationState": "CONFIRMED",
+      "finalNetResultUsdt": -0.033767749999999604,
+      "createdAt": "2026-06-06T18:09:21.320Z",
+      "updatedAt": "2026-06-06T18:11:14.708Z",
+      "edgeModel": {
+        "tier": "NORMAL_CONTINUATION",
+        "expectedGrossMovePct": 0.95,
+        "estimatedEntryFeePct": 0.055,
+        "estimatedExitFeePct": 0.055,
+        "estimatedFundingPct": 0,
+        "liveSpreadPct": 0.0163,
+        "conservativeSlippagePct": 0.08,
+        "expectedTotalCostPct": 0.2063,
+        "probabilityAdjustedMovePct": 0.5966,
+        "expectedNetEdgePct": 0.3387,
+        "stopDistancePct": 0.8,
+        "takeProfitDistancePct": 2.1,
+        "expectedRewardRiskRatio": 2.625,
+        "expectedRewardCostRatio": 4.6053,
+        "projectedGrossProfitUsdt": 0.058339,
+        "projectedTotalCostUsdt": 0.012668,
+        "projectedNetProfitUsdt": 0.020802,
+        "projectedMaxLossAtStopUsdt": 0.049128,
+        "riskPctOfEquity": 0.071
+      },
+      "maxLossAtStopUsdt": 0.049128,
+      "riskPctOfEquity": 0.071,
+      "executionType": "MARKET_TAKER",
+      "protection": {
+        "symbol": "SOLUSDT",
+        "positionIdx": 0,
+        "takeProfit": "59.65",
+        "stopLoss": "61.89",
+        "updatedAt": "2026-06-06T18:09:25.921Z"
+      },
+      "finalGrossPnlUsdt": -0.026999999999999604,
+      "finalFeesUsdt": 0.0067677499999999995,
+      "closedAt": "2026-06-06T18:11:14.703Z"
+    },
+    "x10-trade-1780772451898-6516": {
+      "logicalTradeId": "x10-trade-1780772451898-6516",
+      "symbol": "ETHUSDT",
+      "side": "SHORT",
+      "mode": "LIVE",
+      "orderLinkIds": [
+        "x10-trade-1780772451898-6516",
+        "x10-close-1780772637475-80431"
+      ],
+      "exchangeOrderIds": [
+        "edfbfd76-0612-4e1c-bf3a-6f55d61ad23a",
+        "6cbffb88-bbc4-4334-a965-27cd4c6a85c3"
+      ],
+      "fillIds": [
+        "57603d54-9a39-5fd5-9b49-f33b5c84097b",
+        "74fcdb8a-098b-5f62-9f5a-7056aabfc826"
+      ],
+      "totalFilledQty": 0.02,
+      "weightedAverageFillPrice": 1554.29,
+      "totalActualFeeUsdt": 0.0170972,
+      "lifecycleState": "CLOSED",
+      "tpSlConfirmationState": "CONFIRMED",
+      "finalNetResultUsdt": -0.017897200000001546,
+      "createdAt": "2026-06-06T19:00:51.899Z",
+      "updatedAt": "2026-06-06T19:03:59.649Z",
+      "edgeModel": {
+        "tier": "NORMAL_CONTINUATION",
+        "expectedGrossMovePct": 0.95,
+        "estimatedEntryFeePct": 0.055,
+        "estimatedExitFeePct": 0.055,
+        "estimatedFundingPct": 0,
+        "liveSpreadPct": 0.0006,
+        "conservativeSlippagePct": 0.08,
+        "expectedTotalCostPct": 0.1906,
+        "probabilityAdjustedMovePct": 0.6061,
+        "expectedNetEdgePct": 0.3678,
+        "stopDistancePct": 0.8,
+        "takeProfitDistancePct": 2.1,
+        "expectedRewardRiskRatio": 2.625,
+        "expectedRewardCostRatio": 4.9831,
+        "projectedGrossProfitUsdt": 0.147647,
+        "projectedTotalCostUsdt": 0.029629,
+        "projectedNetProfitUsdt": 0.057162,
+        "projectedMaxLossAtStopUsdt": 0.124334,
+        "riskPctOfEquity": 0.1798
+      },
+      "maxLossAtStopUsdt": 0.124334,
+      "riskPctOfEquity": 0.1798,
+      "executionType": "MARKET_TAKER",
+      "protection": {
+        "symbol": "ETHUSDT",
+        "positionIdx": 0,
+        "takeProfit": "1510.29",
+        "stopLoss": "1566.79",
+        "updatedAt": "2026-06-06T19:00:56.406Z"
+      },
+      "finalGrossPnlUsdt": -0.0008000000000015461,
+      "finalFeesUsdt": 0.0170972,
+      "closedAt": "2026-06-06T19:03:59.642Z"
     }
   },
   "orderLinkIndex": {
@@ -9972,7 +11716,62 @@
     "x10-trade-1780681464957-27015": "x10-trade-1780681464957-27015",
     "x10-close-1780682452484-26144": "x10-trade-1780681464957-27015",
     "x10-trade-1780683350934-60405": "x10-trade-1780683350934-60405",
-    "x10-trade-1780683654060-1635": "x10-trade-1780683654060-1635"
+    "x10-trade-1780683654060-1635": "x10-trade-1780683654060-1635",
+    "x10-trade-1780686045847-59625": "x10-trade-1780686045847-59625",
+    "x10-trade-1780686990506-88354": "x10-trade-1780686990506-88354",
+    "x10-close-1780687236210-12117": "x10-trade-1780686045847-59625",
+    "x10-close-1780687506260-32780": "x10-trade-1780686990506-88354",
+    "x10-trade-1780711320817-70407": "x10-trade-1780711320817-70407",
+    "x10-trade-1780711371312-9371": "x10-trade-1780711371312-9371",
+    "x10-close-1780713080136-75289": "x10-trade-1780711320817-70407",
+    "x10-close-1780713092361-16831": "x10-trade-1780711371312-9371",
+    "x10-trade-1780716284460-19880": "x10-trade-1780716284460-19880",
+    "x10-trade-1780716688424-4446": "x10-trade-1780716688424-4446",
+    "x10-close-1780717083836-41080": "x10-trade-1780716688424-4446",
+    "x10-trade-1780717151392-70678": "x10-trade-1780717151392-70678",
+    "x10-close-1780717508120-52094": "x10-trade-1780717151392-70678",
+    "x10-close-1780717529285-14109": "x10-trade-1780716284460-19880",
+    "x10-trade-1780717660415-35830": "x10-trade-1780717660415-35830",
+    "x10-close-1780717845467-69510": "x10-trade-1780717660415-35830",
+    "x10-trade-1780717934628-76928": "x10-trade-1780717934628-76928",
+    "x10-trade-1780717948946-5029": "x10-trade-1780717948946-5029",
+    "x10-close-1780718129963-84376": "x10-trade-1780717934628-76928",
+    "x10-close-1780718131323-4253": "x10-trade-1780717948946-5029",
+    "x10-trade-1780718718922-87506": "x10-trade-1780718718922-87506",
+    "x10-trade-1780718723591-11014": "x10-trade-1780718723591-11014",
+    "x10-trade-1780719604386-60288": "x10-trade-1780719604386-60288",
+    "x10-trade-1780719693663-73612": "x10-trade-1780719693663-73612",
+    "x10-close-1780719910796-87322": "x10-trade-1780718718922-87506",
+    "x10-close-1780719911983-52804": "x10-trade-1780719604386-60288",
+    "x10-trade-1780720059694-61146": "x10-trade-1780720059694-61146",
+    "x10-trade-1780720456390-54723": "x10-trade-1780720456390-54723",
+    "x10-trade-1780720708619-14571": "x10-trade-1780720708619-14571",
+    "x10-close-1780720843741-9713": "x10-trade-1780720059694-61146",
+    "x10-close-1780721101624-88222": "x10-trade-1780720456390-54723",
+    "x10-close-1780721103633-74565": "x10-trade-1780720708619-14571",
+    "x10-trade-1780721855705-75525": "x10-trade-1780721855705-75525",
+    "x10-close-1780722040255-45923": "x10-trade-1780721855705-75525",
+    "x10-trade-1780722085368-95563": "x10-trade-1780722085368-95563",
+    "x10-trade-1780722101075-52847": "x10-trade-1780722101075-52847",
+    "x10-close-1780722602021-57582": "x10-trade-1780722101075-52847",
+    "x10-trade-1780722882745-99046": "x10-trade-1780722882745-99046",
+    "x10-close-1780723067295-93167": "x10-trade-1780722882745-99046",
+    "x10-trade-1780742939159-83953": "x10-trade-1780742939159-83953",
+    "x10-close-1780743122752-9261": "x10-trade-1780742939159-83953",
+    "x10-trade-1780758150520-63569": "x10-trade-1780758150520-63569",
+    "x10-trade-1780758333595-97917": "x10-trade-1780758333595-97917",
+    "x10-close-1780759297834-68374": "x10-trade-1780758150520-63569",
+    "x10-trade-1780759451924-24023": "x10-trade-1780759451924-24023",
+    "x10-close-1780759638462-83989": "x10-trade-1780759451924-24023",
+    "x10-close-1780760054720-81030": "x10-trade-1780758333595-97917",
+    "x10-trade-1780766631912-30290": "x10-trade-1780766631912-30290",
+    "x10-close-1780767054994-33827": "x10-trade-1780766631912-30290",
+    "x10-trade-1780767494889-73830": "x10-trade-1780767494889-73830",
+    "x10-close-1780768836192-8615": "x10-trade-1780767494889-73830",
+    "x10-trade-1780769361319-72686": "x10-trade-1780769361319-72686",
+    "x10-close-1780769473393-91354": "x10-trade-1780769361319-72686",
+    "x10-trade-1780772451898-6516": "x10-trade-1780772451898-6516",
+    "x10-close-1780772637475-80431": "x10-trade-1780772451898-6516"
   },
   "exchangeOrderIndex": {
     "38fb7481-c32e-424c-8d18-0681840287d6": "x10-trade-1780408472217-50130",
@@ -10295,7 +12094,65 @@
     "e0eee9cc-299f-41d6-926e-5a83fd9e13b0": "x10-trade-1780683350934-60405",
     "f566d610-d312-4a83-83bc-19c74a3c1698": "x10-trade-1780683654060-1635",
     "9ddcc88b-80c9-4b30-b37e-e14541235332": "x10-trade-1780683350934-60405",
-    "4e3bd707-8939-4385-b34d-b9602990231c": "x10-trade-1780683654060-1635"
+    "4e3bd707-8939-4385-b34d-b9602990231c": "x10-trade-1780683654060-1635",
+    "848c508a-be76-41d0-9802-8d76a7e6ad18": "x10-trade-1780686045847-59625",
+    "01197f1a-41c3-461b-80df-4a32207d7c38": "x10-trade-1780686990506-88354",
+    "a22bbf98-2fa4-4345-b3ad-3439ec86cfbe": "x10-trade-1780686045847-59625",
+    "cfa7ccb3-9e0c-4d76-b256-83b3aecba472": "x10-trade-1780686990506-88354",
+    "50d396c0-3691-4cd2-9e0a-55c620766ae1": "x10-trade-1780711320817-70407",
+    "29af5cea-1435-498d-9bbb-1c7ad0b50faf": "x10-trade-1780711371312-9371",
+    "4e4e295a-3518-413e-a88b-f15eaf006f4d": "x10-trade-1780711320817-70407",
+    "696d5d1b-6221-481c-978a-d9d281098066": "x10-trade-1780711371312-9371",
+    "f27009ff-4e5a-4a9d-92ad-baf09f8591f6": "x10-trade-1780716284460-19880",
+    "22270a83-5237-4d55-bed4-ba4722441f3a": "x10-trade-1780716688424-4446",
+    "d508fa63-fda2-4c99-9360-8c611694a891": "x10-trade-1780716688424-4446",
+    "b373e5b6-726e-4ec6-b84b-dd09f0339d3e": "x10-trade-1780717151392-70678",
+    "ad1396e4-a292-4871-91b6-ed960b8c195c": "x10-trade-1780717151392-70678",
+    "46bd9e4a-df2e-45a5-8aee-d7613143914c": "x10-trade-1780716284460-19880",
+    "78defb7f-4ecf-4426-a6ff-cc182f979abe": "x10-trade-1780717660415-35830",
+    "46284e30-d1b5-4cd5-a2cb-3d95927992c9": "x10-trade-1780717660415-35830",
+    "31382b9e-6539-46b0-bddd-58b8b52cb912": "x10-trade-1780717934628-76928",
+    "80d8e110-5574-4f4e-961b-1d05c95e826a": "x10-trade-1780717948946-5029",
+    "101791f1-6605-4b99-ae2a-2a662e9770cb": "x10-trade-1780717934628-76928",
+    "02054293-95c7-4fef-b365-44a3a1f35ade": "x10-trade-1780717948946-5029",
+    "21fd1c16-e59a-49f0-b247-074e9c1341d5": "x10-trade-1780718718922-87506",
+    "b5233e8e-fa01-4a03-a22e-59d1ad321d84": "x10-trade-1780718723591-11014",
+    "e151ba16-098d-4b53-9454-bc4945a66517": "x10-trade-1780718723591-11014",
+    "20d6dc83-3b91-4f5e-9a88-6ef4011a1fb3": "x10-trade-1780719604386-60288",
+    "3acad773-13fb-4278-9602-491889121f02": "x10-trade-1780719693663-73612",
+    "ba7a10bd-ab1f-414a-be17-6ee19b0d674b": "x10-trade-1780718718922-87506",
+    "e38905c8-93e8-401b-8df2-ae11b98aa746": "x10-trade-1780719604386-60288",
+    "b08890e7-b757-49a3-b24d-740d18ccb927": "x10-trade-1780720059694-61146",
+    "705999a7-1d98-4b72-bb3f-895d62f7a416": "x10-trade-1780720456390-54723",
+    "036c7089-5e78-4e2f-81a5-241d27beb603": "x10-trade-1780719693663-73612",
+    "87b78bfa-b9a4-4a02-9c36-124feeaab2d8": "x10-trade-1780720708619-14571",
+    "ae3e3489-876d-4fa7-a1ac-e1ca8aeffebf": "x10-trade-1780720059694-61146",
+    "169f7e0e-9ccb-41c0-a34e-926d7a63c019": "x10-trade-1780720456390-54723",
+    "1a429445-1c60-4d7c-bebb-336efb10cf1f": "x10-trade-1780720708619-14571",
+    "09d5a3a2-79ca-4efd-b4ca-366abf8bb856": "x10-trade-1780721855705-75525",
+    "4b9039cd-0ed2-40d8-bd87-5d5af940df84": "x10-trade-1780721855705-75525",
+    "8018b5c4-5f27-4f85-a078-caf71809426e": "x10-trade-1780722085368-95563",
+    "687c0c91-af62-44c1-a3e5-a6c8d3310442": "x10-trade-1780722101075-52847",
+    "65660973-2a32-47bb-b212-85142d00140d": "x10-trade-1780722085368-95563",
+    "35ead6fe-42bc-48b4-a7b6-3eec8af5e709": "x10-trade-1780722101075-52847",
+    "33d2ee16-3973-4cc8-ad5e-bb5ef96e2282": "x10-trade-1780722882745-99046",
+    "e3676aa4-3869-4bfd-9803-a1bb9ad93889": "x10-trade-1780722882745-99046",
+    "c2128382-4343-4133-8871-3c8a9af9b717": "x10-trade-1780742939159-83953",
+    "5cdfed93-0863-4247-8a25-ab3a1c13f3e2": "x10-trade-1780742939159-83953",
+    "0f9b70cf-96eb-4570-8c0e-7e5a68fbb156": "x10-trade-1780758150520-63569",
+    "1173b55e-ce0f-4edd-88e4-3f8759546335": "x10-trade-1780758333595-97917",
+    "dd6cd893-8751-4585-a9ed-78127a106bb8": "x10-trade-1780758150520-63569",
+    "2cfce2e9-0229-48b5-9d25-41e1f5b73637": "x10-trade-1780759451924-24023",
+    "fc748985-b2ad-4821-a5d2-d7403873d903": "x10-trade-1780759451924-24023",
+    "1ef52894-5f2a-4eae-9439-5c9792321332": "x10-trade-1780758333595-97917",
+    "3e06cd4c-754f-4b53-9e9e-146b98518572": "x10-trade-1780766631912-30290",
+    "73d31ca3-3e31-4f92-9be9-507031fad5bb": "x10-trade-1780766631912-30290",
+    "778264b8-2d64-43e9-9d35-f5a1a691e0d0": "x10-trade-1780767494889-73830",
+    "728c9451-d6fb-44ca-8eea-094ece46491c": "x10-trade-1780767494889-73830",
+    "cedff2f9-2876-41e8-862d-4b5ef11f70d6": "x10-trade-1780769361319-72686",
+    "f0c7a543-4ec5-4d3b-9bec-116db6188ade": "x10-trade-1780769361319-72686",
+    "edfbfd76-0612-4e1c-bf3a-6f55d61ad23a": "x10-trade-1780772451898-6516",
+    "6cbffb88-bbc4-4334-a965-27cd4c6a85c3": "x10-trade-1780772451898-6516"
   },
   "processedFillIds": {
     "dd5ba42f-1f44-5c05-801c-20ed78df8d67": {
@@ -12343,6 +14200,360 @@
       "orderId": "4e3bd707-8939-4385-b34d-b9602990231c",
       "orderLinkId": "",
       "processedAt": "2026-06-05T18:36:54.397Z"
+    },
+    "6d2ade3b-48ca-5e34-ae71-9eb411a5d586": {
+      "logicalTradeId": "x10-trade-1780686045847-59625",
+      "orderId": "848c508a-be76-41d0-9802-8d76a7e6ad18",
+      "orderLinkId": "x10-trade-1780686045847-59625",
+      "processedAt": "2026-06-05T19:00:46.316Z"
+    },
+    "0376c174-e9d9-58e8-beb2-8f9bf11134ab": {
+      "logicalTradeId": "x10-trade-1780686990506-88354",
+      "orderId": "01197f1a-41c3-461b-80df-4a32207d7c38",
+      "orderLinkId": "x10-trade-1780686990506-88354",
+      "processedAt": "2026-06-05T19:16:30.793Z"
+    },
+    "4ab7b002-f675-5ce6-90e4-1a6e6a493908": {
+      "logicalTradeId": "x10-trade-1780686045847-59625",
+      "orderId": "a22bbf98-2fa4-4345-b3ad-3439ec86cfbe",
+      "orderLinkId": "x10-close-1780687236210-12117",
+      "processedAt": "2026-06-05T19:20:36.650Z"
+    },
+    "5354abaf-5116-5c9c-acaa-ce9caf295a4a": {
+      "logicalTradeId": "x10-trade-1780686990506-88354",
+      "orderId": "cfa7ccb3-9e0c-4d76-b256-83b3aecba472",
+      "orderLinkId": "x10-close-1780687506260-32780",
+      "processedAt": "2026-06-05T19:25:06.823Z"
+    },
+    "4b720ea2-8e6e-592e-8703-961869c69be0": {
+      "logicalTradeId": "x10-trade-1780711320817-70407",
+      "orderId": "50d396c0-3691-4cd2-9e0a-55c620766ae1",
+      "orderLinkId": "x10-trade-1780711320817-70407",
+      "processedAt": "2026-06-06T02:02:01.372Z"
+    },
+    "58462b37-a54f-5313-aa29-1ab653030232": {
+      "logicalTradeId": "x10-trade-1780711371312-9371",
+      "orderId": "29af5cea-1435-498d-9bbb-1c7ad0b50faf",
+      "orderLinkId": "x10-trade-1780711371312-9371",
+      "processedAt": "2026-06-06T02:02:51.581Z"
+    },
+    "2893791a-4132-56f8-9546-10ee6c583433": {
+      "logicalTradeId": "x10-trade-1780711320817-70407",
+      "orderId": "4e4e295a-3518-413e-a88b-f15eaf006f4d",
+      "orderLinkId": "x10-close-1780713080136-75289",
+      "processedAt": "2026-06-06T02:31:20.652Z"
+    },
+    "7080a53c-7be7-5f9e-8703-18b947d36c14": {
+      "logicalTradeId": "x10-trade-1780711371312-9371",
+      "orderId": "696d5d1b-6221-481c-978a-d9d281098066",
+      "orderLinkId": "x10-close-1780713092361-16831",
+      "processedAt": "2026-06-06T02:31:32.709Z"
+    },
+    "12f87c0a-938e-5a3c-b5d5-57d3b97549ec": {
+      "logicalTradeId": "x10-trade-1780716284460-19880",
+      "orderId": "f27009ff-4e5a-4a9d-92ad-baf09f8591f6",
+      "orderLinkId": "x10-trade-1780716284460-19880",
+      "processedAt": "2026-06-06T03:24:44.942Z"
+    },
+    "c16623ad-8a24-523c-b3ee-b6120b50ccaf": {
+      "logicalTradeId": "x10-trade-1780716688424-4446",
+      "orderId": "22270a83-5237-4d55-bed4-ba4722441f3a",
+      "orderLinkId": "x10-trade-1780716688424-4446",
+      "processedAt": "2026-06-06T03:31:28.695Z"
+    },
+    "7cecb7fa-e709-576e-a32f-b136b17ccf4d": {
+      "logicalTradeId": "x10-trade-1780716688424-4446",
+      "orderId": "d508fa63-fda2-4c99-9360-8c611694a891",
+      "orderLinkId": "x10-close-1780717083836-41080",
+      "processedAt": "2026-06-06T03:38:04.074Z"
+    },
+    "25d4ccd0-dec6-5625-97cd-10abf37c4531": {
+      "logicalTradeId": "x10-trade-1780717151392-70678",
+      "orderId": "b373e5b6-726e-4ec6-b84b-dd09f0339d3e",
+      "orderLinkId": "x10-trade-1780717151392-70678",
+      "processedAt": "2026-06-06T03:39:11.663Z"
+    },
+    "5c5d8edb-0436-5ff5-80d2-3a659541f369": {
+      "logicalTradeId": "x10-trade-1780717151392-70678",
+      "orderId": "ad1396e4-a292-4871-91b6-ed960b8c195c",
+      "orderLinkId": "x10-close-1780717508120-52094",
+      "processedAt": "2026-06-06T03:45:08.628Z"
+    },
+    "5c529c77-2a73-519b-aa08-4725e94685c8": {
+      "logicalTradeId": "x10-trade-1780716284460-19880",
+      "orderId": "46bd9e4a-df2e-45a5-8aee-d7613143914c",
+      "orderLinkId": "x10-close-1780717529285-14109",
+      "processedAt": "2026-06-06T03:45:29.776Z"
+    },
+    "df2e6a83-b692-5d01-bc1b-98886a98b9df": {
+      "logicalTradeId": "x10-trade-1780717660415-35830",
+      "orderId": "78defb7f-4ecf-4426-a6ff-cc182f979abe",
+      "orderLinkId": "x10-trade-1780717660415-35830",
+      "processedAt": "2026-06-06T03:47:40.689Z"
+    },
+    "7577bc10-86ff-5021-a10c-523f12630576": {
+      "logicalTradeId": "x10-trade-1780717660415-35830",
+      "orderId": "46284e30-d1b5-4cd5-a2cb-3d95927992c9",
+      "orderLinkId": "x10-close-1780717845467-69510",
+      "processedAt": "2026-06-06T03:50:46.375Z"
+    },
+    "38de4996-3b98-50ba-91a9-88129bf5ad53": {
+      "logicalTradeId": "x10-trade-1780717934628-76928",
+      "orderId": "31382b9e-6539-46b0-bddd-58b8b52cb912",
+      "orderLinkId": "x10-trade-1780717934628-76928",
+      "processedAt": "2026-06-06T03:52:14.903Z"
+    },
+    "7ee6f8f0-f4ed-566e-aebe-0df686068cdb": {
+      "logicalTradeId": "x10-trade-1780717948946-5029",
+      "orderId": "80d8e110-5574-4f4e-961b-1d05c95e826a",
+      "orderLinkId": "x10-trade-1780717948946-5029",
+      "processedAt": "2026-06-06T03:52:29.547Z"
+    },
+    "0a35394f-a965-5d28-abe1-c779e4d92603": {
+      "logicalTradeId": "x10-trade-1780717934628-76928",
+      "orderId": "101791f1-6605-4b99-ae2a-2a662e9770cb",
+      "orderLinkId": "x10-close-1780718129963-84376",
+      "processedAt": "2026-06-06T03:55:30.422Z"
+    },
+    "60e41e9b-b76a-5548-8a34-70fd9f6006a8": {
+      "logicalTradeId": "x10-trade-1780717948946-5029",
+      "orderId": "02054293-95c7-4fef-b365-44a3a1f35ade",
+      "orderLinkId": "x10-close-1780718131323-4253",
+      "processedAt": "2026-06-06T03:55:32.229Z"
+    },
+    "79be3169-ac7e-57a1-982a-061b96e8b392": {
+      "logicalTradeId": "x10-trade-1780718718922-87506",
+      "orderId": "21fd1c16-e59a-49f0-b247-074e9c1341d5",
+      "orderLinkId": "x10-trade-1780718718922-87506",
+      "processedAt": "2026-06-06T04:05:19.197Z"
+    },
+    "fd715773-31b3-5296-b151-29c4b683d70e": {
+      "logicalTradeId": "x10-trade-1780718723591-11014",
+      "orderId": "b5233e8e-fa01-4a03-a22e-59d1ad321d84",
+      "orderLinkId": "x10-trade-1780718723591-11014",
+      "processedAt": "2026-06-06T04:05:24.239Z"
+    },
+    "73432c02-2230-59d7-8930-3af312195bf3": {
+      "logicalTradeId": "x10-trade-1780718723591-11014",
+      "orderId": "e151ba16-098d-4b53-9454-bc4945a66517",
+      "orderLinkId": "",
+      "processedAt": "2026-06-06T04:16:05.255Z"
+    },
+    "47bc31f7-3aa1-57c1-a665-22d80d101ce2": {
+      "logicalTradeId": "x10-trade-1780719604386-60288",
+      "orderId": "20d6dc83-3b91-4f5e-9a88-6ef4011a1fb3",
+      "orderLinkId": "x10-trade-1780719604386-60288",
+      "processedAt": "2026-06-06T04:20:04.657Z"
+    },
+    "5fa5e46e-285e-5a88-9a47-44fdad0114cd": {
+      "logicalTradeId": "x10-trade-1780719693663-73612",
+      "orderId": "3acad773-13fb-4278-9602-491889121f02",
+      "orderLinkId": "x10-trade-1780719693663-73612",
+      "processedAt": "2026-06-06T04:21:33.934Z"
+    },
+    "0e9e7482-eb1a-5c51-ba71-7ab3458905f8": {
+      "logicalTradeId": "x10-trade-1780718718922-87506",
+      "orderId": "ba7a10bd-ab1f-414a-be17-6ee19b0d674b",
+      "orderLinkId": "x10-close-1780719910796-87322",
+      "processedAt": "2026-06-06T04:25:11.068Z"
+    },
+    "a3b9d704-bdb5-5012-9b9d-88611b414048": {
+      "logicalTradeId": "x10-trade-1780719604386-60288",
+      "orderId": "e38905c8-93e8-401b-8df2-ae11b98aa746",
+      "orderLinkId": "x10-close-1780719911983-52804",
+      "processedAt": "2026-06-06T04:25:15.500Z"
+    },
+    "04c1dcf4-8e71-5a7f-866a-c670c6b0b89b": {
+      "logicalTradeId": "x10-trade-1780720059694-61146",
+      "orderId": "b08890e7-b757-49a3-b24d-740d18ccb927",
+      "orderLinkId": "x10-trade-1780720059694-61146",
+      "processedAt": "2026-06-06T04:27:39.976Z"
+    },
+    "1724564d-278d-53f6-b674-7524ffb605ce": {
+      "logicalTradeId": "x10-trade-1780720456390-54723",
+      "orderId": "705999a7-1d98-4b72-bb3f-895d62f7a416",
+      "orderLinkId": "x10-trade-1780720456390-54723",
+      "processedAt": "2026-06-06T04:34:16.888Z"
+    },
+    "17dbd85f-db1a-5e72-a572-7979123fb2ed": {
+      "logicalTradeId": "x10-trade-1780719693663-73612",
+      "orderId": "036c7089-5e78-4e2f-81a5-241d27beb603",
+      "orderLinkId": "",
+      "processedAt": "2026-06-06T04:36:05.897Z"
+    },
+    "94c27cc5-d14e-5d66-8c57-53227b91f89a": {
+      "logicalTradeId": "x10-trade-1780719693663-73612",
+      "orderId": "036c7089-5e78-4e2f-81a5-241d27beb603",
+      "orderLinkId": "",
+      "processedAt": "2026-06-06T04:36:05.926Z"
+    },
+    "63309152-20b0-55e4-8fcc-c1c30fde088e": {
+      "logicalTradeId": "x10-trade-1780720708619-14571",
+      "orderId": "87b78bfa-b9a4-4a02-9c36-124feeaab2d8",
+      "orderLinkId": "x10-trade-1780720708619-14571",
+      "processedAt": "2026-06-06T04:38:29.091Z"
+    },
+    "e18955eb-83b4-5689-a6d0-4b6aee548027": {
+      "logicalTradeId": "x10-trade-1780720059694-61146",
+      "orderId": "ae3e3489-876d-4fa7-a1ac-e1ca8aeffebf",
+      "orderLinkId": "x10-close-1780720843741-9713",
+      "processedAt": "2026-06-06T04:40:44.852Z"
+    },
+    "dedb4ea5-e101-5a68-bec8-f7d6bd42070b": {
+      "logicalTradeId": "x10-trade-1780720456390-54723",
+      "orderId": "169f7e0e-9ccb-41c0-a34e-926d7a63c019",
+      "orderLinkId": "x10-close-1780721101624-88222",
+      "processedAt": "2026-06-06T04:45:02.474Z"
+    },
+    "7e46a99e-a46d-5fe3-8016-21991f338231": {
+      "logicalTradeId": "x10-trade-1780720708619-14571",
+      "orderId": "1a429445-1c60-4d7c-bebb-336efb10cf1f",
+      "orderLinkId": "x10-close-1780721103633-74565",
+      "processedAt": "2026-06-06T04:45:04.866Z"
+    },
+    "3400b309-d59a-5e17-bc25-2f8c577fe481": {
+      "logicalTradeId": "x10-trade-1780721855705-75525",
+      "orderId": "09d5a3a2-79ca-4efd-b4ca-366abf8bb856",
+      "orderLinkId": "x10-trade-1780721855705-75525",
+      "processedAt": "2026-06-06T04:57:36.054Z"
+    },
+    "9ebcdce4-4290-54dc-84e6-a0c87099ca7f": {
+      "logicalTradeId": "x10-trade-1780721855705-75525",
+      "orderId": "4b9039cd-0ed2-40d8-bd87-5d5af940df84",
+      "orderLinkId": "x10-close-1780722040255-45923",
+      "processedAt": "2026-06-06T05:00:40.831Z"
+    },
+    "bf28a89d-1f3f-58f2-aa61-2a97928d35dc": {
+      "logicalTradeId": "x10-trade-1780722085368-95563",
+      "orderId": "8018b5c4-5f27-4f85-a078-caf71809426e",
+      "orderLinkId": "x10-trade-1780722085368-95563",
+      "processedAt": "2026-06-06T05:01:25.710Z"
+    },
+    "6b7c0838-61eb-50b2-b6f2-d71b9bf768fb": {
+      "logicalTradeId": "x10-trade-1780722101075-52847",
+      "orderId": "687c0c91-af62-44c1-a3e5-a6c8d3310442",
+      "orderLinkId": "x10-trade-1780722101075-52847",
+      "processedAt": "2026-06-06T05:01:41.645Z"
+    },
+    "129596d2-d723-5949-a1db-e322eba0212b": {
+      "logicalTradeId": "x10-trade-1780722085368-95563",
+      "orderId": "65660973-2a32-47bb-b212-85142d00140d",
+      "orderLinkId": "",
+      "processedAt": "2026-06-06T05:10:01.395Z"
+    },
+    "0f79e631-0554-5af9-b67e-461a363e339f": {
+      "logicalTradeId": "x10-trade-1780722101075-52847",
+      "orderId": "35ead6fe-42bc-48b4-a7b6-3eec8af5e709",
+      "orderLinkId": "x10-close-1780722602021-57582",
+      "processedAt": "2026-06-06T05:10:04.476Z"
+    },
+    "834a000c-432b-50a9-88ba-77696fa2414e": {
+      "logicalTradeId": "x10-trade-1780722882745-99046",
+      "orderId": "33d2ee16-3973-4cc8-ad5e-bb5ef96e2282",
+      "orderLinkId": "x10-trade-1780722882745-99046",
+      "processedAt": "2026-06-06T05:14:43.280Z"
+    },
+    "1c92c68a-4bc8-5d4e-99cb-06f931a155e7": {
+      "logicalTradeId": "x10-trade-1780722882745-99046",
+      "orderId": "e3676aa4-3869-4bfd-9803-a1bb9ad93889",
+      "orderLinkId": "x10-close-1780723067295-93167",
+      "processedAt": "2026-06-06T05:17:47.804Z"
+    },
+    "6cd26f7f-bea5-57f4-aaaf-776de3f5b2f0": {
+      "logicalTradeId": "x10-trade-1780742939159-83953",
+      "orderId": "c2128382-4343-4133-8871-3c8a9af9b717",
+      "orderLinkId": "x10-trade-1780742939159-83953",
+      "processedAt": "2026-06-06T10:48:59.660Z"
+    },
+    "924293cd-178d-5d92-bf4b-0b0beda8d739": {
+      "logicalTradeId": "x10-trade-1780742939159-83953",
+      "orderId": "5cdfed93-0863-4247-8a25-ab3a1c13f3e2",
+      "orderLinkId": "x10-close-1780743122752-9261",
+      "processedAt": "2026-06-06T10:52:02.998Z"
+    },
+    "510c7b4e-ddf8-5a12-b8c1-982183595569": {
+      "logicalTradeId": "x10-trade-1780758150520-63569",
+      "orderId": "0f9b70cf-96eb-4570-8c0e-7e5a68fbb156",
+      "orderLinkId": "x10-trade-1780758150520-63569",
+      "processedAt": "2026-06-06T15:02:30.860Z"
+    },
+    "83f0908d-542e-5b64-a836-3200be0bc2fa": {
+      "logicalTradeId": "x10-trade-1780758333595-97917",
+      "orderId": "1173b55e-ce0f-4edd-88e4-3f8759546335",
+      "orderLinkId": "x10-trade-1780758333595-97917",
+      "processedAt": "2026-06-06T15:05:34.164Z"
+    },
+    "46c0a2fb-d2f3-545f-9bc0-e62479be8ab1": {
+      "logicalTradeId": "x10-trade-1780758150520-63569",
+      "orderId": "dd6cd893-8751-4585-a9ed-78127a106bb8",
+      "orderLinkId": "x10-close-1780759297834-68374",
+      "processedAt": "2026-06-06T15:21:38.374Z"
+    },
+    "d631b560-3219-58f5-8a18-78f7fedc3f2a": {
+      "logicalTradeId": "x10-trade-1780759451924-24023",
+      "orderId": "2cfce2e9-0229-48b5-9d25-41e1f5b73637",
+      "orderLinkId": "x10-trade-1780759451924-24023",
+      "processedAt": "2026-06-06T15:24:12.612Z"
+    },
+    "ebd04b07-6022-5d55-80ce-b6d0cb0af445": {
+      "logicalTradeId": "x10-trade-1780759451924-24023",
+      "orderId": "fc748985-b2ad-4821-a5d2-d7403873d903",
+      "orderLinkId": "x10-close-1780759638462-83989",
+      "processedAt": "2026-06-06T15:27:18.968Z"
+    },
+    "ff64921d-0126-583d-b243-61bdb7c33dff": {
+      "logicalTradeId": "x10-trade-1780758333595-97917",
+      "orderId": "1ef52894-5f2a-4eae-9439-5c9792321332",
+      "orderLinkId": "x10-close-1780760054720-81030",
+      "processedAt": "2026-06-06T15:34:15.641Z"
+    },
+    "2c171c49-139c-5f82-9e8f-6ded82c523a3": {
+      "logicalTradeId": "x10-trade-1780766631912-30290",
+      "orderId": "3e06cd4c-754f-4b53-9e9e-146b98518572",
+      "orderLinkId": "x10-trade-1780766631912-30290",
+      "processedAt": "2026-06-06T17:23:52.203Z"
+    },
+    "08b7df85-968c-592f-833d-ae8fd05688dc": {
+      "logicalTradeId": "x10-trade-1780766631912-30290",
+      "orderId": "73d31ca3-3e31-4f92-9be9-507031fad5bb",
+      "orderLinkId": "x10-close-1780767054994-33827",
+      "processedAt": "2026-06-06T17:30:55.533Z"
+    },
+    "7f72f753-4bb4-52c0-8d05-23b2a6b4bfb1": {
+      "logicalTradeId": "x10-trade-1780767494889-73830",
+      "orderId": "778264b8-2d64-43e9-9d35-f5a1a691e0d0",
+      "orderLinkId": "x10-trade-1780767494889-73830",
+      "processedAt": "2026-06-06T17:38:15.188Z"
+    },
+    "76d04c79-3eae-5619-adc0-a4151657ad1d": {
+      "logicalTradeId": "x10-trade-1780767494889-73830",
+      "orderId": "728c9451-d6fb-44ca-8eea-094ece46491c",
+      "orderLinkId": "x10-close-1780768836192-8615",
+      "processedAt": "2026-06-06T18:00:37.079Z"
+    },
+    "5dd639e7-939f-5ea5-b630-fc0e66e1418c": {
+      "logicalTradeId": "x10-trade-1780769361319-72686",
+      "orderId": "cedff2f9-2876-41e8-862d-4b5ef11f70d6",
+      "orderLinkId": "x10-trade-1780769361319-72686",
+      "processedAt": "2026-06-06T18:09:21.948Z"
+    },
+    "5c838747-4eb1-5309-995c-39de99f1aee3": {
+      "logicalTradeId": "x10-trade-1780769361319-72686",
+      "orderId": "f0c7a543-4ec5-4d3b-9bec-116db6188ade",
+      "orderLinkId": "x10-close-1780769473393-91354",
+      "processedAt": "2026-06-06T18:11:13.927Z"
+    },
+    "57603d54-9a39-5fd5-9b49-f33b5c84097b": {
+      "logicalTradeId": "x10-trade-1780772451898-6516",
+      "orderId": "edfbfd76-0612-4e1c-bf3a-6f55d61ad23a",
+      "orderLinkId": "x10-trade-1780772451898-6516",
+      "processedAt": "2026-06-06T19:00:52.495Z"
+    },
+    "74fcdb8a-098b-5f62-9f5a-7056aabfc826": {
+      "logicalTradeId": "x10-trade-1780772451898-6516",
+      "orderId": "6cbffb88-bbc4-4334-a965-27cd4c6a85c3",
+      "orderLinkId": "x10-close-1780772637475-80431",
+      "processedAt": "2026-06-06T19:03:58.468Z"
     }
   }
 }

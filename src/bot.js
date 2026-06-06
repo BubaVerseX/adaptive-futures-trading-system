@@ -18,6 +18,7 @@ const { ProfitObjectiveEngine } = require("./profitObjective");
 const {
   earnedRiskTier,
   ensureProfitControlledState,
+  expectancyAutoTuning,
   expectancyOptimizer,
   leverageCapForTier,
   profitEdgeReport,
@@ -29,8 +30,10 @@ const {
   regimePerformanceMemory,
   qualityScoreForSignal,
   sizingEquityBaseFromBalance,
+  setupRegimeMatrixMemory,
   setupRankingMemory,
   symbolPerformanceMemoryV3,
+  tradeClusterRisk,
 } = require("./profitControlled");
 const {
   allocatedEquityLimitUsdt,
@@ -488,6 +491,24 @@ class LadderBot {
         regimeMemoryBoostProfitFactor: this.config.regimeMemoryBoostProfitFactor,
         riskControlsUnchanged: true,
         feeProtectionUnchanged: true,
+      });
+      this.log("INFO", "V9_5_ADAPTIVE_EDGE_REINFORCEMENT_ACTIVE", {
+        edgeReinforcementMode: this.config.edgeReinforcementMode,
+        regimeSetupMatrixEnabled: true,
+        asymmetricRunnerAllocation: {
+          weakTrend: `${this.config.asymmetricRunnerWeakTp1Pct}% TP1 / ${100 - this.config.asymmetricRunnerWeakTp1Pct}% runner`,
+          strongTrend: `${this.config.asymmetricRunnerStrongTp1Pct}% TP1 / ${100 - this.config.asymmetricRunnerStrongTp1Pct}% runner`,
+          eliteTrend: `${this.config.asymmetricRunnerEliteTp1Pct}% TP1 / ${100 - this.config.asymmetricRunnerEliteTp1Pct}% runner`,
+        },
+        expectancyAutoTuningWindowTrades: this.config.expectancyAutoTuningWindowTrades,
+        expectancyAutoTuningMaxAdjustmentPct: this.config.expectancyAutoTuningMaxAdjustmentPct,
+        tradeClusterWindowMinutes: this.config.tradeClusterWindowMinutes,
+        maxClusterSizeReductionPct: this.config.tradeClusterMaxSizeReductionPct,
+        noMartingale: true,
+        noAveragingDown: true,
+        noRevengeTrading: true,
+        leverageIncrease: false,
+        stopLossLogicWeakened: false,
       });
       this.log("INFO", "V8_PROFESSIONAL_TREND_ENGINE_ACTIVE", {
         multiTimeframeTrendEngineEnabled: this.config.multiTimeframeTrendEngineEnabled,
@@ -1485,11 +1506,17 @@ class LadderBot {
       file: path.join(reportsDir, "edge-report.json"),
       bestSetup: report.bestSetup && report.bestSetup.key,
       worstSetup: report.worstSetup && report.worstSetup.key,
+      bestSetupRegime: report.bestSetupRegime && report.bestSetupRegime.key,
+      worstSetupRegime: report.worstSetupRegime && report.worstSetupRegime.key,
       bestRegime: report.bestRegime && report.bestRegime.key,
       worstRegime: report.worstRegime && report.worstRegime.key,
       profitFactor: report.profitFactor,
       expectancy: report.expectancy,
       runnerContribution: report.runnerContribution,
+      clusterRiskStatistics: report.clusterRiskStatistics,
+      portfolioAlphaStatistics: report.portfolioAlphaStatistics,
+      expectancyTrend: report.expectancyTrend,
+      profitFactorTrend: report.profitFactorTrend,
     });
     return report;
   }
@@ -2866,13 +2893,27 @@ class LadderBot {
     const optimizer = this.config.expectancyOptimizerEnabled ? expectancyOptimizer(this.store.trades, this.config) : null;
     const setupMemory = this.config.edgeMaximizationMode ? setupRankingMemory(this.store.trades, signal, this.config) : null;
     const regimeMemory = this.config.edgeMaximizationMode ? regimePerformanceMemory(this.store.trades, signal, this.config) : null;
-    const quality = qualityScoreForSignal(this.config, signal, edgeModel, memory, optimizer, { setupMemory, regimeMemory });
+    const setupRegimeMatrix = this.config.edgeReinforcementMode ? setupRegimeMatrixMemory(this.store.trades, signal, this.config) : null;
+    const autoTuning = this.config.edgeReinforcementMode ? expectancyAutoTuning(this.store.trades, this.config) : null;
+    const clusterRisk = this.config.edgeReinforcementMode ? tradeClusterRisk(this.store.trades, signal, this.config) : null;
+    signal.clusterRisk = clusterRisk;
+    signal.clusterRiskScore = clusterRisk ? clusterRisk.clusterRiskScore : 0;
+    signal.clusterRiskSizeMultiplier = clusterRisk ? clusterRisk.sizeMultiplier : 1;
+    const quality = qualityScoreForSignal(this.config, signal, edgeModel, memory, optimizer, {
+      setupMemory,
+      regimeMemory,
+      setupRegimeMatrixMemory: setupRegimeMatrix,
+      autoTuning,
+      clusterRisk,
+    });
     signal.profitQualityScore = quality.score;
     signal.profitQualityTier = quality.tier === "REJECT" ? null : quality.tier;
     signal.symbolPerformanceMemoryV2 = quality.symbolMemory;
     signal.symbolPerformanceMemoryV3 = quality.symbolMemory;
     signal.setupRankingMemory = setupMemory;
     signal.regimePerformanceMemory = regimeMemory;
+    signal.setupRegimeMatrixMemory = setupRegimeMatrix;
+    signal.expectancyAutoTuning = autoTuning;
     signal.expectancyOptimizer = optimizer;
     signal.runnerExtensionOptimizerMultiplier = optimizer && optimizer.runnerContributionPositive ? optimizer.runnerExtensionMultiplier : 1;
     signal.adaptiveMode = "PROFIT_MODE";
@@ -2902,6 +2943,11 @@ class LadderBot {
       symbolMemoryWeight: memory.weight,
       setupRankingMemory: setupMemory,
       regimePerformanceMemory: regimeMemory,
+      setupRegimeMatrixMemory: setupRegimeMatrix,
+      expectancyAutoTuning: autoTuning,
+      clusterRisk,
+      portfolioAlphaScore: signal.portfolioAlphaScore,
+      portfolioAlpha: signal.portfolioAlpha,
       rolling50: memory.rolling50,
       rolling100: memory.rolling100,
       expectancyOptimizer: optimizer,
@@ -2920,6 +2966,43 @@ class LadderBot {
         feeDragTighteningActive: optimizer.feeDragTighteningActive,
         continuationOutperforming: optimizer.continuationOutperforming,
         runnerContributionPositive: optimizer.runnerContributionPositive,
+      });
+    }
+    if (setupRegimeMatrix) {
+      this.log("INFO", "REGIME_SETUP_MATRIX_ACTIVE", {
+        symbol: signal.symbol,
+        side: signal.side,
+        key: setupRegimeMatrix.key,
+        weight: setupRegimeMatrix.weight,
+        bias: setupRegimeMatrix.bias,
+        performance: setupRegimeMatrix.performance,
+        neverDisabled: setupRegimeMatrix.neverDisabled,
+      });
+    }
+    if (autoTuning) {
+      this.log("INFO", "EXPECTANCY_AUTO_TUNING_ACTIVE", {
+        closedTrades: autoTuning.closedTrades,
+        evaluatedEveryClosedTrades: autoTuning.evaluatedEveryClosedTrades,
+        active: autoTuning.active,
+        bias: autoTuning.bias,
+        adjustmentPct: autoTuning.adjustmentPct,
+        thresholdMultiplier: autoTuning.thresholdMultiplier,
+        profitFactorTrend: autoTuning.profitFactorTrend,
+        expectancyTrend: autoTuning.expectancyTrend,
+        maxAdjustmentPct: autoTuning.maxAdjustmentPct,
+      });
+    }
+    if (clusterRisk) {
+      this.log("INFO", "TRADE_CLUSTER_RISK_EVALUATED", {
+        symbol: signal.symbol,
+        side: signal.side,
+        key: clusterRisk.key,
+        clusterRiskScore: clusterRisk.clusterRiskScore,
+        matchingTrades: clusterRisk.matchingTrades,
+        recentLosses: clusterRisk.recentLosses,
+        sizeMultiplier: clusterRisk.sizeMultiplier,
+        action: clusterRisk.action,
+        neverBlocksTrading: true,
       });
     }
     if (!quality.rejected && memory.bias === "STRENGTHENED") {
@@ -3275,7 +3358,8 @@ class LadderBot {
       standardTakeProfitPrice: plan.standardTakeProfitPrice,
       eliteTrendRider: Boolean((plan.eliteSetup || plan.winnerAmplifier) && this.config.eliteTrendRiderEnabled),
       winnerAmplifier: Boolean(plan.winnerAmplifier),
-      runnerPartialPct: plan.winnerAmplifier ? this.config.winnerAmplifierPartialTakeProfitPct : plan.eliteSetup ? this.config.elitePartialTakeProfitPct : 0,
+      runnerPartialPct: plan.runnerPartialPct || (plan.winnerAmplifier ? this.config.winnerAmplifierPartialTakeProfitPct : plan.eliteSetup ? this.config.elitePartialTakeProfitPct : 0),
+      runnerAllocation: plan.runnerAllocation,
       runnerTakeProfitMultiplier: plan.runnerTakeProfitMultiplier,
       runnerPartialTaken: false,
       runnerStopMovedToBreakeven: false,
@@ -3313,6 +3397,13 @@ class LadderBot {
       marketBreadthDirections: signal.marketBreadthDirections,
       marketBreadthAlignedCount: signal.marketBreadthAlignedCount,
       marketBreadthConflictCount: signal.marketBreadthConflictCount,
+      btcTrendScore: signal.btcTrendScore,
+      ethTrendScore: signal.ethTrendScore,
+      solTrendScore: signal.solTrendScore,
+      portfolioAlphaScore: signal.portfolioAlphaScore,
+      portfolioAlphaAlignedCount: signal.portfolioAlphaAlignedCount,
+      portfolioAlphaConflictCount: signal.portfolioAlphaConflictCount,
+      portfolioAlpha: signal.portfolioAlpha,
       btcTrendStrength: signal.btcTrendStrength,
       ethTrendStrength: signal.ethTrendStrength,
       btcVolatilityPct: signal.btcVolatilityPct,
@@ -3362,6 +3453,11 @@ class LadderBot {
       symbolPerformanceMemoryV3: signal.symbolPerformanceMemoryV3,
       setupRankingMemory: signal.setupRankingMemory,
       regimePerformanceMemory: signal.regimePerformanceMemory,
+      setupRegimeMatrixMemory: signal.setupRegimeMatrixMemory,
+      expectancyAutoTuning: signal.expectancyAutoTuning,
+      clusterRisk: signal.clusterRisk,
+      clusterRiskScore: signal.clusterRiskScore,
+      clusterRiskSizeMultiplier: signal.clusterRiskSizeMultiplier,
       expectancyOptimizer: signal.expectancyOptimizer,
       runnerExtensionOptimizerMultiplier: signal.runnerExtensionOptimizerMultiplier,
       eliteConditionKey: signal.eliteConditionKey,

@@ -208,6 +208,7 @@ function loadConfig() {
     nearMissLearningEnabled: booleanValue("NEAR_MISS_LEARNING_ENABLED", profitControlledEquityMode ? true : false),
     nearMissMaxPointGap: numberValue("NEAR_MISS_MAX_POINT_GAP", 5, { positive: true, maximum: 20 }),
     edgeMaximizationMode: booleanValue("EDGE_MAXIMIZATION_MODE", profitControlledEquityMode ? true : false),
+    edgeReinforcementMode: booleanValue("EDGE_REINFORCEMENT_MODE", profitControlledEquityMode ? true : false),
     qualitySizeMultiplierNormal: numberValue("QUALITY_SIZE_MULTIPLIER_NORMAL", 1, { positive: true, maximum: 1.5 }),
     qualitySizeMultiplierStrong: numberValue("QUALITY_SIZE_MULTIPLIER_STRONG", 1.2, { positive: true, maximum: 1.5 }),
     qualitySizeMultiplierElite: numberValue("QUALITY_SIZE_MULTIPLIER_ELITE", 1.5, { positive: true, maximum: 1.5 }),
@@ -215,6 +216,19 @@ function loadConfig() {
     setupRankingReduceProfitFactor: numberValue("SETUP_RANKING_REDUCE_PROFIT_FACTOR", 1, { positive: true }),
     regimeMemoryBoostProfitFactor: numberValue("REGIME_MEMORY_BOOST_PROFIT_FACTOR", 1.3, { positive: true }),
     regimeMemoryReduceProfitFactor: numberValue("REGIME_MEMORY_REDUCE_PROFIT_FACTOR", 1, { positive: true }),
+    setupRegimeMatrixBoostProfitFactor: numberValue("SETUP_REGIME_MATRIX_BOOST_PROFIT_FACTOR", 1.3, { positive: true }),
+    setupRegimeMatrixReduceProfitFactor: numberValue("SETUP_REGIME_MATRIX_REDUCE_PROFIT_FACTOR", 1, { positive: true }),
+    asymmetricRunnerWeakTp1Pct: numberValue("ASYMMETRIC_RUNNER_WEAK_TP1_PCT", 50, { positive: true, maximum: 90 }),
+    asymmetricRunnerStrongTp1Pct: numberValue("ASYMMETRIC_RUNNER_STRONG_TP1_PCT", 20, { positive: true, maximum: 90 }),
+    asymmetricRunnerEliteTp1Pct: numberValue("ASYMMETRIC_RUNNER_ELITE_TP1_PCT", 10, { positive: true, maximum: 90 }),
+    asymmetricRunnerStrongTrendScore: numberValue("ASYMMETRIC_RUNNER_STRONG_TREND_SCORE", 82, { minimum: 0, maximum: 100 }),
+    asymmetricRunnerEliteTrendScore: numberValue("ASYMMETRIC_RUNNER_ELITE_TREND_SCORE", 92, { minimum: 0, maximum: 100 }),
+    expectancyAutoTuningWindowTrades: numberValue("EXPECTANCY_AUTO_TUNING_WINDOW_TRADES", 100, { positive: true, integer: true }),
+    expectancyAutoTuningMaxAdjustmentPct: numberValue("EXPECTANCY_AUTO_TUNING_MAX_ADJUSTMENT_PCT", 5, { minimum: 0, maximum: 5 }),
+    expectancyAutoTuningTightenProfitFactor: numberValue("EXPECTANCY_AUTO_TUNING_TIGHTEN_PROFIT_FACTOR", 1, { positive: true }),
+    expectancyAutoTuningRelaxProfitFactor: numberValue("EXPECTANCY_AUTO_TUNING_RELAX_PROFIT_FACTOR", 1.3, { positive: true }),
+    tradeClusterWindowMinutes: numberValue("TRADE_CLUSTER_WINDOW_MINUTES", 45, { positive: true }),
+    tradeClusterMaxSizeReductionPct: numberValue("TRADE_CLUSTER_MAX_SIZE_REDUCTION_PCT", 20, { minimum: 0, maximum: 40 }),
     tradeFrequencyRecoveryMode: booleanValue("TRADE_FREQUENCY_RECOVERY_MODE", profitControlledEquityMode ? true : false),
     tradeFrequencyRecoveryMinSignalScore: numberValue("TRADE_FREQUENCY_RECOVERY_MIN_SIGNAL_SCORE", 42, { positive: true, maximum: 100 }),
     tradeFrequencyRecoveryMinConvictionScore: numberValue("TRADE_FREQUENCY_RECOVERY_MIN_CONVICTION_SCORE", 45, { positive: true, maximum: 100 }),
@@ -426,6 +440,8 @@ function loadConfig() {
     config.expectancyOptimizerEnabled = true;
     config.nearMissLearningEnabled = true;
     config.edgeMaximizationMode = true;
+    config.edgeReinforcementMode = true;
+    config.winnerAmplifierEnabled = true;
     config.winnerAmplifierPartialTakeProfitPct = 30;
     config.tradeFrequencyRecoveryMode = true;
     config.minSignalScore = Math.min(config.minSignalScore, config.tradeFrequencyRecoveryMinSignalScore);
@@ -542,6 +558,12 @@ function loadConfig() {
   }
   if (config.profitModeEliteQualityScore < config.profitModeStrongQualityScore) {
     throw new Error("PROFIT_MODE_ELITE_QUALITY_SCORE cannot be below PROFIT_MODE_STRONG_QUALITY_SCORE.");
+  }
+  if (config.asymmetricRunnerStrongTp1Pct > config.asymmetricRunnerWeakTp1Pct) {
+    throw new Error("ASYMMETRIC_RUNNER_STRONG_TP1_PCT cannot exceed ASYMMETRIC_RUNNER_WEAK_TP1_PCT.");
+  }
+  if (config.asymmetricRunnerEliteTp1Pct > config.asymmetricRunnerStrongTp1Pct) {
+    throw new Error("ASYMMETRIC_RUNNER_ELITE_TP1_PCT cannot exceed ASYMMETRIC_RUNNER_STRONG_TP1_PCT.");
   }
   if (config.liveValidationMode && config.dryRun) {
     throw new Error("LIVE_VALIDATION_MODE=true is a real-money validation profile and requires DRY_RUN=false.");

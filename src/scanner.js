@@ -134,6 +134,37 @@ function marketBreadthScore(side, directions = {}) {
   };
 }
 
+function trendSupportScore(side, direction) {
+  const expected = side === "LONG" ? "UP" : "DOWN";
+  const opposite = side === "LONG" ? "DOWN" : "UP";
+  if (direction === expected) return 100;
+  if (direction === opposite) return 0;
+  return 50;
+}
+
+function portfolioAlphaScore(side, directions = {}) {
+  const breadth = marketBreadthScore(side, directions);
+  const btcTrendScore = trendSupportScore(side, breadth.directions.BTCUSDT);
+  const ethTrendScore = trendSupportScore(side, breadth.directions.ETHUSDT);
+  const solTrendScore = trendSupportScore(side, breadth.directions.SOLUSDT);
+  let score = btcTrendScore * 0.42 + ethTrendScore * 0.31 + solTrendScore * 0.27;
+  if (breadth.allAligned) score += 8;
+  if (breadth.mixed) score -= 8;
+  if (breadth.conflicting >= 2) score -= 8;
+  return {
+    score: Number(bounded(score, 0, 100).toFixed(2)),
+    btcTrendScore,
+    ethTrendScore,
+    solTrendScore,
+    aligned: breadth.aligned,
+    conflicting: breadth.conflicting,
+    neutral: breadth.neutral,
+    allAligned: breadth.allAligned,
+    mixed: breadth.mixed,
+    directions: breadth.directions,
+  };
+}
+
 function liquidityScore(config, volume24hUsdt, spreadPct) {
   const volumeMultiple = config.min24hVolumeUsdt > 0 ? volume24hUsdt / config.min24hVolumeUsdt : 10;
   const volumeScore = bounded(Math.log10(Math.max(1, volumeMultiple)) * 35 + Math.min(30, volumeMultiple * 3), 0, 65);
@@ -641,6 +672,7 @@ class Scanner {
       ETHUSDT: item.info.symbol === "ETHUSDT" ? mainTrend : this.cachedFocusedDirections.ETHUSDT || ethTrend,
       SOLUSDT: item.info.symbol === "SOLUSDT" ? mainTrend : this.cachedFocusedDirections.SOLUSDT || "CHOPPY",
     });
+    const alpha = portfolioAlphaScore(side, breadth.directions);
     const body = this.config.fastMode && fast.bodyDirection === direction ? fast : main;
     const strongBody = body.bodyStrength >= (this.config.fastMode ? 0.42 : 0.5) && body.bodyDirection === direction;
     const volatileEnough = Math.max(fast.atrPct, main.atrPct) >= 0.15;
@@ -839,6 +871,11 @@ class Scanner {
       addScore("market breadth alignment boost", 5);
     } else if (breadth.mixed || breadth.conflicting >= 2) {
       addScore("market breadth conflict reduction", -5);
+    }
+    if (alpha.score >= 82) {
+      addScore("portfolio alpha alignment boost", 4);
+    } else if (alpha.score < 45) {
+      addScore("portfolio alpha mixed-signal reduction", -4);
     }
     if (this.config.multiTimeframeTrendEngineEnabled) {
       if (mtf.score >= this.config.mtfStrongAlignmentScore) {
@@ -1059,6 +1096,13 @@ class Scanner {
       marketBreadthDirections: breadth.directions,
       marketBreadthAlignedCount: breadth.aligned,
       marketBreadthConflictCount: breadth.conflicting,
+      btcTrendScore: alpha.btcTrendScore,
+      ethTrendScore: alpha.ethTrendScore,
+      solTrendScore: alpha.solTrendScore,
+      portfolioAlphaScore: alpha.score,
+      portfolioAlphaAlignedCount: alpha.aligned,
+      portfolioAlphaConflictCount: alpha.conflicting,
+      portfolioAlpha: alpha,
       btcTrendAligned: btcSupportsSide,
       multiTimeframeAligned,
       multiTimeframeTrendScore: mtf.score,
@@ -1372,6 +1416,12 @@ class Scanner {
         marketBreadthDirections: item.marketBreadthDirections,
         marketBreadthAlignedCount: item.marketBreadthAlignedCount,
         marketBreadthConflictCount: item.marketBreadthConflictCount,
+        btcTrendScore: item.btcTrendScore,
+        ethTrendScore: item.ethTrendScore,
+        solTrendScore: item.solTrendScore,
+        portfolioAlphaScore: item.portfolioAlphaScore,
+        portfolioAlphaAlignedCount: item.portfolioAlphaAlignedCount,
+        portfolioAlphaConflictCount: item.portfolioAlphaConflictCount,
         marketRegimeV2: item.marketRegimeV2,
         marketRegimeV2Participation: item.marketRegimeV2Participation,
         adaptiveConvictionThreshold: item.adaptiveConvictionThreshold,
@@ -1515,4 +1565,4 @@ class Scanner {
   }
 }
 
-module.exports = { Scanner, marketBreadthScore, multiTimeframeTrendConfirmation };
+module.exports = { Scanner, marketBreadthScore, multiTimeframeTrendConfirmation, portfolioAlphaScore };
