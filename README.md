@@ -318,7 +318,7 @@ It tracks average winner, average loser, expectancy, profit factor, fee impact, 
 
 V9 keeps the V8 trend/expectancy stack and focuses on improving profit factor, expectancy, and average winner without weakening risk controls.
 
-- Winner expansion now uses a `30%` TP1 close and leaves a `70%` ATR/volatility-aware runner.
+- V9 introduced protected runner expansion; V9.5 supersedes the fixed runner split with asymmetric trend-based allocation.
 - Setup ranking tracks symbol-specific families such as `BTCUSDT:BREAKOUT`, `ETHUSDT:CONTINUATION`, and `SOLUSDT:CONTINUATION`.
 - Setup and regime memories store trade count, win rate, profit factor, expectancy, average winner, average loser, drawdown, and runner contribution.
 - Profit factor above `1.3` creates a soft boost; profit factor below `1.0` reduces weighting. No setup, regime, or symbol is fully disabled by memory.
@@ -332,6 +332,19 @@ data/profit-controlled-live/reports/edge-report.json
 ```
 
 The edge report includes best/worst setup, best/worst regime, runner contribution, profit factor, expectancy, average winner, and average loser.
+
+### V9.5 Adaptive Edge Reinforcement
+
+V9.5 adds a second reinforcement layer on top of V9. It is still weighting-only: weak setup/regime combinations are reduced, strong combinations are boosted, and nothing is fully disabled by memory.
+
+- The regime/setup matrix tracks combinations such as `BTC_CONTINUATION x TRENDING`, `ETH_BREAKOUT x BREAKOUT`, and `SOL_REVERSAL x CHOP`.
+- Asymmetric winner allocation replaces the fixed runner split: weak trend closes `50%` at TP1, strong trend closes `20%`, and elite trend closes `10%`. The remaining runner keeps breakeven protection, ATR trailing, and trend-extension logic.
+- Expectancy auto-tuning evaluates every `100` closed trades. If profit factor is below `1.0`, entry quality tightens by at most `5%`; if profit factor is above `1.3` with positive expectancy, filters relax by at most `5%`.
+- Trade cluster detection watches repeated same-symbol, same-direction, same-setup, same-regime trades inside a rolling window and can reduce size modestly. It never blocks trading outright.
+- `portfolioAlphaScore` combines BTC, ETH, and SOL trend scores. Full alignment adds confidence; mixed signals reduce confidence.
+- V9.5 does not add martingale, averaging down, revenge trading, leverage increases, or stop-loss weakening.
+
+The expanded `edge-report.json` also includes best/worst setup-regime pair, runner win rate, average runner profit, cluster-risk statistics, portfolio-alpha statistics, expectancy trend, and profit-factor trend.
 
 ## Focused BTC/ETH/SOL Universe
 

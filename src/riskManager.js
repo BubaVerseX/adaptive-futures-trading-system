@@ -1,7 +1,7 @@
 "use strict";
 
 const { percentChange } = require("./indicators");
-const { profitControlledRiskCapPct } = require("./profitControlled");
+const { asymmetricRunnerAllocation, profitControlledRiskCapPct } = require("./profitControlled");
 
 const LADDER = [
   { level: 1, floor: 100, target: 130 },
@@ -362,6 +362,11 @@ class RiskManager {
     if (signal.qualityPacingActive) {
       qualitySizeMultiplier *= this.config.qualityPacingRiskMultiplier;
     }
+    const clusterRiskSizeMultiplier = Number(signal.clusterRiskSizeMultiplier || 1);
+    if (clusterRiskSizeMultiplier > 0 && clusterRiskSizeMultiplier < 1) {
+      qualitySizeMultiplier *= clusterRiskSizeMultiplier;
+      reasonsForSizingTier.push(`V9.5 trade cluster risk reduced size modestly with multiplier ${clusterRiskSizeMultiplier}`);
+    }
     qualitySizeMultiplier *= Number(signal.continuousRecoveryRiskMultiplier || 1);
     qualitySizeMultiplier *= Number(signal.regimeRiskMultiplier || 1);
     qualitySizeMultiplier *= Number(signal.profitProtectionRiskMultiplier || 1);
@@ -437,6 +442,14 @@ class RiskManager {
       !isLong
     );
     const winnerAmplifier = Boolean(this.config.profitControlledEquityMode && this.config.winnerAmplifierEnabled);
+    const runnerAllocation = this.config.edgeReinforcementMode
+      ? asymmetricRunnerAllocation(this.config, signal)
+      : {
+          trendTier: "FIXED_RUNNER",
+          tp1PartialPct: eliteSetup ? this.config.elitePartialTakeProfitPct : this.config.winnerAmplifierPartialTakeProfitPct,
+          runnerPct: 100 - (eliteSetup ? this.config.elitePartialTakeProfitPct : this.config.winnerAmplifierPartialTakeProfitPct),
+          trendScore: 0,
+        };
     const runnerMultiplier = eliteSetup
       ? this.config.eliteRunnerTakeProfitMultiplier
       : winnerAmplifier
@@ -489,6 +502,8 @@ class RiskManager {
       runnerTakeProfitPrice,
       standardTakeProfitPrice,
       winnerAmplifier,
+      runnerPartialPct: eliteSetup || winnerAmplifier ? runnerAllocation.tp1PartialPct : 0,
+      runnerAllocation,
       runnerTakeProfitMultiplier: runnerMultiplier,
       ladderLevel: level.level,
       sizingEquity,

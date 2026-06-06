@@ -88,6 +88,8 @@ function closedSymbolTrades(trades = [], symbol) {
 function performanceForRows(rows = []) {
   const wins = rows.filter((trade) => tradeNetPnl(trade) > 0);
   const losses = rows.filter((trade) => tradeNetPnl(trade) < 0);
+  const runnerRows = rows.filter((trade) => trade.runnerPartialTaken || numeric(trade.runnerNetContributionUsdt) !== 0);
+  const runnerWins = runnerRows.filter((trade) => numeric(trade.runnerNetContributionUsdt) > 0);
   const netPnlUsdt = rows.reduce((total, trade) => total + tradeNetPnl(trade), 0);
   const winPnlUsdt = wins.reduce((total, trade) => total + tradeNetPnl(trade), 0);
   const lossPnlUsdt = losses.reduce((total, trade) => total + Math.abs(tradeNetPnl(trade)), 0);
@@ -114,6 +116,8 @@ function performanceForRows(rows = []) {
     feeImpactRatio: grossProfitUsdt > 0 ? round(totalFeesUsdt / grossProfitUsdt, 4) : totalFeesUsdt > 0 ? 999 : 0,
     runnerContributionUsdt: round(runnerContributionUsdt),
     averageRunnerProfitUsdt: rows.length ? round(runnerContributionUsdt / rows.length) : 0,
+    runnerTrades: runnerRows.length,
+    runnerWinRatePct: runnerRows.length ? round((runnerWins.length / runnerRows.length) * 100, 4) : 0,
     maxDrawdownUsdt: round(maxDrawdownUsdt),
   };
 }
@@ -173,6 +177,57 @@ function setupRankingReport(trades = [], config = {}) {
       item,
       numeric(config.setupRankingBoostProfitFactor, 1.3),
       numeric(config.setupRankingReduceProfitFactor, 1)
+    ),
+    neverDisabled: true,
+  }));
+}
+
+function compactSymbol(symbol = "") {
+  return String(symbol || "UNKNOWN").toUpperCase().replace(/USDT$/, "") || "UNKNOWN";
+}
+
+function compactRegime(value = "") {
+  const text = String(value || "UNKNOWN").toUpperCase();
+  if (/SIDEWAYS|CHOP/.test(text)) return "CHOP";
+  if (/BREAKOUT/.test(text)) return "BREAKOUT";
+  if (/PANIC/.test(text)) return "PANIC";
+  if (/VOLATILE/.test(text)) return "VOLATILE";
+  if (/TREND/.test(text)) return "TRENDING";
+  return text || "UNKNOWN";
+}
+
+function setupRegimeMatrixKey(item = {}) {
+  return `${compactSymbol(item.symbol)}_${setupFamily(item.continuationSetupType || item.setupType || item.tradeCategory)} x ${compactRegime(regimeKey(item))}`;
+}
+
+function setupRegimeMatrixMemory(trades = [], signal = {}, config = {}) {
+  const grouped = groupRows(closedTrades(trades), setupRegimeMatrixKey);
+  const key = setupRegimeMatrixKey(signal);
+  const performance = performanceForRows(grouped[key] || []);
+  const weighting = memoryWeightFromPerformance(
+    performance,
+    numeric(config.setupRegimeMatrixBoostProfitFactor, numeric(config.setupRankingBoostProfitFactor, 1.3)),
+    numeric(config.setupRegimeMatrixReduceProfitFactor, numeric(config.setupRankingReduceProfitFactor, 1))
+  );
+  return {
+    key,
+    symbol: compactSymbol(signal.symbol),
+    setupFamily: setupFamily(signal.continuationSetupType || signal.setupType || signal.tradeCategory),
+    regime: compactRegime(regimeKey(signal)),
+    performance,
+    ...weighting,
+    neverDisabled: true,
+  };
+}
+
+function setupRegimeMatrixReport(trades = [], config = {}) {
+  const grouped = groupRows(closedTrades(trades), setupRegimeMatrixKey);
+  return rankByNetPnl(grouped).map((item) => ({
+    ...item,
+    weighting: memoryWeightFromPerformance(
+      item,
+      numeric(config.setupRegimeMatrixBoostProfitFactor, numeric(config.setupRankingBoostProfitFactor, 1.3)),
+      numeric(config.setupRegimeMatrixReduceProfitFactor, numeric(config.setupRankingReduceProfitFactor, 1))
     ),
     neverDisabled: true,
   }));
@@ -332,6 +387,142 @@ function expectancyOptimizer(trades = [], config = {}) {
   };
 }
 
+function expectancyAutoTuning(trades = [], config = {}) {
+  const rows = closedTrades(trades);
+  const windowSize = Math.max(1, numeric(config.expectancyAutoTuningWindowTrades, 100));
+  const maxAdjustmentPct = Math.min(5, Math.max(0, numeric(config.expectancyAutoTuningMaxAdjustmentPct, 5)));
+  const recent = performanceForRows(rows.slice(-windowSize));
+  const previous = performanceForRows(rows.slice(-windowSize * 2, -windowSize));
+  const active = rows.length >= windowSize;
+  let adjustmentPct = 0;
+  let bias = "NEUTRAL";
+  let reason = active ? "recent expectancy is neutral" : "waiting for enough closed trades";
+  if (active && (recent.profitFactor < numeric(config.expectancyAutoTuningTightenProfitFactor, 1) || recent.expectancyUsdt < 0)) {
+    adjustmentPct = maxAdjustmentPct;
+    bias = "TIGHTEN";
+    reason = `profit factor ${recent.profitFactor} below 1 or expectancy negative`;
+  } else if (active && recent.profitFactor > numeric(config.expectancyAutoTuningRelaxProfitFactor, 1.3) && recent.expectancyUsdt > 0) {
+    adjustmentPct = -maxAdjustmentPct;
+    bias = "RELAX";
+    reason = `profit factor ${recent.profitFactor} above 1.3 with positive expectancy`;
+  }
+  return {
+    evaluatedEveryClosedTrades: windowSize,
+    closedTrades: rows.length,
+    active,
+    maxAdjustmentPct,
+    adjustmentPct: round(adjustmentPct, 4),
+    thresholdMultiplier: round(1 + adjustmentPct / 100, 4),
+    bias,
+    reason,
+    recent,
+    previous,
+    profitFactorTrend: metricTrend(recent.profitFactor, previous.profitFactor),
+    expectancyTrend: metricTrend(recent.expectancyUsdt, previous.expectancyUsdt),
+    feeDragRatio: recent.feeImpactRatio,
+  };
+}
+
+function tradeClusterRisk(trades = [], signal = {}, config = {}, now = Date.now()) {
+  const windowMs = Math.max(1, numeric(config.tradeClusterWindowMinutes, 45)) * 60 * 1000;
+  const key = setupRegimeMatrixKey(signal);
+  const recent = (Array.isArray(trades) ? trades : []).filter((trade) => {
+    if (["ENTRY_FAILED", "FAILED", "REJECTED"].includes(String(trade.status || "").toUpperCase())) return false;
+    if (String(trade.symbol || "").toUpperCase() !== String(signal.symbol || "").toUpperCase()) return false;
+    if (String(trade.side || "").toUpperCase() !== String(signal.side || "").toUpperCase()) return false;
+    if (setupRegimeMatrixKey(trade) !== key) return false;
+    const openedAt = Date.parse(trade.openedAt || trade.entryTime || trade.createdAt || "");
+    return Number.isFinite(openedAt) && now - openedAt >= 0 && now - openedAt <= windowMs;
+  });
+  const recentLosses = recent.filter((trade) => tradeNetPnl(trade) < 0).length;
+  const score = clamp(recent.length * 18 + recentLosses * 12, 0, 100);
+  const maxReduction = clamp(numeric(config.tradeClusterMaxSizeReductionPct, 20), 0, 40) / 100;
+  const sizeMultiplier = round(1 - maxReduction * (score / 100), 4);
+  return {
+    key,
+    windowMinutes: numeric(config.tradeClusterWindowMinutes, 45),
+    matchingTrades: recent.length,
+    recentLosses,
+    clusterRiskScore: round(score, 2),
+    sizeMultiplier,
+    action: score >= 60 ? "REDUCE_SIZE_MODESTLY" : score >= 30 ? "WATCH_CLUSTER" : "NORMAL",
+    neverBlocksTrading: true,
+  };
+}
+
+function clusterRiskReport(trades = [], config = {}) {
+  const rows = closedTrades(trades).filter((trade) => numeric(trade.clusterRiskScore) > 0 || trade.clusterRisk);
+  const scores = rows.map((trade) => numeric(trade.clusterRiskScore, trade.clusterRisk && trade.clusterRisk.clusterRiskScore)).filter((score) => score > 0);
+  const byKey = rankByNetPnl(groupRows(rows, (trade) => (trade.clusterRisk && trade.clusterRisk.key) || setupRegimeMatrixKey(trade)));
+  return {
+    trackedTrades: rows.length,
+    averageClusterRiskScore: scores.length ? round(scores.reduce((total, score) => total + score, 0) / scores.length, 4) : 0,
+    maxClusterRiskScore: scores.length ? round(Math.max(...scores), 4) : 0,
+    sizeReducedTrades: rows.filter((trade) => numeric(trade.clusterRiskSizeMultiplier, 1) < 1).length,
+    worstCluster: byKey.length ? byKey[byKey.length - 1] : null,
+    bestCluster: byKey[0] || null,
+    neverBlocksTrading: true,
+  };
+}
+
+function metricTrend(recent, previous) {
+  const recentValue = numeric(recent);
+  const previousValue = numeric(previous);
+  return {
+    recent: round(recentValue, 6),
+    previous: round(previousValue, 6),
+    change: round(recentValue - previousValue, 6),
+    direction: recentValue > previousValue ? "UP" : recentValue < previousValue ? "DOWN" : "FLAT",
+  };
+}
+
+function portfolioAlphaReport(trades = []) {
+  const rows = closedTrades(trades).filter((trade) => numeric(trade.portfolioAlphaScore) > 0);
+  const scores = rows.map((trade) => numeric(trade.portfolioAlphaScore)).filter((score) => score > 0);
+  const aligned = rows.filter((trade) => numeric(trade.portfolioAlphaAlignedCount) >= 3);
+  const mixed = rows.filter((trade) => numeric(trade.portfolioAlphaConflictCount) > 0);
+  return {
+    trackedTrades: rows.length,
+    averagePortfolioAlphaScore: scores.length ? round(scores.reduce((total, score) => total + score, 0) / scores.length, 4) : 0,
+    alignedTrades: aligned.length,
+    mixedSignalTrades: mixed.length,
+    alignedPerformance: performanceForRows(aligned),
+    mixedSignalPerformance: performanceForRows(mixed),
+  };
+}
+
+function asymmetricRunnerAllocation(config = {}, signal = {}) {
+  const trendScore = Math.max(
+    numeric(signal.multiTimeframeTrendScore),
+    numeric(signal.trendQualityScore),
+    numeric(signal.continuationStrength),
+    numeric(signal.portfolioAlphaScore)
+  );
+  const tier = String(signal.profitQualityTier || (signal.eliteSetup ? "ELITE" : "")).toUpperCase();
+  if (tier === "ELITE" || trendScore >= numeric(config.asymmetricRunnerEliteTrendScore, 92)) {
+    return {
+      trendTier: "ELITE_TREND",
+      tp1PartialPct: numeric(config.asymmetricRunnerEliteTp1Pct, 10),
+      runnerPct: 100 - numeric(config.asymmetricRunnerEliteTp1Pct, 10),
+      trendScore: round(trendScore, 2),
+    };
+  }
+  if (tier === "STRONG" || trendScore >= numeric(config.asymmetricRunnerStrongTrendScore, 82)) {
+    return {
+      trendTier: "STRONG_TREND",
+      tp1PartialPct: numeric(config.asymmetricRunnerStrongTp1Pct, 20),
+      runnerPct: 100 - numeric(config.asymmetricRunnerStrongTp1Pct, 20),
+      trendScore: round(trendScore, 2),
+    };
+  }
+  return {
+    trendTier: "WEAK_TREND",
+    tp1PartialPct: numeric(config.asymmetricRunnerWeakTp1Pct, 50),
+    runnerPct: 100 - numeric(config.asymmetricRunnerWeakTp1Pct, 50),
+    trendScore: round(trendScore, 2),
+  };
+}
+
 function qualityScoreForSignal(config = {}, signal = {}, edgeModel = {}, symbolMemory = null, optimizer = null, edgeMemory = {}) {
   const trend = clamp(
     Math.max(
@@ -351,6 +542,9 @@ function qualityScoreForSignal(config = {}, signal = {}, edgeModel = {}, symbolM
   const memoryScore = clamp(58 + (numeric(memory.weight, 1) - 1) * 145, 35, 84);
   const setupMemory = edgeMemory.setupMemory || { weight: 1, bias: "NEUTRAL" };
   const regimeMemory = edgeMemory.regimeMemory || { weight: 1, bias: "NEUTRAL" };
+  const matrixMemory = edgeMemory.setupRegimeMatrixMemory || { weight: 1, bias: "NEUTRAL" };
+  const autoTuning = edgeMemory.autoTuning || { thresholdMultiplier: 1, adjustmentPct: 0, bias: "NEUTRAL" };
+  const clusterRisk = edgeMemory.clusterRisk || { clusterRiskScore: 0 };
   let score =
     trend * 0.25 +
     volume * 0.17 +
@@ -360,8 +554,12 @@ function qualityScoreForSignal(config = {}, signal = {}, edgeModel = {}, symbolM
     memoryScore * 0.05;
   score += (numeric(setupMemory.weight, 1) - 1) * 18;
   score += (numeric(regimeMemory.weight, 1) - 1) * 12;
+  score += (numeric(matrixMemory.weight, 1) - 1) * 22;
   if (numeric(signal.marketBreadthScore) >= 80) score += 3;
   else if (numeric(signal.marketBreadthScore) > 0 && numeric(signal.marketBreadthScore) < 45) score -= 3;
+  if (numeric(signal.portfolioAlphaScore) >= 82) score += 4;
+  else if (numeric(signal.portfolioAlphaScore) > 0 && numeric(signal.portfolioAlphaScore) < 45) score -= 4;
+  if (numeric(clusterRisk.clusterRiskScore) >= 60) score -= 3;
   const tags = Array.isArray(signal.marketRegimeTags) ? signal.marketRegimeTags : [];
   if (tags.includes("STRONG_TRENDING_MARKET") && /CONTINUATION|RETEST|RESUMPTION|ACCELERATION|BREAKOUT/i.test(String(signal.continuationSetupType || signal.setupType || ""))) {
     score += 4;
@@ -379,8 +577,9 @@ function qualityScoreForSignal(config = {}, signal = {}, edgeModel = {}, symbolM
   }
   score = round(clamp(score, 0, 100), 2);
   const thresholdTightening = optimizer && optimizer.feeDragTighteningActive ? numeric(config.expectancyEntryTighteningPoints, 2) : 0;
-  const normalThreshold = numeric(config.profitModeMinQualityScore, 70) + thresholdTightening;
-  const strongThreshold = numeric(config.profitModeStrongQualityScore, 85) + Math.ceil(thresholdTightening / 2);
+  const autoTuneMultiplier = clamp(numeric(autoTuning.thresholdMultiplier, 1), 0.95, 1.05);
+  const normalThreshold = round(numeric(config.profitModeMinQualityScore, 70) * autoTuneMultiplier + thresholdTightening, 2);
+  const strongThreshold = round(numeric(config.profitModeStrongQualityScore, 85) * autoTuneMultiplier + Math.ceil(thresholdTightening / 2), 2);
   const eliteThreshold = numeric(config.profitModeEliteQualityScore, 95);
   const tier = score >= eliteThreshold ? "ELITE" : score >= strongThreshold ? "STRONG" : score >= normalThreshold ? "NORMAL" : "REJECT";
   const chopRequiresStrong =
@@ -406,9 +605,13 @@ function qualityScoreForSignal(config = {}, signal = {}, edgeModel = {}, symbolM
       symbolMemoryWeight: numeric(memory.weight, 1),
       setupRankingWeight: numeric(setupMemory.weight, 1),
       regimeMemoryWeight: numeric(regimeMemory.weight, 1),
+      setupRegimeMatrixWeight: numeric(matrixMemory.weight, 1),
       marketBreadth: round(numeric(signal.marketBreadthScore), 2),
+      portfolioAlpha: round(numeric(signal.portfolioAlphaScore), 2),
+      clusterRisk: round(numeric(clusterRisk.clusterRiskScore), 2),
       multiTimeframeTrend: round(numeric(signal.multiTimeframeTrendScore), 2),
       expectancyOptimizer: optimizer && optimizer.continuationOutperforming ? round(numeric(optimizer.continuationWeightBoostPoints), 2) : 0,
+      expectancyAutoTuningPct: numeric(autoTuning.adjustmentPct),
     },
     thresholds: {
       rejectBelow: normalThreshold,
@@ -419,6 +622,9 @@ function qualityScoreForSignal(config = {}, signal = {}, edgeModel = {}, symbolM
     symbolMemory: memory,
     setupMemory,
     regimeMemory,
+    setupRegimeMatrixMemory: matrixMemory,
+    expectancyAutoTuning: autoTuning,
+    clusterRisk,
     expectancyOptimizer: optimizer,
   };
 }
@@ -500,19 +706,33 @@ function profitEdgeReport(trades = [], config = {}) {
   const expectancy = profitExpectancyReport(rows, config);
   const setupRanking = setupRankingReport(rows, config);
   const regimeRanking = regimePerformanceReport(rows, config);
+  const setupRegimeMatrix = setupRegimeMatrixReport(rows, config);
+  const autoTuning = expectancyAutoTuning(rows, config);
+  const recent100 = performanceForRows(rows.slice(-100));
+  const previous100 = performanceForRows(rows.slice(-200, -100));
   return {
     generatedAt: new Date().toISOString(),
     closedTrades: rows.length,
     bestSetup: setupRanking[0] || null,
     worstSetup: setupRanking.length ? setupRanking[setupRanking.length - 1] : null,
+    bestSetupRegime: setupRegimeMatrix[0] || null,
+    worstSetupRegime: setupRegimeMatrix.length ? setupRegimeMatrix[setupRegimeMatrix.length - 1] : null,
     bestRegime: regimeRanking[0] || null,
     worstRegime: regimeRanking.length ? regimeRanking[regimeRanking.length - 1] : null,
     runnerContribution: expectancy.runnerImpact,
+    runnerWinRatePct: recent100.runnerWinRatePct,
+    averageRunnerProfitUsdt: recent100.averageRunnerProfitUsdt,
     profitFactor: expectancy.profitFactor,
     expectancy: expectancy.expectancyUsdt,
     averageWinner: expectancy.averageWinnerUsdt,
     averageLoser: expectancy.averageLoserUsdt,
+    clusterRiskStatistics: clusterRiskReport(rows, config),
+    portfolioAlphaStatistics: portfolioAlphaReport(rows),
+    expectancyTrend: metricTrend(recent100.expectancyUsdt, previous100.expectancyUsdt),
+    profitFactorTrend: metricTrend(recent100.profitFactor, previous100.profitFactor),
+    expectancyAutoTuning: autoTuning,
     setupRanking,
+    setupRegimeMatrix,
     regimeRanking,
     symbolRanking: expectancy.symbolRanking,
   };
@@ -607,9 +827,13 @@ function profitControlledSummary(trades = [], currentEquityUsdt = 0, startEquity
 
 module.exports = {
   earnedRiskTier,
+  asymmetricRunnerAllocation,
+  clusterRiskReport,
   ensureProfitControlledState,
+  expectancyAutoTuning,
   expectancyOptimizer,
   leverageCapForTier,
+  portfolioAlphaReport,
   profitEdgeReport,
   profitExpectancyReport,
   qualityScoreForSignal,
@@ -620,10 +844,13 @@ module.exports = {
   regimePerformanceMemory,
   regimePerformanceReport,
   sizingEquityBaseFromBalance,
+  setupRegimeMatrixMemory,
+  setupRegimeMatrixReport,
   setupRankingMemory,
   setupRankingReport,
   symbolPerformanceMemoryV2,
   symbolPerformanceMemoryV2Map,
   symbolPerformanceMemoryV3,
   symbolPerformanceMemoryV3Map,
+  tradeClusterRisk,
 };
