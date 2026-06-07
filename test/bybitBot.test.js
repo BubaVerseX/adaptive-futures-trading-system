@@ -26,6 +26,7 @@ const {
 } = require("../src/liveValidation");
 const {
   earnedRiskTier,
+  adaptiveActivityRecovery,
   asymmetricRunnerAllocation,
   expectancyAutoTuning,
   expectancyOptimizer,
@@ -2829,6 +2830,8 @@ async function testV95AdaptiveEdgeReinforcement() {
   assert.equal(loaded.asymmetricRunnerEliteTp1Pct, 10);
   assert.equal(loaded.expectancyAutoTuningWindowTrades, 100);
   assert.equal(loaded.expectancyAutoTuningMaxAdjustmentPct, 5);
+  assert.equal(loaded.adaptiveEdgeActivityRecoveryMode, true);
+  assert.equal(loaded.adaptiveEdgeActivityRecoveryMaxRelaxPct, 3);
 
   const cfg = config({
     profitControlledEquityMode: true,
@@ -2851,6 +2854,12 @@ async function testV95AdaptiveEdgeReinforcement() {
     asymmetricRunnerEliteTrendScore: 92,
     expectancyAutoTuningWindowTrades: 100,
     expectancyAutoTuningMaxAdjustmentPct: 5,
+    adaptiveEdgeActivityRecoveryMode: true,
+    adaptiveEdgeActivityRecoveryWindowMinutes: 240,
+    adaptiveEdgeActivityRecoveryTargetTrades: 2,
+    adaptiveEdgeActivityRecoveryMaxRelaxPct: 3,
+    adaptiveEdgeActivityRecoveryMinProfitFactor: 1,
+    adaptiveEdgeActivityRecoveryMaxFeeDragRatio: 0.65,
     tradeClusterWindowMinutes: 45,
     tradeClusterMaxSizeReductionPct: 20,
   });
@@ -2978,6 +2987,29 @@ async function testV95AdaptiveEdgeReinforcement() {
   assert.equal(relaxTune.adjustmentPct, -5);
   assert.equal(relaxTune.thresholdMultiplier, 0.95);
 
+  const quietProfitableHistory = Array.from({ length: 12 }, (_, index) =>
+    memoryRecord({
+      id: `v95-activity-recovery-${index}`,
+      status: "CLOSED",
+      symbol: "ETHUSDT",
+      setupType: "TREND_CONTINUATION",
+      continuationSetupType: "MOMENTUM_RESUMPTION",
+      marketRegimeV2: "TRENDING",
+      openedAt: new Date(now - 8 * 60 * 60 * 1000 - index * 60000).toISOString(),
+      exitedAt: new Date(now - 7 * 60 * 60 * 1000 - index * 60000).toISOString(),
+      netPnlAfterCostsUsdt: index % 4 === 0 ? -0.02 : 0.08,
+      pnlUsdt: index % 4 === 0 ? -0.02 : 0.08,
+      realizedPnlUsdt: index % 4 === 0 ? -0.02 : 0.08,
+      grossPnlUsdt: index % 4 === 0 ? 0 : 0.1,
+      feesUsdt: 0.02,
+    })
+  );
+  const activityRecovery = adaptiveActivityRecovery(quietProfitableHistory, cfg, now);
+  assert.equal(activityRecovery.active, true);
+  assert.equal(activityRecovery.thresholdMultiplier, 0.97);
+  assert.ok(activityRecovery.scoreBoost > 0);
+  assert.equal(activityRecovery.neverForcesTrades, true);
+
   const clusterTrades = Array.from({ length: 4 }, (_, index) =>
     memoryRecord({
       id: `v95-cluster-${index}`,
@@ -3032,10 +3064,12 @@ async function testV95AdaptiveEdgeReinforcement() {
   }, null, null, {
     setupRegimeMatrixMemory: matrixMemory,
     autoTuning: tightTune,
+    activityRecovery,
     clusterRisk,
   });
   assert.ok(quality.components.setupRegimeMatrixWeight > 1);
   assert.equal(quality.components.expectancyAutoTuningPct, 5);
+  assert.ok(quality.components.adaptiveActivityRecovery > 0);
   assert.ok(quality.components.clusterRisk > 60);
   assert.ok(quality.thresholds.normal > cfg.profitModeMinQualityScore);
 

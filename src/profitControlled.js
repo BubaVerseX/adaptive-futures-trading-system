@@ -423,6 +423,53 @@ function expectancyAutoTuning(trades = [], config = {}) {
   };
 }
 
+function adaptiveActivityRecovery(trades = [], config = {}, now = Date.now()) {
+  const rows = closedTrades(trades);
+  const windowMinutes = numeric(config.adaptiveEdgeActivityRecoveryWindowMinutes, 240);
+  const targetTrades = numeric(config.adaptiveEdgeActivityRecoveryTargetTrades, 2);
+  const maxRelaxPct = clamp(numeric(config.adaptiveEdgeActivityRecoveryMaxRelaxPct, 3), 0, 5);
+  const windowMs = Math.max(1, windowMinutes) * 60 * 1000;
+  const recent = rows.filter((trade) => {
+    const closedAt = Date.parse(trade.exitedAt || trade.exitTime || trade.closedAt || "");
+    return Number.isFinite(closedAt) && now - closedAt >= 0 && now - closedAt <= windowMs;
+  });
+  const rolling = performanceForRows(rows.slice(-50));
+  const feeDragOk =
+    rolling.samples < 10 ||
+    rolling.feeImpactRatio <= numeric(config.adaptiveEdgeActivityRecoveryMaxFeeDragRatio, 0.65);
+  const expectancyOk =
+    rolling.samples < 10 ||
+    rolling.profitFactor >= numeric(config.adaptiveEdgeActivityRecoveryMinProfitFactor, 1);
+  const active =
+    Boolean(config.adaptiveEdgeActivityRecoveryMode) &&
+    recent.length < targetTrades &&
+    feeDragOk &&
+    expectancyOk;
+  return {
+    active,
+    recentClosedTrades: recent.length,
+    targetClosedTrades: targetTrades,
+    windowMinutes,
+    maxRelaxPct,
+    thresholdMultiplier: active ? round(1 - maxRelaxPct / 100, 4) : 1,
+    scoreBoost: active ? round(maxRelaxPct * 0.45, 4) : 0,
+    feeDragOk,
+    expectancyOk,
+    rollingProfitFactor: rolling.profitFactor,
+    rollingExpectancyUsdt: rolling.expectancyUsdt,
+    reason: active
+      ? "qualified activity recovery nudges thresholds without bypassing edge, fee, or risk gates"
+      : recent.length >= targetTrades
+        ? "recent trade activity is sufficient"
+        : !feeDragOk
+          ? "fee drag too high; activity recovery withheld"
+          : !expectancyOk
+            ? "profit factor below recovery minimum; activity recovery withheld"
+            : "activity recovery disabled",
+    neverForcesTrades: true,
+  };
+}
+
 function tradeClusterRisk(trades = [], signal = {}, config = {}, now = Date.now()) {
   const windowMs = Math.max(1, numeric(config.tradeClusterWindowMinutes, 45)) * 60 * 1000;
   const key = setupRegimeMatrixKey(signal);
@@ -544,6 +591,7 @@ function qualityScoreForSignal(config = {}, signal = {}, edgeModel = {}, symbolM
   const regimeMemory = edgeMemory.regimeMemory || { weight: 1, bias: "NEUTRAL" };
   const matrixMemory = edgeMemory.setupRegimeMatrixMemory || { weight: 1, bias: "NEUTRAL" };
   const autoTuning = edgeMemory.autoTuning || { thresholdMultiplier: 1, adjustmentPct: 0, bias: "NEUTRAL" };
+  const activityRecovery = edgeMemory.activityRecovery || { thresholdMultiplier: 1, scoreBoost: 0, active: false };
   const clusterRisk = edgeMemory.clusterRisk || { clusterRiskScore: 0 };
   let score =
     trend * 0.25 +
@@ -559,6 +607,7 @@ function qualityScoreForSignal(config = {}, signal = {}, edgeModel = {}, symbolM
   else if (numeric(signal.marketBreadthScore) > 0 && numeric(signal.marketBreadthScore) < 45) score -= 3;
   if (numeric(signal.portfolioAlphaScore) >= 82) score += 4;
   else if (numeric(signal.portfolioAlphaScore) > 0 && numeric(signal.portfolioAlphaScore) < 45) score -= 4;
+  score += numeric(activityRecovery.scoreBoost);
   if (numeric(clusterRisk.clusterRiskScore) >= 60) score -= 3;
   const tags = Array.isArray(signal.marketRegimeTags) ? signal.marketRegimeTags : [];
   if (tags.includes("STRONG_TRENDING_MARKET") && /CONTINUATION|RETEST|RESUMPTION|ACCELERATION|BREAKOUT/i.test(String(signal.continuationSetupType || signal.setupType || ""))) {
@@ -578,8 +627,9 @@ function qualityScoreForSignal(config = {}, signal = {}, edgeModel = {}, symbolM
   score = round(clamp(score, 0, 100), 2);
   const thresholdTightening = optimizer && optimizer.feeDragTighteningActive ? numeric(config.expectancyEntryTighteningPoints, 2) : 0;
   const autoTuneMultiplier = clamp(numeric(autoTuning.thresholdMultiplier, 1), 0.95, 1.05);
-  const normalThreshold = round(numeric(config.profitModeMinQualityScore, 70) * autoTuneMultiplier + thresholdTightening, 2);
-  const strongThreshold = round(numeric(config.profitModeStrongQualityScore, 85) * autoTuneMultiplier + Math.ceil(thresholdTightening / 2), 2);
+  const activityRecoveryMultiplier = clamp(numeric(activityRecovery.thresholdMultiplier, 1), 0.95, 1);
+  const normalThreshold = round(numeric(config.profitModeMinQualityScore, 70) * autoTuneMultiplier * activityRecoveryMultiplier + thresholdTightening, 2);
+  const strongThreshold = round(numeric(config.profitModeStrongQualityScore, 85) * autoTuneMultiplier * activityRecoveryMultiplier + Math.ceil(thresholdTightening / 2), 2);
   const eliteThreshold = numeric(config.profitModeEliteQualityScore, 95);
   const tier = score >= eliteThreshold ? "ELITE" : score >= strongThreshold ? "STRONG" : score >= normalThreshold ? "NORMAL" : "REJECT";
   const chopRequiresStrong =
@@ -612,6 +662,7 @@ function qualityScoreForSignal(config = {}, signal = {}, edgeModel = {}, symbolM
       multiTimeframeTrend: round(numeric(signal.multiTimeframeTrendScore), 2),
       expectancyOptimizer: optimizer && optimizer.continuationOutperforming ? round(numeric(optimizer.continuationWeightBoostPoints), 2) : 0,
       expectancyAutoTuningPct: numeric(autoTuning.adjustmentPct),
+      adaptiveActivityRecovery: activityRecovery.active ? round(numeric(activityRecovery.scoreBoost), 2) : 0,
     },
     thresholds: {
       rejectBelow: normalThreshold,
@@ -624,6 +675,7 @@ function qualityScoreForSignal(config = {}, signal = {}, edgeModel = {}, symbolM
     regimeMemory,
     setupRegimeMatrixMemory: matrixMemory,
     expectancyAutoTuning: autoTuning,
+    adaptiveActivityRecovery: activityRecovery,
     clusterRisk,
     expectancyOptimizer: optimizer,
   };
@@ -708,6 +760,7 @@ function profitEdgeReport(trades = [], config = {}) {
   const regimeRanking = regimePerformanceReport(rows, config);
   const setupRegimeMatrix = setupRegimeMatrixReport(rows, config);
   const autoTuning = expectancyAutoTuning(rows, config);
+  const activityRecovery = adaptiveActivityRecovery(rows, config);
   const recent100 = performanceForRows(rows.slice(-100));
   const previous100 = performanceForRows(rows.slice(-200, -100));
   return {
@@ -731,6 +784,7 @@ function profitEdgeReport(trades = [], config = {}) {
     expectancyTrend: metricTrend(recent100.expectancyUsdt, previous100.expectancyUsdt),
     profitFactorTrend: metricTrend(recent100.profitFactor, previous100.profitFactor),
     expectancyAutoTuning: autoTuning,
+    adaptiveActivityRecovery: activityRecovery,
     setupRanking,
     setupRegimeMatrix,
     regimeRanking,
@@ -827,6 +881,7 @@ function profitControlledSummary(trades = [], currentEquityUsdt = 0, startEquity
 
 module.exports = {
   earnedRiskTier,
+  adaptiveActivityRecovery,
   asymmetricRunnerAllocation,
   clusterRiskReport,
   ensureProfitControlledState,

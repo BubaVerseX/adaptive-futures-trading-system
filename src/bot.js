@@ -17,6 +17,7 @@ const { edgeGate } = require("./costModel");
 const { ProfitObjectiveEngine } = require("./profitObjective");
 const {
   earnedRiskTier,
+  adaptiveActivityRecovery,
   ensureProfitControlledState,
   expectancyAutoTuning,
   expectancyOptimizer,
@@ -502,6 +503,8 @@ class LadderBot {
         },
         expectancyAutoTuningWindowTrades: this.config.expectancyAutoTuningWindowTrades,
         expectancyAutoTuningMaxAdjustmentPct: this.config.expectancyAutoTuningMaxAdjustmentPct,
+        adaptiveActivityRecoveryMode: this.config.adaptiveEdgeActivityRecoveryMode,
+        adaptiveActivityRecoveryMaxRelaxPct: this.config.adaptiveEdgeActivityRecoveryMaxRelaxPct,
         tradeClusterWindowMinutes: this.config.tradeClusterWindowMinutes,
         maxClusterSizeReductionPct: this.config.tradeClusterMaxSizeReductionPct,
         noMartingale: true,
@@ -2895,6 +2898,7 @@ class LadderBot {
     const regimeMemory = this.config.edgeMaximizationMode ? regimePerformanceMemory(this.store.trades, signal, this.config) : null;
     const setupRegimeMatrix = this.config.edgeReinforcementMode ? setupRegimeMatrixMemory(this.store.trades, signal, this.config) : null;
     const autoTuning = this.config.edgeReinforcementMode ? expectancyAutoTuning(this.store.trades, this.config) : null;
+    const activityRecovery = this.config.edgeReinforcementMode ? adaptiveActivityRecovery(this.store.trades, this.config) : null;
     const clusterRisk = this.config.edgeReinforcementMode ? tradeClusterRisk(this.store.trades, signal, this.config) : null;
     signal.clusterRisk = clusterRisk;
     signal.clusterRiskScore = clusterRisk ? clusterRisk.clusterRiskScore : 0;
@@ -2904,6 +2908,7 @@ class LadderBot {
       regimeMemory,
       setupRegimeMatrixMemory: setupRegimeMatrix,
       autoTuning,
+      activityRecovery,
       clusterRisk,
     });
     signal.profitQualityScore = quality.score;
@@ -2914,6 +2919,7 @@ class LadderBot {
     signal.regimePerformanceMemory = regimeMemory;
     signal.setupRegimeMatrixMemory = setupRegimeMatrix;
     signal.expectancyAutoTuning = autoTuning;
+    signal.adaptiveActivityRecovery = activityRecovery;
     signal.expectancyOptimizer = optimizer;
     signal.runnerExtensionOptimizerMultiplier = optimizer && optimizer.runnerContributionPositive ? optimizer.runnerExtensionMultiplier : 1;
     signal.adaptiveMode = "PROFIT_MODE";
@@ -2945,6 +2951,7 @@ class LadderBot {
       regimePerformanceMemory: regimeMemory,
       setupRegimeMatrixMemory: setupRegimeMatrix,
       expectancyAutoTuning: autoTuning,
+      adaptiveActivityRecovery: activityRecovery,
       clusterRisk,
       portfolioAlphaScore: signal.portfolioAlphaScore,
       portfolioAlpha: signal.portfolioAlpha,
@@ -2990,6 +2997,20 @@ class LadderBot {
         profitFactorTrend: autoTuning.profitFactorTrend,
         expectancyTrend: autoTuning.expectancyTrend,
         maxAdjustmentPct: autoTuning.maxAdjustmentPct,
+      });
+    }
+    if (activityRecovery) {
+      this.log(activityRecovery.active ? "INFO" : "DEBUG", "ADAPTIVE_ACTIVITY_RECOVERY_ACTIVE", {
+        active: activityRecovery.active,
+        recentClosedTrades: activityRecovery.recentClosedTrades,
+        targetClosedTrades: activityRecovery.targetClosedTrades,
+        windowMinutes: activityRecovery.windowMinutes,
+        thresholdMultiplier: activityRecovery.thresholdMultiplier,
+        scoreBoost: activityRecovery.scoreBoost,
+        reason: activityRecovery.reason,
+        neverForcesTrades: activityRecovery.neverForcesTrades,
+        riskControlsUnchanged: true,
+        feeProtectionUnchanged: true,
       });
     }
     if (clusterRisk) {
@@ -3455,6 +3476,7 @@ class LadderBot {
       regimePerformanceMemory: signal.regimePerformanceMemory,
       setupRegimeMatrixMemory: signal.setupRegimeMatrixMemory,
       expectancyAutoTuning: signal.expectancyAutoTuning,
+      adaptiveActivityRecovery: signal.adaptiveActivityRecovery,
       clusterRisk: signal.clusterRisk,
       clusterRiskScore: signal.clusterRiskScore,
       clusterRiskSizeMultiplier: signal.clusterRiskSizeMultiplier,

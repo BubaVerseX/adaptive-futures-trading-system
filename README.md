@@ -340,6 +340,7 @@ V9.5 adds a second reinforcement layer on top of V9. It is still weighting-only:
 - The regime/setup matrix tracks combinations such as `BTC_CONTINUATION x TRENDING`, `ETH_BREAKOUT x BREAKOUT`, and `SOL_REVERSAL x CHOP`.
 - Asymmetric winner allocation replaces the fixed runner split: weak trend closes `50%` at TP1, strong trend closes `20%`, and elite trend closes `10%`. The remaining runner keeps breakeven protection, ATR trailing, and trend-extension logic.
 - Expectancy auto-tuning evaluates every `100` closed trades. If profit factor is below `1.0`, entry quality tightens by at most `5%`; if profit factor is above `1.3` with positive expectancy, filters relax by at most `5%`.
+- Adaptive Activity Recovery can nudge quality thresholds by at most `3%` after a quiet window, but only when rolling fee drag and profit factor are acceptable. It never forces trades or bypasses fee/risk gates.
 - Trade cluster detection watches repeated same-symbol, same-direction, same-setup, same-regime trades inside a rolling window and can reduce size modestly. It never blocks trading outright.
 - `portfolioAlphaScore` combines BTC, ETH, and SOL trend scores. Full alignment adds confidence; mixed signals reduce confidence.
 - V9.5 does not add martingale, averaging down, revenge trading, leverage increases, or stop-loss weakening.
