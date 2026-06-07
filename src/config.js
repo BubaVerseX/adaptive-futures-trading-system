@@ -227,6 +227,12 @@ function loadConfig() {
     expectancyAutoTuningMaxAdjustmentPct: numberValue("EXPECTANCY_AUTO_TUNING_MAX_ADJUSTMENT_PCT", 5, { minimum: 0, maximum: 5 }),
     expectancyAutoTuningTightenProfitFactor: numberValue("EXPECTANCY_AUTO_TUNING_TIGHTEN_PROFIT_FACTOR", 1, { positive: true }),
     expectancyAutoTuningRelaxProfitFactor: numberValue("EXPECTANCY_AUTO_TUNING_RELAX_PROFIT_FACTOR", 1.3, { positive: true }),
+    adaptiveEdgeActivityRecoveryMode: booleanValue("ADAPTIVE_EDGE_ACTIVITY_RECOVERY_MODE", profitControlledEquityMode ? true : false),
+    adaptiveEdgeActivityRecoveryWindowMinutes: numberValue("ADAPTIVE_EDGE_ACTIVITY_RECOVERY_WINDOW_MINUTES", 240, { positive: true }),
+    adaptiveEdgeActivityRecoveryTargetTrades: numberValue("ADAPTIVE_EDGE_ACTIVITY_RECOVERY_TARGET_TRADES", 2, { minimum: 0 }),
+    adaptiveEdgeActivityRecoveryMaxRelaxPct: numberValue("ADAPTIVE_EDGE_ACTIVITY_RECOVERY_MAX_RELAX_PCT", 3, { minimum: 0, maximum: 5 }),
+    adaptiveEdgeActivityRecoveryMinProfitFactor: numberValue("ADAPTIVE_EDGE_ACTIVITY_RECOVERY_MIN_PROFIT_FACTOR", 1, { positive: true }),
+    adaptiveEdgeActivityRecoveryMaxFeeDragRatio: numberValue("ADAPTIVE_EDGE_ACTIVITY_RECOVERY_MAX_FEE_DRAG_RATIO", 0.65, { minimum: 0 }),
     tradeClusterWindowMinutes: numberValue("TRADE_CLUSTER_WINDOW_MINUTES", 45, { positive: true }),
     tradeClusterMaxSizeReductionPct: numberValue("TRADE_CLUSTER_MAX_SIZE_REDUCTION_PCT", 20, { minimum: 0, maximum: 40 }),
     tradeFrequencyRecoveryMode: booleanValue("TRADE_FREQUENCY_RECOVERY_MODE", profitControlledEquityMode ? true : false),
@@ -441,6 +447,7 @@ function loadConfig() {
     config.nearMissLearningEnabled = true;
     config.edgeMaximizationMode = true;
     config.edgeReinforcementMode = true;
+    config.adaptiveEdgeActivityRecoveryMode = true;
     config.winnerAmplifierEnabled = true;
     config.winnerAmplifierPartialTakeProfitPct = 30;
     config.tradeFrequencyRecoveryMode = true;
