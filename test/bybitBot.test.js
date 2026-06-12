@@ -367,7 +367,7 @@ async function testLiveValidationStartupChecksProceedWithoutOrders() {
   bot.store.saveAll = () => {};
   bot.risk.store = bot.store;
   bot.client = {
-    getSymbols: async () => [instrument("BTCUSDT"), instrument("ETHUSDT"), instrument("SOLUSDT")],
+    getSymbols: async () => ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "LINKUSDT", "BNBUSDT"].map((symbol) => instrument(symbol)),
     getUsdtBalance: async () => ({ available: 10, equity: 70 }),
     getPositions: async () => [],
     placeMarketOrder: async () => {
@@ -1060,6 +1060,8 @@ function scannerAnalysis(overrides = {}) {
     bodyDirection: "UP",
     bodyStrength: 0.7,
     atrPct: 0.25,
+    rangeExpansion: 1.5,
+    rangePosition: 0.5,
     ...overrides,
   };
 }
@@ -1165,6 +1167,140 @@ async function testNextGenerationContinuationScoring() {
   assert.ok(signal.smartProjectedNetEdgePct > 0);
 }
 
+async function testV11ActiveMarketEngine() {
+  const { log } = logCollector();
+  const cfg = config({
+    v11ActiveMarketEngine: true,
+    v11MeanReversionEnabled: true,
+    allowChoppyMarket: false,
+    min24hVolumeUsdt: 100000,
+    minSignalScore: 35,
+    minConvictionScore: 35,
+    nearMissLearningEnabled: true,
+    nearMissMaxPointGap: 3,
+    v11NearMissReevaluationMaxGap: 3,
+  });
+  const scanner = new Scanner(cfg, {}, log);
+  scanner.cachedBenchmarkDirections = { BTCUSDT: "CHOPPY", ETHUSDT: "CHOPPY" };
+  const chopMarket = {
+    direction: "CHOPPY",
+    primary: "SIDEWAYS_CHOP_MARKET",
+    tags: ["SIDEWAYS_CHOP_MARKET"],
+    confidence: 42,
+    reasons: ["test chop range"],
+    riskMultiplier: 1,
+    aggressionMultiplier: 1,
+  };
+  const signal = scanner.scoreDirection(
+    "LONG",
+    { info: { symbol: "LINKUSDT" }, price: 20, volume: 8000000, spreadPct: 0.02 },
+    scannerAnalysis({
+      ema9: 20,
+      ema21: 20.01,
+      ema50: 20,
+      rsi14: 43,
+      breakout: false,
+      volumeSpike: 1.5,
+      momentumPct: 0.01,
+      lastCandleMomentumPct: 0.01,
+      upMomentumCandles: 1,
+      bodyStrength: 0.35,
+      rangePosition: 0.08,
+    }),
+    scannerAnalysis({
+      ema9: 20,
+      ema21: 20.01,
+      ema50: 20,
+      rsi14: 42,
+      breakout: false,
+      volumeSpike: 1.45,
+      momentumPct: 0.01,
+      lastCandleMomentumPct: 0.01,
+      upMomentumCandles: 1,
+      bodyStrength: 0.35,
+      rangeExpansion: 1.1,
+      rangePosition: 0.06,
+    }),
+    scannerAnalysis({ ema9: 20, ema21: 20.01, ema50: 20, momentumPct: 0.01, breakout: false, upMomentumCandles: 1 }),
+    scannerAnalysis({ ema9: 20, ema21: 20.01, ema50: 20, momentumPct: 0.01, breakout: false, upMomentumCandles: 1 }),
+    scannerAnalysis({ ema9: 20, ema21: 20.01, ema50: 20, momentumPct: 0.01, breakout: false, upMomentumCandles: 1 }),
+    chopMarket,
+    []
+  );
+  assert.equal(signal.meanReversionActive, true);
+  assert.equal(signal.setupType, "MEAN_REVERSION_RANGE");
+  assert.equal(signal.continuationSetupType, "MEAN_REVERSION_RANGE");
+  assert.ok(signal.scoreBreakdown.some((reason) => reason.includes("mean reversion module active")));
+  assert.equal(signal.rejected.some((reason) => /choppy-market entries disabled/i.test(reason)), false);
+  assert.equal(signal.rejected.some((reason) => /momentum did not persist/i.test(reason)), false);
+  assert.ok(signal.atrExitPct > 0);
+  const bot = new LadderBot(cfg);
+  bot.store.state = {
+    mode: "DRY_RUN",
+    openPositions: [],
+    daily: {},
+    ladder: { activeLevel: 1, highestUnlockedLevel: 1, levelStartEquity: 100, riskDowngraded: false },
+  };
+  bot.risk.store = bot.store;
+  const plan = bot.risk.sizingPlan(
+    { ...signal, score: 78, convictionScore: 70, profitQualityScore: 72, tradeCategory: "NORMAL_CONTINUATION" },
+    100,
+    instrument("LINKUSDT", { qtyStep: "0.1", minOrderQty: "0.1", minNotionalValue: "5" }),
+    3
+  );
+  assert.equal(plan.rejected, false);
+  assert.ok(plan.reasonsForSizingTier.some((reason) => /V11 mean reversion ATR exit target/i.test(reason)));
+  assert.ok(plan.takeProfitPct >= cfg.minExpectedMovePct && plan.takeProfitPct <= cfg.takeProfitPct);
+
+  const aligned = multiTimeframeTrendConfirmation(
+    cfg,
+    "LONG",
+    scannerAnalysis({ momentumPct: 0.2, upMomentumCandles: 3 }),
+    scannerAnalysis({ momentumPct: 0.18, upMomentumCandles: 3 }),
+    scannerAnalysis({ momentumPct: 0.16, upMomentumCandles: 3 }),
+    scannerAnalysis({ momentumPct: 0.14, upMomentumCandles: 3 }),
+    scannerAnalysis({ momentumPct: 0.12, upMomentumCandles: 3 })
+  );
+  const conflicted = multiTimeframeTrendConfirmation(
+    cfg,
+    "LONG",
+    scannerAnalysis({ momentumPct: 0.2, upMomentumCandles: 3 }),
+    scannerAnalysis({ momentumPct: 0.18, upMomentumCandles: 3 }),
+    scannerAnalysis({ ema9: 95, ema21: 97, ema50: 100, momentumPct: -0.18, downMomentumCandles: 3, bodyDirection: "DOWN" }),
+    scannerAnalysis({ ema9: 95, ema21: 97, ema50: 100, momentumPct: -0.16, downMomentumCandles: 3, bodyDirection: "DOWN" }),
+    scannerAnalysis({ ema9: 95, ema21: 97, ema50: 100, momentumPct: -0.14, downMomentumCandles: 3, bodyDirection: "DOWN" })
+  );
+  assert.equal(aligned.directions.macro4h, "UP");
+  assert.ok(aligned.score > conflicted.score);
+  assert.equal(conflicted.macroLongOpposite, true);
+}
+
+async function testV11ActivityReport() {
+  const bot = new LadderBot(config({ profitControlledEquityMode: true, dryRun: true }));
+  bot.store.state = {
+    mode: "DRY_RUN",
+    openPositions: [],
+    profitControlled: {
+      startEquityUsdt: 100,
+      exchangeReportedTotalEquityUsdt: 100,
+      sizingEquityBaseUsdt: 100,
+      usableMarginUsdt: 100,
+    },
+    daily: {},
+    ladder: {},
+    symbolCooldowns: {},
+  };
+  bot.recordActivityEvent("scanCandidate", { count: 7 });
+  bot.recordActivityEvent("scanRejected", { count: 4 });
+  bot.recordActivityEvent("scanAccepted", { count: 3 });
+  const report = bot.writeActivityReport();
+  assert.equal(report.candidateCount, 7);
+  assert.equal(report.rejectedCount, 4);
+  assert.equal(report.acceptedCount, 3);
+  assert.equal(report.safety.feeProtectionActive, true);
+  assert.ok(fs.existsSync(path.join(bot.config.reportsDir, "activity-report.json")));
+}
+
 async function testMarketRegimeClassification() {
   const cfg = config();
   const strong = marketProfileFromBenchmarks(cfg, scannerAnalysis(), scannerAnalysis());
@@ -1200,14 +1336,15 @@ async function testMarketRegimeClassification() {
 async function testFocusedUniverseRestriction() {
   const { events, log } = logCollector();
   const subscribed = [];
-  const symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "DOGEUSDT", "WIFUSDT"].map((symbol) => ({
+  const expectedUniverse = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "LINKUSDT", "BNBUSDT"];
+  const symbols = [...expectedUniverse, "WIFUSDT"].map((symbol) => ({
     symbol,
     contractType: "LinearPerpetual",
     status: "Trading",
     settleCoin: "USDT",
   }));
   const tickers = new Map(
-    ["BTCUSDT", "ETHUSDT", "SOLUSDT", "DOGEUSDT", "WIFUSDT"].map((symbol, index) => [
+    [...expectedUniverse, "WIFUSDT"].map((symbol, index) => [
       symbol,
       {
         symbol,
@@ -1226,14 +1363,14 @@ async function testFocusedUniverseRestriction() {
     },
     subscribeTickers: (list) => subscribed.push(...list),
   };
-  const scanner = new Scanner(config({ maxSymbolsToScan: 3 }), client, log);
+  const scanner = new Scanner(config({ maxSymbolsToScan: 7 }), client, log);
   const universe = await scanner.universe();
-  assert.deepEqual(universe.map((item) => item.info.symbol), ["BTCUSDT", "ETHUSDT", "SOLUSDT"]);
-  assert.deepEqual(subscribed, ["BTCUSDT", "ETHUSDT", "SOLUSDT"]);
+  assert.deepEqual(universe.map((item) => item.info.symbol), expectedUniverse);
+  assert.deepEqual(subscribed, expectedUniverse);
   assert.ok(events.some((event) => event.message === "Focused trading universe enabled."));
-  assert.ok(events.some((event) => event.message === "BTC/ETH/SOL mode active; noisy market universe removed."));
-  const prepared = events.find((event) => event.message === "Focused BTC/ETH/SOL universe prepared.");
-  assert.equal(prepared.details.rejected.outsideFocus, 2);
+  assert.ok(events.some((event) => event.message === "V11 active market universe enabled; noisy market universe still filtered."));
+  const prepared = events.find((event) => event.message === "Focused V11 active market universe prepared.");
+  assert.equal(prepared.details.rejected.outsideFocus, 1);
 }
 
 async function testExplorationSignalPath() {
@@ -1872,7 +2009,7 @@ async function testProfitControlledStartupChecksProceedWithoutOrders() {
   bot.store.saveAll = () => {};
   bot.risk.store = bot.store;
   bot.client = {
-    getSymbols: async () => [instrument("BTCUSDT"), instrument("ETHUSDT"), instrument("SOLUSDT")],
+    getSymbols: async () => ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "LINKUSDT", "BNBUSDT"].map((symbol) => instrument(symbol)),
     getUsdtBalance: async () => ({ available: 49, equity: 50, transferableUsableMargin: 49, parseSource: "TEST" }),
     getPositions: async () => [],
     placeMarketOrder: async () => {
@@ -3174,6 +3311,9 @@ async function testV10TrendDominanceEngine() {
     inactivityRecoveryFourHourRelaxPct: 2,
     inactivityRecoveryEightHourRelaxPct: 4,
     inactivityRecoveryTwelveHourRelaxPct: 6,
+    inactivityRecoveryFourHourRelaxPoints: 2,
+    inactivityRecoveryEightHourRelaxPoints: 4,
+    inactivityRecoveryTwelveHourRelaxPoints: 6,
     profitControlledNormalMaxStopRiskPct: 0.75,
     profitControlledStrongMaxStopRiskPct: 1.5,
     profitControlledEliteMaxStopRiskPct: 2,
@@ -3245,9 +3385,13 @@ async function testV10TrendDominanceEngine() {
   const idle8h = dynamicInactivityRecovery(cfg, Date.now() - 8.1 * 60 * 60 * 1000);
   const idle12h = dynamicInactivityRecovery(cfg, Date.now() - 12.1 * 60 * 60 * 1000);
   const recentTrade = dynamicInactivityRecovery(cfg, Date.now() - 30 * 60 * 1000);
-  assert.equal(idle4h.convictionThresholdMultiplier, 0.98);
-  assert.equal(idle8h.convictionThresholdMultiplier, 0.96);
-  assert.equal(idle12h.convictionThresholdMultiplier, 0.94);
+  assert.equal(idle4h.convictionRelaxPoints, 2);
+  assert.equal(idle8h.convictionRelaxPoints, 4);
+  assert.equal(idle12h.convictionRelaxPoints, 6);
+  assert.equal(idle4h.convictionThresholdDelta, -2);
+  assert.equal(idle8h.convictionThresholdDelta, -4);
+  assert.equal(idle12h.convictionThresholdDelta, -6);
+  assert.equal(idle12h.convictionThresholdMultiplier, 1);
   assert.equal(recentTrade.active, false);
   assert.equal(idle12h.resetAfterNewTrade, true);
 
@@ -3334,7 +3478,9 @@ async function testScannerInactivityRecoverySummaryScope() {
       active: true,
       stage: "INACTIVE_8H",
       convictionRelaxPct: 4,
-      convictionThresholdMultiplier: 0.96,
+      convictionRelaxPoints: 4,
+      convictionThresholdMultiplier: 1,
+      convictionThresholdDelta: -4,
       resetAfterNewTrade: true,
     },
   });
@@ -3344,7 +3490,8 @@ async function testScannerInactivityRecoverySummaryScope() {
   const recoveryLog = logs.events.find((event) => event.message === "TRADE_FREQUENCY_RECOVERY_ACTIVE");
   const completedLog = logs.events.find((event) => event.message === "Scalping scan completed.");
   assert.equal(recoveryLog.details.inactivityRecovery.stage, "INACTIVE_8H");
-  assert.equal(completedLog.details.inactivityRecovery.convictionThresholdMultiplier, 0.96);
+  assert.equal(completedLog.details.inactivityRecovery.convictionRelaxPoints, 4);
+  assert.equal(completedLog.details.inactivityRecovery.convictionThresholdDelta, -4);
 }
 
 async function testProfitProtectionReducesExplorationAndRisk() {
@@ -3814,7 +3961,7 @@ async function testForcedMarketSamplingPromotion() {
   assert.equal(promoted[0].rejected.length, 0);
   assert.ok(promoted[0].forcedSamplingOriginalRejections.includes("moderate chop accepted for learning sample"));
   assert.ok(events.some((event) => event.message === "Forced market sampling engaged."));
-  assert.equal(bot.forcedSamplingEligible({ ...promoted[0], symbol: "DOGEUSDT" }), false);
+  assert.equal(bot.forcedSamplingEligible({ ...promoted[0], symbol: "WIFUSDT" }), false);
 }
 
 async function run() {
@@ -3840,6 +3987,8 @@ async function run() {
   await testFocusedUniverseRestriction();
   await testSurvivabilityScannerScoring();
   await testNextGenerationContinuationScoring();
+  await testV11ActiveMarketEngine();
+  await testV11ActivityReport();
   await testExplorationSignalPath();
   await testExplorationMemoryRelaxation();
   await testFeeAwareStatsAndSymbolCooldown();
@@ -3871,7 +4020,7 @@ async function run() {
   await testContinuousExecutionClearsStaleTradeLimitPause();
   await testAggressiveLearningCooldownsAreAdvisory();
   await testForcedMarketSamplingPromotion();
-  console.log("Bybit client and bot tests passed: REST signing, centralized 34040 no-change handling, duplicate TP/SL skip, execution ledger fill dedupe, net edge gate, portfolio risk-at-stop checks, UTA balance parsing, live safety balance use, native protection payloads, WebSocket reconnect, API auto-recovery without shutdown, reconciliation, hedge exposure detection, native TP events, regime intelligence, focused BTC/ETH/SOL universe restriction, survivability scoring, next-generation continuation scoring, exploration path, exploration memory relaxation, fee-aware stats, advisory symbol cooldowns, adaptive learning, continuation market memory, cautious active recovery, activity floor, daily shutdown removal, forced market sampling, profit protection sizing, fee-aware entries, dynamic sizing, live-validation guards, allocation ladder, risk degradation, promotion checks, execution-cost logging, V6 profit-controlled config guards, setup preservation, deferred leverage mutation, exchange-minimum feasibility, risk degradation, maker/taker routing, V7 profit mode, quality score gate, fee killer, symbol memory V2/V3, expectancy report, winner amplifier continuation holds, V7.1 trade frequency recovery tuning, V8 professional trend/expectancy optimization, V9 edge maximization, V9.5 adaptive edge reinforcement, and V10 aggressive adaptive trend dominance.");
+  console.log("Bybit client and bot tests passed: REST signing, centralized 34040 no-change handling, duplicate TP/SL skip, execution ledger fill dedupe, net edge gate, portfolio risk-at-stop checks, UTA balance parsing, live safety balance use, native protection payloads, WebSocket reconnect, API auto-recovery without shutdown, reconciliation, hedge exposure detection, native TP events, regime intelligence, V11 active market universe restriction, survivability scoring, next-generation continuation scoring, V11 mean reversion and activity reporting, exploration path, exploration memory relaxation, fee-aware stats, advisory symbol cooldowns, adaptive learning, continuation market memory, cautious active recovery, activity floor, daily shutdown removal, forced market sampling, profit protection sizing, fee-aware entries, dynamic sizing, live-validation guards, allocation ladder, risk degradation, promotion checks, execution-cost logging, V6 profit-controlled config guards, setup preservation, deferred leverage mutation, exchange-minimum feasibility, risk degradation, maker/taker routing, V7 profit mode, quality score gate, fee killer, symbol memory V2/V3, expectancy report, winner amplifier continuation holds, V7.1 trade frequency recovery tuning, V8 professional trend/expectancy optimization, V9 edge maximization, V9.5 adaptive edge reinforcement, V10 aggressive adaptive trend dominance, and V11 active market engine.");
 }
 
 run().catch((error) => {

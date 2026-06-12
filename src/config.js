@@ -5,7 +5,7 @@ require("dotenv").config();
 const path = require("node:path");
 
 const PROJECT_ROOT = path.join(__dirname, "..");
-const FOCUSED_TRADING_SYMBOLS = Object.freeze(["BTCUSDT", "ETHUSDT", "SOLUSDT"]);
+const FOCUSED_TRADING_SYMBOLS = Object.freeze(["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "LINKUSDT", "BNBUSDT"]);
 const DEMO_REST_BASE_URL = "https://api-demo.bybit.com";
 const DEMO_PRIVATE_WS_BASE_URL = "wss://stream-demo.bybit.com";
 const MAINNET_PUBLIC_WS_BASE_URL = "wss://stream.bybit.com";
@@ -239,6 +239,9 @@ function loadConfig() {
     inactivityRecoveryFourHourRelaxPct: numberValue("INACTIVITY_RECOVERY_4H_CONVICTION_RELAX_PCT", 2, { minimum: 0, maximum: 10 }),
     inactivityRecoveryEightHourRelaxPct: numberValue("INACTIVITY_RECOVERY_8H_CONVICTION_RELAX_PCT", 4, { minimum: 0, maximum: 10 }),
     inactivityRecoveryTwelveHourRelaxPct: numberValue("INACTIVITY_RECOVERY_12H_CONVICTION_RELAX_PCT", 6, { minimum: 0, maximum: 10 }),
+    inactivityRecoveryFourHourRelaxPoints: numberValue("INACTIVITY_RECOVERY_4H_CONVICTION_RELAX_POINTS", 2, { minimum: 0, maximum: 10 }),
+    inactivityRecoveryEightHourRelaxPoints: numberValue("INACTIVITY_RECOVERY_8H_CONVICTION_RELAX_POINTS", 4, { minimum: 0, maximum: 10 }),
+    inactivityRecoveryTwelveHourRelaxPoints: numberValue("INACTIVITY_RECOVERY_12H_CONVICTION_RELAX_POINTS", 6, { minimum: 0, maximum: 10 }),
     aggressiveAdaptiveNormalStopRiskPct: numberValue("AGGRESSIVE_ADAPTIVE_NORMAL_STOP_RISK_PCT", 0.75, { positive: true, maximum: 5 }),
     aggressiveAdaptiveStrongStopRiskPct: numberValue("AGGRESSIVE_ADAPTIVE_STRONG_STOP_RISK_PCT", 1.5, { positive: true, maximum: 5 }),
     aggressiveAdaptiveEliteStopRiskPct: numberValue("AGGRESSIVE_ADAPTIVE_ELITE_STOP_RISK_PCT", 2, { positive: true, maximum: 5 }),
@@ -289,7 +292,17 @@ function loadConfig() {
     candleIntervalMain: String(process.env.CANDLE_INTERVAL_MAIN || "5M").trim(),
     candleIntervalTrend: String(process.env.CANDLE_INTERVAL_TREND || "15M").trim(),
     candleIntervalMacro: String(process.env.CANDLE_INTERVAL_MACRO || "60M").trim(),
-    maxSymbolsToScan: numberValue("MAX_SYMBOLS_TO_SCAN", 3, { positive: true, integer: true }),
+    candleIntervalMacroLong: String(process.env.CANDLE_INTERVAL_MACRO_LONG || "240M").trim(),
+    v11ActiveMarketEngine: booleanValue("V11_ACTIVE_MARKET_ENGINE", profitControlledEquityMode ? true : false),
+    v11NearMissReevaluationMaxGap: numberValue("V11_NEAR_MISS_REEVALUATION_MAX_GAP", 3, { minimum: 0, maximum: 10 }),
+    v11MeanReversionEnabled: booleanValue("V11_MEAN_REVERSION_ENABLED", profitControlledEquityMode ? true : false),
+    v11MeanReversionRangeEdgePct: numberValue("V11_MEAN_REVERSION_RANGE_EDGE_PCT", 0.22, { minimum: 0, maximum: 0.5 }),
+    v11MeanReversionScoreBoost: numberValue("V11_MEAN_REVERSION_SCORE_BOOST", 10, { minimum: 0, maximum: 20 }),
+    v11VolatileBreakoutBoost: numberValue("V11_VOLATILE_BREAKOUT_BOOST", 8, { minimum: 0, maximum: 20 }),
+    v11PanicRiskMultiplier: numberValue("V11_PANIC_RISK_MULTIPLIER", 0.55, { positive: true, maximum: 1 }),
+    v11HigherTimeframeAlignmentBoost: numberValue("V11_HIGHER_TIMEFRAME_ALIGNMENT_BOOST", 7, { minimum: 0, maximum: 20 }),
+    v11HigherTimeframeConflictPenalty: numberValue("V11_HIGHER_TIMEFRAME_CONFLICT_PENALTY", 9, { minimum: 0, maximum: 20 }),
+    maxSymbolsToScan: numberValue("MAX_SYMBOLS_TO_SCAN", 7, { positive: true, integer: true }),
     min24hVolumeUsdt: numberValue("MIN_24H_VOLUME_USDT", 1000000, { minimum: 0 }),
     maxSpreadPct: numberValue("MAX_SPREAD_PCT", 0.6, { positive: true }),
     excludedSymbols: symbolsSet("EXCLUDED_SYMBOLS"),
@@ -471,7 +484,10 @@ function loadConfig() {
     config.adaptiveEdgeActivityRecoveryMode = true;
     config.trendDominanceMode = true;
     config.aggressiveAdaptiveMode = true;
+    config.v11ActiveMarketEngine = true;
+    config.v11MeanReversionEnabled = true;
     config.inactivityRecoveryMode = true;
+    config.nearMissMaxPointGap = Math.min(config.nearMissMaxPointGap, config.v11NearMissReevaluationMaxGap);
     if (config.aggressiveAdaptiveMode) {
       config.profitControlledNormalMaxStopRiskPct = Math.max(
         config.profitControlledNormalMaxStopRiskPct,
@@ -522,7 +538,7 @@ function loadConfig() {
   }
 
   const supportedIntervals = new Set(["1M", "3M", "5M", "15M", "30M", "60M", "120M", "240M", "360M", "720M", "1D", "1W", "1MO"]);
-  for (const interval of [config.candleIntervalFast, config.candleIntervalMain, config.candleIntervalTrend, config.candleIntervalMacro]) {
+  for (const interval of [config.candleIntervalFast, config.candleIntervalMain, config.candleIntervalTrend, config.candleIntervalMacro, config.candleIntervalMacroLong]) {
     if (!supportedIntervals.has(interval.toUpperCase())) throw new Error(`Unsupported candle interval: ${interval}.`);
   }
   if (config.maxMarginUsagePct > config.maxTotalMarginUsagePct) {
