@@ -470,6 +470,38 @@ function adaptiveActivityRecovery(trades = [], config = {}, now = Date.now()) {
   };
 }
 
+function dynamicInactivityRecovery(config = {}, lastTradeOpenedAtMs = Date.now(), now = Date.now()) {
+  const lastTradeMs = Number(lastTradeOpenedAtMs);
+  const validLastTradeMs = Number.isFinite(lastTradeMs) ? lastTradeMs : now;
+  const inactiveHours = Math.max(0, (now - validLastTradeMs) / 3600000);
+  let convictionRelaxPct = 0;
+  let stage = "NONE";
+  if (inactiveHours >= 12) {
+    convictionRelaxPct = numeric(config.inactivityRecoveryTwelveHourRelaxPct, 6);
+    stage = "INACTIVE_12H";
+  } else if (inactiveHours >= 8) {
+    convictionRelaxPct = numeric(config.inactivityRecoveryEightHourRelaxPct, 4);
+    stage = "INACTIVE_8H";
+  } else if (inactiveHours >= 4) {
+    convictionRelaxPct = numeric(config.inactivityRecoveryFourHourRelaxPct, 2);
+    stage = "INACTIVE_4H";
+  }
+  const active = Boolean(config.inactivityRecoveryMode) && convictionRelaxPct > 0;
+  return {
+    active,
+    stage,
+    inactiveHours: round(inactiveHours, 4),
+    convictionRelaxPct: active ? round(convictionRelaxPct, 4) : 0,
+    convictionThresholdMultiplier: active ? round(1 - convictionRelaxPct / 100, 4) : 1,
+    resetAfterNewTrade: true,
+    neverBypassesRisk: true,
+    neverBypassesFees: true,
+    reason: active
+      ? `no trade opened for ${round(inactiveHours, 2)}h; conviction threshold relaxed by ${round(convictionRelaxPct, 2)}%`
+      : "recent trade activity keeps inactivity recovery reset",
+  };
+}
+
 function tradeClusterRisk(trades = [], signal = {}, config = {}, now = Date.now()) {
   const windowMs = Math.max(1, numeric(config.tradeClusterWindowMinutes, 45)) * 60 * 1000;
   const key = setupRegimeMatrixKey(signal);
@@ -538,11 +570,32 @@ function portfolioAlphaReport(trades = []) {
   };
 }
 
+function weakSolBreakout(signal = {}) {
+  const symbol = String(signal.symbol || "").toUpperCase();
+  if (symbol !== "SOLUSDT") return false;
+  const family = setupFamily(signal.continuationSetupType || signal.setupType || signal.tradeCategory);
+  const regime = compactRegime(regimeKey(signal));
+  return (
+    family === "BREAKOUT" &&
+    regime !== "TRENDING" &&
+    numeric(signal.continuationStrength) < 72 &&
+    numeric(signal.multiTimeframeTrendScore) < 78
+  );
+}
+
 function trendDominanceSignal(config = {}, signal = {}, context = {}) {
   const symbol = String(signal.symbol || "").toUpperCase();
   const ethBtcFocus = ["BTCUSDT", "ETHUSDT"].includes(symbol);
   const setupRegime = context.setupRegimeMatrixMemory || signal.setupRegimeMatrixMemory || { weight: 1, bias: "NEUTRAL" };
   const activityRecovery = context.activityRecovery || signal.adaptiveActivityRecovery || { active: false, feeDragOk: true, expectancyOk: true };
+  const solWeakBreakout = weakSolBreakout(signal);
+  const symbolWeightMultiplier = symbol === "ETHUSDT"
+    ? numeric(config.trendDominanceEthWeightMultiplier, 1.4)
+    : symbol === "BTCUSDT"
+      ? numeric(config.trendDominanceBtcWeightMultiplier, 1.25)
+      : solWeakBreakout
+        ? numeric(config.trendDominanceSolWeakBreakoutMultiplier, 0.82)
+        : 1;
   const baseScore =
     numeric(signal.multiTimeframeTrendScore) * 0.28 +
     numeric(signal.trendQualityScore) * 0.23 +
@@ -551,7 +604,8 @@ function trendDominanceSignal(config = {}, signal = {}, context = {}) {
     regimeQualityScore(signal) * 0.1;
   const matrixBoost = (numeric(setupRegime.weight, 1) - 1) * 16;
   const focusBoost = ethBtcFocus ? numeric(config.trendDominanceEthBtcFocusBoost, 4) : 0;
-  const score = round(clamp(baseScore + matrixBoost + focusBoost, 0, 100), 2);
+  const solWeakBreakoutPenalty = solWeakBreakout ? numeric(config.trendDominanceSolWeakBreakoutPenalty, 4) : 0;
+  const score = round(clamp(baseScore * symbolWeightMultiplier + matrixBoost + focusBoost - solWeakBreakoutPenalty, 0, 100), 2);
   const strong = score >= numeric(config.trendDominanceStrongScore, 82);
   const elite = score >= numeric(config.trendDominanceEliteScore, 92) || String(signal.profitQualityTier || "").toUpperCase() === "ELITE";
   const activityEligible =
@@ -570,14 +624,16 @@ function trendDominanceSignal(config = {}, signal = {}, context = {}) {
     score,
     tier: elite ? "ELITE_TREND_DOMINANCE" : strong ? "STRONG_TREND_DOMINANCE" : "NO_DOMINANCE",
     ethBtcFocus,
+    symbolWeightMultiplier: round(symbolWeightMultiplier, 4),
+    solWeakBreakout,
     matrixBias: setupRegime.bias || "NEUTRAL",
     activityEligible,
     thresholdMultiplier: activityEligible ? round(1 - activityBoostPct / 100, 4) : 1,
-    scoreBoost: strong ? numeric(config.trendDominanceScoreBoost, 3) + focusBoost * 0.35 : 0,
+    scoreBoost: round((strong ? numeric(config.trendDominanceScoreBoost, 3) + focusBoost * 0.35 : 0) - solWeakBreakoutPenalty, 4),
     sizingMultiplier,
     runnerExtensionMultiplier: strong ? numeric(config.trendDominanceRunnerExtensionBoost, 1.12) : 1,
     activityBoostPct,
-    targetActivityIncreasePct: activityEligible ? "25-40" : "0",
+    targetActivityIncreasePct: activityEligible ? "30-50" : "0",
     neverBypassesRisk: true,
     neverBypassesFees: true,
   };
@@ -651,6 +707,7 @@ function qualityScoreForSignal(config = {}, signal = {}, edgeModel = {}, symbolM
   const matrixMemory = edgeMemory.setupRegimeMatrixMemory || { weight: 1, bias: "NEUTRAL" };
   const autoTuning = edgeMemory.autoTuning || { thresholdMultiplier: 1, adjustmentPct: 0, bias: "NEUTRAL" };
   const activityRecovery = edgeMemory.activityRecovery || { thresholdMultiplier: 1, scoreBoost: 0, active: false };
+  const inactivityRecovery = edgeMemory.inactivityRecovery || { active: false, convictionThresholdMultiplier: 1 };
   const trendDominance = edgeMemory.trendDominance || { thresholdMultiplier: 1, scoreBoost: 0, sizingMultiplier: 1 };
   const clusterRisk = edgeMemory.clusterRisk || { clusterRiskScore: 0 };
   let score =
@@ -726,6 +783,7 @@ function qualityScoreForSignal(config = {}, signal = {}, edgeModel = {}, symbolM
       expectancyOptimizer: optimizer && optimizer.continuationOutperforming ? round(numeric(optimizer.continuationWeightBoostPoints), 2) : 0,
       expectancyAutoTuningPct: numeric(autoTuning.adjustmentPct),
       adaptiveActivityRecovery: activityRecovery.active ? round(numeric(activityRecovery.scoreBoost), 2) : 0,
+      inactivityRecoveryConvictionRelaxPct: inactivityRecovery.active ? round(numeric(inactivityRecovery.convictionRelaxPct), 2) : 0,
     },
     thresholds: {
       rejectBelow: normalThreshold,
@@ -739,6 +797,7 @@ function qualityScoreForSignal(config = {}, signal = {}, edgeModel = {}, symbolM
     setupRegimeMatrixMemory: matrixMemory,
     expectancyAutoTuning: autoTuning,
     adaptiveActivityRecovery: activityRecovery,
+    dynamicInactivityRecovery: inactivityRecovery,
     trendDominance,
     clusterRisk,
     expectancyOptimizer: optimizer,
@@ -949,6 +1008,7 @@ module.exports = {
   adaptiveActivityRecovery,
   asymmetricRunnerAllocation,
   clusterRiskReport,
+  dynamicInactivityRecovery,
   ensureProfitControlledState,
   expectancyAutoTuning,
   expectancyOptimizer,

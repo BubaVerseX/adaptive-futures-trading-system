@@ -347,15 +347,17 @@ V9.5 adds a second reinforcement layer on top of V9. It is still weighting-only:
 
 The expanded `edge-report.json` also includes best/worst setup-regime pair, runner win rate, average runner profit, cluster-risk statistics, portfolio-alpha statistics, expectancy trend, and profit-factor trend.
 
-### V10 Trend Dominance Engine
+### V10 Aggressive Adaptive Trend Dominance Engine
 
-V10 adds a trend-dominance layer for profit-controlled mode. It targets higher qualified activity during dominant trends without bypassing the existing fee, stop-loss, liquidation, or portfolio-cap protections.
+V10 adds an aggressive adaptive trend-dominance layer for profit-controlled mode. It targets higher qualified activity during dominant trends without bypassing the existing fee, stop-loss, liquidation, or portfolio-cap protections.
 
 - `trendDominanceScore` combines multi-timeframe trend, trend quality, continuation strength, portfolio alpha, regime quality, and setup-regime memory.
-- BTC and ETH receive a small focus boost when they participate in dominant BTC/ETH-led trend structure. SOL remains tradable and is never disabled.
-- Dominant trends can nudge quality thresholds and add a small score boost, targeting `25-40%` more qualified activity only when fee and expectancy conditions allow it.
-- Strong and elite trend-dominance setups can apply modest sizing multipliers before the existing risk caps clamp final exposure.
-- Runner extension can be slightly stronger in dominant trends, preserving the V9.5 breakeven, ATR trailing, and trend-extension protection.
+- Dynamic inactivity recovery reduces conviction thresholds by `2%` after 4 hours without a trade, `4%` after 8 hours, and `6%` after 12 hours. The recovery resets after a new trade opens.
+- Normal, strong, and elite profit-controlled stop-risk caps are `0.75%`, `1.50%`, and `2.00%` of sizing equity, while total portfolio and correlated BTC/ETH/SOL caps remain unchanged.
+- ETH receives a `1.40x` trend-dominance weight and BTC receives a `1.25x` weight. Weak SOL breakout structures are downweighted, but SOL remains tradable and is never disabled.
+- Dominant trends can nudge quality thresholds and add a score boost, targeting `30-50%` more qualified activity only when fee and expectancy conditions allow it.
+- Aggressive runner allocation uses `40% TP1 / 60% runner` for weak trends, `15% TP1 / 85% runner` for strong trends, and `5% TP1 / 95% runner` for elite trends.
+- Runner extension can be stronger in dominant trends, preserving breakeven, ATR trailing, and trend-extension protection.
 
 ## Focused BTC/ETH/SOL Universe
 

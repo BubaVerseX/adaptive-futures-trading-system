@@ -440,6 +440,11 @@ class Scanner {
     this.cachedBenchmarkDirections = { BTCUSDT: "CHOPPY", ETHUSDT: "CHOPPY" };
     this.cachedFocusedDirections = { BTCUSDT: "CHOPPY", ETHUSDT: "CHOPPY", SOLUSDT: "CHOPPY" };
     this.focusUniverseLogged = false;
+    this.runtimeContext = {};
+  }
+
+  setRuntimeContext(context = {}) {
+    this.runtimeContext = { ...(this.runtimeContext || {}), ...context };
   }
 
   normalizeMarketProfile(input) {
@@ -1061,6 +1066,16 @@ class Scanner {
     }
 
     let finalScore = clampScore(score);
+    const inactivityRecovery = this.runtimeContext.dynamicInactivityRecovery || {
+      active: false,
+      convictionThresholdMultiplier: 1,
+      convictionRelaxPct: 0,
+      stage: "NONE",
+    };
+    const baseAdaptiveConvictionThreshold = convictionThresholdForRegime(this.config, regimeV2.regime);
+    const adaptiveConvictionThreshold = Number(
+      bounded(baseAdaptiveConvictionThreshold * Number(inactivityRecovery.convictionThresholdMultiplier || 1), 1, 100).toFixed(2)
+    );
     const baseSignal = {
       symbol: item.info.symbol,
       info: item.info,
@@ -1139,7 +1154,10 @@ class Scanner {
       marketRegimeV2: regimeV2.regime,
       marketRegimeV2Participation: regimeV2.participation,
       marketRegimeV2Reasons: regimeV2.reasons,
-      adaptiveConvictionThreshold: convictionThresholdForRegime(this.config, regimeV2.regime),
+      adaptiveConvictionThreshold,
+      baseAdaptiveConvictionThreshold,
+      dynamicInactivityRecovery: inactivityRecovery,
+      inactivityConvictionRelaxPct: Number(inactivityRecovery.convictionRelaxPct || 0),
       marketRegimeType: marketProfile.primary,
       marketRegimeTags,
       marketRegimeConfidence: marketProfile.confidence,
@@ -1502,6 +1520,7 @@ class Scanner {
         convictionContributionAverage: average("convictionContribution"),
         adaptiveMinimumScore: this.adaptive && this.config.adaptiveLearningEnabled ? this.adaptive.currentPolicy().minSignalScore : this.config.minSignalScore,
         minimumConvictionScore: this.config.minConvictionScore,
+        inactivityRecovery,
         antiChopPenaltyMax: this.config.antiChopPenaltyMax,
         volumeSurvivabilityRelaxationMultiplier: this.config.volumeSurvivabilityRelaxationMultiplier,
         qualityPacingStillEnabled: this.config.qualityPacingEnabled,
@@ -1514,6 +1533,7 @@ class Scanner {
       candidates: analyses.filter((item) => item.eligible).length,
       minimumScore: this.config.minSignalScore,
       minimumConvictionScore: this.config.minConvictionScore,
+      inactivityRecovery,
       adaptiveMinimumScore: this.adaptive && this.config.adaptiveLearningEnabled ? this.adaptive.currentPolicy().minSignalScore : this.config.minSignalScore,
       adaptiveMode: this.adaptive && this.config.adaptiveLearningEnabled ? this.adaptive.currentPolicy().mode : "DISABLED",
       analysisConcurrency: this.config.scanConcurrency,
