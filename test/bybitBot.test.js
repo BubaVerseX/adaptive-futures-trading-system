@@ -3314,6 +3314,39 @@ async function testV10TrendDominanceEngine() {
   assert.ok(plan.runnerAllocation.runnerPct >= 85);
 }
 
+async function testScannerInactivityRecoverySummaryScope() {
+  const cfg = config({
+    tradeFrequencyRecoveryMode: true,
+    inactivityRecoveryMode: true,
+    focusedTradingSymbolsList: ["BTCUSDT", "ETHUSDT", "SOLUSDT"],
+    focusedTradingSymbols: new Set(["BTCUSDT", "ETHUSDT", "SOLUSDT"]),
+    excludedSymbols: new Set(),
+  });
+  const logs = logCollector();
+  const client = {
+    getSymbols: async () => [],
+    getTicker: async () => null,
+    subscribeTickers: () => {},
+  };
+  const scanner = new Scanner(cfg, client, logs.log, null);
+  scanner.setRuntimeContext({
+    dynamicInactivityRecovery: {
+      active: true,
+      stage: "INACTIVE_8H",
+      convictionRelaxPct: 4,
+      convictionThresholdMultiplier: 0.96,
+      resetAfterNewTrade: true,
+    },
+  });
+  const scan = await scanner.scan({ direction: "CHOPPY", primary: "SIDEWAYS_CHOP_MARKET", tags: ["SIDEWAYS_CHOP_MARKET"], confidence: 40 });
+  assert.equal(scan.candidates.length, 0);
+  assert.equal(scan.hadApiErrors, false);
+  const recoveryLog = logs.events.find((event) => event.message === "TRADE_FREQUENCY_RECOVERY_ACTIVE");
+  const completedLog = logs.events.find((event) => event.message === "Scalping scan completed.");
+  assert.equal(recoveryLog.details.inactivityRecovery.stage, "INACTIVE_8H");
+  assert.equal(completedLog.details.inactivityRecovery.convictionThresholdMultiplier, 0.96);
+}
+
 async function testProfitProtectionReducesExplorationAndRisk() {
   const bot = new LadderBot(config({
     dryRun: true,
@@ -3828,6 +3861,7 @@ async function run() {
   await testV9EdgeMaximizationEngine();
   await testV95AdaptiveEdgeReinforcement();
   await testV10TrendDominanceEngine();
+  await testScannerInactivityRecoverySummaryScope();
   await testProfitProtectionReducesExplorationAndRisk();
   await testMomentumContinuationHoldLogic();
   await testAdaptiveEnginePolicyAndConfidence();

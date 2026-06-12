@@ -1511,6 +1511,12 @@ class Scanner {
       if (!analyses.length) return 0;
       return Number((analyses.reduce((total, item) => total + Number(item[field] || 0), 0) / analyses.length).toFixed(4));
     };
+    const scanInactivityRecovery = this.runtimeContext.dynamicInactivityRecovery || {
+      active: false,
+      convictionThresholdMultiplier: 1,
+      convictionRelaxPct: 0,
+      stage: "NONE",
+    };
     if (this.config.tradeFrequencyRecoveryMode) {
       this.log("INFO", "TRADE_FREQUENCY_RECOVERY_ACTIVE", {
         candidateCount: analyses.filter((item) => item.eligible).length,
@@ -1520,7 +1526,7 @@ class Scanner {
         convictionContributionAverage: average("convictionContribution"),
         adaptiveMinimumScore: this.adaptive && this.config.adaptiveLearningEnabled ? this.adaptive.currentPolicy().minSignalScore : this.config.minSignalScore,
         minimumConvictionScore: this.config.minConvictionScore,
-        inactivityRecovery,
+        inactivityRecovery: scanInactivityRecovery,
         antiChopPenaltyMax: this.config.antiChopPenaltyMax,
         volumeSurvivabilityRelaxationMultiplier: this.config.volumeSurvivabilityRelaxationMultiplier,
         qualityPacingStillEnabled: this.config.qualityPacingEnabled,
@@ -1533,7 +1539,7 @@ class Scanner {
       candidates: analyses.filter((item) => item.eligible).length,
       minimumScore: this.config.minSignalScore,
       minimumConvictionScore: this.config.minConvictionScore,
-      inactivityRecovery,
+      inactivityRecovery: scanInactivityRecovery,
       adaptiveMinimumScore: this.adaptive && this.config.adaptiveLearningEnabled ? this.adaptive.currentPolicy().minSignalScore : this.config.minSignalScore,
       adaptiveMode: this.adaptive && this.config.adaptiveLearningEnabled ? this.adaptive.currentPolicy().mode : "DISABLED",
       analysisConcurrency: this.config.scanConcurrency,
