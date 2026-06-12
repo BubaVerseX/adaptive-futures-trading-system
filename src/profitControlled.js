@@ -538,8 +538,67 @@ function portfolioAlphaReport(trades = []) {
   };
 }
 
+function trendDominanceSignal(config = {}, signal = {}, context = {}) {
+  const symbol = String(signal.symbol || "").toUpperCase();
+  const ethBtcFocus = ["BTCUSDT", "ETHUSDT"].includes(symbol);
+  const setupRegime = context.setupRegimeMatrixMemory || signal.setupRegimeMatrixMemory || { weight: 1, bias: "NEUTRAL" };
+  const activityRecovery = context.activityRecovery || signal.adaptiveActivityRecovery || { active: false, feeDragOk: true, expectancyOk: true };
+  const baseScore =
+    numeric(signal.multiTimeframeTrendScore) * 0.28 +
+    numeric(signal.trendQualityScore) * 0.23 +
+    numeric(signal.continuationStrength) * 0.22 +
+    numeric(signal.portfolioAlphaScore) * 0.17 +
+    regimeQualityScore(signal) * 0.1;
+  const matrixBoost = (numeric(setupRegime.weight, 1) - 1) * 16;
+  const focusBoost = ethBtcFocus ? numeric(config.trendDominanceEthBtcFocusBoost, 4) : 0;
+  const score = round(clamp(baseScore + matrixBoost + focusBoost, 0, 100), 2);
+  const strong = score >= numeric(config.trendDominanceStrongScore, 82);
+  const elite = score >= numeric(config.trendDominanceEliteScore, 92) || String(signal.profitQualityTier || "").toUpperCase() === "ELITE";
+  const activityEligible =
+    Boolean(config.trendDominanceMode) &&
+    strong &&
+    (activityRecovery.active || elite) &&
+    activityRecovery.feeDragOk !== false &&
+    activityRecovery.expectancyOk !== false;
+  const activityBoostPct = activityEligible ? numeric(config.trendDominanceActivityBoostPct, 4) : 0;
+  const sizingMultiplier = elite
+    ? numeric(config.trendDominanceEliteSizingMultiplier, 1.18)
+    : strong
+      ? numeric(config.trendDominanceStrongSizingMultiplier, 1.12)
+      : 1;
+  return {
+    score,
+    tier: elite ? "ELITE_TREND_DOMINANCE" : strong ? "STRONG_TREND_DOMINANCE" : "NO_DOMINANCE",
+    ethBtcFocus,
+    matrixBias: setupRegime.bias || "NEUTRAL",
+    activityEligible,
+    thresholdMultiplier: activityEligible ? round(1 - activityBoostPct / 100, 4) : 1,
+    scoreBoost: strong ? numeric(config.trendDominanceScoreBoost, 3) + focusBoost * 0.35 : 0,
+    sizingMultiplier,
+    runnerExtensionMultiplier: strong ? numeric(config.trendDominanceRunnerExtensionBoost, 1.12) : 1,
+    activityBoostPct,
+    targetActivityIncreasePct: activityEligible ? "25-40" : "0",
+    neverBypassesRisk: true,
+    neverBypassesFees: true,
+  };
+}
+
+function trendDominanceReport(trades = []) {
+  const rows = closedTrades(trades).filter((trade) => numeric(trade.trendDominanceScore) > 0);
+  const dominant = rows.filter((trade) => numeric(trade.trendDominanceScore) >= 82);
+  const ethBtc = rows.filter((trade) => ["BTCUSDT", "ETHUSDT"].includes(String(trade.symbol || "").toUpperCase()));
+  return {
+    trackedTrades: rows.length,
+    dominantTrades: dominant.length,
+    ethBtcTrackedTrades: ethBtc.length,
+    dominantPerformance: performanceForRows(dominant),
+    ethBtcPerformance: performanceForRows(ethBtc),
+  };
+}
+
 function asymmetricRunnerAllocation(config = {}, signal = {}) {
   const trendScore = Math.max(
+    numeric(signal.trendDominanceScore),
     numeric(signal.multiTimeframeTrendScore),
     numeric(signal.trendQualityScore),
     numeric(signal.continuationStrength),
@@ -592,6 +651,7 @@ function qualityScoreForSignal(config = {}, signal = {}, edgeModel = {}, symbolM
   const matrixMemory = edgeMemory.setupRegimeMatrixMemory || { weight: 1, bias: "NEUTRAL" };
   const autoTuning = edgeMemory.autoTuning || { thresholdMultiplier: 1, adjustmentPct: 0, bias: "NEUTRAL" };
   const activityRecovery = edgeMemory.activityRecovery || { thresholdMultiplier: 1, scoreBoost: 0, active: false };
+  const trendDominance = edgeMemory.trendDominance || { thresholdMultiplier: 1, scoreBoost: 0, sizingMultiplier: 1 };
   const clusterRisk = edgeMemory.clusterRisk || { clusterRiskScore: 0 };
   let score =
     trend * 0.25 +
@@ -608,6 +668,7 @@ function qualityScoreForSignal(config = {}, signal = {}, edgeModel = {}, symbolM
   if (numeric(signal.portfolioAlphaScore) >= 82) score += 4;
   else if (numeric(signal.portfolioAlphaScore) > 0 && numeric(signal.portfolioAlphaScore) < 45) score -= 4;
   score += numeric(activityRecovery.scoreBoost);
+  score += numeric(trendDominance.scoreBoost);
   if (numeric(clusterRisk.clusterRiskScore) >= 60) score -= 3;
   const tags = Array.isArray(signal.marketRegimeTags) ? signal.marketRegimeTags : [];
   if (tags.includes("STRONG_TRENDING_MARKET") && /CONTINUATION|RETEST|RESUMPTION|ACCELERATION|BREAKOUT/i.test(String(signal.continuationSetupType || signal.setupType || ""))) {
@@ -628,8 +689,9 @@ function qualityScoreForSignal(config = {}, signal = {}, edgeModel = {}, symbolM
   const thresholdTightening = optimizer && optimizer.feeDragTighteningActive ? numeric(config.expectancyEntryTighteningPoints, 2) : 0;
   const autoTuneMultiplier = clamp(numeric(autoTuning.thresholdMultiplier, 1), 0.95, 1.05);
   const activityRecoveryMultiplier = clamp(numeric(activityRecovery.thresholdMultiplier, 1), 0.95, 1);
-  const normalThreshold = round(numeric(config.profitModeMinQualityScore, 70) * autoTuneMultiplier * activityRecoveryMultiplier + thresholdTightening, 2);
-  const strongThreshold = round(numeric(config.profitModeStrongQualityScore, 85) * autoTuneMultiplier * activityRecoveryMultiplier + Math.ceil(thresholdTightening / 2), 2);
+  const trendDominanceMultiplier = clamp(numeric(trendDominance.thresholdMultiplier, 1), 0.94, 1);
+  const normalThreshold = round(numeric(config.profitModeMinQualityScore, 70) * autoTuneMultiplier * activityRecoveryMultiplier * trendDominanceMultiplier + thresholdTightening, 2);
+  const strongThreshold = round(numeric(config.profitModeStrongQualityScore, 85) * autoTuneMultiplier * activityRecoveryMultiplier * trendDominanceMultiplier + Math.ceil(thresholdTightening / 2), 2);
   const eliteThreshold = numeric(config.profitModeEliteQualityScore, 95);
   const tier = score >= eliteThreshold ? "ELITE" : score >= strongThreshold ? "STRONG" : score >= normalThreshold ? "NORMAL" : "REJECT";
   const chopRequiresStrong =
@@ -659,6 +721,7 @@ function qualityScoreForSignal(config = {}, signal = {}, edgeModel = {}, symbolM
       marketBreadth: round(numeric(signal.marketBreadthScore), 2),
       portfolioAlpha: round(numeric(signal.portfolioAlphaScore), 2),
       clusterRisk: round(numeric(clusterRisk.clusterRiskScore), 2),
+      trendDominance: round(numeric(trendDominance.score), 2),
       multiTimeframeTrend: round(numeric(signal.multiTimeframeTrendScore), 2),
       expectancyOptimizer: optimizer && optimizer.continuationOutperforming ? round(numeric(optimizer.continuationWeightBoostPoints), 2) : 0,
       expectancyAutoTuningPct: numeric(autoTuning.adjustmentPct),
@@ -676,6 +739,7 @@ function qualityScoreForSignal(config = {}, signal = {}, edgeModel = {}, symbolM
     setupRegimeMatrixMemory: matrixMemory,
     expectancyAutoTuning: autoTuning,
     adaptiveActivityRecovery: activityRecovery,
+    trendDominance,
     clusterRisk,
     expectancyOptimizer: optimizer,
   };
@@ -781,6 +845,7 @@ function profitEdgeReport(trades = [], config = {}) {
     averageLoser: expectancy.averageLoserUsdt,
     clusterRiskStatistics: clusterRiskReport(rows, config),
     portfolioAlphaStatistics: portfolioAlphaReport(rows),
+    trendDominanceStatistics: trendDominanceReport(rows),
     expectancyTrend: metricTrend(recent100.expectancyUsdt, previous100.expectancyUsdt),
     profitFactorTrend: metricTrend(recent100.profitFactor, previous100.profitFactor),
     expectancyAutoTuning: autoTuning,
@@ -908,4 +973,6 @@ module.exports = {
   symbolPerformanceMemoryV3,
   symbolPerformanceMemoryV3Map,
   tradeClusterRisk,
+  trendDominanceReport,
+  trendDominanceSignal,
 };

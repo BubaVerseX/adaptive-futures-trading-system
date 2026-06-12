@@ -367,6 +367,11 @@ class RiskManager {
       qualitySizeMultiplier *= clusterRiskSizeMultiplier;
       reasonsForSizingTier.push(`V9.5 trade cluster risk reduced size modestly with multiplier ${clusterRiskSizeMultiplier}`);
     }
+    const trendDominanceSizingMultiplier = Number(signal.trendDominanceSizingMultiplier || 1);
+    if (this.config.trendDominanceMode && trendDominanceSizingMultiplier > 1) {
+      qualitySizeMultiplier *= Math.min(trendDominanceSizingMultiplier, this.config.trendDominanceEliteSizingMultiplier || 1.18);
+      reasonsForSizingTier.push(`V10 trend dominance sizing multiplier ${Number(trendDominanceSizingMultiplier.toFixed(3))} applied before existing risk caps`);
+    }
     qualitySizeMultiplier *= Number(signal.continuousRecoveryRiskMultiplier || 1);
     qualitySizeMultiplier *= Number(signal.regimeRiskMultiplier || 1);
     qualitySizeMultiplier *= Number(signal.profitProtectionRiskMultiplier || 1);
