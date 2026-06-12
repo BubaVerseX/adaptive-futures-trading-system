@@ -352,22 +352,35 @@ The expanded `edge-report.json` also includes best/worst setup-regime pair, runn
 V10 adds an aggressive adaptive trend-dominance layer for profit-controlled mode. It targets higher qualified activity during dominant trends without bypassing the existing fee, stop-loss, liquidation, or portfolio-cap protections.
 
 - `trendDominanceScore` combines multi-timeframe trend, trend quality, continuation strength, portfolio alpha, regime quality, and setup-regime memory.
-- Dynamic inactivity recovery reduces conviction thresholds by `2%` after 4 hours without a trade, `4%` after 8 hours, and `6%` after 12 hours. The recovery resets after a new trade opens.
+- Dynamic inactivity recovery reduces conviction thresholds by `2` points after 4 hours without a trade, `4` points after 8 hours, and `6` points after 12 hours. The recovery resets after a new trade opens.
 - Normal, strong, and elite profit-controlled stop-risk caps are `0.75%`, `1.50%`, and `2.00%` of sizing equity, while total portfolio and correlated BTC/ETH/SOL caps remain unchanged.
 - ETH receives a `1.40x` trend-dominance weight and BTC receives a `1.25x` weight. Weak SOL breakout structures are downweighted, but SOL remains tradable and is never disabled.
 - Dominant trends can nudge quality thresholds and add a score boost, targeting `30-50%` more qualified activity only when fee and expectancy conditions allow it.
 - Aggressive runner allocation uses `40% TP1 / 60% runner` for weak trends, `15% TP1 / 85% runner` for strong trends, and `5% TP1 / 95% runner` for elite trends.
 - Runner extension can be stronger in dominant trends, preserving breakeven, ATR trailing, and trend-extension protection.
 
-## Focused BTC/ETH/SOL Universe
+## V11 Active Market Universe
 
-The executable trading universe is intentionally restricted to:
+The executable trading universe now expands the V10 focus set while still rejecting random low-quality markets:
 
 - `BTCUSDT`
 - `ETHUSDT`
 - `SOLUSDT`
+- `XRPUSDT`
+- `DOGEUSDT`
+- `LINKUSDT`
+- `BNBUSDT`
 
-The scanner still uses BTC and ETH for regime intelligence, but candidate generation, forced market sampling, exploration entries, and live execution are limited to those three high-liquidity USDT perpetuals. All other markets are ignored before candle analysis, so low-cap noise cannot consume learning attention or generate orders.
+The scanner still uses BTC and ETH for benchmark regime intelligence, but candidate generation and execution are limited to the seven-symbol V11 universe. All other markets are ignored before candle analysis, so low-cap noise cannot consume learning attention or generate orders.
+
+V11 also splits behavior by regime:
+
+- `TRENDING`: existing trend-continuation logic remains primary.
+- `SIDEWAYS_CHOP`: a range-edge mean-reversion module can buy near the lower range or sell near the upper range with ATR-based exit metadata, while fee and risk gates remain active.
+- `VOLATILE`: breakout continuation receives a controlled participation boost.
+- `PANIC`: participation stays conservative and requires stronger confirmation.
+
+Near-miss candidates within `3` points of the active threshold are stored and re-evaluated on later scan cycles. The `activity-report.json` report tracks trades/day, inactive hours, candidate count, rejected count, and accepted count.
 
 This keeps the bot active while concentrating adaptive memory on cleaner, deeper markets with better liquidity, lower slippage risk, and more meaningful pattern feedback.
 
@@ -392,18 +405,18 @@ Defaults now favor active but selective learning-phase participation: the bot st
 | `MAX_LEVERAGE` | `8` |
 | `SCAN_INTERVAL_MS` | `1200` |
 | `POSITION_MONITOR_INTERVAL_MS` | `1200` |
-| `MAX_SYMBOLS_TO_SCAN` | `3` |
+| `MAX_SYMBOLS_TO_SCAN` | `7` |
 | `TAKE_PROFIT_PCT` | `2.10` |
 | `STOP_LOSS_PCT` | `0.80` |
 
-The scanner ranks only `BTCUSDT`, `ETHUSDT`, and `SOLUSDT` by EMA alignment or acceleration, continuation breakout quality, pullback/retest/resumption structure, momentum persistence, volume quality, RSI, candle strength, volatility quality, liquidity, projected edge after fees/spread/slippage, BTC/ETH direction context, 1h macro bias, market-regime intelligence, session context, and adaptive historical confidence. In learning phase, choppy and imperfect conditions are softened instead of treated as near-vetoes, so moderate setups can still generate feedback data inside the focused universe.
+The scanner ranks only the V11 active universe (`BTCUSDT`, `ETHUSDT`, `SOLUSDT`, `XRPUSDT`, `DOGEUSDT`, `LINKUSDT`, and `BNBUSDT`) by EMA alignment or acceleration, continuation breakout quality, pullback/retest/resumption structure, momentum persistence, volume quality, RSI, candle strength, volatility quality, liquidity, projected edge after fees/spread/slippage, BTC/ETH direction context, 15m/1h/4h macro bias, market-regime intelligence, session context, and adaptive historical confidence.
 
-Daily shutdowns are removed. The bot does not stop, pause, close all positions, or disable entries because of daily loss, daily drawdown, daily trade count, exploration count, participation quota, or temporary API instability. Losing sessions are handled through adaptive recovery: sizing and leverage can be moderated, but continuous BTC/ETH/SOL execution remains active until manual stop, emergency stop, liquidation danger, corrupted execution state, or another catastrophic safety condition.
+Daily shutdowns are removed. The bot does not stop, pause, close all positions, or disable entries because of daily loss, daily drawdown, daily trade count, exploration count, participation quota, or temporary API instability. Losing sessions are handled through adaptive recovery: sizing and leverage can be moderated, but continuous V11-universe execution remains active until manual stop, emergency stop, liquidation danger, corrupted execution state, or another catastrophic safety condition.
 
 High activity mode keeps the focused universe hot without reopening low-cap chaos:
 
 - scanner and position monitor defaults run every `1200ms`
-- BTC/ETH/SOL regime cache refreshes every `45000ms`
+- BTC/ETH benchmark regime cache refreshes every `45000ms`
 - continuation setups receive a small participation boost when momentum, volume, BTC alignment, and edge are all acceptable
 - smart edge filtering remains active, so high activity means more clean continuation attempts, not fee-blind spam
 

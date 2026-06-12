@@ -67,7 +67,7 @@ function timeframeContribution(actual, expected, weight) {
   return -weight * 0.72;
 }
 
-function multiTimeframeTrendConfirmation(config, side, fast, main, trend, macro) {
+function multiTimeframeTrendConfirmation(config, side, fast, main, trend, macro, macroLong = null) {
   const expected = side === "LONG" ? "UP" : "DOWN";
   const opposite = side === "LONG" ? "DOWN" : "UP";
   const directions = {
@@ -76,20 +76,30 @@ function multiTimeframeTrendConfirmation(config, side, fast, main, trend, macro)
     trend15m: analysisDirection(trend),
     macro1h: analysisDirection(macro),
   };
+  if (macroLong) directions.macro4h = analysisDirection(macroLong);
   let score =
     timeframeContribution(directions.entry1m, expected, 20) +
     timeframeContribution(directions.confirmation5m, expected, 25) +
     timeframeContribution(directions.trend15m, expected, 30) +
-    timeframeContribution(directions.macro1h, expected, 25);
+    timeframeContribution(directions.macro1h, expected, macroLong ? 15 : 25) +
+    (macroLong ? timeframeContribution(directions.macro4h, expected, 10) : 0);
   const allAligned = Object.values(directions).every((direction) => direction === expected);
   const entryAndConfirmationAligned = directions.entry1m === expected && directions.confirmation5m === expected;
   const trendAndMacroOpposite = directions.trend15m === opposite && directions.macro1h === opposite;
   const macroOpposite = directions.macro1h === opposite;
+  const macroLongOpposite = directions.macro4h === opposite;
   const trendOpposite = directions.trend15m === opposite;
   if (allAligned) score += 8;
   if (entryAndConfirmationAligned && directions.trend15m === expected) score += 5;
+  if (macroLong && directions.trend15m === expected && directions.macro1h === expected && directions.macro4h === expected) {
+    score += Number(config.v11HigherTimeframeAlignmentBoost || 0);
+  }
   if (trendAndMacroOpposite) score -= config.mtfOppositionPenaltyScore;
   else if (macroOpposite) score -= Math.ceil(config.mtfOppositionPenaltyScore * 0.55);
+  if (macroLongOpposite) score -= Math.ceil(Number(config.v11HigherTimeframeConflictPenalty || 0) * 0.75);
+  if (macroLong && directions.trend15m === opposite && directions.macro1h === opposite && directions.macro4h === opposite) {
+    score -= Number(config.v11HigherTimeframeConflictPenalty || 0);
+  }
   if (trendOpposite && directions.confirmation5m === opposite) score -= Math.ceil(config.mtfOppositionPenaltyScore * 0.45);
   return {
     score: Number(bounded(score, 0, 100).toFixed(2)),
@@ -99,6 +109,7 @@ function multiTimeframeTrendConfirmation(config, side, fast, main, trend, macro)
     entryAndConfirmationAligned,
     trendAndMacroOpposite,
     macroOpposite,
+    macroLongOpposite,
     trendOpposite,
   };
 }
@@ -361,6 +372,43 @@ function continuationProfile(config, context) {
   };
 }
 
+function meanReversionProfile(config, side, main, fast, regimeV2, marketRegimeTags, feeEdgeRatio) {
+  if (!config.v11MeanReversionEnabled) return { active: false };
+  const inChop =
+    regimeV2 === "SIDEWAYS_CHOP" ||
+    (Array.isArray(marketRegimeTags) && marketRegimeTags.includes("SIDEWAYS_CHOP_MARKET"));
+  if (!inChop) return { active: false };
+  const rangePosition = Number(main && main.rangePosition);
+  if (!Number.isFinite(rangePosition)) return { active: false };
+  const edge = Number(config.v11MeanReversionRangeEdgePct || 0.22);
+  const rsi = Number((fast && fast.rsi14) || (main && main.rsi14) || 50);
+  const atrExitPct = Math.max(
+    Number(config.minExpectedMovePct || 0),
+    Number(main && main.atrPct || 0) * 1.15
+  );
+  const long = side === "LONG";
+  const nearLowerRange = rangePosition <= edge;
+  const nearUpperRange = rangePosition >= 1 - edge;
+  const rsiSupports = long ? rsi <= 58 : rsi >= 42;
+  const edgeSupports = Number(feeEdgeRatio || 0) >= Number(config.explorationMinEdgeToCostRatio || 1);
+  const active = Boolean((long ? nearLowerRange : nearUpperRange) && rsiSupports && edgeSupports);
+  return {
+    active,
+    type: "MEAN_REVERSION_RANGE",
+    rangePosition: Number(rangePosition.toFixed(4)),
+    nearLowerRange,
+    nearUpperRange,
+    rsi: Number(rsi.toFixed(2)),
+    atrExitPct: Number(atrExitPct.toFixed(4)),
+    rangeEdgePct: edge,
+    reason: active
+      ? long
+        ? "SIDEWAYS_CHOP lower-range mean reversion candidate"
+        : "SIDEWAYS_CHOP upper-range mean reversion candidate"
+      : "SIDEWAYS_CHOP mean reversion not near a tradable range edge",
+  };
+}
+
 function eliteConditionKey(signal) {
   const tags = Array.isArray(signal.marketRegimeTags) ? signal.marketRegimeTags : [];
   const regime = tags.includes("HIGH_VOLATILITY_BREAKOUT_MARKET")
@@ -438,7 +486,7 @@ class Scanner {
     this.cachedMarketProfile = null;
     this.cachedRegimeExpiresAt = 0;
     this.cachedBenchmarkDirections = { BTCUSDT: "CHOPPY", ETHUSDT: "CHOPPY" };
-    this.cachedFocusedDirections = { BTCUSDT: "CHOPPY", ETHUSDT: "CHOPPY", SOLUSDT: "CHOPPY" };
+    this.cachedFocusedDirections = Object.fromEntries((config.focusedTradingSymbolsList || []).map((symbol) => [symbol, "CHOPPY"]));
     this.focusUniverseLogged = false;
     this.runtimeContext = {};
   }
@@ -510,10 +558,11 @@ class Scanner {
     if (!this.focusUniverseLogged) {
       this.log("WARN", "Focused trading universe enabled.", {
         symbols: focusList,
-        mode: "BTC/ETH/SOL",
+        mode: "V11_ACTIVE_MARKET_ENGINE",
       });
-      this.log("INFO", "BTC/ETH/SOL mode active; noisy market universe removed.", {
-        disabledMarkets: "all symbols outside BTCUSDT, ETHUSDT, SOLUSDT",
+      this.log("INFO", "V11 active market universe enabled; noisy market universe still filtered.", {
+        disabledMarkets: `all symbols outside ${focusList.join(", ")}`,
+        addedSymbols: ["XRPUSDT", "DOGEUSDT", "LINKUSDT", "BNBUSDT"].filter((symbol) => focusSet.has(symbol)),
       });
       this.log("INFO", "Adaptive focus mode enabled; concentrated liquidity trading active.", {
         focusedExplorationActive: true,
@@ -565,7 +614,7 @@ class Scanner {
     accepted.sort((left, right) => focusList.indexOf(left.info.symbol) - focusList.indexOf(right.info.symbol));
     const limited = accepted.slice(0, this.config.maxSymbolsToScan);
     this.client.subscribeTickers(limited.map((item) => item.info.symbol));
-    this.log("INFO", "Focused BTC/ETH/SOL universe prepared.", {
+    this.log("INFO", "Focused V11 active market universe prepared.", {
       returned: symbols.length,
       focusedSymbols: focusList,
       eligible: accepted.length,
@@ -585,6 +634,7 @@ class Scanner {
         this.client.getKlines(item.info.symbol, this.config.candleIntervalMain, candleLimit),
         this.client.getKlines(item.info.symbol, this.config.candleIntervalTrend, 80),
         this.client.getKlines(item.info.symbol, this.config.candleIntervalMacro, 80),
+        this.client.getKlines(item.info.symbol, this.config.candleIntervalMacroLong, 80),
       ];
       rawCandles = await Promise.all(candleRequests);
     } catch (error) {
@@ -597,7 +647,8 @@ class Scanner {
     const main = analyzeCandles(parseCandles(rawCandles[1]), minimumCandles);
     const trend = analyzeCandles(parseCandles(rawCandles[2]));
     const macro = analyzeCandles(parseCandles(rawCandles[3]));
-    if (!fast || !main || !trend || !macro) {
+    const macroLong = analyzeCandles(parseCandles(rawCandles[4]));
+    if (!fast || !main || !trend || !macro || !macroLong) {
       this.log("DEBUG", "Symbol rejected: missing required candle history.", { symbol: item.info.symbol });
       return null;
     }
@@ -606,17 +657,19 @@ class Scanner {
     const technicalReject = [];
 
     const signals = [];
-    if (this.config.allowLongs) signals.push(this.scoreDirection("LONG", item, fast, main, trend, macro, marketProfile, technicalReject));
-    if (this.config.allowShorts) signals.push(this.scoreDirection("SHORT", item, fast, main, trend, macro, marketProfile, technicalReject));
+    if (this.config.allowLongs) signals.push(this.scoreDirection("LONG", item, fast, main, trend, macro, macroLong, marketProfile, technicalReject));
+    if (this.config.allowShorts) signals.push(this.scoreDirection("SHORT", item, fast, main, trend, macro, macroLong, marketProfile, technicalReject));
     signals.sort((left, right) => right.score - left.score);
     return signals[0];
   }
 
-  scoreDirection(side, item, fast, main, trend, macroOrMarketInput, marketInputOrReject, maybeCommonReject) {
-    const legacySignature = Array.isArray(marketInputOrReject);
+  scoreDirection(side, item, fast, main, trend, macroOrMarketInput, macroLongOrMarketInput, marketInputOrReject, maybeCommonReject) {
+    const legacySignature = Array.isArray(macroLongOrMarketInput);
+    const hasMacroLongSignature = Array.isArray(maybeCommonReject);
     const macro = legacySignature ? null : macroOrMarketInput;
-    const marketInput = legacySignature ? macroOrMarketInput : marketInputOrReject;
-    const commonReject = legacySignature ? marketInputOrReject : maybeCommonReject;
+    const macroLong = hasMacroLongSignature ? macroLongOrMarketInput : null;
+    const marketInput = legacySignature ? macroOrMarketInput : hasMacroLongSignature ? marketInputOrReject : macroLongOrMarketInput;
+    const commonReject = legacySignature ? macroLongOrMarketInput : hasMacroLongSignature ? maybeCommonReject : marketInputOrReject;
     const marketProfile = this.normalizeMarketProfile(marketInput);
     const regime = marketProfile.direction;
     const long = side === "LONG";
@@ -625,7 +678,7 @@ class Scanner {
     const scoreBreakdown = [];
     let antiChopContribution = 0;
     const rejected = [...(commonReject || [])];
-    const mtf = multiTimeframeTrendConfirmation(this.config, side, fast, main, trend, macro);
+    const mtf = multiTimeframeTrendConfirmation(this.config, side, fast, main, trend, macro, macroLong);
     const mainTrend = mtf.directions.confirmation5m;
     const trend15 = mtf.directions.trend15m;
     const macroTrend = mtf.directions.macro1h;
@@ -740,6 +793,15 @@ class Scanner {
       btcContradictsSide,
       supportsTrend,
     });
+    const meanReversion = meanReversionProfile(
+      this.config,
+      side,
+      main,
+      fast,
+      regimeV2.regime,
+      marketRegimeTags,
+      feeEdgeRatio
+    );
     const tpProbability = estimatedTpProbability(this.config, {
       supportsTrend,
       multiTimeframeAligned,
@@ -759,6 +821,9 @@ class Scanner {
     let smartProjectedNetEdgePct = Number(
       (expectedMovePct * tpProbability - estimatedRoundTripCostPct * this.config.smartEdgeCostBufferMultiplier).toFixed(4)
     );
+    if (meanReversion.active) {
+      smartProjectedNetEdgePct = Number((smartProjectedNetEdgePct + Math.min(0.12, meanReversion.atrExitPct * 0.18)).toFixed(4));
+    }
     const personality = marketPersonality(this.config, {
       marketRegimeTags,
       fomoTrigger,
@@ -849,6 +914,12 @@ class Scanner {
         4;
       addScore(`high-frequency continuation engine: ${continuation.type}`, continuationBoost);
     }
+    if (meanReversion.active) {
+      addScore("SIDEWAYS_CHOP mean reversion module active", this.config.v11MeanReversionScoreBoost);
+    }
+    if (this.config.v11ActiveMarketEngine && regimeV2.regime === "VOLATILE" && breakSignal && hasMomentumPersistence) {
+      addScore("VOLATILE breakout continuation module active", this.config.v11VolatileBreakoutBoost);
+    }
     if (microBreakoutTriggered && !hasMomentumPersistence) {
       addScore("micro-scalp quality penalty", -6);
     }
@@ -896,6 +967,13 @@ class Scanner {
       addScore("multi-timeframe confirmation passed", 6);
     } else if (multiTimeframeContradicts) {
       addScore("multi-timeframe confirmation failed", -6);
+    }
+    if (this.config.v11ActiveMarketEngine) {
+      if (mtf.directions.macro4h && mtf.directions.trend15m === direction && mtf.directions.macro1h === direction && mtf.directions.macro4h === direction) {
+        addScore("V11 15m/1h/4h trend alignment boost", this.config.v11HigherTimeframeAlignmentBoost);
+      } else if (mtf.directions.macro4h && (mtf.trendAndMacroOpposite || mtf.macroLongOpposite)) {
+        addScore("V11 higher-timeframe conflict penalty", -this.config.v11HigherTimeframeConflictPenalty);
+      }
     }
     if (macroAligned) {
       addScore("1h macro directional bias aligned", this.config.macroTrendWeight);
@@ -950,7 +1028,7 @@ class Scanner {
         addScore("TRENDING regime continuation preference", 4);
       } else if (regimeV2.regime === "BREAKOUT" && (breakSignal || continuation.continuationBreakout || continuation.breakoutRetest)) {
         addScore("BREAKOUT regime participation boost", 3);
-      } else if (regimeV2.regime === "SIDEWAYS_CHOP" && continuation.strength < this.config.continuationMinStrength + 10) {
+      } else if (regimeV2.regime === "SIDEWAYS_CHOP" && !meanReversion.active && continuation.strength < this.config.continuationMinStrength + 10) {
         addScore("SIDEWAYS_CHOP strong-setup requirement", -3);
         antiChopContribution -= 3;
       } else if (regimeV2.regime === "PANIC") {
@@ -1022,6 +1100,7 @@ class Scanner {
       feeEdgeRatio >= this.config.minEdgeToCostRatio + 0.75 &&
       symbolTrendQualityScore >= 65;
     const moderateChopAccepted =
+      meanReversion.active ||
       this.config.adaptiveActivityFloorEnabled &&
       marketRegimeTags.includes("SIDEWAYS_CHOP_MARKET") &&
       !marketRegimeTags.includes("FAKE_BREAKOUT_ENVIRONMENT") &&
@@ -1042,7 +1121,7 @@ class Scanner {
       antiChopContribution -= minorChopPenalty;
     }
 
-    if (regime === "CHOPPY" && !this.config.allowChoppyMarket) rejected.push("choppy-market entries disabled by configuration");
+    if (regime === "CHOPPY" && !this.config.allowChoppyMarket && !meanReversion.active) rejected.push("choppy-market entries disabled by configuration");
     const baseVolumeSurvivabilityFloor = this.config.highActivityMode
       ? this.config.minVolumeSpike * 0.7
       : this.config.aggressiveLearningPhase
@@ -1053,14 +1132,16 @@ class Scanner {
     const volumeSurvivabilityFloor = baseVolumeSurvivabilityFloor * (
       this.config.tradeFrequencyRecoveryMode ? this.config.volumeSurvivabilityRelaxationMultiplier : 1
     );
-    if (volumeSpike < volumeSurvivabilityFloor && !fomoTrigger && !highActivityContinuation) rejected.push("volume confirmation below survivability threshold");
-    if (!hasMomentumPersistence && !fomoTrigger && !breakSignal) rejected.push("momentum did not persist long enough");
+    const effectiveVolumeSurvivabilityFloor = meanReversion.active ? volumeSurvivabilityFloor * 0.8 : volumeSurvivabilityFloor;
+    if (volumeSpike < effectiveVolumeSurvivabilityFloor && !fomoTrigger && !highActivityContinuation) rejected.push("volume confirmation below survivability threshold");
+    if (!hasMomentumPersistence && !fomoTrigger && !breakSignal && !meanReversion.active) rejected.push("momentum did not persist long enough");
     if (
       regime === "CHOPPY" &&
       !fomoTrigger &&
       !breakSignal &&
       (!hasMomentumPersistence || volumeSpike < this.config.minVolumeSpike + (this.config.learningPhaseMode ? 0.05 : 0.25)) &&
-      !this.config.learningPhaseMode
+      !this.config.learningPhaseMode &&
+      !meanReversion.active
     ) {
       rejected.push("weak chop entry lacks breakout plus persistent volume/momentum");
     }
@@ -1069,12 +1150,19 @@ class Scanner {
     const inactivityRecovery = this.runtimeContext.dynamicInactivityRecovery || {
       active: false,
       convictionThresholdMultiplier: 1,
+      convictionThresholdDelta: 0,
       convictionRelaxPct: 0,
+      convictionRelaxPoints: 0,
       stage: "NONE",
     };
     const baseAdaptiveConvictionThreshold = convictionThresholdForRegime(this.config, regimeV2.regime);
     const adaptiveConvictionThreshold = Number(
-      bounded(baseAdaptiveConvictionThreshold * Number(inactivityRecovery.convictionThresholdMultiplier || 1), 1, 100).toFixed(2)
+      bounded(
+        baseAdaptiveConvictionThreshold * Number(inactivityRecovery.convictionThresholdMultiplier || 1) +
+          Number(inactivityRecovery.convictionThresholdDelta || 0),
+        1,
+        100
+      ).toFixed(2)
     );
     const baseSignal = {
       symbol: item.info.symbol,
@@ -1125,6 +1213,7 @@ class Scanner {
       multiTimeframeAllAligned: mtf.allAligned,
       multiTimeframeTrendAndMacroOpposite: mtf.trendAndMacroOpposite,
       multiTimeframeMacroOpposite: mtf.macroOpposite,
+      multiTimeframeMacroLongOpposite: mtf.macroLongOpposite,
       marketPersonality: personality,
       highActivityContinuation,
       eliteContinuationCandidate,
@@ -1139,6 +1228,7 @@ class Scanner {
       trend15m: trend15,
       trend5m: mainTrend,
       trend1h: macroTrend,
+      trend4h: mtf.directions.macro4h || "UNAVAILABLE",
       macroAligned,
       macroContradicts,
       reasons: scoreBreakdown,
@@ -1154,16 +1244,25 @@ class Scanner {
       marketRegimeV2: regimeV2.regime,
       marketRegimeV2Participation: regimeV2.participation,
       marketRegimeV2Reasons: regimeV2.reasons,
+      v11ActiveMarketEngine: Boolean(this.config.v11ActiveMarketEngine),
+      meanReversionActive: meanReversion.active,
+      meanReversion,
+      atrExitPct: meanReversion.active ? meanReversion.atrExitPct : null,
       adaptiveConvictionThreshold,
       baseAdaptiveConvictionThreshold,
       dynamicInactivityRecovery: inactivityRecovery,
       inactivityConvictionRelaxPct: Number(inactivityRecovery.convictionRelaxPct || 0),
+      inactivityConvictionRelaxPoints: Number(inactivityRecovery.convictionRelaxPoints || 0),
       marketRegimeType: marketProfile.primary,
       marketRegimeTags,
       marketRegimeConfidence: marketProfile.confidence,
       marketRegimeReasons: marketProfile.reasons,
       regimeAggressionMultiplier: marketProfile.aggressionMultiplier,
-      regimeRiskMultiplier: Number((Number(marketProfile.riskMultiplier || 1) * Number(regimeV2.riskMultiplier || 1)).toFixed(3)),
+      regimeRiskMultiplier: Number((
+        Number(marketProfile.riskMultiplier || 1) *
+        Number(regimeV2.riskMultiplier || 1) *
+        (this.config.v11ActiveMarketEngine && regimeV2.regime === "PANIC" ? Number(this.config.v11PanicRiskMultiplier || 1) : 1)
+      ).toFixed(3)),
       regimeLeverageMultiplier: marketProfile.leverageMultiplier,
       regimeExplorationMultiplier: marketProfile.explorationMultiplier,
       regimeMinSignalAdjustment: marketProfile.minSignalAdjustment,
@@ -1183,6 +1282,13 @@ class Scanner {
       eligible: false,
     };
     baseSignal.setupType = setupTypeFromSignal(baseSignal);
+    if (meanReversion.active) {
+      baseSignal.setupType = "MEAN_REVERSION_RANGE";
+      baseSignal.continuationSetupType = "MEAN_REVERSION_RANGE";
+    } else if (this.config.v11ActiveMarketEngine && regimeV2.regime === "VOLATILE" && breakSignal && hasMomentumPersistence) {
+      baseSignal.setupType = "VOLATILE_BREAKOUT_CONTINUATION";
+      if (baseSignal.continuationSetupType === "NONE") baseSignal.continuationSetupType = "VOLATILE_BREAKOUT_CONTINUATION";
+    }
     const conviction = technicalConvictionScore(this.config, {
       volumeSpike,
       directedFastMomentum,
@@ -1198,7 +1304,7 @@ class Scanner {
     baseSignal.technicalConvictionScore = conviction.score;
     baseSignal.convictionComponents = conviction.components;
     baseSignal.antiChopContribution = Number(antiChopContribution.toFixed(2));
-    baseSignal.volumeSurvivabilityFloor = Number(volumeSurvivabilityFloor.toFixed(4));
+    baseSignal.volumeSurvivabilityFloor = Number(effectiveVolumeSurvivabilityFloor.toFixed(4));
     baseSignal.baseVolumeSurvivabilityFloor = Number(baseVolumeSurvivabilityFloor.toFixed(4));
     baseSignal.tradeFrequencyRecoveryActive = Boolean(this.config.tradeFrequencyRecoveryMode);
     const signal = this.applyEliteClassification(this.applyAdaptiveLearning(baseSignal));
@@ -1371,7 +1477,7 @@ class Scanner {
     const regime = market.direction;
     const universe = await this.universe();
     // Multiple analyses queue concurrently; the API client still paces actual requests to limit 429s.
-    // Focused BTC/ETH/SOL mode keeps full 1m/5m/15m confirmation fast enough for execution.
+    // V11 focus keeps full 1m/5m/15m/1h/4h confirmation fast enough for execution.
     const analyses = await mapLimited(universe, this.config.scanConcurrency, (item) => this.analyzeSymbol(item, market));
     analyses.sort((left, right) => right.score - left.score || right.volume24hUsdt - left.volume24hUsdt);
     for (const item of analyses.slice(0, 10)) {
@@ -1383,6 +1489,7 @@ class Scanner {
         allAligned: item.multiTimeframeAllAligned,
         trendAndMacroOpposite: item.multiTimeframeTrendAndMacroOpposite,
         macroOpposite: item.multiTimeframeMacroOpposite,
+        macroLongOpposite: item.multiTimeframeMacroLongOpposite,
         eligible: item.eligible,
       });
       this.log("INFO", "MARKET_REGIME_V2", {
@@ -1425,6 +1532,7 @@ class Scanner {
         continuationStrength: item.continuationStrength,
         continuationComponents: item.continuationComponents,
         macroTrend: item.trend1h,
+        macroLongTrend: item.trend4h,
         macroAligned: item.macroAligned,
         multiTimeframeTrendScore: item.multiTimeframeTrendScore,
         multiTimeframeDirections: item.multiTimeframeDirections,
@@ -1442,6 +1550,10 @@ class Scanner {
         portfolioAlphaConflictCount: item.portfolioAlphaConflictCount,
         marketRegimeV2: item.marketRegimeV2,
         marketRegimeV2Participation: item.marketRegimeV2Participation,
+        v11ActiveMarketEngine: item.v11ActiveMarketEngine,
+        meanReversionActive: item.meanReversionActive,
+        meanReversion: item.meanReversion,
+        atrExitPct: item.atrExitPct,
         adaptiveConvictionThreshold: item.adaptiveConvictionThreshold,
         nearMiss: item.nearMiss,
         nearMissGap: item.nearMissGap,
@@ -1514,7 +1626,9 @@ class Scanner {
     const scanInactivityRecovery = this.runtimeContext.dynamicInactivityRecovery || {
       active: false,
       convictionThresholdMultiplier: 1,
+      convictionThresholdDelta: 0,
       convictionRelaxPct: 0,
+      convictionRelaxPoints: 0,
       stage: "NONE",
     };
     if (this.config.tradeFrequencyRecoveryMode) {
@@ -1543,7 +1657,7 @@ class Scanner {
       adaptiveMinimumScore: this.adaptive && this.config.adaptiveLearningEnabled ? this.adaptive.currentPolicy().minSignalScore : this.config.minSignalScore,
       adaptiveMode: this.adaptive && this.config.adaptiveLearningEnabled ? this.adaptive.currentPolicy().mode : "DISABLED",
       analysisConcurrency: this.config.scanConcurrency,
-      candleRequestsPerSymbol: 4,
+      candleRequestsPerSymbol: 5,
       apiErrors: this.scanErrors,
       marketRegimeType: market.primary,
       marketRegimeTags: market.tags,

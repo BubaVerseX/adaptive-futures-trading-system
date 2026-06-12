@@ -206,6 +206,7 @@ class LadderBot {
       continuationEngineEnabled: this.config.continuationEngineEnabled,
       continuationMinStrength: this.config.continuationMinStrength,
       macroCandleInterval: this.config.candleIntervalMacro,
+      macroLongCandleInterval: this.config.candleIntervalMacroLong,
       symbolSpecializationEnabled: this.config.symbolSpecializationEnabled,
       sessionAggressionEnabled: this.config.sessionAggressionEnabled,
       profitProtectionEnabled: this.config.profitProtectionEnabled,
@@ -250,7 +251,7 @@ class LadderBot {
       this.log("WARN", "Live validation is real-money validation, not unrestricted live trading and not a profitability guarantee.", {
         noDailyTradeCapAdded: true,
         negativeEdgeForcedEntriesPermitted: false,
-        btcEthSolOnly: this.config.focusedTradingSymbolsList,
+        activeUniverse: this.config.focusedTradingSymbolsList,
       });
     }
     if (this.config.profitControlledEquityMode) {
@@ -275,7 +276,7 @@ class LadderBot {
       dailyLossShutdownRemoved: true,
       continuousLearningPreserved: true,
     });
-    this.log("WARN", "Focused trading universe enabled; BTC/ETH/SOL mode active.", {
+    this.log("WARN", "Focused trading universe enabled; V11 active market mode active.", {
       symbols: this.config.focusedTradingSymbolsList,
       noisyMarketUniverseRemoved: true,
       adaptiveFocusModeEnabled: true,
@@ -545,10 +546,25 @@ class LadderBot {
           confirmation: this.config.candleIntervalMain,
           trendDirection: this.config.candleIntervalTrend,
           macroBias: this.config.candleIntervalMacro,
+          macroLongBias: this.config.candleIntervalMacroLong,
         },
         macroOppositeRequiresElite: this.config.macroOppositeRequiresElite,
         expectancyOptimizerEnabled: this.config.expectancyOptimizerEnabled,
         nearMissLearningEnabled: this.config.nearMissLearningEnabled,
+      });
+      this.log("INFO", "V11_ACTIVE_MARKET_ENGINE_ACTIVE", {
+        symbols: this.config.focusedTradingSymbolsList,
+        marketRegimeSplit: ["TRENDING", "SIDEWAYS_CHOP", "VOLATILE", "PANIC"],
+        meanReversionEnabled: this.config.v11MeanReversionEnabled,
+        nearMissReevaluationMaxGap: this.config.v11NearMissReevaluationMaxGap,
+        inactivityRecoveryPoints: {
+          fourHours: this.config.inactivityRecoveryFourHourRelaxPoints,
+          eightHours: this.config.inactivityRecoveryEightHourRelaxPoints,
+          twelveHours: this.config.inactivityRecoveryTwelveHourRelaxPoints,
+        },
+        highActivityScanningPreserved: true,
+        riskControlsUnchanged: true,
+        feeProtectionUnchanged: true,
       });
       this.log("INFO", "ADAPTIVE_CONVICTION_ACTIVE", {
         TRENDING: this.config.convictionThresholdTrending,
@@ -894,7 +910,7 @@ class LadderBot {
 
       const inactivityRecovery = this.config.inactivityRecoveryMode
         ? dynamicInactivityRecovery(this.config, this.lastTradeOpenedAtMs())
-        : { active: false, convictionThresholdMultiplier: 1, convictionRelaxPct: 0, stage: "NONE" };
+        : { active: false, convictionThresholdMultiplier: 1, convictionThresholdDelta: 0, convictionRelaxPct: 0, convictionRelaxPoints: 0, stage: "NONE" };
       if (this.scanner.setRuntimeContext) {
         this.scanner.setRuntimeContext({ dynamicInactivityRecovery: inactivityRecovery });
       }
@@ -903,7 +919,9 @@ class LadderBot {
           stage: inactivityRecovery.stage,
           inactiveHours: inactivityRecovery.inactiveHours,
           convictionRelaxPct: inactivityRecovery.convictionRelaxPct,
+          convictionRelaxPoints: inactivityRecovery.convictionRelaxPoints,
           convictionThresholdMultiplier: inactivityRecovery.convictionThresholdMultiplier,
+          convictionThresholdDelta: inactivityRecovery.convictionThresholdDelta,
           resetAfterNewTrade: inactivityRecovery.resetAfterNewTrade,
           feeProtectionUnchanged: true,
           riskControlsUnchanged: true,
@@ -915,6 +933,9 @@ class LadderBot {
         this.updateNearMissStats(scan.nearMisses || [], scan.analyses || []);
       }
       if (this.config.liveValidationMode || this.config.profitControlledEquityMode) {
+        this.recordActivityEvent("scanCandidate", { count: scan.analyses.length });
+        this.recordActivityEvent("scanAccepted", { count: scan.candidates.length });
+        this.recordActivityEvent("scanRejected", { count: Math.max(0, scan.analyses.length - scan.candidates.length) });
         for (const candidate of scan.candidates) {
           this.recordActivityEvent("qualifiedCandidate", { symbol: candidate.symbol, side: candidate.side });
         }
@@ -985,7 +1006,10 @@ class LadderBot {
   activityRates() {
     const cutoff = Date.now() - 60 * 60 * 1000;
     const events = this.activityEvents.filter((event) => event.time >= cutoff);
-    const count = (type) => events.filter((event) => event.type === type).length;
+    const count = (type) =>
+      events
+        .filter((event) => event.type === type)
+        .reduce((total, event) => total + Math.max(0, Number(event.count || 1)), 0);
     const closed = this.store.trades.filter(
       (trade) =>
         trade.status === "CLOSED" &&
@@ -995,6 +1019,9 @@ class LadderBot {
     const executed = Math.max(count("executedTrade"), 1);
     return {
       qualifiedCandidatesPerHour: count("qualifiedCandidate"),
+      candidateCountPerHour: count("scanCandidate"),
+      rejectedCandidatesPerHour: count("scanRejected"),
+      acceptedCandidatesPerHour: count("scanAccepted"),
       executedTradesPerHour: count("executedTrade"),
       rejectedNegativeNetEdgePerHour: count("rejectedNegativeNetEdge"),
       rejectedRiskBudgetPerHour: count("rejectedRiskBudget"),
@@ -1470,6 +1497,7 @@ class LadderBot {
       btcPerformanceUsdt: summary.bySymbol.BTCUSDT,
       ethPerformanceUsdt: summary.bySymbol.ETHUSDT,
       solPerformanceUsdt: summary.bySymbol.SOLUSDT,
+      symbolPerformanceUsdt: summary.bySymbol,
       makerVersusTakerOutcome: summary.byExecutionType,
       continuationNetPnlUsdt: summary.continuationNetPnlUsdt,
       flipTradeNetPnlUsdt: summary.flipNetPnlUsdt,
@@ -1487,8 +1515,57 @@ class LadderBot {
     this.writeProfitExpectancyReport();
     this.writeProfitSystemHealthReport();
     this.writeProfitEdgeReport();
+    this.writeActivityReport(summary, activity);
     this.lastProfitControlledStatusAt = Date.now();
     this.log("INFO", "PROFIT_CONTROLLED_STATUS_SUMMARY", report);
+    return report;
+  }
+
+  writeActivityReport(summary = null, activity = null) {
+    if (!this.config.profitControlledEquityMode) return null;
+    const reportsDir = this.config.reportsDir || path.join(this.config.projectRoot, "data", "profit-controlled-live", "reports");
+    fs.mkdirSync(reportsDir, { recursive: true });
+    const rates = activity || this.activityRates();
+    const now = Date.now();
+    const today = new Date().toISOString().slice(0, 10);
+    const tradesToday = this.store.trades.filter((trade) => {
+      const openedAt = trade.openedAt || trade.entryTime || trade.createdAt || "";
+      return String(openedAt).slice(0, 10) === today && !["ENTRY_FAILED", "FAILED", "REJECTED"].includes(String(trade.status || "").toUpperCase());
+    }).length;
+    const lastTradeMs = this.lastTradeOpenedAtMs();
+    const inactiveHours = Number(((now - lastTradeMs) / 3600000).toFixed(4));
+    const report = {
+      generatedAt: new Date().toISOString(),
+      mode: "V11_ACTIVE_MARKET_ENGINE",
+      tradesToday,
+      tradesPerDay: Number((rates.executedTradesPerHour * 24).toFixed(4)),
+      inactiveHours: Math.max(0, inactiveHours),
+      candidateCount: rates.candidateCountPerHour,
+      rejectedCount: rates.rejectedCandidatesPerHour,
+      acceptedCount: rates.acceptedCandidatesPerHour,
+      qualifiedCandidatesPerHour: rates.qualifiedCandidatesPerHour,
+      executedTradesPerHour: rates.executedTradesPerHour,
+      rejectedNegativeNetEdgePerHour: rates.rejectedNegativeNetEdgePerHour,
+      rejectedRiskBudgetPerHour: rates.rejectedRiskBudgetPerHour,
+      continuationEntriesPerHour: rates.continuationEntriesPerHour,
+      netPnlPerExecutedTrade: rates.netPnlPerExecutedTrade,
+      summary: summary || profitControlledSummary(this.store.trades, 0, 0, rates),
+      safety: {
+        feeProtectionActive: true,
+        stopLossLogicUnchanged: true,
+        portfolioCapsUnchanged: true,
+        liquidationProtectionUnchanged: true,
+      },
+    };
+    fs.writeFileSync(path.join(reportsDir, "activity-report.json"), `${JSON.stringify(report, null, 2)}\n`, "utf8");
+    this.log("INFO", "ACTIVITY_REPORT_UPDATED", {
+      file: path.join(reportsDir, "activity-report.json"),
+      tradesToday: report.tradesToday,
+      inactiveHours: report.inactiveHours,
+      candidateCount: report.candidateCount,
+      rejectedCount: report.rejectedCount,
+      acceptedCount: report.acceptedCount,
+    });
     return report;
   }
 
@@ -2945,7 +3022,7 @@ class LadderBot {
     const inactivityRecovery = signal.dynamicInactivityRecovery || (
       this.config.inactivityRecoveryMode
         ? dynamicInactivityRecovery(this.config, this.lastTradeOpenedAtMs())
-        : { active: false, convictionThresholdMultiplier: 1, convictionRelaxPct: 0, stage: "NONE" }
+        : { active: false, convictionThresholdMultiplier: 1, convictionThresholdDelta: 0, convictionRelaxPct: 0, convictionRelaxPoints: 0, stage: "NONE" }
     );
     const trendDominance = this.config.trendDominanceMode ? trendDominanceSignal(this.config, signal, {
       setupRegimeMatrixMemory: setupRegimeMatrix,
@@ -3082,7 +3159,9 @@ class LadderBot {
         stage: inactivityRecovery.stage,
         inactiveHours: inactivityRecovery.inactiveHours,
         convictionRelaxPct: inactivityRecovery.convictionRelaxPct,
+        convictionRelaxPoints: inactivityRecovery.convictionRelaxPoints,
         convictionThresholdMultiplier: inactivityRecovery.convictionThresholdMultiplier,
+        convictionThresholdDelta: inactivityRecovery.convictionThresholdDelta,
         resetAfterNewTrade: inactivityRecovery.resetAfterNewTrade,
         feeProtectionUnchanged: true,
         riskControlsUnchanged: true,

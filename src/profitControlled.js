@@ -3,7 +3,7 @@
 const { edgeTier } = require("./costModel");
 const { summarizeTrades, closedTrades } = require("./liveValidation");
 
-const FOCUSED_SYMBOLS = Object.freeze(["BTCUSDT", "ETHUSDT", "SOLUSDT"]);
+const FOCUSED_SYMBOLS = Object.freeze(["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "LINKUSDT", "BNBUSDT"]);
 
 function numeric(value, fallback = 0) {
   const parsed = Number(value);
@@ -474,30 +474,32 @@ function dynamicInactivityRecovery(config = {}, lastTradeOpenedAtMs = Date.now()
   const lastTradeMs = Number(lastTradeOpenedAtMs);
   const validLastTradeMs = Number.isFinite(lastTradeMs) ? lastTradeMs : now;
   const inactiveHours = Math.max(0, (now - validLastTradeMs) / 3600000);
-  let convictionRelaxPct = 0;
+  let convictionRelaxPoints = 0;
   let stage = "NONE";
   if (inactiveHours >= 12) {
-    convictionRelaxPct = numeric(config.inactivityRecoveryTwelveHourRelaxPct, 6);
+    convictionRelaxPoints = numeric(config.inactivityRecoveryTwelveHourRelaxPoints, numeric(config.inactivityRecoveryTwelveHourRelaxPct, 6));
     stage = "INACTIVE_12H";
   } else if (inactiveHours >= 8) {
-    convictionRelaxPct = numeric(config.inactivityRecoveryEightHourRelaxPct, 4);
+    convictionRelaxPoints = numeric(config.inactivityRecoveryEightHourRelaxPoints, numeric(config.inactivityRecoveryEightHourRelaxPct, 4));
     stage = "INACTIVE_8H";
   } else if (inactiveHours >= 4) {
-    convictionRelaxPct = numeric(config.inactivityRecoveryFourHourRelaxPct, 2);
+    convictionRelaxPoints = numeric(config.inactivityRecoveryFourHourRelaxPoints, numeric(config.inactivityRecoveryFourHourRelaxPct, 2));
     stage = "INACTIVE_4H";
   }
-  const active = Boolean(config.inactivityRecoveryMode) && convictionRelaxPct > 0;
+  const active = Boolean(config.inactivityRecoveryMode) && convictionRelaxPoints > 0;
   return {
     active,
     stage,
     inactiveHours: round(inactiveHours, 4),
-    convictionRelaxPct: active ? round(convictionRelaxPct, 4) : 0,
-    convictionThresholdMultiplier: active ? round(1 - convictionRelaxPct / 100, 4) : 1,
+    convictionRelaxPct: active ? round(convictionRelaxPoints, 4) : 0,
+    convictionRelaxPoints: active ? round(convictionRelaxPoints, 4) : 0,
+    convictionThresholdMultiplier: 1,
+    convictionThresholdDelta: active ? -round(convictionRelaxPoints, 4) : 0,
     resetAfterNewTrade: true,
     neverBypassesRisk: true,
     neverBypassesFees: true,
     reason: active
-      ? `no trade opened for ${round(inactiveHours, 2)}h; conviction threshold relaxed by ${round(convictionRelaxPct, 2)}%`
+      ? `no trade opened for ${round(inactiveHours, 2)}h; conviction threshold relaxed by ${round(convictionRelaxPoints, 2)} points`
       : "recent trade activity keeps inactivity recovery reset",
   };
 }
@@ -707,7 +709,13 @@ function qualityScoreForSignal(config = {}, signal = {}, edgeModel = {}, symbolM
   const matrixMemory = edgeMemory.setupRegimeMatrixMemory || { weight: 1, bias: "NEUTRAL" };
   const autoTuning = edgeMemory.autoTuning || { thresholdMultiplier: 1, adjustmentPct: 0, bias: "NEUTRAL" };
   const activityRecovery = edgeMemory.activityRecovery || { thresholdMultiplier: 1, scoreBoost: 0, active: false };
-  const inactivityRecovery = edgeMemory.inactivityRecovery || { active: false, convictionThresholdMultiplier: 1 };
+  const inactivityRecovery = edgeMemory.inactivityRecovery || {
+    active: false,
+    convictionThresholdMultiplier: 1,
+    convictionThresholdDelta: 0,
+    convictionRelaxPct: 0,
+    convictionRelaxPoints: 0,
+  };
   const trendDominance = edgeMemory.trendDominance || { thresholdMultiplier: 1, scoreBoost: 0, sizingMultiplier: 1 };
   const clusterRisk = edgeMemory.clusterRisk || { clusterRiskScore: 0 };
   let score =
@@ -753,6 +761,7 @@ function qualityScoreForSignal(config = {}, signal = {}, edgeModel = {}, symbolM
   const tier = score >= eliteThreshold ? "ELITE" : score >= strongThreshold ? "STRONG" : score >= normalThreshold ? "NORMAL" : "REJECT";
   const chopRequiresStrong =
     (tags.includes("SIDEWAYS_CHOP_MARKET") || tags.includes("FAKE_BREAKOUT_ENVIRONMENT")) &&
+    !signal.meanReversionActive &&
     !["STRONG", "ELITE"].includes(tier);
   return {
     score,
@@ -784,6 +793,7 @@ function qualityScoreForSignal(config = {}, signal = {}, edgeModel = {}, symbolM
       expectancyAutoTuningPct: numeric(autoTuning.adjustmentPct),
       adaptiveActivityRecovery: activityRecovery.active ? round(numeric(activityRecovery.scoreBoost), 2) : 0,
       inactivityRecoveryConvictionRelaxPct: inactivityRecovery.active ? round(numeric(inactivityRecovery.convictionRelaxPct), 2) : 0,
+      inactivityRecoveryConvictionRelaxPoints: inactivityRecovery.active ? round(numeric(inactivityRecovery.convictionRelaxPoints), 2) : 0,
     },
     thresholds: {
       rejectBelow: normalThreshold,

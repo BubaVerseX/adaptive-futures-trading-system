@@ -441,8 +441,15 @@ class RiskManager {
       return { rejected: true, reason: "risk-sized order is below this symbol's exchange minimum" };
     }
     const isLong = signal.side === "LONG";
+    const takeProfitPct =
+      signal.meanReversionActive && Number(signal.atrExitPct || 0) > 0
+        ? bounded(Number(signal.atrExitPct), this.config.minExpectedMovePct, this.config.takeProfitPct)
+        : this.config.takeProfitPct;
+    if (signal.meanReversionActive && Number(signal.atrExitPct || 0) > 0) {
+      reasonsForSizingTier.push(`V11 mean reversion ATR exit target ${Number(takeProfitPct.toFixed(4))}% applied without changing stop loss`);
+    }
     const standardTakeProfitPrice = roundedPrice(
-      signal.price * (isLong ? 1 + this.config.takeProfitPct / 100 : 1 - this.config.takeProfitPct / 100),
+      signal.price * (isLong ? 1 + takeProfitPct / 100 : 1 - takeProfitPct / 100),
       tickSize,
       !isLong
     );
@@ -463,8 +470,8 @@ class RiskManager {
     const runnerTakeProfitPrice = roundedPrice(
       signal.price * (
         isLong
-          ? 1 + (this.config.takeProfitPct * runnerMultiplier) / 100
-          : 1 - (this.config.takeProfitPct * runnerMultiplier) / 100
+          ? 1 + (takeProfitPct * runnerMultiplier) / 100
+          : 1 - (takeProfitPct * runnerMultiplier) / 100
       ),
       tickSize,
       !isLong
@@ -502,6 +509,7 @@ class RiskManager {
       profitControlledRiskCapPct: profitControlledRiskCap,
       riskUsdt: Number(riskUsdt.toFixed(6)),
       stopLossPrice: roundedPrice(signal.price * (isLong ? 1 - stopDistance : 1 + stopDistance), tickSize, !isLong),
+      takeProfitPct,
       takeProfitPrice: runnerTakeProfitPrice,
       partialTakeProfitPrice: eliteSetup || winnerAmplifier ? standardTakeProfitPrice : null,
       runnerTakeProfitPrice,

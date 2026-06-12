@@ -84,6 +84,8 @@ function analyzeCandles(candles, minimumCandles = 55) {
   const rsi14 = rsi(closes, 14);
   const priorHigh = Math.max(...beforeLatest.map((candle) => candle.high));
   const priorLow = Math.min(...beforeLatest.map((candle) => candle.low));
+  const priorRange = priorHigh - priorLow;
+  const rangePosition = priorRange > 0 ? Math.max(0, Math.min(1, (latest.close - priorLow) / priorRange)) : 0.5;
   const normalVolume = average(beforeLatest.map((candle) => candle.volume));
 
   return {
@@ -101,6 +103,11 @@ function analyzeCandles(candles, minimumCandles = 55) {
     upMomentumCandles: consecutiveCloseMoves(closes, "UP"),
     downMomentumCandles: consecutiveCloseMoves(closes, "DOWN"),
     volumeSpike: normalVolume > 0 ? latest.volume / normalVolume : 0,
+    priorHigh,
+    priorLow,
+    rangePosition,
+    distanceFromRangeLowPct: latest.close > 0 ? ((latest.close - priorLow) / latest.close) * 100 : 0,
+    distanceFromRangeHighPct: latest.close > 0 ? ((priorHigh - latest.close) / latest.close) * 100 : 0,
     breakout: latest.close > priorHigh,
     breakdown: latest.close < priorLow,
     bodyStrength: latestRange > 0 ? body / latestRange : 0,
