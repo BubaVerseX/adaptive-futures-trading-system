@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-06-11T19:37:06.121Z",
+  "updatedAt": "2026-06-12T09:13:32.478Z",
   "trades": [
     {
       "id": "x10-trade-1780408472217-50130",
@@ -30125,15 +30125,15 @@
         "reason": "poor condition stats: 14.29% winrate over 7 trades"
       },
       "SOLUSDT:MOMENTUM_RESUMPTION:LONG:UP": {
-        "until": "2026-06-12T05:07:00.835Z",
+        "until": "2026-06-12T09:35:55.348Z",
         "reason": "poor condition stats: 10% winrate over 10 trades"
       },
       "ETHUSDT:MOMENTUM_RESUMPTION:LONG:UP": {
-        "until": "2026-06-12T05:05:43.780Z",
+        "until": "2026-06-12T09:41:27.733Z",
         "reason": "poor condition stats: 10% winrate over 10 trades"
       },
       "BTCUSDT:MOMENTUM_RESUMPTION:LONG:UP": {
-        "until": "2026-06-12T04:44:48.153Z",
+        "until": "2026-06-12T09:40:25.409Z",
         "reason": "poor condition stats: 10% winrate over 10 trades"
       },
       "BTCUSDT:BREAKOUT:LONG:UP": {
@@ -30149,15 +30149,15 @@
         "reason": "poor condition stats: 0% winrate over 2 trades"
       },
       "ETHUSDT:VOLUME_MOMENTUM:LONG:UP": {
-        "until": "2026-06-12T05:20:30.094Z",
+        "until": "2026-06-12T09:43:13.993Z",
         "reason": "poor condition stats: 20% winrate over 10 trades"
       },
       "BTCUSDT:VOLUME_MOMENTUM:LONG:UP": {
-        "until": "2026-06-12T05:19:56.196Z",
+        "until": "2026-06-12T09:40:54.138Z",
         "reason": "poor condition stats: 20% winrate over 10 trades"
       },
       "SOLUSDT:VOLUME_MOMENTUM:LONG:UP": {
-        "until": "2026-06-12T05:19:58.044Z",
+        "until": "2026-06-12T09:39:55.716Z",
         "reason": "poor condition stats: 20% winrate over 10 trades"
       }
     },

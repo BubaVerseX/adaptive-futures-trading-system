@@ -18,6 +18,7 @@ const { ProfitObjectiveEngine } = require("./profitObjective");
 const {
   earnedRiskTier,
   adaptiveActivityRecovery,
+  dynamicInactivityRecovery,
   ensureProfitControlledState,
   expectancyAutoTuning,
   expectancyOptimizer,
@@ -516,10 +517,20 @@ class LadderBot {
       });
       this.log("INFO", "V10_TREND_DOMINANCE_ENGINE_ACTIVE", {
         trendDominanceMode: this.config.trendDominanceMode,
+        aggressiveAdaptiveMode: this.config.aggressiveAdaptiveMode,
+        inactivityRecoveryMode: this.config.inactivityRecoveryMode,
         strongScore: this.config.trendDominanceStrongScore,
         eliteScore: this.config.trendDominanceEliteScore,
-        targetActivityIncreasePct: "25-40",
+        targetActivityIncreasePct: "30-50",
         ethBtcFocusBoost: this.config.trendDominanceEthBtcFocusBoost,
+        ethWeightMultiplier: this.config.trendDominanceEthWeightMultiplier,
+        btcWeightMultiplier: this.config.trendDominanceBtcWeightMultiplier,
+        solWeakBreakoutMultiplier: this.config.trendDominanceSolWeakBreakoutMultiplier,
+        stopRiskCapsPct: {
+          normal: this.config.profitControlledNormalMaxStopRiskPct,
+          strong: this.config.profitControlledStrongMaxStopRiskPct,
+          elite: this.config.profitControlledEliteMaxStopRiskPct,
+        },
         strongTrendSizingMultiplier: this.config.trendDominanceStrongSizingMultiplier,
         eliteTrendSizingMultiplier: this.config.trendDominanceEliteSizingMultiplier,
         riskControlsUnchanged: true,
@@ -879,6 +890,24 @@ class LadderBot {
 
       if (recoveryStatus.active) {
         this.log("INFO", "Continuous learning preserved; recovery adjusts sizing without pausing execution.", recoveryStatus);
+      }
+
+      const inactivityRecovery = this.config.inactivityRecoveryMode
+        ? dynamicInactivityRecovery(this.config, this.lastTradeOpenedAtMs())
+        : { active: false, convictionThresholdMultiplier: 1, convictionRelaxPct: 0, stage: "NONE" };
+      if (this.scanner.setRuntimeContext) {
+        this.scanner.setRuntimeContext({ dynamicInactivityRecovery: inactivityRecovery });
+      }
+      if (inactivityRecovery.active) {
+        this.log("INFO", "DYNAMIC_INACTIVITY_RECOVERY_ACTIVE", {
+          stage: inactivityRecovery.stage,
+          inactiveHours: inactivityRecovery.inactiveHours,
+          convictionRelaxPct: inactivityRecovery.convictionRelaxPct,
+          convictionThresholdMultiplier: inactivityRecovery.convictionThresholdMultiplier,
+          resetAfterNewTrade: inactivityRecovery.resetAfterNewTrade,
+          feeProtectionUnchanged: true,
+          riskControlsUnchanged: true,
+        });
       }
 
       const scan = await this.scanner.scan(marketProfile);
@@ -2913,6 +2942,11 @@ class LadderBot {
     const setupRegimeMatrix = this.config.edgeReinforcementMode ? setupRegimeMatrixMemory(this.store.trades, signal, this.config) : null;
     const autoTuning = this.config.edgeReinforcementMode ? expectancyAutoTuning(this.store.trades, this.config) : null;
     const activityRecovery = this.config.edgeReinforcementMode ? adaptiveActivityRecovery(this.store.trades, this.config) : null;
+    const inactivityRecovery = signal.dynamicInactivityRecovery || (
+      this.config.inactivityRecoveryMode
+        ? dynamicInactivityRecovery(this.config, this.lastTradeOpenedAtMs())
+        : { active: false, convictionThresholdMultiplier: 1, convictionRelaxPct: 0, stage: "NONE" }
+    );
     const trendDominance = this.config.trendDominanceMode ? trendDominanceSignal(this.config, signal, {
       setupRegimeMatrixMemory: setupRegimeMatrix,
       activityRecovery,
@@ -2927,6 +2961,7 @@ class LadderBot {
       setupRegimeMatrixMemory: setupRegimeMatrix,
       autoTuning,
       activityRecovery,
+      inactivityRecovery,
       trendDominance,
       clusterRisk,
     });
@@ -2939,6 +2974,7 @@ class LadderBot {
     signal.setupRegimeMatrixMemory = setupRegimeMatrix;
     signal.expectancyAutoTuning = autoTuning;
     signal.adaptiveActivityRecovery = activityRecovery;
+    signal.dynamicInactivityRecovery = inactivityRecovery;
     signal.trendDominance = trendDominance;
     signal.trendDominanceScore = trendDominance ? trendDominance.score : 0;
     signal.trendDominanceSizingMultiplier = trendDominance ? trendDominance.sizingMultiplier : 1;
@@ -2976,6 +3012,7 @@ class LadderBot {
       setupRegimeMatrixMemory: setupRegimeMatrix,
       expectancyAutoTuning: autoTuning,
       adaptiveActivityRecovery: activityRecovery,
+      dynamicInactivityRecovery: inactivityRecovery,
       trendDominance,
       clusterRisk,
       portfolioAlphaScore: signal.portfolioAlphaScore,
@@ -3038,6 +3075,19 @@ class LadderBot {
         feeProtectionUnchanged: true,
       });
     }
+    if (inactivityRecovery && inactivityRecovery.active) {
+      this.log("INFO", "DYNAMIC_INACTIVITY_RECOVERY_ACTIVE", {
+        symbol: signal.symbol,
+        side: signal.side,
+        stage: inactivityRecovery.stage,
+        inactiveHours: inactivityRecovery.inactiveHours,
+        convictionRelaxPct: inactivityRecovery.convictionRelaxPct,
+        convictionThresholdMultiplier: inactivityRecovery.convictionThresholdMultiplier,
+        resetAfterNewTrade: inactivityRecovery.resetAfterNewTrade,
+        feeProtectionUnchanged: true,
+        riskControlsUnchanged: true,
+      });
+    }
     if (trendDominance) {
       this.log(trendDominance.tier === "NO_DOMINANCE" ? "DEBUG" : "INFO", "TREND_DOMINANCE_ENGINE_EVALUATED", {
         symbol: signal.symbol,
@@ -3045,6 +3095,8 @@ class LadderBot {
         score: trendDominance.score,
         tier: trendDominance.tier,
         ethBtcFocus: trendDominance.ethBtcFocus,
+        symbolWeightMultiplier: trendDominance.symbolWeightMultiplier,
+        solWeakBreakout: trendDominance.solWeakBreakout,
         thresholdMultiplier: trendDominance.thresholdMultiplier,
         scoreBoost: trendDominance.scoreBoost,
         sizingMultiplier: trendDominance.sizingMultiplier,
@@ -3518,6 +3570,8 @@ class LadderBot {
       setupRegimeMatrixMemory: signal.setupRegimeMatrixMemory,
       expectancyAutoTuning: signal.expectancyAutoTuning,
       adaptiveActivityRecovery: signal.adaptiveActivityRecovery,
+      dynamicInactivityRecovery: signal.dynamicInactivityRecovery,
+      inactivityConvictionRelaxPct: signal.inactivityConvictionRelaxPct,
       trendDominance: signal.trendDominance,
       trendDominanceScore: signal.trendDominanceScore,
       trendDominanceSizingMultiplier: signal.trendDominanceSizingMultiplier,

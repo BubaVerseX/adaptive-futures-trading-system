@@ -234,13 +234,25 @@ function loadConfig() {
     adaptiveEdgeActivityRecoveryMinProfitFactor: numberValue("ADAPTIVE_EDGE_ACTIVITY_RECOVERY_MIN_PROFIT_FACTOR", 1, { positive: true }),
     adaptiveEdgeActivityRecoveryMaxFeeDragRatio: numberValue("ADAPTIVE_EDGE_ACTIVITY_RECOVERY_MAX_FEE_DRAG_RATIO", 0.65, { minimum: 0 }),
     trendDominanceMode: booleanValue("TREND_DOMINANCE_MODE", profitControlledEquityMode ? true : false),
+    aggressiveAdaptiveMode: booleanValue("AGGRESSIVE_ADAPTIVE_MODE", profitControlledEquityMode ? true : false),
+    inactivityRecoveryMode: booleanValue("INACTIVITY_RECOVERY_MODE", profitControlledEquityMode ? true : false),
+    inactivityRecoveryFourHourRelaxPct: numberValue("INACTIVITY_RECOVERY_4H_CONVICTION_RELAX_PCT", 2, { minimum: 0, maximum: 10 }),
+    inactivityRecoveryEightHourRelaxPct: numberValue("INACTIVITY_RECOVERY_8H_CONVICTION_RELAX_PCT", 4, { minimum: 0, maximum: 10 }),
+    inactivityRecoveryTwelveHourRelaxPct: numberValue("INACTIVITY_RECOVERY_12H_CONVICTION_RELAX_PCT", 6, { minimum: 0, maximum: 10 }),
+    aggressiveAdaptiveNormalStopRiskPct: numberValue("AGGRESSIVE_ADAPTIVE_NORMAL_STOP_RISK_PCT", 0.75, { positive: true, maximum: 5 }),
+    aggressiveAdaptiveStrongStopRiskPct: numberValue("AGGRESSIVE_ADAPTIVE_STRONG_STOP_RISK_PCT", 1.5, { positive: true, maximum: 5 }),
+    aggressiveAdaptiveEliteStopRiskPct: numberValue("AGGRESSIVE_ADAPTIVE_ELITE_STOP_RISK_PCT", 2, { positive: true, maximum: 5 }),
     trendDominanceStrongScore: numberValue("TREND_DOMINANCE_STRONG_SCORE", 82, { minimum: 0, maximum: 100 }),
     trendDominanceEliteScore: numberValue("TREND_DOMINANCE_ELITE_SCORE", 92, { minimum: 0, maximum: 100 }),
-    trendDominanceActivityBoostPct: numberValue("TREND_DOMINANCE_ACTIVITY_BOOST_PCT", 4, { minimum: 0, maximum: 6 }),
+    trendDominanceActivityBoostPct: numberValue("TREND_DOMINANCE_ACTIVITY_BOOST_PCT", 5, { minimum: 0, maximum: 6 }),
     trendDominanceScoreBoost: numberValue("TREND_DOMINANCE_SCORE_BOOST", 3, { minimum: 0, maximum: 8 }),
     trendDominanceEthBtcFocusBoost: numberValue("TREND_DOMINANCE_ETH_BTC_FOCUS_BOOST", 4, { minimum: 0, maximum: 8 }),
-    trendDominanceStrongSizingMultiplier: numberValue("TREND_DOMINANCE_STRONG_SIZING_MULTIPLIER", 1.12, { positive: true, maximum: 1.25 }),
-    trendDominanceEliteSizingMultiplier: numberValue("TREND_DOMINANCE_ELITE_SIZING_MULTIPLIER", 1.18, { positive: true, maximum: 1.25 }),
+    trendDominanceEthWeightMultiplier: numberValue("TREND_DOMINANCE_ETH_WEIGHT_MULTIPLIER", 1.4, { positive: true, maximum: 2 }),
+    trendDominanceBtcWeightMultiplier: numberValue("TREND_DOMINANCE_BTC_WEIGHT_MULTIPLIER", 1.25, { positive: true, maximum: 2 }),
+    trendDominanceSolWeakBreakoutMultiplier: numberValue("TREND_DOMINANCE_SOL_WEAK_BREAKOUT_MULTIPLIER", 0.82, { positive: true, maximum: 1 }),
+    trendDominanceSolWeakBreakoutPenalty: numberValue("TREND_DOMINANCE_SOL_WEAK_BREAKOUT_PENALTY", 4, { minimum: 0, maximum: 12 }),
+    trendDominanceStrongSizingMultiplier: numberValue("TREND_DOMINANCE_STRONG_SIZING_MULTIPLIER", 1.18, { positive: true, maximum: 1.25 }),
+    trendDominanceEliteSizingMultiplier: numberValue("TREND_DOMINANCE_ELITE_SIZING_MULTIPLIER", 1.25, { positive: true, maximum: 1.25 }),
     trendDominanceRunnerExtensionBoost: numberValue("TREND_DOMINANCE_RUNNER_EXTENSION_BOOST", 1.12, { positive: true, maximum: 1.3 }),
     tradeClusterWindowMinutes: numberValue("TRADE_CLUSTER_WINDOW_MINUTES", 45, { positive: true }),
     tradeClusterMaxSizeReductionPct: numberValue("TRADE_CLUSTER_MAX_SIZE_REDUCTION_PCT", 20, { minimum: 0, maximum: 40 }),
@@ -458,6 +470,28 @@ function loadConfig() {
     config.edgeReinforcementMode = true;
     config.adaptiveEdgeActivityRecoveryMode = true;
     config.trendDominanceMode = true;
+    config.aggressiveAdaptiveMode = true;
+    config.inactivityRecoveryMode = true;
+    if (config.aggressiveAdaptiveMode) {
+      config.profitControlledNormalMaxStopRiskPct = Math.max(
+        config.profitControlledNormalMaxStopRiskPct,
+        config.aggressiveAdaptiveNormalStopRiskPct
+      );
+      config.profitControlledStrongMaxStopRiskPct = Math.max(
+        config.profitControlledStrongMaxStopRiskPct,
+        config.aggressiveAdaptiveStrongStopRiskPct
+      );
+      config.profitControlledEliteMaxStopRiskPct = Math.max(
+        config.profitControlledEliteMaxStopRiskPct,
+        config.aggressiveAdaptiveEliteStopRiskPct
+      );
+      config.normalRiskAtStopMaxPct = Math.max(config.normalRiskAtStopMaxPct, config.aggressiveAdaptiveNormalStopRiskPct);
+      config.strongRiskAtStopMaxPct = Math.max(config.strongRiskAtStopMaxPct, config.aggressiveAdaptiveStrongStopRiskPct);
+      config.eliteRiskAtStopMaxPct = Math.max(config.eliteRiskAtStopMaxPct, config.aggressiveAdaptiveEliteStopRiskPct);
+      config.asymmetricRunnerWeakTp1Pct = Math.min(config.asymmetricRunnerWeakTp1Pct, 40);
+      config.asymmetricRunnerStrongTp1Pct = Math.min(config.asymmetricRunnerStrongTp1Pct, 15);
+      config.asymmetricRunnerEliteTp1Pct = Math.min(config.asymmetricRunnerEliteTp1Pct, 5);
+    }
     config.winnerAmplifierEnabled = true;
     config.winnerAmplifierPartialTakeProfitPct = 30;
     config.tradeFrequencyRecoveryMode = true;

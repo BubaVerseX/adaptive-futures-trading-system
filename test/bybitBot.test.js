@@ -28,6 +28,7 @@ const {
   earnedRiskTier,
   adaptiveActivityRecovery,
   asymmetricRunnerAllocation,
+  dynamicInactivityRecovery,
   expectancyAutoTuning,
   expectancyOptimizer,
   profitEdgeReport,
@@ -2826,9 +2827,9 @@ async function testV95AdaptiveEdgeReinforcement() {
     () => loadConfig()
   );
   assert.equal(loaded.edgeReinforcementMode, true);
-  assert.equal(loaded.asymmetricRunnerWeakTp1Pct, 50);
-  assert.equal(loaded.asymmetricRunnerStrongTp1Pct, 20);
-  assert.equal(loaded.asymmetricRunnerEliteTp1Pct, 10);
+  assert.equal(loaded.asymmetricRunnerWeakTp1Pct, 40);
+  assert.equal(loaded.asymmetricRunnerStrongTp1Pct, 15);
+  assert.equal(loaded.asymmetricRunnerEliteTp1Pct, 5);
   assert.equal(loaded.expectancyAutoTuningWindowTrades, 100);
   assert.equal(loaded.expectancyAutoTuningMaxAdjustmentPct, 5);
   assert.equal(loaded.adaptiveEdgeActivityRecoveryMode, true);
@@ -2848,9 +2849,9 @@ async function testV95AdaptiveEdgeReinforcement() {
     regimeMemoryReduceProfitFactor: 1,
     setupRegimeMatrixBoostProfitFactor: 1.3,
     setupRegimeMatrixReduceProfitFactor: 1,
-    asymmetricRunnerWeakTp1Pct: 50,
-    asymmetricRunnerStrongTp1Pct: 20,
-    asymmetricRunnerEliteTp1Pct: 10,
+    asymmetricRunnerWeakTp1Pct: 40,
+    asymmetricRunnerStrongTp1Pct: 15,
+    asymmetricRunnerEliteTp1Pct: 5,
     asymmetricRunnerStrongTrendScore: 82,
     asymmetricRunnerEliteTrendScore: 92,
     expectancyAutoTuningWindowTrades: 100,
@@ -2940,12 +2941,12 @@ async function testV95AdaptiveEdgeReinforcement() {
   const weakAllocation = asymmetricRunnerAllocation(cfg, { profitQualityTier: "NORMAL", trendQualityScore: 70 });
   const strongAllocation = asymmetricRunnerAllocation(cfg, { profitQualityTier: "STRONG", trendQualityScore: 86 });
   const eliteAllocation = asymmetricRunnerAllocation(cfg, { profitQualityTier: "ELITE", trendQualityScore: 96 });
-  assert.equal(weakAllocation.tp1PartialPct, 50);
-  assert.equal(weakAllocation.runnerPct, 50);
-  assert.equal(strongAllocation.tp1PartialPct, 20);
-  assert.equal(strongAllocation.runnerPct, 80);
-  assert.equal(eliteAllocation.tp1PartialPct, 10);
-  assert.equal(eliteAllocation.runnerPct, 90);
+  assert.equal(weakAllocation.tp1PartialPct, 40);
+  assert.equal(weakAllocation.runnerPct, 60);
+  assert.equal(strongAllocation.tp1PartialPct, 15);
+  assert.equal(strongAllocation.runnerPct, 85);
+  assert.equal(eliteAllocation.tp1PartialPct, 5);
+  assert.equal(eliteAllocation.runnerPct, 95);
 
   const losingWindow = Array.from({ length: 100 }, (_, index) =>
     memoryRecord({
@@ -3099,8 +3100,8 @@ async function testV95AdaptiveEdgeReinforcement() {
     feeEdgeRatio: 3.2,
     clusterRiskSizeMultiplier: clusterRisk.sizeMultiplier,
   }, 60, instrument("ETHUSDT", { qtyStep: "0.001", minOrderQty: "0.001", minNotionalValue: "1" }), 4);
-  assert.equal(strongPlan.runnerPartialPct, 20);
-  assert.equal(strongPlan.runnerAllocation.runnerPct, 80);
+  assert.equal(strongPlan.runnerPartialPct, 15);
+  assert.equal(strongPlan.runnerAllocation.runnerPct, 85);
   assert.ok(strongPlan.qualitySizeMultiplier < cfg.qualitySizeMultiplierStrong);
   assert.ok(strongPlan.reasonsForSizingTier.some((reason) => /cluster risk reduced size/i.test(reason)));
 
@@ -3120,8 +3121,8 @@ async function testV95AdaptiveEdgeReinforcement() {
     projectedNetEdgePct: 1.2,
     feeEdgeRatio: 4,
   }, 60, instrument("SOLUSDT", { qtyStep: "0.1", minOrderQty: "0.1", minNotionalValue: "1" }), 5);
-  assert.equal(elitePlan.runnerPartialPct, 10);
-  assert.equal(elitePlan.runnerAllocation.runnerPct, 90);
+  assert.equal(elitePlan.runnerPartialPct, 5);
+  assert.equal(elitePlan.runnerAllocation.runnerPct, 95);
 
   const edgeReport = profitEdgeReport([...trades, ...clusterTrades], cfg);
   assert.ok(edgeReport.bestSetupRegime);
@@ -3151,28 +3152,47 @@ async function testV10TrendDominanceEngine() {
     () => loadConfig()
   );
   assert.equal(loaded.trendDominanceMode, true);
+  assert.equal(loaded.aggressiveAdaptiveMode, true);
+  assert.equal(loaded.inactivityRecoveryMode, true);
+  assert.equal(loaded.profitControlledNormalMaxStopRiskPct, 0.75);
+  assert.equal(loaded.profitControlledStrongMaxStopRiskPct, 1.5);
+  assert.equal(loaded.profitControlledEliteMaxStopRiskPct, 2);
   assert.equal(loaded.trendDominanceStrongScore, 82);
   assert.equal(loaded.trendDominanceEliteScore, 92);
-  assert.equal(loaded.trendDominanceActivityBoostPct, 4);
-  assert.equal(loaded.trendDominanceStrongSizingMultiplier, 1.12);
-  assert.equal(loaded.trendDominanceEliteSizingMultiplier, 1.18);
+  assert.equal(loaded.trendDominanceActivityBoostPct, 5);
+  assert.equal(loaded.trendDominanceEthWeightMultiplier, 1.4);
+  assert.equal(loaded.trendDominanceBtcWeightMultiplier, 1.25);
+  assert.equal(loaded.trendDominanceStrongSizingMultiplier, 1.18);
+  assert.equal(loaded.trendDominanceEliteSizingMultiplier, 1.25);
 
   const cfg = config({
     profitControlledEquityMode: true,
     edgeReinforcementMode: true,
     trendDominanceMode: true,
+    aggressiveAdaptiveMode: true,
+    inactivityRecoveryMode: true,
+    inactivityRecoveryFourHourRelaxPct: 2,
+    inactivityRecoveryEightHourRelaxPct: 4,
+    inactivityRecoveryTwelveHourRelaxPct: 6,
+    profitControlledNormalMaxStopRiskPct: 0.75,
+    profitControlledStrongMaxStopRiskPct: 1.5,
+    profitControlledEliteMaxStopRiskPct: 2,
     winnerAmplifierEnabled: true,
     trendDominanceStrongScore: 82,
     trendDominanceEliteScore: 92,
-    trendDominanceActivityBoostPct: 4,
+    trendDominanceActivityBoostPct: 5,
     trendDominanceScoreBoost: 3,
     trendDominanceEthBtcFocusBoost: 4,
-    trendDominanceStrongSizingMultiplier: 1.12,
-    trendDominanceEliteSizingMultiplier: 1.18,
+    trendDominanceEthWeightMultiplier: 1.4,
+    trendDominanceBtcWeightMultiplier: 1.25,
+    trendDominanceSolWeakBreakoutMultiplier: 0.82,
+    trendDominanceSolWeakBreakoutPenalty: 4,
+    trendDominanceStrongSizingMultiplier: 1.18,
+    trendDominanceEliteSizingMultiplier: 1.25,
     trendDominanceRunnerExtensionBoost: 1.12,
-    asymmetricRunnerWeakTp1Pct: 50,
-    asymmetricRunnerStrongTp1Pct: 20,
-    asymmetricRunnerEliteTp1Pct: 10,
+    asymmetricRunnerWeakTp1Pct: 40,
+    asymmetricRunnerStrongTp1Pct: 15,
+    asymmetricRunnerEliteTp1Pct: 5,
   });
   const matrix = {
     weight: 1.1,
@@ -3209,8 +3229,10 @@ async function testV10TrendDominanceEngine() {
   });
   assert.ok(dominance.score >= cfg.trendDominanceStrongScore);
   assert.equal(dominance.ethBtcFocus, true);
+  assert.equal(dominance.symbolWeightMultiplier, 1.4);
   assert.equal(dominance.activityEligible, true);
-  assert.equal(dominance.thresholdMultiplier, 0.96);
+  assert.equal(dominance.thresholdMultiplier, 0.95);
+  assert.equal(dominance.targetActivityIncreasePct, "30-50");
   assert.ok(dominance.scoreBoost > cfg.trendDominanceScoreBoost);
   assert.equal(
     dominance.sizingMultiplier,
@@ -3218,6 +3240,16 @@ async function testV10TrendDominanceEngine() {
   );
   assert.equal(dominance.neverBypassesRisk, true);
   assert.equal(dominance.neverBypassesFees, true);
+
+  const idle4h = dynamicInactivityRecovery(cfg, Date.now() - 4.1 * 60 * 60 * 1000);
+  const idle8h = dynamicInactivityRecovery(cfg, Date.now() - 8.1 * 60 * 60 * 1000);
+  const idle12h = dynamicInactivityRecovery(cfg, Date.now() - 12.1 * 60 * 60 * 1000);
+  const recentTrade = dynamicInactivityRecovery(cfg, Date.now() - 30 * 60 * 1000);
+  assert.equal(idle4h.convictionThresholdMultiplier, 0.98);
+  assert.equal(idle8h.convictionThresholdMultiplier, 0.96);
+  assert.equal(idle12h.convictionThresholdMultiplier, 0.94);
+  assert.equal(recentTrade.active, false);
+  assert.equal(idle12h.resetAfterNewTrade, true);
 
   const qualityWithDominance = qualityScoreForSignal(cfg, signal, {
     expectedNetEdgePct: 0.75,
@@ -3238,6 +3270,25 @@ async function testV10TrendDominanceEngine() {
   assert.ok(qualityWithDominance.score >= qualityWithoutDominance.score);
   assert.ok(qualityWithDominance.thresholds.normal < qualityWithoutDominance.thresholds.normal);
   assert.ok(qualityWithDominance.components.trendDominance >= cfg.trendDominanceStrongScore);
+
+  const weakSolDominance = trendDominanceSignal(cfg, {
+    symbol: "SOLUSDT",
+    side: "LONG",
+    multiTimeframeTrendScore: 55,
+    trendQualityScore: 56,
+    continuationStrength: 58,
+    portfolioAlphaScore: 50,
+    marketRegimeV2: "SIDEWAYS_CHOP",
+    continuationSetupType: "BREAKOUT_RETEST",
+    setupType: "BREAKOUT",
+    marketRegimeTags: ["SIDEWAYS_CHOP_MARKET"],
+  }, {
+    setupRegimeMatrixMemory: { weight: 1, bias: "NEUTRAL" },
+    activityRecovery,
+  });
+  assert.equal(weakSolDominance.solWeakBreakout, true);
+  assert.equal(weakSolDominance.symbolWeightMultiplier, cfg.trendDominanceSolWeakBreakoutMultiplier);
+  assert.ok(weakSolDominance.scoreBoost < 0);
 
   const bot = new LadderBot(cfg);
   bot.store.state = {
@@ -3260,7 +3311,7 @@ async function testV10TrendDominanceEngine() {
   }, 60, instrument("ETHUSDT", { qtyStep: "0.001", minOrderQty: "0.001", minNotionalValue: "1" }), 4);
   assert.ok(plan.reasonsForSizingTier.some((reason) => /V10 trend dominance sizing multiplier/i.test(reason)));
   assert.ok(plan.maxLossAtStopUsdt <= 60 * (cfg.profitControlledStrongMaxStopRiskPct / 100) + 0.000001);
-  assert.ok(plan.runnerAllocation.runnerPct >= 80);
+  assert.ok(plan.runnerAllocation.runnerPct >= 85);
 }
 
 async function testProfitProtectionReducesExplorationAndRisk() {
@@ -3786,7 +3837,7 @@ async function run() {
   await testContinuousExecutionClearsStaleTradeLimitPause();
   await testAggressiveLearningCooldownsAreAdvisory();
   await testForcedMarketSamplingPromotion();
-  console.log("Bybit client and bot tests passed: REST signing, centralized 34040 no-change handling, duplicate TP/SL skip, execution ledger fill dedupe, net edge gate, portfolio risk-at-stop checks, UTA balance parsing, live safety balance use, native protection payloads, WebSocket reconnect, API auto-recovery without shutdown, reconciliation, hedge exposure detection, native TP events, regime intelligence, focused BTC/ETH/SOL universe restriction, survivability scoring, next-generation continuation scoring, exploration path, exploration memory relaxation, fee-aware stats, advisory symbol cooldowns, adaptive learning, continuation market memory, cautious active recovery, activity floor, daily shutdown removal, forced market sampling, profit protection sizing, fee-aware entries, dynamic sizing, live-validation guards, allocation ladder, risk degradation, promotion checks, execution-cost logging, V6 profit-controlled config guards, setup preservation, deferred leverage mutation, exchange-minimum feasibility, risk degradation, maker/taker routing, V7 profit mode, quality score gate, fee killer, symbol memory V2/V3, expectancy report, winner amplifier continuation holds, V7.1 trade frequency recovery tuning, V8 professional trend/expectancy optimization, V9 edge maximization, V9.5 adaptive edge reinforcement, and V10 trend dominance.");
+  console.log("Bybit client and bot tests passed: REST signing, centralized 34040 no-change handling, duplicate TP/SL skip, execution ledger fill dedupe, net edge gate, portfolio risk-at-stop checks, UTA balance parsing, live safety balance use, native protection payloads, WebSocket reconnect, API auto-recovery without shutdown, reconciliation, hedge exposure detection, native TP events, regime intelligence, focused BTC/ETH/SOL universe restriction, survivability scoring, next-generation continuation scoring, exploration path, exploration memory relaxation, fee-aware stats, advisory symbol cooldowns, adaptive learning, continuation market memory, cautious active recovery, activity floor, daily shutdown removal, forced market sampling, profit protection sizing, fee-aware entries, dynamic sizing, live-validation guards, allocation ladder, risk degradation, promotion checks, execution-cost logging, V6 profit-controlled config guards, setup preservation, deferred leverage mutation, exchange-minimum feasibility, risk degradation, maker/taker routing, V7 profit mode, quality score gate, fee killer, symbol memory V2/V3, expectancy report, winner amplifier continuation holds, V7.1 trade frequency recovery tuning, V8 professional trend/expectancy optimization, V9 edge maximization, V9.5 adaptive edge reinforcement, and V10 aggressive adaptive trend dominance.");
 }
 
 run().catch((error) => {
