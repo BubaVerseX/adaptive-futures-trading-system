@@ -35,6 +35,7 @@ const {
   setupRankingMemory,
   symbolPerformanceMemoryV3,
   tradeClusterRisk,
+  trendDominanceSignal,
 } = require("./profitControlled");
 const {
   allocatedEquityLimitUsdt,
@@ -512,6 +513,19 @@ class LadderBot {
         noRevengeTrading: true,
         leverageIncrease: false,
         stopLossLogicWeakened: false,
+      });
+      this.log("INFO", "V10_TREND_DOMINANCE_ENGINE_ACTIVE", {
+        trendDominanceMode: this.config.trendDominanceMode,
+        strongScore: this.config.trendDominanceStrongScore,
+        eliteScore: this.config.trendDominanceEliteScore,
+        targetActivityIncreasePct: "25-40",
+        ethBtcFocusBoost: this.config.trendDominanceEthBtcFocusBoost,
+        strongTrendSizingMultiplier: this.config.trendDominanceStrongSizingMultiplier,
+        eliteTrendSizingMultiplier: this.config.trendDominanceEliteSizingMultiplier,
+        riskControlsUnchanged: true,
+        feeProtectionUnchanged: true,
+        stopLossLogicUnchanged: true,
+        portfolioCapsUnchanged: true,
       });
       this.log("INFO", "V8_PROFESSIONAL_TREND_ENGINE_ACTIVE", {
         multiTimeframeTrendEngineEnabled: this.config.multiTimeframeTrendEngineEnabled,
@@ -2899,6 +2913,10 @@ class LadderBot {
     const setupRegimeMatrix = this.config.edgeReinforcementMode ? setupRegimeMatrixMemory(this.store.trades, signal, this.config) : null;
     const autoTuning = this.config.edgeReinforcementMode ? expectancyAutoTuning(this.store.trades, this.config) : null;
     const activityRecovery = this.config.edgeReinforcementMode ? adaptiveActivityRecovery(this.store.trades, this.config) : null;
+    const trendDominance = this.config.trendDominanceMode ? trendDominanceSignal(this.config, signal, {
+      setupRegimeMatrixMemory: setupRegimeMatrix,
+      activityRecovery,
+    }) : null;
     const clusterRisk = this.config.edgeReinforcementMode ? tradeClusterRisk(this.store.trades, signal, this.config) : null;
     signal.clusterRisk = clusterRisk;
     signal.clusterRiskScore = clusterRisk ? clusterRisk.clusterRiskScore : 0;
@@ -2909,6 +2927,7 @@ class LadderBot {
       setupRegimeMatrixMemory: setupRegimeMatrix,
       autoTuning,
       activityRecovery,
+      trendDominance,
       clusterRisk,
     });
     signal.profitQualityScore = quality.score;
@@ -2920,8 +2939,13 @@ class LadderBot {
     signal.setupRegimeMatrixMemory = setupRegimeMatrix;
     signal.expectancyAutoTuning = autoTuning;
     signal.adaptiveActivityRecovery = activityRecovery;
+    signal.trendDominance = trendDominance;
+    signal.trendDominanceScore = trendDominance ? trendDominance.score : 0;
+    signal.trendDominanceSizingMultiplier = trendDominance ? trendDominance.sizingMultiplier : 1;
     signal.expectancyOptimizer = optimizer;
-    signal.runnerExtensionOptimizerMultiplier = optimizer && optimizer.runnerContributionPositive ? optimizer.runnerExtensionMultiplier : 1;
+    signal.runnerExtensionOptimizerMultiplier =
+      (optimizer && optimizer.runnerContributionPositive ? optimizer.runnerExtensionMultiplier : 1) *
+      (trendDominance ? trendDominance.runnerExtensionMultiplier : 1);
     signal.adaptiveMode = "PROFIT_MODE";
     signal.adaptivePolicyMode = "PROFIT_MODE";
     signal.explorationTrade = false;
@@ -2952,6 +2976,7 @@ class LadderBot {
       setupRegimeMatrixMemory: setupRegimeMatrix,
       expectancyAutoTuning: autoTuning,
       adaptiveActivityRecovery: activityRecovery,
+      trendDominance,
       clusterRisk,
       portfolioAlphaScore: signal.portfolioAlphaScore,
       portfolioAlpha: signal.portfolioAlpha,
@@ -3011,6 +3036,22 @@ class LadderBot {
         neverForcesTrades: activityRecovery.neverForcesTrades,
         riskControlsUnchanged: true,
         feeProtectionUnchanged: true,
+      });
+    }
+    if (trendDominance) {
+      this.log(trendDominance.tier === "NO_DOMINANCE" ? "DEBUG" : "INFO", "TREND_DOMINANCE_ENGINE_EVALUATED", {
+        symbol: signal.symbol,
+        side: signal.side,
+        score: trendDominance.score,
+        tier: trendDominance.tier,
+        ethBtcFocus: trendDominance.ethBtcFocus,
+        thresholdMultiplier: trendDominance.thresholdMultiplier,
+        scoreBoost: trendDominance.scoreBoost,
+        sizingMultiplier: trendDominance.sizingMultiplier,
+        runnerExtensionMultiplier: trendDominance.runnerExtensionMultiplier,
+        targetActivityIncreasePct: trendDominance.targetActivityIncreasePct,
+        neverBypassesRisk: trendDominance.neverBypassesRisk,
+        neverBypassesFees: trendDominance.neverBypassesFees,
       });
     }
     if (clusterRisk) {
@@ -3477,6 +3518,9 @@ class LadderBot {
       setupRegimeMatrixMemory: signal.setupRegimeMatrixMemory,
       expectancyAutoTuning: signal.expectancyAutoTuning,
       adaptiveActivityRecovery: signal.adaptiveActivityRecovery,
+      trendDominance: signal.trendDominance,
+      trendDominanceScore: signal.trendDominanceScore,
+      trendDominanceSizingMultiplier: signal.trendDominanceSizingMultiplier,
       clusterRisk: signal.clusterRisk,
       clusterRiskScore: signal.clusterRiskScore,
       clusterRiskSizeMultiplier: signal.clusterRiskSizeMultiplier,

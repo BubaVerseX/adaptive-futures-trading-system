@@ -42,6 +42,7 @@ const {
   symbolPerformanceMemoryV2,
   symbolPerformanceMemoryV3,
   tradeClusterRisk,
+  trendDominanceSignal,
 } = require("../src/profitControlled");
 const {
   CONFIRMATION_PHRASE,
@@ -3132,6 +3133,136 @@ async function testV95AdaptiveEdgeReinforcement() {
   assert.ok(Object.prototype.hasOwnProperty.call(edgeReport, "runnerWinRatePct"));
 }
 
+async function testV10TrendDominanceEngine() {
+  const loaded = withEnv(
+    {
+      PROFIT_CONTROLLED_EQUITY_MODE: "true",
+      BYBIT_TESTNET: "false",
+      BYBIT_DEMO_TRADING: "false",
+      DRY_RUN: "false",
+      ACKNOWLEDGE_PROFIT_CONTROLLED_LIVE_RISK: "true",
+      ACKNOWLEDGE_LIVE_TRADING: "true",
+      ACKNOWLEDGE_HIGH_LEVERAGE_RISK: "true",
+      BYBIT_REST_BASE_URL: "",
+      BYBIT_WS_BASE_URL: "",
+      BYBIT_PUBLIC_WS_BASE_URL: "",
+      BYBIT_PRIVATE_WS_BASE_URL: "",
+    },
+    () => loadConfig()
+  );
+  assert.equal(loaded.trendDominanceMode, true);
+  assert.equal(loaded.trendDominanceStrongScore, 82);
+  assert.equal(loaded.trendDominanceEliteScore, 92);
+  assert.equal(loaded.trendDominanceActivityBoostPct, 4);
+  assert.equal(loaded.trendDominanceStrongSizingMultiplier, 1.12);
+  assert.equal(loaded.trendDominanceEliteSizingMultiplier, 1.18);
+
+  const cfg = config({
+    profitControlledEquityMode: true,
+    edgeReinforcementMode: true,
+    trendDominanceMode: true,
+    winnerAmplifierEnabled: true,
+    trendDominanceStrongScore: 82,
+    trendDominanceEliteScore: 92,
+    trendDominanceActivityBoostPct: 4,
+    trendDominanceScoreBoost: 3,
+    trendDominanceEthBtcFocusBoost: 4,
+    trendDominanceStrongSizingMultiplier: 1.12,
+    trendDominanceEliteSizingMultiplier: 1.18,
+    trendDominanceRunnerExtensionBoost: 1.12,
+    asymmetricRunnerWeakTp1Pct: 50,
+    asymmetricRunnerStrongTp1Pct: 20,
+    asymmetricRunnerEliteTp1Pct: 10,
+  });
+  const matrix = {
+    weight: 1.1,
+    bias: "BOOST",
+    performance: { samples: 12, profitFactor: 1.6, expectancyUsdt: 0.04 },
+  };
+  const activityRecovery = {
+    active: true,
+    feeDragOk: true,
+    expectancyOk: true,
+  };
+  const signal = {
+    symbol: "ETHUSDT",
+    side: "LONG",
+    profitQualityTier: "STRONG",
+    multiTimeframeTrendScore: 90,
+    trendQualityScore: 86,
+    continuationStrength: 88,
+    portfolioAlphaScore: 92,
+    marketRegimeTags: ["STRONG_TRENDING_MARKET"],
+    continuationSetupType: "MOMENTUM_RESUMPTION",
+    setupType: "TREND_CONTINUATION",
+    convictionScore: 84,
+    volumeCondition: "CONFIRMED_VOLUME",
+    volumeSpike: 1.8,
+    spreadPct: 0.02,
+    projectedNetEdgePct: 0.85,
+    smartProjectedNetEdgePct: 0.75,
+    feeEdgeRatio: 3.3,
+  };
+  const dominance = trendDominanceSignal(cfg, signal, {
+    setupRegimeMatrixMemory: matrix,
+    activityRecovery,
+  });
+  assert.ok(dominance.score >= cfg.trendDominanceStrongScore);
+  assert.equal(dominance.ethBtcFocus, true);
+  assert.equal(dominance.activityEligible, true);
+  assert.equal(dominance.thresholdMultiplier, 0.96);
+  assert.ok(dominance.scoreBoost > cfg.trendDominanceScoreBoost);
+  assert.equal(
+    dominance.sizingMultiplier,
+    dominance.tier === "ELITE_TREND_DOMINANCE" ? cfg.trendDominanceEliteSizingMultiplier : cfg.trendDominanceStrongSizingMultiplier
+  );
+  assert.equal(dominance.neverBypassesRisk, true);
+  assert.equal(dominance.neverBypassesFees, true);
+
+  const qualityWithDominance = qualityScoreForSignal(cfg, signal, {
+    expectedNetEdgePct: 0.75,
+    expectedRewardCostRatio: 3.3,
+    expectedRewardRiskRatio: 1.6,
+  }, null, null, {
+    setupRegimeMatrixMemory: matrix,
+    activityRecovery: { active: true, thresholdMultiplier: 0.97, scoreBoost: 1.35 },
+    trendDominance: dominance,
+  });
+  const qualityWithoutDominance = qualityScoreForSignal(cfg, signal, {
+    expectedNetEdgePct: 0.75,
+    expectedRewardCostRatio: 3.3,
+    expectedRewardRiskRatio: 1.6,
+  }, null, null, {
+    setupRegimeMatrixMemory: matrix,
+  });
+  assert.ok(qualityWithDominance.score >= qualityWithoutDominance.score);
+  assert.ok(qualityWithDominance.thresholds.normal < qualityWithoutDominance.thresholds.normal);
+  assert.ok(qualityWithDominance.components.trendDominance >= cfg.trendDominanceStrongScore);
+
+  const bot = new LadderBot(cfg);
+  bot.store.state = {
+    mode: "DRY_RUN",
+    openPositions: [],
+    ladder: { activeLevel: 1, highestUnlockedLevel: 1, levelStartEquity: 100, riskDowngraded: false },
+    daily: { startingEquity: 60, tradesOpened: 0, losingTrades: 0, realizedPnlUsdt: 0 },
+    symbolCooldowns: {},
+  };
+  bot.risk.store = bot.store;
+  const plan = bot.risk.sizingPlan({
+    ...signal,
+    price: 2500,
+    score: 90,
+    profitQualityScore: 90,
+    liquidityScore: 88,
+    btcTrendAligned: true,
+    trendDominanceScore: dominance.score,
+    trendDominanceSizingMultiplier: dominance.sizingMultiplier,
+  }, 60, instrument("ETHUSDT", { qtyStep: "0.001", minOrderQty: "0.001", minNotionalValue: "1" }), 4);
+  assert.ok(plan.reasonsForSizingTier.some((reason) => /V10 trend dominance sizing multiplier/i.test(reason)));
+  assert.ok(plan.maxLossAtStopUsdt <= 60 * (cfg.profitControlledStrongMaxStopRiskPct / 100) + 0.000001);
+  assert.ok(plan.runnerAllocation.runnerPct >= 80);
+}
+
 async function testProfitProtectionReducesExplorationAndRisk() {
   const bot = new LadderBot(config({
     dryRun: true,
@@ -3645,6 +3776,7 @@ async function run() {
   await testV8NearMissStatsAndSystemHealthFile();
   await testV9EdgeMaximizationEngine();
   await testV95AdaptiveEdgeReinforcement();
+  await testV10TrendDominanceEngine();
   await testProfitProtectionReducesExplorationAndRisk();
   await testMomentumContinuationHoldLogic();
   await testAdaptiveEnginePolicyAndConfidence();
@@ -3654,7 +3786,7 @@ async function run() {
   await testContinuousExecutionClearsStaleTradeLimitPause();
   await testAggressiveLearningCooldownsAreAdvisory();
   await testForcedMarketSamplingPromotion();
-  console.log("Bybit client and bot tests passed: REST signing, centralized 34040 no-change handling, duplicate TP/SL skip, execution ledger fill dedupe, net edge gate, portfolio risk-at-stop checks, UTA balance parsing, live safety balance use, native protection payloads, WebSocket reconnect, API auto-recovery without shutdown, reconciliation, hedge exposure detection, native TP events, regime intelligence, focused BTC/ETH/SOL universe restriction, survivability scoring, next-generation continuation scoring, exploration path, exploration memory relaxation, fee-aware stats, advisory symbol cooldowns, adaptive learning, continuation market memory, cautious active recovery, activity floor, daily shutdown removal, forced market sampling, profit protection sizing, fee-aware entries, dynamic sizing, live-validation guards, allocation ladder, risk degradation, promotion checks, execution-cost logging, V6 profit-controlled config guards, setup preservation, deferred leverage mutation, exchange-minimum feasibility, risk degradation, maker/taker routing, V7 profit mode, quality score gate, fee killer, symbol memory V2/V3, expectancy report, winner amplifier continuation holds, V7.1 trade frequency recovery tuning, V8 professional trend/expectancy optimization, V9 edge maximization, and V9.5 adaptive edge reinforcement.");
+  console.log("Bybit client and bot tests passed: REST signing, centralized 34040 no-change handling, duplicate TP/SL skip, execution ledger fill dedupe, net edge gate, portfolio risk-at-stop checks, UTA balance parsing, live safety balance use, native protection payloads, WebSocket reconnect, API auto-recovery without shutdown, reconciliation, hedge exposure detection, native TP events, regime intelligence, focused BTC/ETH/SOL universe restriction, survivability scoring, next-generation continuation scoring, exploration path, exploration memory relaxation, fee-aware stats, advisory symbol cooldowns, adaptive learning, continuation market memory, cautious active recovery, activity floor, daily shutdown removal, forced market sampling, profit protection sizing, fee-aware entries, dynamic sizing, live-validation guards, allocation ladder, risk degradation, promotion checks, execution-cost logging, V6 profit-controlled config guards, setup preservation, deferred leverage mutation, exchange-minimum feasibility, risk degradation, maker/taker routing, V7 profit mode, quality score gate, fee killer, symbol memory V2/V3, expectancy report, winner amplifier continuation holds, V7.1 trade frequency recovery tuning, V8 professional trend/expectancy optimization, V9 edge maximization, V9.5 adaptive edge reinforcement, and V10 trend dominance.");
 }
 
 run().catch((error) => {

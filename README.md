@@ -347,6 +347,16 @@ V9.5 adds a second reinforcement layer on top of V9. It is still weighting-only:
 
 The expanded `edge-report.json` also includes best/worst setup-regime pair, runner win rate, average runner profit, cluster-risk statistics, portfolio-alpha statistics, expectancy trend, and profit-factor trend.
 
+### V10 Trend Dominance Engine
+
+V10 adds a trend-dominance layer for profit-controlled mode. It targets higher qualified activity during dominant trends without bypassing the existing fee, stop-loss, liquidation, or portfolio-cap protections.
+
+- `trendDominanceScore` combines multi-timeframe trend, trend quality, continuation strength, portfolio alpha, regime quality, and setup-regime memory.
+- BTC and ETH receive a small focus boost when they participate in dominant BTC/ETH-led trend structure. SOL remains tradable and is never disabled.
+- Dominant trends can nudge quality thresholds and add a small score boost, targeting `25-40%` more qualified activity only when fee and expectancy conditions allow it.
+- Strong and elite trend-dominance setups can apply modest sizing multipliers before the existing risk caps clamp final exposure.
+- Runner extension can be slightly stronger in dominant trends, preserving the V9.5 breakeven, ATR trailing, and trend-extension protection.
+
 ## Focused BTC/ETH/SOL Universe
 
 The executable trading universe is intentionally restricted to:

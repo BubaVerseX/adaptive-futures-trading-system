@@ -233,6 +233,15 @@ function loadConfig() {
     adaptiveEdgeActivityRecoveryMaxRelaxPct: numberValue("ADAPTIVE_EDGE_ACTIVITY_RECOVERY_MAX_RELAX_PCT", 3, { minimum: 0, maximum: 5 }),
     adaptiveEdgeActivityRecoveryMinProfitFactor: numberValue("ADAPTIVE_EDGE_ACTIVITY_RECOVERY_MIN_PROFIT_FACTOR", 1, { positive: true }),
     adaptiveEdgeActivityRecoveryMaxFeeDragRatio: numberValue("ADAPTIVE_EDGE_ACTIVITY_RECOVERY_MAX_FEE_DRAG_RATIO", 0.65, { minimum: 0 }),
+    trendDominanceMode: booleanValue("TREND_DOMINANCE_MODE", profitControlledEquityMode ? true : false),
+    trendDominanceStrongScore: numberValue("TREND_DOMINANCE_STRONG_SCORE", 82, { minimum: 0, maximum: 100 }),
+    trendDominanceEliteScore: numberValue("TREND_DOMINANCE_ELITE_SCORE", 92, { minimum: 0, maximum: 100 }),
+    trendDominanceActivityBoostPct: numberValue("TREND_DOMINANCE_ACTIVITY_BOOST_PCT", 4, { minimum: 0, maximum: 6 }),
+    trendDominanceScoreBoost: numberValue("TREND_DOMINANCE_SCORE_BOOST", 3, { minimum: 0, maximum: 8 }),
+    trendDominanceEthBtcFocusBoost: numberValue("TREND_DOMINANCE_ETH_BTC_FOCUS_BOOST", 4, { minimum: 0, maximum: 8 }),
+    trendDominanceStrongSizingMultiplier: numberValue("TREND_DOMINANCE_STRONG_SIZING_MULTIPLIER", 1.12, { positive: true, maximum: 1.25 }),
+    trendDominanceEliteSizingMultiplier: numberValue("TREND_DOMINANCE_ELITE_SIZING_MULTIPLIER", 1.18, { positive: true, maximum: 1.25 }),
+    trendDominanceRunnerExtensionBoost: numberValue("TREND_DOMINANCE_RUNNER_EXTENSION_BOOST", 1.12, { positive: true, maximum: 1.3 }),
     tradeClusterWindowMinutes: numberValue("TRADE_CLUSTER_WINDOW_MINUTES", 45, { positive: true }),
     tradeClusterMaxSizeReductionPct: numberValue("TRADE_CLUSTER_MAX_SIZE_REDUCTION_PCT", 20, { minimum: 0, maximum: 40 }),
     tradeFrequencyRecoveryMode: booleanValue("TRADE_FREQUENCY_RECOVERY_MODE", profitControlledEquityMode ? true : false),
@@ -448,6 +457,7 @@ function loadConfig() {
     config.edgeMaximizationMode = true;
     config.edgeReinforcementMode = true;
     config.adaptiveEdgeActivityRecoveryMode = true;
+    config.trendDominanceMode = true;
     config.winnerAmplifierEnabled = true;
     config.winnerAmplifierPartialTakeProfitPct = 30;
     config.tradeFrequencyRecoveryMode = true;
