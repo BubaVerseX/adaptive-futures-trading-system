@@ -2,14 +2,14 @@
   "version": 1,
   "exchange": "BYBIT_V5_LINEAR",
   "strategyProfile": "BYBIT_ADAPTIVE_STAT_SCALP_V2",
-  "updatedAt": "2026-06-12T09:23:11.790Z",
+  "updatedAt": "2026-06-12T16:32:34.174Z",
   "mode": "LIVE",
   "paused": false,
   "pauseReason": null,
   "equity": {
     "startingUsdt": 100,
     "realizedPnlUsdt": -2.9478259999999996,
-    "currentUsdt": 66.274679
+    "currentUsdt": 66.313225
   },
   "daily": {
     "date": "2026-06-12",
@@ -22,11 +22,11 @@
     "closedTrades": 0,
     "explorationTrades": 0,
     "recoveryModeActive": true,
-    "recoveryPnlPct": -0.0007,
+    "recoveryPnlPct": 0.0575,
     "recoveryLosingStreak": 2,
     "recoveryNoticeKey": "2026-06-12:0:2:0",
     "profitProtectionActive": false,
-    "profitProtectionPnlPct": -0.0007
+    "profitProtectionPnlPct": 0.0575
   },
   "ladder": {
     "activeLevel": 1,
@@ -118,33 +118,33 @@
       }
     }
   },
-  "consecutiveApiErrors": 0,
+  "consecutiveApiErrors": 1289,
   "apiRecovery": {
-    "active": false,
-    "stage": 1,
-    "source": "POSITION_MONITOR",
-    "lastError": "Bybit request failed (HTTP 200, code 10002): invalid request, please check your server timestamp or recv_window param: req_timestamp[1781255707988],server_timestamp[1781255724435],recv_window[5000].",
-    "recoveredAt": "2026-06-12T09:15:24.874Z",
-    "consecutiveApiErrors": 1,
+    "active": true,
+    "stage": 5,
+    "source": "TRADING_CYCLE",
+    "lastError": "inactivityRecovery is not defined",
+    "lastTriggeredAt": "2026-06-12T16:32:32.368Z",
+    "consecutiveApiErrors": 1289,
     "shutdownSuppressed": true
   },
   "liveValidation": null,
   "profitControlled": {
     "namespace": "data/profit-controlled-live",
     "startEquityUsdt": 69.806622,
-    "lastSizingEquityBaseUsdt": 66.274679,
-    "sizingEquityBaseUsdt": 66.274679,
+    "lastSizingEquityBaseUsdt": 66.313225,
+    "sizingEquityBaseUsdt": 66.313225,
     "usableMarginUsdt": 66.343544,
-    "exchangeReportedTotalEquityUsdt": 66.274679,
-    "riskState": "RISK_STATE_STRONG_ONLY",
+    "exchangeReportedTotalEquityUsdt": 66.313225,
+    "riskState": "RISK_STATE_PROTECTION_ONLY",
     "riskStateReasons": [
-      "drawdown reached strong-only risk state"
+      "repeated true API failures make order state unsafe"
     ],
     "totalOpenStopRiskPctLimit": 2.25,
     "correlatedClusterStopRiskPctLimit": 1.75,
-    "lastEquityCheckedAt": "2026-06-12T09:23:11.574Z",
-    "drawdownPct": 5.0596,
-    "lastRiskCheckedAt": "2026-06-12T09:23:09.187Z",
+    "lastEquityCheckedAt": "2026-06-12T16:32:28.031Z",
+    "drawdownPct": 5.0128,
+    "lastRiskCheckedAt": "2026-06-12T16:24:21.973Z",
     "nearMissStats": {
       "tracked": 5285,
       "correctRejects": 3478,
