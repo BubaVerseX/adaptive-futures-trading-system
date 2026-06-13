@@ -99,6 +99,16 @@ function initialState(config) {
           correlatedClusterStopRiskPctLimit: config.maxCorrelatedClusterStopRiskPct,
         }
       : null,
+    activeAdaptiveScalper: config.activeAdaptiveScalperMode
+      ? {
+          namespace: "data/paper-trading",
+          tradesRejected: 0,
+          tradesAccepted: 0,
+          rejectionReasons: {},
+          recentRejectedTrades: [],
+          lastReportAt: null,
+        }
+      : null,
     telegramUpdateOffset: 0,
   };
 }
@@ -126,6 +136,9 @@ class StateStore {
       : null;
     this.state.profitControlled = this.config.profitControlledEquityMode
       ? { ...initialState(this.config).profitControlled, ...(loaded.profitControlled || {}) }
+      : null;
+    this.state.activeAdaptiveScalper = this.config.activeAdaptiveScalperMode
+      ? { ...initialState(this.config).activeAdaptiveScalper, ...(loaded.activeAdaptiveScalper || {}) }
       : null;
     this.trades = Array.isArray(trades) ? trades : [];
     this.migrateExchange(loaded.exchange);
@@ -198,6 +211,7 @@ class StateStore {
     this.state.apiRecovery = defaults.apiRecovery;
     this.state.liveValidation = defaults.liveValidation;
     this.state.profitControlled = defaults.profitControlled;
+    this.state.activeAdaptiveScalper = defaults.activeAdaptiveScalper;
     this.log("WARN", "Operating mode changed; performance counters reset for the new mode.", {
       fromMode: priorMode,
       toMode: mode,

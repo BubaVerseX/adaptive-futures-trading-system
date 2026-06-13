@@ -647,6 +647,7 @@ Generated files:
 - `data/analytics.json`: aggregate analytics, leaderboards, drawdown, daily/weekly PnL, and the current adaptive policy.
 - `data/executionLedger.json`: logical trade lifecycle, order IDs, processed fill IDs, aggregated fill quantity, average fill price, actual fees, TP/SL confirmation state, and final net result.
 - `data/reports/latest-summary.json` and `data/reports/daily/YYYY-MM-DD.json`: account, activity, quality, breakdown, and current actionability summaries.
+- `data/paper-trading/reports/trading_report.json`: paper scalper report with trades taken, rejected candidates, rejection reasons, win rate, PnL, and rolling learning-memory stats.
 
 Every completed trade memory record stores symbol, side, setup type, continuation setup type, continuation strength, score, timestamps, hold time, realized PnL, fees, leverage, BTC/market regime, advanced market-regime tags, 1h macro alignment, regime confidence, BTC trend strength, BTC volatility, volatility regime, volume condition, entry momentum, spread, slippage, result type, win/loss, session, and whether breakout/FOMO/micro-breakout logic fired.
 
@@ -829,6 +830,28 @@ ACKNOWLEDGE_LIVE_TRADING=true
 ```
 
 Some Bybit accounts registered through regional sites require the region-specific official REST and WebSocket domains. Set `BYBIT_REST_BASE_URL` and `BYBIT_WS_BASE_URL` to the endpoints for that account before mainnet use.
+
+## Paper-First Active Adaptive Scalper
+
+Use this profile before considering live deployment:
+
+```bash
+npm run paper
+```
+
+This launch path forces `DRY_RUN=true`, uses `data/paper-trading/` for state and memory, and does not enable live/mainnet order execution. It lowers the paper signal gate moderately (`MIN_SIGNAL_SCORE` to `38`, `MIN_CONVICTION_SCORE` to `42`), keeps fee-aware checks active, and uses confidence-based sizing:
+
+- confidence `50-60`: small protected size
+- confidence `60-75`: normal protected size
+- confidence `75+`: larger size within account-level caps
+
+Hard paper protections remain active: emergency stop file, max open positions, max margin usage, TP/SL on every simulated trade, and a configurable paper daily loss limit (`PAPER_DAILY_LOSS_LIMIT_PCT`, default `3`). The bot logs every rejected paper candidate with symbol, score, and reason, and writes:
+
+```text
+data/paper-trading/reports/trading_report.json
+```
+
+The report includes trades taken, rejected candidates, rejection reason counts, win rate, PnL, fee totals, and rolling learning-memory stats by symbol, setup, and UTC hour. Only consider live deployment after stable paper-trading results show acceptable trade frequency, drawdown, and post-cost expectancy.
 
 Start mainnet only after verifying testnet behavior:
 

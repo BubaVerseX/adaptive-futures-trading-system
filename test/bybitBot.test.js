@@ -55,6 +55,8 @@ const ISOLATED_ENV_DEFAULTS = Object.freeze({
   BYBIT_TESTNET: "true",
   BYBIT_DEMO_TRADING: "false",
   DRY_RUN: "true",
+  PAPER_TRADING_MODE: "false",
+  ACTIVE_ADAPTIVE_SCALPER_MODE: "false",
   LIVE_VALIDATION_MODE: "false",
   PROFIT_CONTROLLED_EQUITY_MODE: "false",
   ACKNOWLEDGE_LIVE_VALIDATION_RISK: "false",
@@ -79,6 +81,9 @@ const ISOLATED_ENV_DEFAULTS = Object.freeze({
   ALLOW_CHOPPY_MARKET: "true",
   ALLOW_CHOPPY_MARKET_UNCONDITIONALLY: "false",
   UNLIMITED_EXPLORATION_BUDGET: "false",
+  CONTINUOUS_EXECUTION_MODE: "true",
+  DISABLE_DAILY_TRADE_LIMITS: "true",
+  CONFIDENCE_SIZING_ENABLED: "false",
 });
 
 function config(overrides = {}) {
@@ -1299,6 +1304,177 @@ async function testV11ActivityReport() {
   assert.equal(report.acceptedCount, 3);
   assert.equal(report.safety.feeProtectionActive, true);
   assert.ok(fs.existsSync(path.join(bot.config.reportsDir, "activity-report.json")));
+}
+
+async function testActiveAdaptiveScalperPaperConfigAndSafety() {
+  const cfg = withEnv(
+    {
+      PAPER_TRADING_MODE: "true",
+      ACTIVE_ADAPTIVE_SCALPER_MODE: "true",
+      BYBIT_TESTNET: "false",
+      BYBIT_DEMO_TRADING: "false",
+      DRY_RUN: "true",
+    },
+    () => loadConfig()
+  );
+  assert.equal(cfg.activeAdaptiveScalperMode, true);
+  assert.equal(cfg.paperTradingMode, true);
+  assert.equal(cfg.dryRun, true);
+  assert.equal(cfg.exchangeEnvironment, "PAPER");
+  assert.ok(cfg.dataDir.endsWith(path.join("data", "paper-trading")));
+  assert.equal(cfg.minSignalScore, 38);
+  assert.equal(cfg.minConvictionScore, 42);
+  assert.equal(cfg.continuousExecutionMode, false);
+  assert.equal(cfg.disableDailyTradeLimits, true);
+  assert.equal(cfg.confidenceSizingEnabled, true);
+  assert.ok(packageJson.scripts.paper.includes("DRY_RUN=true"));
+  assert.ok(!packageJson.scripts.paper.includes("DRY_RUN=false"));
+
+  assert.throws(
+    () =>
+      withEnv(
+        {
+          ACTIVE_ADAPTIVE_SCALPER_MODE: "true",
+          DRY_RUN: "false",
+          BYBIT_TESTNET: "false",
+          ACKNOWLEDGE_LIVE_TRADING: "true",
+          ACKNOWLEDGE_HIGH_LEVERAGE_RISK: "true",
+        },
+        () => loadConfig()
+      ),
+    /requires DRY_RUN=true/
+  );
+}
+
+async function testActiveAdaptiveScalperConfidenceSizingAndDailyLoss() {
+  const cfg = config({
+    activeAdaptiveScalperMode: true,
+    paperTradingMode: true,
+    confidenceSizingEnabled: true,
+    continuousExecutionMode: false,
+    paperDailyLossLimitPct: 3,
+    dryRun: true,
+  });
+  const bot = new LadderBot(cfg);
+  bot.store.state = {
+    mode: "DRY_RUN",
+    paused: false,
+    pauseReason: null,
+    equity: { startingUsdt: 100, realizedPnlUsdt: 0, currentUsdt: 100 },
+    openPositions: [],
+    symbolCooldowns: {},
+    daily: {
+      date: new Date().toISOString().slice(0, 10),
+      startingEquity: 100,
+      tradesOpened: 0,
+      losingTrades: 0,
+      realizedPnlUsdt: 0,
+    },
+    ladder: { activeLevel: 1, highestUnlockedLevel: 1, levelStartEquity: 100, riskDowngraded: false },
+  };
+  bot.risk.store = bot.store;
+  const symbolInfo = instrument("ETHUSDT", { qtyStep: "0.001", minOrderQty: "0.001", minNotionalValue: "1" });
+  const baseSignal = {
+    symbol: "ETHUSDT",
+    side: "LONG",
+    price: 100,
+    score: 62,
+    projectedNetEdgePct: 0.7,
+    feeEdgeRatio: 2.1,
+    liquidityScore: 80,
+    volumeCondition: "CONFIRMED_VOLUME",
+    btcTrendAligned: true,
+    volatilityRegime: "NORMAL",
+    continuationStrength: 55,
+  };
+  const small = bot.risk.sizingPlan({ ...baseSignal, convictionScore: 55 }, 100, symbolInfo, 3);
+  const normal = bot.risk.sizingPlan({ ...baseSignal, convictionScore: 66 }, 100, symbolInfo, 3);
+  const large = bot.risk.sizingPlan({ ...baseSignal, convictionScore: 78 }, 100, symbolInfo, 3);
+  assert.equal(small.rejected, false);
+  assert.equal(normal.rejected, false);
+  assert.equal(large.rejected, false);
+  assert.equal(small.convictionTier, "PAPER_CONFIDENCE_SMALL");
+  assert.equal(normal.convictionTier, "PAPER_CONFIDENCE_NORMAL");
+  assert.equal(large.convictionTier, "PAPER_CONFIDENCE_LARGE");
+  assert.ok(large.maxLossAtStopUsdt >= normal.maxLossAtStopUsdt);
+  assert.ok(normal.maxLossAtStopUsdt >= small.maxLossAtStopUsdt);
+
+  bot.risk.updateEquity(96.5);
+  assert.equal(bot.store.state.paused, true);
+  assert.match(bot.store.state.pauseReason, /paper daily loss limit/i);
+  assert.match(bot.risk.entryBlockReason(96.5, "ETHUSDT"), /paper daily loss limit/i);
+}
+
+async function testActiveAdaptiveScalperTradingReport() {
+  const { events, log } = logCollector();
+  const cfg = config({
+    activeAdaptiveScalperMode: true,
+    paperTradingMode: true,
+    confidenceSizingEnabled: true,
+    dryRun: true,
+  });
+  const bot = new LadderBot(cfg);
+  bot.log = log;
+  bot.store.state = {
+    mode: "DRY_RUN",
+    openPositions: [],
+    activeAdaptiveScalper: null,
+    daily: {},
+    ladder: {},
+    performance: {
+      closedTrades: 1,
+      wins: 1,
+      losses: 0,
+      winRatePct: 100,
+      grossPnlUsdt: 0.4,
+      realizedPnlUsdt: 0.3,
+      totalFeesUsdt: 0.1,
+      symbols: {},
+    },
+  };
+  bot.store.trades = [
+    {
+      id: "paper-1",
+      mode: "DRY_RUN",
+      status: "CLOSED",
+      symbol: "ETHUSDT",
+      setupType: "TREND_CONTINUATION",
+      pnlUsdt: 0.3,
+      feesUsdt: 0.1,
+      openedAt: new Date().toISOString(),
+      exitedAt: new Date().toISOString(),
+    },
+  ];
+  bot.adaptive.load();
+  bot.adaptive.syncFromClosedTrades(bot.store.trades);
+  bot.recordRejectedTrade(
+    {
+      symbol: "BTCUSDT",
+      side: "SHORT",
+      score: 41,
+      requiredScore: 42,
+      convictionScore: 44,
+      requiredConvictionScore: 45,
+      setupType: "BREAKOUT_RETEST",
+      marketRegimeV2: "SIDEWAYS_CHOP",
+      antiChopContribution: -6,
+      convictionContribution: -1,
+      rejected: ["low conviction: 44 below 45"],
+    },
+    "low conviction: 44 below 45",
+    { stage: "SCAN" }
+  );
+  const report = bot.writeTradingReport(true);
+  assert.equal(report.tradesTaken, 1);
+  assert.equal(report.tradesRejected, 1);
+  assert.equal(report.rejectionReasons["low conviction"], 1);
+  assert.equal(report.winRatePct, 100);
+  assert.equal(report.pnlUsdt, 0.3);
+  assert.equal(report.protections.dailyLossLimitActive, true);
+  assert.equal(report.protections.liveOrdersDisabled, true);
+  assert.ok(report.learningMemory.winRateBySymbol.ETHUSDT);
+  assert.ok(fs.existsSync(path.join(cfg.reportsDir, "trading_report.json")));
+  assert.ok(events.some((event) => event.message === "PAPER_TRADE_REJECTED"));
 }
 
 async function testMarketRegimeClassification() {
@@ -3989,6 +4165,9 @@ async function run() {
   await testNextGenerationContinuationScoring();
   await testV11ActiveMarketEngine();
   await testV11ActivityReport();
+  await testActiveAdaptiveScalperPaperConfigAndSafety();
+  await testActiveAdaptiveScalperConfidenceSizingAndDailyLoss();
+  await testActiveAdaptiveScalperTradingReport();
   await testExplorationSignalPath();
   await testExplorationMemoryRelaxation();
   await testFeeAwareStatsAndSymbolCooldown();
@@ -4020,7 +4199,7 @@ async function run() {
   await testContinuousExecutionClearsStaleTradeLimitPause();
   await testAggressiveLearningCooldownsAreAdvisory();
   await testForcedMarketSamplingPromotion();
-  console.log("Bybit client and bot tests passed: REST signing, centralized 34040 no-change handling, duplicate TP/SL skip, execution ledger fill dedupe, net edge gate, portfolio risk-at-stop checks, UTA balance parsing, live safety balance use, native protection payloads, WebSocket reconnect, API auto-recovery without shutdown, reconciliation, hedge exposure detection, native TP events, regime intelligence, V11 active market universe restriction, survivability scoring, next-generation continuation scoring, V11 mean reversion and activity reporting, exploration path, exploration memory relaxation, fee-aware stats, advisory symbol cooldowns, adaptive learning, continuation market memory, cautious active recovery, activity floor, daily shutdown removal, forced market sampling, profit protection sizing, fee-aware entries, dynamic sizing, live-validation guards, allocation ladder, risk degradation, promotion checks, execution-cost logging, V6 profit-controlled config guards, setup preservation, deferred leverage mutation, exchange-minimum feasibility, risk degradation, maker/taker routing, V7 profit mode, quality score gate, fee killer, symbol memory V2/V3, expectancy report, winner amplifier continuation holds, V7.1 trade frequency recovery tuning, V8 professional trend/expectancy optimization, V9 edge maximization, V9.5 adaptive edge reinforcement, V10 aggressive adaptive trend dominance, and V11 active market engine.");
+  console.log("Bybit client and bot tests passed: REST signing, centralized 34040 no-change handling, duplicate TP/SL skip, execution ledger fill dedupe, net edge gate, portfolio risk-at-stop checks, UTA balance parsing, live safety balance use, native protection payloads, WebSocket reconnect, API auto-recovery without shutdown, reconciliation, hedge exposure detection, native TP events, regime intelligence, V11 active market universe restriction, survivability scoring, next-generation continuation scoring, V11 mean reversion and activity reporting, active adaptive paper scalper mode, exploration path, exploration memory relaxation, fee-aware stats, advisory symbol cooldowns, adaptive learning, continuation market memory, cautious active recovery, activity floor, daily shutdown removal, forced market sampling, profit protection sizing, fee-aware entries, dynamic sizing, live-validation guards, allocation ladder, risk degradation, promotion checks, execution-cost logging, V6 profit-controlled config guards, setup preservation, deferred leverage mutation, exchange-minimum feasibility, risk degradation, maker/taker routing, V7 profit mode, quality score gate, fee killer, symbol memory V2/V3, expectancy report, winner amplifier continuation holds, V7.1 trade frequency recovery tuning, V8 professional trend/expectancy optimization, V9 edge maximization, V9.5 adaptive edge reinforcement, V10 aggressive adaptive trend dominance, and V11 active market engine.");
 }
 
 run().catch((error) => {

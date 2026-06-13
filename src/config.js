@@ -69,19 +69,23 @@ function loadConfig() {
   const bybitDemoTrading = booleanValue("BYBIT_DEMO_TRADING", false);
   const liveValidationMode = booleanValue("LIVE_VALIDATION_MODE", false);
   const profitControlledEquityMode = booleanValue("PROFIT_CONTROLLED_EQUITY_MODE", false);
+  const paperTradingMode = booleanValue("PAPER_TRADING_MODE", false);
+  const activeAdaptiveScalperMode = booleanValue("ACTIVE_ADAPTIVE_SCALPER_MODE", paperTradingMode ? true : false);
   const exchangeEnvironment = profitControlledEquityMode
     ? "PROFIT_CONTROLLED_LIVE"
     : liveValidationMode
       ? "LIVE_VALIDATION"
       : bybitDemoTrading
         ? "DEMO"
-        : bybitTestnet
-          ? "TESTNET"
-          : "MAINNET";
+        : paperTradingMode || activeAdaptiveScalperMode
+          ? "PAPER"
+          : bybitTestnet
+            ? "TESTNET"
+            : "MAINNET";
   const dataDir = path.join(
     PROJECT_ROOT,
     "data",
-    profitControlledEquityMode ? "profit-controlled-live" : liveValidationMode ? "live-validation" : bybitDemoTrading ? "demo" : ""
+    profitControlledEquityMode ? "profit-controlled-live" : liveValidationMode ? "live-validation" : bybitDemoTrading ? "demo" : (paperTradingMode || activeAdaptiveScalperMode) ? "paper-trading" : ""
   );
   const defaultRestBaseUrl = bybitDemoTrading
     ? DEMO_REST_BASE_URL
@@ -115,6 +119,8 @@ function loadConfig() {
     bybitDemoTrading,
     liveValidationMode,
     profitControlledEquityMode,
+    paperTradingMode,
+    activeAdaptiveScalperMode,
     exchangeEnvironment,
     restBaseUrl,
     publicWsBaseUrl,
@@ -133,8 +139,8 @@ function loadConfig() {
     learningPhaseMode: booleanValue("LEARNING_PHASE_MODE", true),
     aggressiveLearningPhase: booleanValue("AGGRESSIVE_LEARNING_PHASE", true),
     highActivityMode: booleanValue("HIGH_ACTIVITY_MODE", true),
-    continuousExecutionMode: true,
-    disableDailyTradeLimits: true,
+    continuousExecutionMode: booleanValue("CONTINUOUS_EXECUTION_MODE", true),
+    disableDailyTradeLimits: booleanValue("DISABLE_DAILY_TRADE_LIMITS", true),
     forcedMarketSamplingEnabled: booleanValue("FORCED_MARKET_SAMPLING_ENABLED", true),
     forcedMarketSamplingAfterMinutes: numberValue("FORCED_MARKET_SAMPLING_AFTER_MINUTES", 4, { positive: true }),
     forcedSamplingMaxCandidates: numberValue("FORCED_SAMPLING_MAX_CANDIDATES", 3, { positive: true, integer: true, maximum: 10 }),
@@ -275,6 +281,18 @@ function loadConfig() {
     allowChoppyMarketUnconditionally: booleanValue("ALLOW_CHOPPY_MARKET_UNCONDITIONALLY", false),
     unlimitedExplorationBudget: booleanValue("UNLIMITED_EXPLORATION_BUDGET", false),
     dailyTradeLimitsDisabled: booleanValue("DAILY_TRADE_LIMITS_DISABLED", true),
+    activeScalperMinSignalScore: numberValue("ACTIVE_SCALPER_MIN_SIGNAL_SCORE", 38, { positive: true, maximum: 100 }),
+    activeScalperMinConvictionScore: numberValue("ACTIVE_SCALPER_MIN_CONVICTION_SCORE", 42, { positive: true, maximum: 100 }),
+    activeScalperExplorationMinSignalScore: numberValue("ACTIVE_SCALPER_EXPLORATION_MIN_SIGNAL_SCORE", 26, { positive: true, maximum: 100 }),
+    activeScalperExplorationMinConvictionScore: numberValue("ACTIVE_SCALPER_EXPLORATION_MIN_CONVICTION_SCORE", 32, { positive: true, maximum: 100 }),
+    activeScalperMaxLossCooldownMinutes: numberValue("ACTIVE_SCALPER_MAX_LOSS_COOLDOWN_MINUTES", 10, { minimum: 0 }),
+    activeScalperMaxReentryCooldownSeconds: numberValue("ACTIVE_SCALPER_MAX_REENTRY_COOLDOWN_SECONDS", 60, { minimum: 0 }),
+    paperDailyLossLimitPct: numberValue("PAPER_DAILY_LOSS_LIMIT_PCT", 3, { positive: true, maximum: 100 }),
+    confidenceSizingEnabled: booleanValue("CONFIDENCE_SIZING_ENABLED", activeAdaptiveScalperMode ? true : false),
+    confidenceSmallMinScore: numberValue("CONFIDENCE_SMALL_MIN_SCORE", 50, { minimum: 0, maximum: 100 }),
+    confidenceNormalMinScore: numberValue("CONFIDENCE_NORMAL_MIN_SCORE", 60, { minimum: 0, maximum: 100 }),
+    confidenceLargeMinScore: numberValue("CONFIDENCE_LARGE_MIN_SCORE", 75, { minimum: 0, maximum: 100 }),
+    activeScalperRejectedLogMax: numberValue("ACTIVE_SCALPER_REJECTED_LOG_MAX", 500, { positive: true, integer: true }),
     allowShorts: booleanValue("ALLOW_SHORTS", true),
     allowLongs: booleanValue("ALLOW_LONGS", true),
     scanIntervalMs: numberValue("SCAN_INTERVAL_MS", 1200, { positive: true, integer: true }),
@@ -537,6 +555,23 @@ function loadConfig() {
     config.maxLeverage = Math.min(config.maxLeverage, config.profitControlledMaxLeverage);
   }
 
+  if (config.activeAdaptiveScalperMode) {
+    config.minSignalScore = Math.min(config.minSignalScore, config.activeScalperMinSignalScore);
+    config.minConvictionScore = Math.min(config.minConvictionScore, config.activeScalperMinConvictionScore);
+    config.explorationMinSignalScore = Math.min(config.explorationMinSignalScore, config.activeScalperExplorationMinSignalScore);
+    config.explorationMinConvictionScore = Math.min(config.explorationMinConvictionScore, config.activeScalperExplorationMinConvictionScore);
+    config.symbolLossCooldownMinutes = Math.min(config.symbolLossCooldownMinutes, config.activeScalperMaxLossCooldownMinutes);
+    config.symbolReentryCooldownSeconds = Math.min(config.symbolReentryCooldownSeconds, config.activeScalperMaxReentryCooldownSeconds);
+    config.confidenceSizingEnabled = true;
+    config.learningPhaseMode = true;
+    config.aggressiveLearningPhase = false;
+    config.highActivityMode = true;
+    config.continuousExecutionMode = false;
+    config.disableDailyTradeLimits = true;
+    config.dailyTradeLimitsDisabled = true;
+    config.paperTradingMode = true;
+  }
+
   const supportedIntervals = new Set(["1M", "3M", "5M", "15M", "30M", "60M", "120M", "240M", "360M", "720M", "1D", "1W", "1MO"]);
   for (const interval of [config.candleIntervalFast, config.candleIntervalMain, config.candleIntervalTrend, config.candleIntervalMacro, config.candleIntervalMacroLong]) {
     if (!supportedIntervals.has(interval.toUpperCase())) throw new Error(`Unsupported candle interval: ${interval}.`);
@@ -589,6 +624,15 @@ function loadConfig() {
   }
   if (config.liveValidationMode && config.profitControlledEquityMode) {
     throw new Error("LIVE_VALIDATION_MODE and PROFIT_CONTROLLED_EQUITY_MODE are separate launch profiles; enable only one.");
+  }
+  if (config.activeAdaptiveScalperMode && (config.liveValidationMode || config.profitControlledEquityMode)) {
+    throw new Error("ACTIVE_ADAPTIVE_SCALPER_MODE is a paper-only profile; do not combine it with live validation or profit-controlled live modes.");
+  }
+  if (config.activeAdaptiveScalperMode && !config.dryRun) {
+    throw new Error("ACTIVE_ADAPTIVE_SCALPER_MODE requires DRY_RUN=true. Paper trading must be validated before live deployment.");
+  }
+  if (config.confidenceSmallMinScore > config.confidenceNormalMinScore || config.confidenceNormalMinScore > config.confidenceLargeMinScore) {
+    throw new Error("Confidence sizing thresholds must be ordered: small <= normal <= large.");
   }
   if (config.profitControlledEquityMode && config.dryRun) {
     throw new Error("PROFIT_CONTROLLED_EQUITY_MODE=true is a real-money profile and requires DRY_RUN=false.");
