@@ -116,6 +116,7 @@ class RiskManager {
     }
 
     this.resetDailyIfNeeded(equity);
+    this.applyPaperDailyLossLimit(equity);
     this.store.saveState();
     return level;
   }
@@ -151,16 +152,36 @@ class RiskManager {
       };
       state.paused = false;
       state.pauseReason = null;
-      this.log("INFO", "New UTC performance day initialized; daily shutdown logic removed.", {
+      this.log("INFO", this.config.activeAdaptiveScalperMode ? "New UTC paper performance day initialized; daily loss limit active." : "New UTC performance day initialized; daily shutdown logic removed.", {
         date,
         startingEquity: equity.toFixed(4),
         continuousExecutionMode: this.config.continuousExecutionMode,
+        paperDailyLossLimitPct: this.config.activeAdaptiveScalperMode ? this.config.paperDailyLossLimitPct : undefined,
       });
     }
   }
 
   dailyPerformancePct(equity) {
     return percentChange(equity, this.store.state.daily.startingEquity);
+  }
+
+  applyPaperDailyLossLimit(equity) {
+    if (!this.config.activeAdaptiveScalperMode || !this.store.state.daily) return;
+    const limitPct = Number(this.config.paperDailyLossLimitPct || 0);
+    if (!(limitPct > 0)) return;
+    const pnlPct = this.dailyPerformancePct(equity);
+    this.store.state.daily.dailyLossLimitPct = limitPct;
+    this.store.state.daily.dailyLossPnlPct = Number(pnlPct.toFixed(4));
+    if (pnlPct > -limitPct) return;
+    this.store.state.paused = true;
+    this.store.state.pauseReason = `paper daily loss limit reached (${pnlPct.toFixed(2)}% <= -${limitPct}%)`;
+    this.log("ERROR", "PAPER_DAILY_LOSS_LIMIT_REACHED", {
+      dailyPnlPct: Number(pnlPct.toFixed(4)),
+      dailyLossLimitPct: limitPct,
+      newEntriesPaused: true,
+      existingPositionsStillManaged: true,
+      paperTradingMode: true,
+    });
   }
 
   continuousRecoveryStatus(equity) {
@@ -261,6 +282,9 @@ class RiskManager {
   entryBlockReason(equity, symbol) {
     const state = this.store.state;
     if (state.paused) {
+      if (this.config.activeAdaptiveScalperMode && /daily\s+loss|paper daily loss/i.test(String(state.pauseReason || ""))) {
+        return state.pauseReason || "paper daily loss limit is active";
+      }
       if (this.config.continuousExecutionMode && /(?:adaptive\s+)?maximum\s+daily\s+trades|daily\s+trade|exploration\s+quota|participation\s+quota|maximum\s+daily\s+loss|daily\s+loss|daily\s+drawdown|daily\s+risk/i.test(String(state.pauseReason || ""))) {
         state.paused = false;
         state.pauseReason = null;
@@ -358,6 +382,34 @@ class RiskManager {
       riskAtStopMaxPct = this.config.explorationRiskAtStopMaxPct;
       qualitySizeMultiplier *= this.config.explorationRiskMultiplier;
       reasonsForSizingTier.push("exploration trade uses smallest protected risk-at-stop tier");
+    }
+    if (this.config.activeAdaptiveScalperMode && this.config.confidenceSizingEnabled) {
+      const paperConfidence = Number(signal.convictionScore || signal.technicalConvictionScore || signal.score || 0);
+      if (signal.explorationTrade || paperConfidence < this.config.confidenceNormalMinScore) {
+        convictionTier = "PAPER_CONFIDENCE_SMALL";
+        tierMarginMin = this.config.tier1MarginMinUsdt;
+        tierMarginMax = this.config.tier1MarginMaxUsdt;
+        riskAtStopMinPct = this.config.explorationRiskAtStopMinPct;
+        riskAtStopMaxPct = this.config.explorationRiskAtStopMaxPct;
+        qualitySizeMultiplier = Math.min(qualitySizeMultiplier, 0.85);
+        reasonsForSizingTier.push(`paper confidence sizing: confidence ${paperConfidence.toFixed(1)} uses small size`);
+      } else if (paperConfidence < this.config.confidenceLargeMinScore) {
+        convictionTier = "PAPER_CONFIDENCE_NORMAL";
+        tierMarginMin = this.config.tier2MarginMinUsdt;
+        tierMarginMax = this.config.tier2MarginMaxUsdt;
+        riskAtStopMinPct = this.config.normalRiskAtStopMinPct;
+        riskAtStopMaxPct = this.config.normalRiskAtStopMaxPct;
+        qualitySizeMultiplier = Math.max(qualitySizeMultiplier, 1);
+        reasonsForSizingTier.push(`paper confidence sizing: confidence ${paperConfidence.toFixed(1)} uses normal size`);
+      } else {
+        convictionTier = "PAPER_CONFIDENCE_LARGE";
+        tierMarginMin = this.config.tier3MarginMinUsdt;
+        tierMarginMax = this.config.tier3MarginMaxUsdt;
+        riskAtStopMinPct = this.config.strongRiskAtStopMinPct;
+        riskAtStopMaxPct = this.config.strongRiskAtStopMaxPct;
+        qualitySizeMultiplier = Math.max(qualitySizeMultiplier, 1.08);
+        reasonsForSizingTier.push(`paper confidence sizing: confidence ${paperConfidence.toFixed(1)} uses larger size within account risk limits`);
+      }
     }
     if (signal.qualityPacingActive) {
       qualitySizeMultiplier *= this.config.qualityPacingRiskMultiplier;

@@ -235,6 +235,24 @@ class LadderBot {
         mainnetLiveAcknowledgement: this.config.acknowledgeLiveTrading,
       });
     }
+    if (this.config.activeAdaptiveScalperMode) {
+      this.log("WARN", "ACTIVE ADAPTIVE SCALPER PAPER MODE — NO LIVE ORDERS WILL BE PLACED.", {
+        environment: this.config.exchangeEnvironment,
+        dataNamespace: this.config.dataDir,
+        minSignalScore: this.config.minSignalScore,
+        minConvictionScore: this.config.minConvictionScore,
+        confidenceSizingEnabled: this.config.confidenceSizingEnabled,
+        confidenceBands: {
+          small: `${this.config.confidenceSmallMinScore}-${this.config.confidenceNormalMinScore}`,
+          normal: `${this.config.confidenceNormalMinScore}-${this.config.confidenceLargeMinScore}`,
+          larger: `${this.config.confidenceLargeMinScore}+`,
+        },
+        dailyLossLimitPct: this.config.paperDailyLossLimitPct,
+        maxOpenPositions: this.config.maxOpenPositions,
+        maxMarginUsagePct: this.config.maxMarginUsagePct,
+        tpSlRequired: true,
+      });
+    }
     if (this.config.liveValidationMode) {
       this.log("ERROR", "LIVE VALIDATION MODE — REAL FUNDS AT RISK — LIMITED INITIAL RISK PROFILE ACTIVE", {
         environment: this.config.exchangeEnvironment,
@@ -270,12 +288,20 @@ class LadderBot {
     this.log("WARN", "This strategy attempts aggressive growth but cannot guarantee profit.", {
       stopLossPct: this.config.stopLossPct,
     });
-    this.log("WARN", "Daily shutdown logic removed; 24/7 execution enabled until manual or catastrophic stop.", {
-      continuousExecutionMode: this.config.continuousExecutionMode,
-      dailyTradeLimitsDisabled: this.config.disableDailyTradeLimits,
-      dailyLossShutdownRemoved: true,
-      continuousLearningPreserved: true,
-    });
+    if (this.config.activeAdaptiveScalperMode) {
+      this.log("WARN", "Paper daily loss limit active; new entries pause after the configured daily paper drawdown.", {
+        dailyLossLimitPct: this.config.paperDailyLossLimitPct,
+        dailyTradeCountCapDisabled: this.config.disableDailyTradeLimits,
+        existingPositionsStillManaged: true,
+      });
+    } else {
+      this.log("WARN", "Daily shutdown logic removed; 24/7 execution enabled until manual or catastrophic stop.", {
+        continuousExecutionMode: this.config.continuousExecutionMode,
+        dailyTradeLimitsDisabled: this.config.disableDailyTradeLimits,
+        dailyLossShutdownRemoved: true,
+        continuousLearningPreserved: true,
+      });
+    }
     this.log("WARN", "Focused trading universe enabled; V11 active market mode active.", {
       symbols: this.config.focusedTradingSymbolsList,
       noisyMarketUniverseRemoved: true,
@@ -929,6 +955,7 @@ class LadderBot {
       }
 
       const scan = await this.scanner.scan(marketProfile);
+      this.recordPaperScanRejections(scan);
       if (this.config.profitControlledEquityMode && this.config.nearMissLearningEnabled) {
         this.updateNearMissStats(scan.nearMisses || [], scan.analyses || []);
       }
@@ -975,6 +1002,7 @@ class LadderBot {
       this.writePeriodicProfitObjectiveReport();
       this.writeLiveValidationStatusReport();
       this.writeProfitControlledStatusReport();
+      this.writeTradingReport();
       if (!this.stopping) {
         this.timer = setTimeout(() => void this.runCycle(), this.config.scanIntervalMs);
       }
@@ -1001,6 +1029,142 @@ class LadderBot {
     this.activityEvents.push(event);
     const cutoff = Date.now() - 60 * 60 * 1000;
     this.activityEvents = this.activityEvents.filter((item) => item.time >= cutoff);
+  }
+
+  ensureActiveScalperState() {
+    if (!this.config.activeAdaptiveScalperMode) return null;
+    if (!this.store.state.activeAdaptiveScalper) {
+      this.store.state.activeAdaptiveScalper = {
+        namespace: "data/paper-trading",
+        tradesRejected: 0,
+        tradesAccepted: 0,
+        rejectionReasons: {},
+        recentRejectedTrades: [],
+        lastReportAt: null,
+      };
+    }
+    if (!this.store.state.activeAdaptiveScalper.rejectionReasons) this.store.state.activeAdaptiveScalper.rejectionReasons = {};
+    if (!Array.isArray(this.store.state.activeAdaptiveScalper.recentRejectedTrades)) this.store.state.activeAdaptiveScalper.recentRejectedTrades = [];
+    return this.store.state.activeAdaptiveScalper;
+  }
+
+  recordRejectedTrade(signal = {}, reason = "UNKNOWN_REJECTION", details = {}) {
+    const state = this.ensureActiveScalperState();
+    if (!state) return null;
+    const normalizedReason = String(reason || "UNKNOWN_REJECTION").replace(/:\s.*$/, "");
+    const record = {
+      timestamp: new Date().toISOString(),
+      stage: details.stage || "ENTRY_EVALUATION",
+      symbol: signal.symbol || details.symbol || "UNKNOWN",
+      side: signal.side || details.side || "UNKNOWN",
+      score: Number(signal.score || details.score || 0),
+      requiredScore: Number(signal.requiredScore || details.requiredScore || 0),
+      convictionScore: Number(signal.convictionScore || details.convictionScore || 0),
+      requiredConvictionScore: Number(signal.requiredConvictionScore || details.requiredConvictionScore || 0),
+      setupType: signal.setupType || signal.continuationSetupType || details.setupType || "UNKNOWN",
+      marketRegime: signal.marketRegimeV2 || signal.marketRegimeType || signal.regime || details.marketRegime || "UNKNOWN",
+      reason: normalizedReason,
+      antiChopContribution: Number(signal.antiChopContribution || 0),
+      convictionContribution: Number(signal.convictionContribution || 0),
+      allReasons: Array.isArray(details.rejected)
+        ? details.rejected
+        : Array.isArray(signal.rejected)
+          ? signal.rejected
+          : [normalizedReason],
+    };
+    state.tradesRejected = Number(state.tradesRejected || 0) + 1;
+    state.rejectionReasons[normalizedReason] = Number(state.rejectionReasons[normalizedReason] || 0) + 1;
+    state.recentRejectedTrades.push(record);
+    state.recentRejectedTrades = state.recentRejectedTrades.slice(-this.config.activeScalperRejectedLogMax);
+    this.log("INFO", "PAPER_TRADE_REJECTED", {
+      reason: record.reason,
+      score: record.score,
+      symbol: record.symbol,
+      side: record.side,
+      stage: record.stage,
+      requiredScore: record.requiredScore,
+      convictionScore: record.convictionScore,
+      requiredConvictionScore: record.requiredConvictionScore,
+      antiChopContribution: record.antiChopContribution,
+      convictionContribution: record.convictionContribution,
+    });
+    this.store.saveState();
+    return record;
+  }
+
+  recordPaperScanRejections(scan) {
+    if (!this.config.activeAdaptiveScalperMode || !scan || !Array.isArray(scan.analyses)) return;
+    for (const item of scan.analyses) {
+      if (item.eligible) continue;
+      const reasons = Array.isArray(item.rejected) && item.rejected.length
+        ? item.rejected
+        : [
+            Number(item.score || 0) < Number(item.requiredScore || 0)
+              ? `score below threshold: ${Number(item.score || 0).toFixed(1)} < ${Number(item.requiredScore || 0).toFixed(1)}`
+              : item.explorationBlockReason || "candidate did not pass signal evaluation",
+          ];
+      this.recordRejectedTrade(item, reasons[0], { stage: "SCAN", rejected: reasons });
+    }
+  }
+
+  writeTradingReport(force = false) {
+    if (!this.config.activeAdaptiveScalperMode) return null;
+    const intervalMs = Math.max(15000, this.config.scanIntervalMs * 5);
+    const state = this.ensureActiveScalperState();
+    if (!force && state.lastReportAt && Date.now() - Date.parse(state.lastReportAt) < intervalMs) return null;
+    const mode = this.store.state.mode;
+    const trades = this.store.trades.filter((trade) => trade.mode === mode);
+    const closedTrades = trades.filter((trade) => trade.status === "CLOSED" && Number.isFinite(Number(trade.pnlUsdt)));
+    const tradesTaken = trades.filter((trade) => !["ENTRY_FAILED", "FAILED", "REJECTED", "IGNORED_AFTER_MODE_CHANGE"].includes(String(trade.status || "").toUpperCase())).length;
+    const pnl = closedTrades.reduce((total, trade) => total + Number(trade.pnlUsdt || 0), 0);
+    const wins = closedTrades.filter((trade) => Number(trade.pnlUsdt || 0) > 0).length;
+    const fees = closedTrades.reduce((total, trade) => total + Number(trade.feesUsdt || trade.estimatedFeesUsdt || 0), 0);
+    const report = {
+      generatedAt: new Date().toISOString(),
+      mode: "ACTIVE_ADAPTIVE_SCALPER_PAPER",
+      paperTradingMode: true,
+      tradesTaken,
+      openPositions: this.store.state.openPositions.length,
+      closedTrades: closedTrades.length,
+      tradesRejected: Number(state.tradesRejected || 0),
+      rejectionReasons: state.rejectionReasons || {},
+      recentRejectedTrades: state.recentRejectedTrades || [],
+      winRatePct: closedTrades.length ? Number(((wins / closedTrades.length) * 100).toFixed(2)) : 0,
+      pnlUsdt: Number(pnl.toFixed(6)),
+      feesUsdt: Number(fees.toFixed(6)),
+      drawdown: this.adaptive.memory.stats && this.adaptive.memory.stats.drawdown,
+      performance: this.store.state.performance,
+      learningMemory: {
+        rolling: this.adaptive.memory.rolling,
+        winRateBySymbol: this.adaptive.memory.stats && this.adaptive.memory.stats.bySymbol,
+        winRateBySetup: this.adaptive.memory.stats && this.adaptive.memory.stats.bySetupType,
+        winRateByHour: this.adaptive.memory.stats && this.adaptive.memory.stats.byHour,
+      },
+      protections: {
+        dailyLossLimitActive: true,
+        dailyLossLimitPct: this.config.paperDailyLossLimitPct,
+        emergencyStopFile: path.basename(this.config.emergencyStopFile),
+        maxMarginUsagePct: this.config.maxMarginUsagePct,
+        maxOpenPositions: this.config.maxOpenPositions,
+        takeProfitPct: this.config.takeProfitPct,
+        stopLossPct: this.config.stopLossPct,
+        feeProtectionActive: true,
+        liveOrdersDisabled: this.config.dryRun,
+      },
+    };
+    fs.mkdirSync(this.config.reportsDir, { recursive: true });
+    const file = path.join(this.config.reportsDir, "trading_report.json");
+    fs.writeFileSync(file, `${JSON.stringify(report, null, 2)}\n`, "utf8");
+    state.lastReportAt = report.generatedAt;
+    this.store.saveState();
+    this.log("INFO", "TRADING_REPORT_UPDATED", {
+      file,
+      tradesTaken: report.tradesTaken,
+      tradesRejected: report.tradesRejected,
+      winRatePct: report.winRatePct,
+      pnlUsdt: report.pnlUsdt,
+    });
+    return report;
   }
 
   activityRates() {
@@ -2033,6 +2197,7 @@ class LadderBot {
       if (block) {
         this.log("INFO", "Candidate entry rejected by portfolio safety rule.", { symbol: signal.symbol, reason: block });
         this.recordActivityEvent("rejectedRiskBudget", { symbol: signal.symbol, reason: block });
+        this.recordRejectedTrade(signal, block, { stage: "PORTFOLIO_SAFETY" });
         continue;
       }
       if (liveValidationRisk && liveValidationRisk.state === "RISK_STATE_PROTECTION_ONLY") {
@@ -2044,6 +2209,7 @@ class LadderBot {
           newEntriesBlockedUntilHumanReview: true,
         });
         this.recordActivityEvent("rejectedRiskBudget", { symbol: signal.symbol, reason: "LIVE_VALIDATION_PROTECTION_ONLY" });
+        this.recordRejectedTrade(signal, "LIVE_VALIDATION_PROTECTION_ONLY", { stage: "PORTFOLIO_SAFETY" });
         continue;
       }
       if (profitControlledRisk && profitControlledRisk.state === "RISK_STATE_PROTECTION_ONLY") {
@@ -2055,6 +2221,7 @@ class LadderBot {
           newEntriesBlockedUntilHumanReview: true,
         });
         this.recordActivityEvent("rejectedRiskBudget", { symbol: signal.symbol, reason: "PROFIT_CONTROLLED_PROTECTION_ONLY" });
+        this.recordRejectedTrade(signal, "PROFIT_CONTROLLED_PROTECTION_ONLY", { stage: "PORTFOLIO_SAFETY" });
         this.logProfitControlledPreMutationRejection(signal, "PROFIT_CONTROLLED_PROTECTION_ONLY", {
           riskState: profitControlledRisk.state,
           reasons: profitControlledRisk.reasons,
@@ -2071,6 +2238,7 @@ class LadderBot {
           score: signal.score,
           convictionScore: signal.convictionScore,
         });
+        this.recordRejectedTrade(signal, protectionCheck.reason, { stage: "PROFIT_PROTECTION" });
         continue;
       }
       signal.profitProtectionRiskMultiplier = protection.riskMultiplier;
@@ -2102,6 +2270,7 @@ class LadderBot {
           scanningContinues: profitControlledRisk.allowScanning,
         });
         this.recordActivityEvent("rejectedRiskBudget", { symbol: signal.symbol, reason: "PROFIT_CONTROLLED_STRONG_ONLY_TIER_REQUIRED" });
+        this.recordRejectedTrade(signal, "PROFIT_CONTROLLED_STRONG_ONLY_TIER_REQUIRED", { stage: "RISK_STATE" });
         this.logProfitControlledPreMutationRejection(signal, "PROFIT_CONTROLLED_STRONG_ONLY_TIER_REQUIRED", {
           earnedRiskTier: profitControlledEarnedTier,
           riskState: profitControlledRisk.state,
@@ -2135,6 +2304,7 @@ class LadderBot {
           flipMinNetEdgePct: this.config.flipMinNetEdgePct,
           flipConfirmationMinStrength: this.config.flipConfirmationMinStrength,
         });
+        this.recordRejectedTrade(signal, flipCheck.reason, { stage: "FLIP_FILTER" });
         continue;
       }
       const edgeCheck = this.feeAwareEntryCheck(signal);
@@ -2155,6 +2325,7 @@ class LadderBot {
           qualityPacingActive: adaptivePolicy.qualityPacingActive,
         });
         this.recordActivityEvent("rejectedNegativeNetEdge", { symbol: signal.symbol, reason: edgeCheck.reason });
+        this.recordRejectedTrade(signal, edgeCheck.reason, { stage: "FEE_EDGE_GATE" });
         continue;
       }
       this.log("INFO", "EDGE_GATE_APPROVED", {
@@ -2174,6 +2345,7 @@ class LadderBot {
       const profitQuality = this.profitModeQualityCheck(signal, edgeCheck.edgeModel);
       if (profitQuality.rejected) {
         this.recordActivityEvent("rejectedNegativeNetEdge", { symbol: signal.symbol, reason: profitQuality.reason });
+        this.recordRejectedTrade(signal, profitQuality.reason, { stage: "QUALITY_GATE" });
         this.logProfitControlledPreMutationRejection(signal, profitQuality.reason, {
           profitQualityScore: profitQuality.score,
           profitQualityTier: profitQuality.rawTier,
@@ -2196,6 +2368,7 @@ class LadderBot {
           scanningContinues: profitControlledRisk.allowScanning,
         });
         this.recordActivityEvent("rejectedRiskBudget", { symbol: signal.symbol, reason: "PROFIT_CONTROLLED_STRONG_ONLY_QUALITY_REQUIRED" });
+        this.recordRejectedTrade(signal, "PROFIT_CONTROLLED_STRONG_ONLY_QUALITY_REQUIRED", { stage: "RISK_STATE" });
         this.logProfitControlledPreMutationRejection(signal, "PROFIT_CONTROLLED_STRONG_ONLY_QUALITY_REQUIRED", {
           profitQualityScore: profitQuality.score,
           profitQualityTier: profitQuality.tier,
@@ -2239,6 +2412,7 @@ class LadderBot {
       if (liveSafety.rejected) {
         this.log("WARN", "Candidate rejected by live order safety check.", { symbol: signal.symbol, reason: liveSafety.reason });
         this.recordActivityEvent("rejectedRiskBudget", { symbol: signal.symbol, reason: liveSafety.reason });
+        this.recordRejectedTrade(signal, liveSafety.reason, { stage: "LIVE_SAFETY" });
         this.logProfitControlledPreMutationRejection(signal, liveSafety.reason);
         continue;
       }
@@ -2285,6 +2459,7 @@ class LadderBot {
           allocationLimitUsdt: allocatedEquityLimitUsdt(this.config, this.store.state),
         });
         this.recordActivityEvent("rejectedRiskBudget", { symbol: signal.symbol, reason: "LIVE_VALIDATION_ALLOCATION_EMPTY" });
+        this.recordRejectedTrade(signal, "LIVE_VALIDATION_ALLOCATION_EMPTY", { stage: "ALLOCATION" });
         continue;
       }
       if (this.config.profitControlledEquityMode && allocatedEquity <= 0) {
@@ -2295,6 +2470,7 @@ class LadderBot {
           sizingEquityBaseUsdt: allocatedEquity,
         });
         this.recordActivityEvent("rejectedRiskBudget", { symbol: signal.symbol, reason: "PROFIT_CONTROLLED_EQUITY_BASE_EMPTY" });
+        this.recordRejectedTrade(signal, "PROFIT_CONTROLLED_EQUITY_BASE_EMPTY", { stage: "ALLOCATION" });
         this.logProfitControlledPreMutationRejection(signal, "PROFIT_CONTROLLED_EQUITY_BASE_EMPTY");
         continue;
       }
@@ -2325,6 +2501,7 @@ class LadderBot {
           reason: plan.reason,
         });
         this.recordActivityEvent("rejectedRiskBudget", { symbol: signal.symbol, reason: plan.reason });
+        this.recordRejectedTrade(signal, plan.reason, { stage: "SIZING" });
         this.logProfitControlledPreMutationRejection(signal, plan.reason, { earnedRiskTier: earnedRiskTier(signal) });
         continue;
       }
@@ -2343,6 +2520,7 @@ class LadderBot {
           requirements: finalEdgeGate.requirements,
         });
         this.recordActivityEvent("rejectedNegativeNetEdge", { symbol: signal.symbol, reason: finalEdgeGate.reason });
+        this.recordRejectedTrade(signal, finalEdgeGate.reason, { stage: "FINAL_EDGE_GATE" });
         this.logProfitControlledPreMutationRejection(signal, finalEdgeGate.reason, {
           expectedNetEdgeUsdt: finalEdgeGate.model.projectedNetProfitUsdt,
           expectedTotalCostUsdt: finalEdgeGate.model.projectedTotalCostUsdt,
@@ -2368,6 +2546,7 @@ class LadderBot {
             noGrossPositiveNetNegativeIntentionalEntries: true,
           });
           this.recordActivityEvent("rejectedNegativeNetEdge", { symbol: signal.symbol, reason: "FEE_KILLER_FINAL_SIZED_ENTRY" });
+          this.recordRejectedTrade(signal, "FEE_KILLER_FINAL_SIZED_ENTRY", { stage: "FEE_KILLER" });
           this.logProfitControlledPreMutationRejection(signal, "FEE_KILLER_FINAL_SIZED_ENTRY", {
             projectedNetProfitUsdt,
             projectedTotalCostUsdt,
@@ -2409,6 +2588,7 @@ class LadderBot {
           finalRoundedMaxLossAtStopUsdt: minimumOrderFeasibility.finalRoundedMaxLossAtStopUsdt,
         });
         this.recordActivityEvent("rejectedRiskBudget", { symbol: signal.symbol, reason: minimumOrderFeasibility.reason });
+        this.recordRejectedTrade(signal, minimumOrderFeasibility.reason, { stage: "MINIMUM_ORDER_FEASIBILITY" });
         this.logProfitControlledPreMutationRejection(signal, minimumOrderFeasibility.reason, {
           allowedMaxLossAtStopUsdt: minimumOrderFeasibility.allowedMaxLossAtStopUsdt,
           minimumExecutableMaxLossAtStopUsdt: minimumOrderFeasibility.minimumExecutableMaxLossAtStopUsdt,
@@ -2427,6 +2607,7 @@ class LadderBot {
           portfolioRisk,
         });
         this.recordActivityEvent("rejectedRiskBudget", { symbol: signal.symbol, reason: portfolioRisk.reason });
+        this.recordRejectedTrade(signal, portfolioRisk.reason, { stage: "PORTFOLIO_RISK" });
         this.logProfitControlledPreMutationRejection(signal, portfolioRisk.reason, portfolioRisk);
         continue;
       }
@@ -2436,6 +2617,7 @@ class LadderBot {
       ) {
         this.log("INFO", "Candidate rejected by aggregate margin allocation cap.", { symbol: signal.symbol });
         this.recordActivityEvent("rejectedRiskBudget", { symbol: signal.symbol, reason: "AGGREGATE_MARGIN_CAP" });
+        this.recordRejectedTrade(signal, "AGGREGATE_MARGIN_CAP", { stage: "PORTFOLIO_MARGIN" });
         this.logProfitControlledPreMutationRejection(signal, "AGGREGATE_MARGIN_CAP", {
           reservedMarginUsdt: this.reservedMarginUsdt(),
           requiredMarginUsdt: plan.notional / plan.leverage,
@@ -2454,6 +2636,7 @@ class LadderBot {
             finalApprovalReached: true,
           });
           this.recordActivityEvent("rejectedRiskBudget", { symbol: signal.symbol, reason: leverageApproval.reason });
+          this.recordRejectedTrade(signal, leverageApproval.reason, { stage: "LEVERAGE_APPROVAL" });
           continue;
         }
         plan.leverage = leverageApproval.leverage;
