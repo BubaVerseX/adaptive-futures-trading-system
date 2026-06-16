@@ -2,14 +2,14 @@
   "version": 1,
   "exchange": "BYBIT_V5_LINEAR",
   "strategyProfile": "BYBIT_ADAPTIVE_STAT_SCALP_V2",
-  "updatedAt": "2026-06-16T15:26:29.088Z",
+  "updatedAt": "2026-06-16T15:32:26.662Z",
   "mode": "LIVE",
   "paused": false,
   "pauseReason": null,
   "equity": {
     "startingUsdt": 100,
-    "realizedPnlUsdt": -2.613777180000002,
-    "currentUsdt": 66.665305
+    "realizedPnlUsdt": -2.6137779999999986,
+    "currentUsdt": 66.667039
   },
   "daily": {
     "date": "2026-06-16",
@@ -22,11 +22,11 @@
     "closedTrades": 8,
     "explorationTrades": 1,
     "recoveryModeActive": true,
-    "recoveryPnlPct": -0.3635,
+    "recoveryPnlPct": -0.3609,
     "recoveryLosingStreak": 4,
     "recoveryNoticeKey": "2026-06-16:0:4:6",
     "profitProtectionActive": false,
-    "profitProtectionPnlPct": -0.3635
+    "profitProtectionPnlPct": -0.356
   },
   "ladder": {
     "activeLevel": 1,
@@ -118,33 +118,33 @@
       }
     }
   },
-  "consecutiveApiErrors": 2,
+  "consecutiveApiErrors": 0,
   "apiRecovery": {
     "active": false,
-    "stage": 2,
-    "source": "TRADING_CYCLE",
-    "lastError": "Bybit request timed out.",
-    "recoveredAt": "2026-06-16T15:26:28.241Z",
-    "consecutiveApiErrors": 2,
+    "stage": 1,
+    "source": "POSITION_MONITOR",
+    "lastError": "Bybit request failed (HTTP 200, code 10002): invalid request, please check your server timestamp or recv_window param: req_timestamp[1781623804076],server_timestamp[1781623820200],recv_window[5000].",
+    "recoveredAt": "2026-06-16T15:30:20.067Z",
+    "consecutiveApiErrors": 1,
     "shutdownSuppressed": true
   },
   "liveValidation": null,
   "profitControlled": {
     "namespace": "data/profit-controlled-live",
     "startEquityUsdt": 69.806622,
-    "lastSizingEquityBaseUsdt": 66.665305,
-    "sizingEquityBaseUsdt": 66.665305,
+    "lastSizingEquityBaseUsdt": 66.670309,
+    "sizingEquityBaseUsdt": 66.670309,
     "usableMarginUsdt": 66.722018,
-    "exchangeReportedTotalEquityUsdt": 66.665305,
+    "exchangeReportedTotalEquityUsdt": 66.670309,
     "riskState": "RISK_STATE_REDUCED",
     "riskStateReasons": [
       "drawdown reached reduced-risk state"
     ],
     "totalOpenStopRiskPctLimit": 2.25,
     "correlatedClusterStopRiskPctLimit": 1.75,
-    "lastEquityCheckedAt": "2026-06-16T15:23:15.499Z",
-    "drawdownPct": 4.5,
-    "lastRiskCheckedAt": "2026-06-16T15:26:29.088Z",
+    "lastEquityCheckedAt": "2026-06-16T15:32:19.522Z",
+    "drawdownPct": 4.4929,
+    "lastRiskCheckedAt": "2026-06-16T15:32:24.084Z",
     "nearMissStats": {
       "tracked": 5723,
       "correctRejects": 3732,
