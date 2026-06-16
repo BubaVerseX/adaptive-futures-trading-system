@@ -235,6 +235,11 @@ class BybitClient extends EventEmitter {
           this.log("WARN", "Bybit rate limit reached; cooling down before retry.", {
             cooldownMs: this.config.apiRateLimitCooldownMs,
           });
+          this.log("WARN", "API_RATE_LIMIT_COOLDOWN", {
+            cooldownMs: this.config.apiRateLimitCooldownMs,
+            attempt,
+            tradingBlockedOnlyForCooldown: true,
+          });
           await sleep(this.config.apiRateLimitCooldownMs);
         }
         const retryable = lastError.retryable !== false && attempt <= REQUEST_RETRIES;

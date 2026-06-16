@@ -359,19 +359,15 @@ V10 adds an aggressive adaptive trend-dominance layer for profit-controlled mode
 - Aggressive runner allocation uses `40% TP1 / 60% runner` for weak trends, `15% TP1 / 85% runner` for strong trends, and `5% TP1 / 95% runner` for elite trends.
 - Runner extension can be stronger in dominant trends, preserving breakeven, ATR trailing, and trend-extension protection.
 
-## V11 Active Market Universe
+## Active BTC/ETH/SOL Market Universe
 
-The executable trading universe now expands the V10 focus set while still rejecting random low-quality markets:
+The executable trading universe is focused back to the three most liquid symbols:
 
 - `BTCUSDT`
 - `ETHUSDT`
 - `SOLUSDT`
-- `XRPUSDT`
-- `DOGEUSDT`
-- `LINKUSDT`
-- `BNBUSDT`
 
-The scanner still uses BTC and ETH for benchmark regime intelligence, but candidate generation and execution are limited to the seven-symbol V11 universe. All other markets are ignored before candle analysis, so low-cap noise cannot consume learning attention or generate orders.
+The scanner still uses BTC and ETH for benchmark regime intelligence, but candidate generation and execution are limited to BTC/ETH/SOL. All other markets are ignored before candle analysis, so low-cap noise cannot consume learning attention or generate orders.
 
 V11 also splits behavior by regime:
 
@@ -405,13 +401,13 @@ Defaults now favor active but selective learning-phase participation: the bot st
 | `MAX_LEVERAGE` | `8` |
 | `SCAN_INTERVAL_MS` | `1200` |
 | `POSITION_MONITOR_INTERVAL_MS` | `1200` |
-| `MAX_SYMBOLS_TO_SCAN` | `7` |
+| `MAX_SYMBOLS_TO_SCAN` | `3` |
 | `TAKE_PROFIT_PCT` | `2.10` |
 | `STOP_LOSS_PCT` | `0.80` |
 
-The scanner ranks only the V11 active universe (`BTCUSDT`, `ETHUSDT`, `SOLUSDT`, `XRPUSDT`, `DOGEUSDT`, `LINKUSDT`, and `BNBUSDT`) by EMA alignment or acceleration, continuation breakout quality, pullback/retest/resumption structure, momentum persistence, volume quality, RSI, candle strength, volatility quality, liquidity, projected edge after fees/spread/slippage, BTC/ETH direction context, 15m/1h/4h macro bias, market-regime intelligence, session context, and adaptive historical confidence.
+The scanner ranks only the focused BTC/ETH/SOL universe (`BTCUSDT`, `ETHUSDT`, and `SOLUSDT`) by EMA alignment or acceleration, continuation breakout quality, pullback/retest/resumption structure, momentum persistence, volume quality, RSI, candle strength, volatility quality, liquidity, projected edge after fees/spread/slippage, BTC/ETH direction context, 15m/1h/4h macro bias, market-regime intelligence, session context, and adaptive historical confidence.
 
-Daily shutdowns are removed. The bot does not stop, pause, close all positions, or disable entries because of daily loss, daily drawdown, daily trade count, exploration count, participation quota, or temporary API instability. Losing sessions are handled through adaptive recovery: sizing and leverage can be moderated, but continuous V11-universe execution remains active until manual stop, emergency stop, liquidation danger, corrupted execution state, or another catastrophic safety condition.
+Daily shutdowns are removed. The bot does not stop, pause, close all positions, or disable entries because of daily loss, daily drawdown, daily trade count, exploration count, participation quota, or temporary API instability. Losing sessions are handled through adaptive recovery: sizing and leverage can be moderated, but continuous BTC/ETH/SOL execution remains active until manual stop, emergency stop, liquidation danger, corrupted execution state, or another catastrophic safety condition.
 
 High activity mode keeps the focused universe hot without reopening low-cap chaos:
 
@@ -849,9 +845,13 @@ Hard paper protections remain active: emergency stop file, max open positions, m
 
 ```text
 data/paper-trading/reports/trading_report.json
+data/paper-trading/reports/edge-report.json
+data/paper-trading/reports/expectancy.json
+data/paper-trading/reports/system-health.json
+data/paper-trading/reports/latest-summary.json
 ```
 
-The report includes trades taken, rejected candidates, rejection reason counts, win rate, PnL, fee totals, and rolling learning-memory stats by symbol, setup, and UTC hour. Only consider live deployment after stable paper-trading results show acceptable trade frequency, drawdown, and post-cost expectancy.
+The reports include trades taken, rejected candidates, rejection reason counts, average hold time, average win/loss, symbol performance, win rate, PnL, fee totals, and rolling learning-memory stats by symbol, setup, regime, and UTC hour. `PARTICIPATION_RECOVERY_MODE` can soften duplicated non-safety filters into score penalties after inactivity, but it never bypasses fee, stop-loss, liquidation, exposure, or drawdown protections. Only consider live deployment after stable paper-trading results show acceptable trade frequency, drawdown, and post-cost expectancy.
 
 Start mainnet only after verifying testnet behavior:
 
