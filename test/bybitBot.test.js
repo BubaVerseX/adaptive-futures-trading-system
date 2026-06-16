@@ -372,7 +372,7 @@ async function testLiveValidationStartupChecksProceedWithoutOrders() {
   bot.store.saveAll = () => {};
   bot.risk.store = bot.store;
   bot.client = {
-    getSymbols: async () => ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "LINKUSDT", "BNBUSDT"].map((symbol) => instrument(symbol)),
+    getSymbols: async () => ["BTCUSDT", "ETHUSDT", "SOLUSDT"].map((symbol) => instrument(symbol)),
     getUsdtBalance: async () => ({ available: 10, equity: 70 }),
     getPositions: async () => [],
     placeMarketOrder: async () => {
@@ -585,6 +585,36 @@ async function testBybitNotModifiedIsInformational() {
     assert.equal(response.notModified, true);
     assert.equal(requests, 1);
     assert.ok(events.some((event) => event.message === "BYBIT_NO_CHANGE_TREATED_AS_SUCCESS"));
+  } finally {
+    global.fetch = originalFetch;
+  }
+}
+
+async function testBybitRateLimitCooldownLogged() {
+  const originalFetch = global.fetch;
+  const { events, log } = logCollector();
+  const client = new BybitClient(config({ apiRateLimitCooldownMs: 1 }), log);
+  let requests = 0;
+  global.fetch = async () => {
+    requests += 1;
+    if (requests === 1) {
+      return {
+        ok: false,
+        status: 429,
+        text: async () => JSON.stringify({ retCode: 10006, retMsg: "rate limit" }),
+      };
+    }
+    return {
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ retCode: 0, result: { recovered: true } }),
+    };
+  };
+  try {
+    const result = await client.request("https://api.bybit.com/v5/test");
+    assert.equal(result.recovered, true);
+    assert.equal(requests, 2);
+    assert.ok(events.some((event) => event.message === "API_RATE_LIMIT_COOLDOWN"));
   } finally {
     global.fetch = originalFetch;
   }
@@ -1198,7 +1228,7 @@ async function testV11ActiveMarketEngine() {
   };
   const signal = scanner.scoreDirection(
     "LONG",
-    { info: { symbol: "LINKUSDT" }, price: 20, volume: 8000000, spreadPct: 0.02 },
+    { info: { symbol: "SOLUSDT" }, price: 20, volume: 8000000, spreadPct: 0.02 },
     scannerAnalysis({
       ema9: 20,
       ema21: 20.01,
@@ -1250,7 +1280,7 @@ async function testV11ActiveMarketEngine() {
   const plan = bot.risk.sizingPlan(
     { ...signal, score: 78, convictionScore: 70, profitQualityScore: 72, tradeCategory: "NORMAL_CONTINUATION" },
     100,
-    instrument("LINKUSDT", { qtyStep: "0.1", minOrderQty: "0.1", minNotionalValue: "5" }),
+    instrument("SOLUSDT", { qtyStep: "0.1", minOrderQty: "0.1", minNotionalValue: "5" }),
     3
   );
   assert.equal(plan.rejected, false);
@@ -1441,6 +1471,11 @@ async function testActiveAdaptiveScalperTradingReport() {
       setupType: "TREND_CONTINUATION",
       pnlUsdt: 0.3,
       feesUsdt: 0.1,
+      maximumFavorableExcursionPct: 0.8,
+      maximumAdverseExcursionPct: 0.25,
+      softenedRejections: [{ reason: "volume confirmation below survivability threshold" }],
+      inactivityRelaxedEntry: true,
+      inactivityRelaxationSuccessful: true,
       openedAt: new Date().toISOString(),
       exitedAt: new Date().toISOString(),
     },
@@ -1470,11 +1505,95 @@ async function testActiveAdaptiveScalperTradingReport() {
   assert.equal(report.rejectionReasons["low conviction"], 1);
   assert.equal(report.winRatePct, 100);
   assert.equal(report.pnlUsdt, 0.3);
+  assert.equal(report.averageMaximumFavorableExcursionPct, 0.8);
+  assert.equal(report.averageMaximumAdverseExcursionPct, 0.25);
+  assert.equal(report.symbolPerformance.ETHUSDT.trades, 1);
+  assert.equal(report.participation.inactivityRelaxation.closedTrades, 1);
   assert.equal(report.protections.dailyLossLimitActive, true);
   assert.equal(report.protections.liveOrdersDisabled, true);
   assert.ok(report.learningMemory.winRateBySymbol.ETHUSDT);
   assert.ok(fs.existsSync(path.join(cfg.reportsDir, "trading_report.json")));
+  assert.ok(fs.existsSync(path.join(cfg.reportsDir, "edge-report.json")));
+  assert.ok(fs.existsSync(path.join(cfg.reportsDir, "expectancy.json")));
+  assert.ok(fs.existsSync(path.join(cfg.reportsDir, "system-health.json")));
+  assert.ok(fs.existsSync(path.join(cfg.reportsDir, "latest-summary.json")));
   assert.ok(events.some((event) => event.message === "PAPER_TRADE_REJECTED"));
+}
+
+async function testParticipationRecoverySoftensOnlyNonSafetyFilters() {
+  const { log } = logCollector();
+  const cfg = config({
+    activeAdaptiveScalperMode: true,
+    paperTradingMode: true,
+    participationRecoveryMode: true,
+    adaptiveLearningEnabled: false,
+    allowChoppyMarket: false,
+    minLiquidityScore: 85,
+    minVolumeSpike: 1.3,
+    minProjectedEdgePct: 0.01,
+    minEdgeToCostRatio: 0.1,
+    smartEdgeMinNetPct: 0.01,
+    smartEdgeMinTpProbability: 0.1,
+    maxChopScore: 0,
+    antiChopPenaltyMax: 10,
+  });
+  const scanner = new Scanner(cfg, {}, log);
+  scanner.runtimeContext.dynamicInactivityRecovery = {
+    active: true,
+    stage: "INACTIVE_8H",
+    convictionThresholdMultiplier: 1,
+    convictionThresholdDelta: -4,
+    convictionRelaxPct: 4,
+    convictionRelaxPoints: 4,
+  };
+  scanner.cachedBenchmarkDirections = { BTCUSDT: "CHOPPY", ETHUSDT: "CHOPPY" };
+  const signal = scanner.scoreDirection(
+    "LONG",
+    { info: { symbol: "ETHUSDT" }, price: 100, volume: 250000, spreadPct: 0.08 },
+    scannerAnalysis({
+      ema9: 100,
+      ema21: 100.02,
+      ema50: 100.01,
+      breakout: false,
+      volumeSpike: 0.65,
+      momentumPct: 0.01,
+      lastCandleMomentumPct: 0.01,
+      upMomentumCandles: 1,
+      bodyStrength: 0.2,
+      rangeExpansion: 0.4,
+      atrPct: 0.12,
+    }),
+    scannerAnalysis({
+      ema9: 100,
+      ema21: 100.01,
+      ema50: 100,
+      breakout: false,
+      volumeSpike: 0.65,
+      momentumPct: 0.01,
+      lastCandleMomentumPct: 0.01,
+      upMomentumCandles: 1,
+      bodyStrength: 0.2,
+      rangeExpansion: 0.4,
+      atrPct: 0.12,
+    }),
+    scannerAnalysis({ ema9: 100, ema21: 100.01, ema50: 100, momentumPct: 0, rangeExpansion: 0.4 }),
+    scannerAnalysis({ ema9: 100, ema21: 100.01, ema50: 100, momentumPct: 0, rangeExpansion: 0.4 }),
+    {
+      direction: "CHOPPY",
+      primary: "SIDEWAYS_CHOP_MARKET",
+      tags: ["SIDEWAYS_CHOP_MARKET", "LOW_LIQUIDITY_MARKET"],
+      confidence: 40,
+      reasons: ["test over-filtered chop"],
+      riskMultiplier: 1,
+      aggressionMultiplier: 1,
+    },
+    []
+  );
+  assert.equal(signal.participationRecoveryMode, true);
+  assert.ok(signal.softenedRejections.some((item) => /volume confirmation below survivability/i.test(item.reason)));
+  assert.ok(signal.softenedRejections.some((item) => item.inactivityRelaxed));
+  assert.equal(signal.rejected.some((reason) => /volume confirmation below survivability/i.test(reason)), false);
+  assert.ok(signal.scoreBreakdown.some((reason) => /participation recovery softened/i.test(reason)));
 }
 
 async function testMarketRegimeClassification() {
@@ -1512,7 +1631,7 @@ async function testMarketRegimeClassification() {
 async function testFocusedUniverseRestriction() {
   const { events, log } = logCollector();
   const subscribed = [];
-  const expectedUniverse = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "LINKUSDT", "BNBUSDT"];
+  const expectedUniverse = ["BTCUSDT", "ETHUSDT", "SOLUSDT"];
   const symbols = [...expectedUniverse, "WIFUSDT"].map((symbol) => ({
     symbol,
     contractType: "LinearPerpetual",
@@ -1539,13 +1658,13 @@ async function testFocusedUniverseRestriction() {
     },
     subscribeTickers: (list) => subscribed.push(...list),
   };
-  const scanner = new Scanner(config({ maxSymbolsToScan: 7 }), client, log);
+  const scanner = new Scanner(config({ maxSymbolsToScan: 3 }), client, log);
   const universe = await scanner.universe();
   assert.deepEqual(universe.map((item) => item.info.symbol), expectedUniverse);
   assert.deepEqual(subscribed, expectedUniverse);
   assert.ok(events.some((event) => event.message === "Focused trading universe enabled."));
-  assert.ok(events.some((event) => event.message === "V11 active market universe enabled; noisy market universe still filtered."));
-  const prepared = events.find((event) => event.message === "Focused V11 active market universe prepared.");
+  assert.ok(events.some((event) => event.message === "Focused BTC/ETH/SOL market universe enabled; noisy market universe filtered."));
+  const prepared = events.find((event) => event.message === "Focused BTC/ETH/SOL active market universe prepared.");
   assert.equal(prepared.details.rejected.outsideFocus, 1);
 }
 
@@ -1636,7 +1755,7 @@ async function testExplorationMemoryRelaxation() {
   scanner.cachedBenchmarkDirections = { BTCUSDT: "UP", ETHUSDT: "UP" };
   const signal = scanner.scoreDirection(
     "LONG",
-    { info: { symbol: "LINKUSDT" }, price: 10, volume: 3000000, spreadPct: 0.04 },
+    { info: { symbol: "ETHUSDT" }, price: 10, volume: 3000000, spreadPct: 0.04 },
     scannerAnalysis({ volumeSpike: 1.7, momentumPct: 0.16, lastCandleMomentumPct: 0.04 }),
     scannerAnalysis({ volumeSpike: 1.6, momentumPct: 0.12, lastCandleMomentumPct: 0.03 }),
     scannerAnalysis(),
@@ -1851,6 +1970,60 @@ async function testFeeAwareEntryAndDynamicSizing() {
   assert.equal(explorationPlan.rejected, false);
   assert.equal(explorationPlan.explorationSizing, true);
   assert.ok(explorationPlan.qualitySizeMultiplier <= bot.config.explorationRiskMultiplier);
+}
+
+async function testNearMissSmallTradeUsesExploratoryEdgeAndRisk() {
+  const { events, log } = logCollector();
+  const bot = new LadderBot(config({
+    dryRun: true,
+    profitControlledEquityMode: true,
+    profitExpansionMode: true,
+    nearMissSmallTradeEnabled: true,
+    nearMissSmallTradeMaxGap: 3,
+    adaptiveLearningEnabled: false,
+    smartEdgeMinNetPct: 0.22,
+    smartEdgeMinTpProbability: 0.46,
+    profitModeMinQualityScore: 70,
+  }));
+  bot.log = log;
+  const signal = {
+    symbol: "ETHUSDT",
+    side: "LONG",
+    price: 100,
+    nearMissTrade: true,
+    explorationTrade: true,
+    tradeCategory: "EXPLORATION",
+    expectedMovePct: 1,
+    projectedNetEdgePct: 0.2,
+    smartProjectedNetEdgePct: 0.15,
+    estimatedTpProbability: 0.42,
+    feeEdgeRatio: 1.35,
+    convictionScore: 35,
+    explorationRequiredConvictionScore: 32,
+    requiredConvictionScore: 45,
+    spreadPct: 0.02,
+    estimatedSlippagePct: 0.08,
+    trendQualityScore: 80,
+    continuationStrength: 78,
+    volumeSpike: 1.3,
+    volumeCondition: "CONFIRMED_VOLUME",
+    marketRegimeTags: ["SIDEWAYS_CHOP_MARKET"],
+    marketPersonality: "WEAK_CHOP",
+    continuationSetupType: "BREAKOUT_RETEST",
+    setupType: "BREAKOUT_RETEST",
+    marketBreadthScore: 82,
+    portfolioAlphaScore: 65,
+    multiTimeframeTrendScore: 82,
+  };
+  const edge = bot.feeAwareEntryCheck(signal);
+  assert.equal(edge.rejected, false);
+  assert.equal(edge.edgeModel.tier, "EXPLORATION_POSITIVE_EDGE");
+  assert.ok(edge.requiredSmartEdgePct < bot.config.smartEdgeMinNetPct);
+  const quality = bot.profitModeQualityCheck(signal, edge.edgeModel);
+  assert.equal(quality.rejected, false);
+  assert.equal(quality.tier, "NEAR_MISS");
+  assert.equal(signal.explorationTrade, true);
+  assert.ok(events.some((event) => event.message === "PROFIT_MODE_QUALITY_APPROVED" && event.details.nearMissQualityAllowed));
 }
 
 async function testLiveValidationSizingExecutionAndReentryControls() {
@@ -2130,6 +2303,10 @@ async function testProfitControlledConfigGuardsAndSetupScript() {
   assert.equal(profitConfig.unlimitedExplorationBudget, false);
   assert.equal(profitConfig.aggressiveLearningPhase, false);
   assert.equal(profitConfig.disableDailyTradeLimits, true);
+  assert.equal(profitConfig.dailyTradeLimitsDisabled, true);
+  assert.equal(profitConfig.continuousExecutionMode, true);
+  assert.equal(profitConfig.participationRecoveryMode, true);
+  assert.equal(profitConfig.nearMissSmallTradeEnabled, true);
   assert.equal(profitConfig.maxLeverage, 5);
 
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "profit-controlled-setup-"));
@@ -2185,7 +2362,7 @@ async function testProfitControlledStartupChecksProceedWithoutOrders() {
   bot.store.saveAll = () => {};
   bot.risk.store = bot.store;
   bot.client = {
-    getSymbols: async () => ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "LINKUSDT", "BNBUSDT"].map((symbol) => instrument(symbol)),
+    getSymbols: async () => ["BTCUSDT", "ETHUSDT", "SOLUSDT"].map((symbol) => instrument(symbol)),
     getUsdtBalance: async () => ({ available: 49, equity: 50, transferableUsableMargin: 49, parseSource: "TEST" }),
     getPositions: async () => [],
     placeMarketOrder: async () => {
@@ -4148,6 +4325,7 @@ async function run() {
   await testClientContracts();
   await testSignedRestHeaders();
   await testBybitNotModifiedIsInformational();
+  await testBybitRateLimitCooldownLogged();
   await testUnifiedWalletParsing();
   await testWebSocketTickerAndReconnect();
   await testApiAutoRecoveryDoesNotShutdown();
@@ -4168,10 +4346,12 @@ async function run() {
   await testActiveAdaptiveScalperPaperConfigAndSafety();
   await testActiveAdaptiveScalperConfidenceSizingAndDailyLoss();
   await testActiveAdaptiveScalperTradingReport();
+  await testParticipationRecoverySoftensOnlyNonSafetyFilters();
   await testExplorationSignalPath();
   await testExplorationMemoryRelaxation();
   await testFeeAwareStatsAndSymbolCooldown();
   await testFeeAwareEntryAndDynamicSizing();
+  await testNearMissSmallTradeUsesExploratoryEdgeAndRisk();
   await testLiveValidationAllocationPromotionAndRiskStates();
   await testLiveValidationSizingExecutionAndReentryControls();
   await testLiveValidationMinimumOrderFeasibility();

@@ -5,7 +5,7 @@ require("dotenv").config();
 const path = require("node:path");
 
 const PROJECT_ROOT = path.join(__dirname, "..");
-const FOCUSED_TRADING_SYMBOLS = Object.freeze(["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "LINKUSDT", "BNBUSDT"]);
+const FOCUSED_TRADING_SYMBOLS = Object.freeze(["BTCUSDT", "ETHUSDT", "SOLUSDT"]);
 const DEMO_REST_BASE_URL = "https://api-demo.bybit.com";
 const DEMO_PRIVATE_WS_BASE_URL = "wss://stream-demo.bybit.com";
 const MAINNET_PUBLIC_WS_BASE_URL = "wss://stream.bybit.com";
@@ -213,6 +213,8 @@ function loadConfig() {
     expectancyRunnerExtensionBoost: numberValue("EXPECTANCY_RUNNER_EXTENSION_BOOST", 1.08, { positive: true, maximum: 1.5 }),
     nearMissLearningEnabled: booleanValue("NEAR_MISS_LEARNING_ENABLED", profitControlledEquityMode ? true : false),
     nearMissMaxPointGap: numberValue("NEAR_MISS_MAX_POINT_GAP", 5, { positive: true, maximum: 20 }),
+    nearMissSmallTradeEnabled: booleanValue("NEAR_MISS_SMALL_TRADE_ENABLED", profitControlledEquityMode ? true : false),
+    nearMissSmallTradeMaxGap: numberValue("NEAR_MISS_SMALL_TRADE_MAX_GAP", 3, { positive: true, maximum: 10 }),
     edgeMaximizationMode: booleanValue("EDGE_MAXIMIZATION_MODE", profitControlledEquityMode ? true : false),
     edgeReinforcementMode: booleanValue("EDGE_REINFORCEMENT_MODE", profitControlledEquityMode ? true : false),
     qualitySizeMultiplierNormal: numberValue("QUALITY_SIZE_MULTIPLIER_NORMAL", 1, { positive: true, maximum: 1.5 }),
@@ -287,6 +289,9 @@ function loadConfig() {
     activeScalperExplorationMinConvictionScore: numberValue("ACTIVE_SCALPER_EXPLORATION_MIN_CONVICTION_SCORE", 32, { positive: true, maximum: 100 }),
     activeScalperMaxLossCooldownMinutes: numberValue("ACTIVE_SCALPER_MAX_LOSS_COOLDOWN_MINUTES", 10, { minimum: 0 }),
     activeScalperMaxReentryCooldownSeconds: numberValue("ACTIVE_SCALPER_MAX_REENTRY_COOLDOWN_SECONDS", 60, { minimum: 0 }),
+    participationRecoveryMode: booleanValue("PARTICIPATION_RECOVERY_MODE", profitControlledEquityMode || activeAdaptiveScalperMode ? true : false),
+    participationRecoverySofteningMultiplier: numberValue("PARTICIPATION_RECOVERY_SOFTENING_MULTIPLIER", 0.55, { positive: true, maximum: 1 }),
+    participationRecoveryInactivitySofteningMultiplier: numberValue("PARTICIPATION_RECOVERY_INACTIVITY_SOFTENING_MULTIPLIER", 0.35, { positive: true, maximum: 1 }),
     paperDailyLossLimitPct: numberValue("PAPER_DAILY_LOSS_LIMIT_PCT", 3, { positive: true, maximum: 100 }),
     confidenceSizingEnabled: booleanValue("CONFIDENCE_SIZING_ENABLED", activeAdaptiveScalperMode ? true : false),
     confidenceSmallMinScore: numberValue("CONFIDENCE_SMALL_MIN_SCORE", 50, { minimum: 0, maximum: 100 }),
@@ -320,7 +325,7 @@ function loadConfig() {
     v11PanicRiskMultiplier: numberValue("V11_PANIC_RISK_MULTIPLIER", 0.55, { positive: true, maximum: 1 }),
     v11HigherTimeframeAlignmentBoost: numberValue("V11_HIGHER_TIMEFRAME_ALIGNMENT_BOOST", 7, { minimum: 0, maximum: 20 }),
     v11HigherTimeframeConflictPenalty: numberValue("V11_HIGHER_TIMEFRAME_CONFLICT_PENALTY", 9, { minimum: 0, maximum: 20 }),
-    maxSymbolsToScan: numberValue("MAX_SYMBOLS_TO_SCAN", 7, { positive: true, integer: true }),
+    maxSymbolsToScan: numberValue("MAX_SYMBOLS_TO_SCAN", 3, { positive: true, integer: true }),
     min24hVolumeUsdt: numberValue("MIN_24H_VOLUME_USDT", 1000000, { minimum: 0 }),
     maxSpreadPct: numberValue("MAX_SPREAD_PCT", 0.6, { positive: true }),
     excludedSymbols: symbolsSet("EXCLUDED_SYMBOLS"),
@@ -505,6 +510,8 @@ function loadConfig() {
     config.v11ActiveMarketEngine = true;
     config.v11MeanReversionEnabled = true;
     config.inactivityRecoveryMode = true;
+    config.participationRecoveryMode = true;
+    config.nearMissSmallTradeEnabled = true;
     config.nearMissMaxPointGap = Math.min(config.nearMissMaxPointGap, config.v11NearMissReevaluationMaxGap);
     if (config.aggressiveAdaptiveMode) {
       config.profitControlledNormalMaxStopRiskPct = Math.max(
@@ -563,6 +570,7 @@ function loadConfig() {
     config.symbolLossCooldownMinutes = Math.min(config.symbolLossCooldownMinutes, config.activeScalperMaxLossCooldownMinutes);
     config.symbolReentryCooldownSeconds = Math.min(config.symbolReentryCooldownSeconds, config.activeScalperMaxReentryCooldownSeconds);
     config.confidenceSizingEnabled = true;
+    config.participationRecoveryMode = true;
     config.learningPhaseMode = true;
     config.aggressiveLearningPhase = false;
     config.highActivityMode = true;

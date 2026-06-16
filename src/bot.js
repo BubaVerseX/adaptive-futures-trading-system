@@ -1118,7 +1118,52 @@ class LadderBot {
     const tradesTaken = trades.filter((trade) => !["ENTRY_FAILED", "FAILED", "REJECTED", "IGNORED_AFTER_MODE_CHANGE"].includes(String(trade.status || "").toUpperCase())).length;
     const pnl = closedTrades.reduce((total, trade) => total + Number(trade.pnlUsdt || 0), 0);
     const wins = closedTrades.filter((trade) => Number(trade.pnlUsdt || 0) > 0).length;
+    const winners = closedTrades.filter((trade) => Number(trade.pnlUsdt || 0) > 0);
+    const losers = closedTrades.filter((trade) => Number(trade.pnlUsdt || 0) < 0);
     const fees = closedTrades.reduce((total, trade) => total + Number(trade.feesUsdt || trade.estimatedFeesUsdt || 0), 0);
+    const average = (rows, selector) => rows.length ? rows.reduce((total, row) => total + Number(selector(row) || 0), 0) / rows.length : 0;
+    const symbolPerformance = {};
+    for (const trade of closedTrades) {
+      const symbol = String(trade.symbol || "UNKNOWN");
+      if (!symbolPerformance[symbol]) {
+        symbolPerformance[symbol] = { trades: 0, wins: 0, losses: 0, netPnlUsdt: 0, totalFeesUsdt: 0 };
+      }
+      const row = symbolPerformance[symbol];
+      const net = Number(trade.pnlUsdt || trade.netPnlAfterCostsUsdt || 0);
+      row.trades += 1;
+      if (net > 0) row.wins += 1;
+      if (net < 0) row.losses += 1;
+      row.netPnlUsdt += net;
+      row.totalFeesUsdt += Number(trade.feesUsdt || trade.estimatedFeesUsdt || 0);
+      row.winRatePct = Number(((row.wins / row.trades) * 100).toFixed(2));
+      row.netPnlUsdt = Number(row.netPnlUsdt.toFixed(6));
+      row.totalFeesUsdt = Number(row.totalFeesUsdt.toFixed(6));
+    }
+    const inactivityRelaxedTrades = closedTrades.filter((trade) => trade.inactivityRelaxedEntry || (Array.isArray(trade.softenedRejections) && trade.softenedRejections.length));
+    const inactivityRelaxedWins = inactivityRelaxedTrades.filter((trade) => Number(trade.pnlUsdt || 0) > 0);
+    const relaxedConditions = {};
+    for (const trade of inactivityRelaxedTrades) {
+      for (const softened of trade.softenedRejections || []) {
+        const reason = String(softened.reason || "UNKNOWN");
+        if (!relaxedConditions[reason]) relaxedConditions[reason] = { trades: 0, wins: 0, netPnlUsdt: 0 };
+        relaxedConditions[reason].trades += 1;
+        if (Number(trade.pnlUsdt || 0) > 0) relaxedConditions[reason].wins += 1;
+        relaxedConditions[reason].netPnlUsdt = Number((relaxedConditions[reason].netPnlUsdt + Number(trade.pnlUsdt || 0)).toFixed(6));
+      }
+    }
+    const participation = {
+      tradesTaken,
+      tradesRejected: Number(state.tradesRejected || 0),
+      rejectionReasons: state.rejectionReasons || {},
+      recentRejectedTrades: state.recentRejectedTrades || [],
+      inactivityRelaxation: {
+        closedTrades: inactivityRelaxedTrades.length,
+        wins: inactivityRelaxedWins.length,
+        winRatePct: inactivityRelaxedTrades.length ? Number(((inactivityRelaxedWins.length / inactivityRelaxedTrades.length) * 100).toFixed(2)) : 0,
+        netPnlUsdt: Number(inactivityRelaxedTrades.reduce((total, trade) => total + Number(trade.pnlUsdt || 0), 0).toFixed(6)),
+        relaxedConditions,
+      },
+    };
     const report = {
       generatedAt: new Date().toISOString(),
       mode: "ACTIVE_ADAPTIVE_SCALPER_PAPER",
@@ -1132,6 +1177,13 @@ class LadderBot {
       winRatePct: closedTrades.length ? Number(((wins / closedTrades.length) * 100).toFixed(2)) : 0,
       pnlUsdt: Number(pnl.toFixed(6)),
       feesUsdt: Number(fees.toFixed(6)),
+      averageHoldSeconds: Number(average(closedTrades, (trade) => trade.holdSeconds).toFixed(2)),
+      averageWinUsdt: Number(average(winners, (trade) => trade.pnlUsdt).toFixed(6)),
+      averageLossUsdt: Number(average(losers, (trade) => trade.pnlUsdt).toFixed(6)),
+      averageMaximumFavorableExcursionPct: Number(average(closedTrades, (trade) => trade.maximumFavorableExcursionPct).toFixed(4)),
+      averageMaximumAdverseExcursionPct: Number(average(closedTrades, (trade) => trade.maximumAdverseExcursionPct).toFixed(4)),
+      symbolPerformance,
+      participation,
       drawdown: this.adaptive.memory.stats && this.adaptive.memory.stats.drawdown,
       performance: this.store.state.performance,
       learningMemory: {
@@ -1155,6 +1207,34 @@ class LadderBot {
     fs.mkdirSync(this.config.reportsDir, { recursive: true });
     const file = path.join(this.config.reportsDir, "trading_report.json");
     fs.writeFileSync(file, `${JSON.stringify(report, null, 2)}\n`, "utf8");
+    const reportPayloads = {
+      "latest-summary.json": report,
+      "expectancy.json": {
+        ...profitExpectancyReport(trades, this.config),
+        participation,
+        averageHoldSeconds: report.averageHoldSeconds,
+        averageWinUsdt: report.averageWinUsdt,
+        averageLossUsdt: report.averageLossUsdt,
+        symbolPerformance,
+      },
+      "system-health.json": {
+        ...profitSystemHealthReport(trades, this.config),
+        participation,
+        averageHoldSeconds: report.averageHoldSeconds,
+        symbolPerformance,
+      },
+      "edge-report.json": {
+        ...profitEdgeReport(trades, this.config),
+        participation,
+        averageHoldSeconds: report.averageHoldSeconds,
+        averageWinUsdt: report.averageWinUsdt,
+        averageLossUsdt: report.averageLossUsdt,
+        symbolPerformance,
+      },
+    };
+    for (const [name, payload] of Object.entries(reportPayloads)) {
+      fs.writeFileSync(path.join(this.config.reportsDir, name), `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+    }
     state.lastReportAt = report.generatedAt;
     this.store.saveState();
     this.log("INFO", "TRADING_REPORT_UPDATED", {
@@ -2031,7 +2111,8 @@ class LadderBot {
         continue;
       }
       if (this.config.profitControlledEquityMode && this.config.profitExpansionMode) {
-        signal.explorationTrade = false;
+        const keepNearMissSmallTrade = Boolean(signal.nearMissTrade && this.config.nearMissSmallTradeEnabled);
+        signal.explorationTrade = keepNearMissSmallTrade;
         signal.forcedMarketSampling = false;
         signal.explorationExpansionActive = false;
         signal.adaptivePolicyMode = "PROFIT_MODE";
@@ -2084,6 +2165,25 @@ class LadderBot {
             originalRejections: signal.forcedSamplingOriginalRejections,
             projectedNetEdgePct: signal.projectedNetEdgePct,
             feeEdgeRatio: signal.feeEdgeRatio,
+          });
+        }
+        if (signal.nearMissTrade) {
+          this.log("INFO", "NEAR_MISS_SMALL_TRADE_APPROVED", {
+            symbol: signal.symbol,
+            side: signal.side,
+            reason: signal.nearMissAllowedReason,
+            nearMissGap: signal.nearMissGap,
+            score: signal.score,
+            requiredScore: signal.requiredScore,
+            convictionScore: signal.convictionScore,
+            requiredConvictionScore: signal.requiredConvictionScore,
+            projectedNetEdgePct: signal.projectedNetEdgePct,
+            smartProjectedNetEdgePct: signal.smartProjectedNetEdgePct,
+            feeEdgeRatio: signal.feeEdgeRatio,
+            waivedNonSafetyRejections: signal.explorationWaivedRejections,
+            inactivityRecoveryStage: signal.dynamicInactivityRecovery && signal.dynamicInactivityRecovery.stage,
+            riskControlsUnchanged: true,
+            feeProtectionStillRequired: true,
           });
         }
       }
@@ -2720,6 +2820,9 @@ class LadderBot {
           riskPct: plan.riskPct,
           explorationRiskMultiplier: this.config.explorationRiskMultiplier,
           forcedMarketSampling: signal.forcedMarketSampling,
+          nearMissTrade: signal.nearMissTrade,
+          nearMissAllowedReason: signal.nearMissAllowedReason,
+          nearMissQualityGap: signal.nearMissQualityGap,
           inactiveMinutesBeforeForcedSampling: signal.forcedSamplingInactiveMinutes,
           waivedStrictRejections: signal.explorationWaivedRejections,
         });
@@ -2755,6 +2858,8 @@ class LadderBot {
         setupType: signal.setupType,
         tradeCategory: signal.tradeCategory,
         explorationTrade: signal.explorationTrade,
+        nearMissTrade: signal.nearMissTrade,
+        nearMissAllowedReason: signal.nearMissAllowedReason,
         forcedMarketSampling: signal.forcedMarketSampling,
         explorationThresholdSoftened: signal.explorationThresholdSoftened,
         moderateChopAccepted: signal.moderateChopAccepted,
@@ -3225,6 +3330,29 @@ class LadderBot {
       trendDominance,
       clusterRisk,
     });
+    const nearMissQualityRequired = /sideways chop requires strong/i.test(String(quality.reason || ""))
+      ? Number(quality.thresholds && quality.thresholds.strong)
+      : Number(quality.thresholds && quality.thresholds.normal);
+    const nearMissQualityGap = Number((nearMissQualityRequired - Number(quality.score || 0)).toFixed(2));
+    const nearMissQualityAllowed =
+      Boolean(this.config.nearMissSmallTradeEnabled && signal.nearMissTrade && quality.rejected) &&
+      Number.isFinite(nearMissQualityGap) &&
+      nearMissQualityGap >= 0 &&
+      nearMissQualityGap <= Number(this.config.nearMissSmallTradeMaxGap || 3) &&
+      Number(signal.projectedNetEdgePct || 0) >= this.config.explorationMinProjectedEdgePct &&
+      Number(signal.feeEdgeRatio || 0) >= this.config.explorationMinEdgeToCostRatio;
+    if (nearMissQualityAllowed) {
+      quality.rejected = false;
+      quality.tier = "NEAR_MISS";
+      quality.reason = `near-miss profit-quality gap ${nearMissQualityGap} allowed as smallest positive-edge trade`;
+      quality.nearMissQualityAllowed = true;
+      quality.nearMissQualityGap = nearMissQualityGap;
+      quality.thresholds.nearMissRequired = nearMissQualityRequired;
+      signal.nearMissQualityAllowed = true;
+      signal.nearMissQualityGap = nearMissQualityGap;
+      signal.explorationTrade = true;
+      signal.tradeCategory = "EXPLORATION";
+    }
     signal.profitQualityScore = quality.score;
     signal.profitQualityTier = quality.tier === "REJECT" ? null : quality.tier;
     signal.symbolPerformanceMemoryV2 = quality.symbolMemory;
@@ -3244,7 +3372,7 @@ class LadderBot {
       (trendDominance ? trendDominance.runnerExtensionMultiplier : 1);
     signal.adaptiveMode = "PROFIT_MODE";
     signal.adaptivePolicyMode = "PROFIT_MODE";
-    signal.explorationTrade = false;
+    signal.explorationTrade = Boolean(signal.nearMissTrade && this.config.nearMissSmallTradeEnabled);
     signal.forcedMarketSampling = false;
     if (quality.tier === "ELITE") {
       signal.eliteSetup = true;
@@ -3263,6 +3391,9 @@ class LadderBot {
       tier: quality.tier,
       rawTier: quality.rawTier,
       reason: quality.reason,
+      nearMissTrade: signal.nearMissTrade,
+      nearMissQualityAllowed: quality.nearMissQualityAllowed,
+      nearMissQualityGap: quality.nearMissQualityGap,
       components: quality.components,
       thresholds: quality.thresholds,
       symbolMemoryBias: memory.bias,
@@ -3449,8 +3580,9 @@ class LadderBot {
       (signal.explorationTrade ? this.config.explorationMinProjectedEdgePct : this.config.minProjectedEdgePct) * qualityMultiplier * activityMultiplier;
     const minEdgeToCostRatio =
       (signal.explorationTrade ? this.config.explorationMinEdgeToCostRatio : this.config.minEdgeToCostRatio) * qualityMultiplier * activityMultiplier;
-    const baseConvictionScore =
-      Number(signal.requiredConvictionScore || signal.adaptiveConvictionThreshold || (signal.explorationTrade ? this.config.explorationMinConvictionScore : this.config.minConvictionScore));
+    const baseConvictionScore = signal.explorationTrade
+      ? Number(signal.explorationRequiredConvictionScore || this.config.explorationMinConvictionScore)
+      : Number(signal.requiredConvictionScore || signal.adaptiveConvictionThreshold || this.config.minConvictionScore);
     const minConvictionScore = baseConvictionScore + (signal.qualityPacingActive ? (signal.explorationTrade ? 2 : 3) : 0);
     const minExpectedMovePct = this.config.minExpectedMovePct * (signal.explorationTrade ? 0.75 : 1) * activityMultiplier;
     const minSmartEdgePct = this.config.smartEdgeMinNetPct * (signal.explorationTrade ? 0.65 : 1) * qualityMultiplier * activityMultiplier;
@@ -3741,6 +3873,9 @@ class LadderBot {
       runnerStopMovedToBreakeven: false,
       runnerExtensionCount: 0,
       peakPrice: signal.price,
+      adversePrice: signal.price,
+      maximumFavorableExcursionPct: 0,
+      maximumAdverseExcursionPct: 0,
       trailingStopPrice: null,
       openedAt: new Date().toISOString(),
       plannedEntryPrice: signal.price,
@@ -3834,6 +3969,13 @@ class LadderBot {
       adaptiveActivityRecovery: signal.adaptiveActivityRecovery,
       dynamicInactivityRecovery: signal.dynamicInactivityRecovery,
       inactivityConvictionRelaxPct: signal.inactivityConvictionRelaxPct,
+      softenedRejections: signal.softenedRejections || [],
+      participationRecoveryMode: Boolean(signal.participationRecoveryMode),
+      nearMissTrade: Boolean(signal.nearMissTrade),
+      nearMissGap: signal.nearMissGap,
+      nearMissAllowedReason: signal.nearMissAllowedReason,
+      nearMissQualityAllowed: Boolean(signal.nearMissQualityAllowed),
+      nearMissQualityGap: signal.nearMissQualityGap,
       trendDominance: signal.trendDominance,
       trendDominanceScore: signal.trendDominanceScore,
       trendDominanceSizingMultiplier: signal.trendDominanceSizingMultiplier,
@@ -4055,9 +4197,17 @@ class LadderBot {
       position.peakPrice = long
         ? Math.max(Number(position.peakPrice), price)
         : Math.min(Number(position.peakPrice), price);
+      position.adversePrice = long
+        ? Math.min(numeric(position.adversePrice, position.entryPrice), price)
+        : Math.max(numeric(position.adversePrice, position.entryPrice), price);
       const favorablePct = long
         ? percentChange(position.peakPrice, position.entryPrice)
         : percentChange(position.entryPrice, position.peakPrice);
+      const adversePct = long
+        ? Math.max(0, -percentChange(position.adversePrice, position.entryPrice))
+        : Math.max(0, -percentChange(position.entryPrice, position.adversePrice));
+      position.maximumFavorableExcursionPct = Number(Math.max(0, numeric(favorablePct)).toFixed(4));
+      position.maximumAdverseExcursionPct = Number(adversePct.toFixed(4));
 
       const trailingDistancePct = position.eliteTrendRider && position.runnerPartialTaken
         ? this.runnerTrailingDistancePct(position)
@@ -4579,6 +4729,10 @@ class LadderBot {
       position.side === "LONG"
         ? percentChange(numeric(position.peakPrice, position.entryPrice), position.entryPrice)
         : percentChange(position.entryPrice, numeric(position.peakPrice, position.entryPrice));
+    const maxAdverseExcursionPct =
+      position.side === "LONG"
+        ? Math.max(0, -percentChange(numeric(position.adversePrice, position.entryPrice), position.entryPrice))
+        : Math.max(0, -percentChange(position.entryPrice, numeric(position.adversePrice, position.entryPrice)));
     const runnerNetContributionUsdt = position.runnerPartialTaken
       ? pnlUsdt - numeric(position.partialRealizedPnlUsdt)
       : 0;
@@ -4636,7 +4790,19 @@ class LadderBot {
         runnerExtensionCount: Number(position.runnerExtensionCount || 0),
         runnerStopMovedToBreakeven: Boolean(position.runnerStopMovedToBreakeven),
         maximumFavorableExcursionPct: Number(numeric(maxFavorableExcursionPct).toFixed(4)),
+        maximumAdverseExcursionPct: Number(numeric(maxAdverseExcursionPct).toFixed(4)),
         profitGivenBackPct: Number(Math.max(0, numeric(maxFavorableExcursionPct) - pnlPct).toFixed(4)),
+        inactivityRelaxedEntry: Boolean(position.dynamicInactivityRecovery && position.dynamicInactivityRecovery.active),
+        inactivityRecoveryStage: position.dynamicInactivityRecovery && position.dynamicInactivityRecovery.stage,
+        inactivityRelaxationSuccessful: Boolean(position.dynamicInactivityRecovery && position.dynamicInactivityRecovery.active && pnlUsdt > 0),
+        softenedRejections: Array.isArray(position.softenedRejections) ? position.softenedRejections : [],
+        participationRecoveryMode: Boolean(position.participationRecoveryMode),
+        nearMissTrade: Boolean(position.nearMissTrade),
+        nearMissGap: position.nearMissGap === undefined ? null : Number(numeric(position.nearMissGap).toFixed(4)),
+        nearMissAllowedReason: position.nearMissAllowedReason || null,
+        nearMissQualityAllowed: Boolean(position.nearMissQualityAllowed),
+        nearMissQualityGap: position.nearMissQualityGap === undefined ? null : Number(numeric(position.nearMissQualityGap).toFixed(4)),
+        nearMissSuccessful: Boolean(position.nearMissTrade && pnlUsdt > 0),
         result: this.closedPositionReason(position, exitPrice).includes("take profit")
           ? "TP"
           : this.closedPositionReason(position, exitPrice).includes("stop loss")

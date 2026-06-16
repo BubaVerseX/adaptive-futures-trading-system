@@ -3,7 +3,7 @@
 const { edgeTier } = require("./costModel");
 const { summarizeTrades, closedTrades } = require("./liveValidation");
 
-const FOCUSED_SYMBOLS = Object.freeze(["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "LINKUSDT", "BNBUSDT"]);
+const FOCUSED_SYMBOLS = Object.freeze(["BTCUSDT", "ETHUSDT", "SOLUSDT"]);
 
 function numeric(value, fallback = 0) {
   const parsed = Number(value);

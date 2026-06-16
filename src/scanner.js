@@ -558,11 +558,11 @@ class Scanner {
     if (!this.focusUniverseLogged) {
       this.log("WARN", "Focused trading universe enabled.", {
         symbols: focusList,
-        mode: "V11_ACTIVE_MARKET_ENGINE",
+        mode: "BTC_ETH_SOL_ACTIVE_ADAPTIVE",
       });
-      this.log("INFO", "V11 active market universe enabled; noisy market universe still filtered.", {
+      this.log("INFO", "Focused BTC/ETH/SOL market universe enabled; noisy market universe filtered.", {
         disabledMarkets: `all symbols outside ${focusList.join(", ")}`,
-        addedSymbols: ["XRPUSDT", "DOGEUSDT", "LINKUSDT", "BNBUSDT"].filter((symbol) => focusSet.has(symbol)),
+        addedSymbols: [],
       });
       this.log("INFO", "Adaptive focus mode enabled; concentrated liquidity trading active.", {
         focusedExplorationActive: true,
@@ -614,7 +614,7 @@ class Scanner {
     accepted.sort((left, right) => focusList.indexOf(left.info.symbol) - focusList.indexOf(right.info.symbol));
     const limited = accepted.slice(0, this.config.maxSymbolsToScan);
     this.client.subscribeTickers(limited.map((item) => item.info.symbol));
-    this.log("INFO", "Focused V11 active market universe prepared.", {
+    this.log("INFO", "Focused BTC/ETH/SOL active market universe prepared.", {
       returned: symbols.length,
       focusedSymbols: focusList,
       eligible: accepted.length,
@@ -1049,6 +1049,37 @@ class Scanner {
     } else if (session.momentumWindow && !marketRegimeTags.includes("SIDEWAYS_CHOP_MARKET")) {
       addScore("session momentum window boost", 3);
     }
+    const inactivityRecovery = this.runtimeContext.dynamicInactivityRecovery || {
+      active: false,
+      convictionThresholdMultiplier: 1,
+      convictionThresholdDelta: 0,
+      convictionRelaxPct: 0,
+      convictionRelaxPoints: 0,
+      stage: "NONE",
+    };
+    const softenedRejections = [];
+    const softenNonSafetyRejection = (reason, penaltyPoints = 0, details = {}) => {
+      if (!this.config.participationRecoveryMode) {
+        rejected.push(reason);
+        return false;
+      }
+      const baseMultiplier = Number(this.config.participationRecoverySofteningMultiplier || 0.55);
+      const inactivityMultiplier = inactivityRecovery.active
+        ? Number(this.config.participationRecoveryInactivitySofteningMultiplier || baseMultiplier)
+        : baseMultiplier;
+      const appliedPenalty = Math.max(0, Number(penaltyPoints || 0) * inactivityMultiplier);
+      if (appliedPenalty > 0) {
+        addScore(`participation recovery softened ${reason}`, -appliedPenalty);
+      }
+      softenedRejections.push({
+        reason,
+        penaltyPoints: Number(appliedPenalty.toFixed(2)),
+        inactivityRecoveryStage: inactivityRecovery.stage,
+        inactivityRelaxed: Boolean(inactivityRecovery.active),
+        details,
+      });
+      return true;
+    };
     if (projectedNetEdgePct >= this.config.minProjectedEdgePct + 0.5 && feeEdgeRatio >= this.config.minEdgeToCostRatio + 0.75) {
       addScore("fee-aware expected edge clears costs", 8);
     } else if (projectedNetEdgePct < this.config.minProjectedEdgePct || feeEdgeRatio < this.config.minEdgeToCostRatio) {
@@ -1059,9 +1090,27 @@ class Scanner {
     if (smartProjectedNetEdgePct >= this.config.smartEdgeMinNetPct && tpProbability >= this.config.smartEdgeMinTpProbability) {
       addScore("projected net edge validated", 7);
     } else {
-      rejected.push(
-        `smart edge filter: probability-adjusted edge ${smartProjectedNetEdgePct.toFixed(3)}% with TP probability ${tpProbability.toFixed(3)}`
-      );
+      const slightlyBelowSmartEdge =
+        smartProjectedNetEdgePct >= this.config.smartEdgeMinNetPct * 0.82 &&
+        tpProbability >= this.config.smartEdgeMinTpProbability * 0.85 &&
+        projectedNetEdgePct >= this.config.explorationMinProjectedEdgePct &&
+        feeEdgeRatio >= this.config.explorationMinEdgeToCostRatio;
+      if (slightlyBelowSmartEdge) {
+        softenNonSafetyRejection(
+          `smart edge slightly below requirement: probability-adjusted edge ${smartProjectedNetEdgePct.toFixed(3)}% with TP probability ${tpProbability.toFixed(3)}`,
+          4,
+          {
+            smartProjectedNetEdgePct,
+            requiredSmartEdgePct: this.config.smartEdgeMinNetPct,
+            tpProbability,
+            requiredTpProbability: this.config.smartEdgeMinTpProbability,
+          }
+        );
+      } else {
+        rejected.push(
+          `smart edge filter: probability-adjusted edge ${smartProjectedNetEdgePct.toFixed(3)}% with TP probability ${tpProbability.toFixed(3)}`
+        );
+      }
     }
     if (personality === "EXPLOSIVE_TRENDING") {
       addScore("adaptive market personality switched: explosive trending", 5);
@@ -1076,22 +1125,32 @@ class Scanner {
     }
     const liquidityFloor = this.config.aggressiveLearningPhase ? this.config.minLiquidityScore * 0.5 : this.config.learningPhaseMode ? this.config.minLiquidityScore * 0.7 : this.config.minLiquidityScore;
     if (symbolLiquidityScore < liquidityFloor) {
-      rejected.push(`low liquidity quality score ${symbolLiquidityScore.toFixed(1)} below ${this.config.minLiquidityScore}`);
+      softenNonSafetyRejection(`low liquidity quality score ${symbolLiquidityScore.toFixed(1)} below ${this.config.minLiquidityScore}`, 6, {
+        liquidityScore: Number(symbolLiquidityScore.toFixed(2)),
+        liquidityFloor: Number(liquidityFloor.toFixed(2)),
+      });
     }
     if (
       marketRegimeTags.includes("LOW_LIQUIDITY_MARKET") &&
       symbolLiquidityScore < (this.config.aggressiveLearningPhase ? this.config.minLiquidityScore * 0.65 : this.config.learningPhaseMode ? this.config.minLiquidityScore * 0.85 : this.config.minLiquidityScore + 8)
     ) {
-      rejected.push("liquidity too weak for regime-aware entry");
+      softenNonSafetyRejection("liquidity too weak for regime-aware entry", 5, {
+        liquidityScore: Number(symbolLiquidityScore.toFixed(2)),
+      });
     }
     if (marketRegimeTags.includes("DEAD_MARKET_CONDITIONS") && !fomoTrigger && !this.config.learningPhaseMode) {
-      rejected.push("dead market conditions require an exceptional fast momentum trigger");
+      softenNonSafetyRejection("dead market conditions require an exceptional fast momentum trigger", 7, {
+        marketRegimeTags,
+      });
     }
     if (
       marketRegimeTags.includes("FAKE_BREAKOUT_ENVIRONMENT") &&
       (!supportsTrend || volumeSpike < this.config.minVolumeSpike + (this.config.aggressiveLearningPhase ? 0.15 : this.config.learningPhaseMode ? 0.15 : 0.45) || symbolTrendQualityScore < (this.config.aggressiveLearningPhase ? 52 : this.config.learningPhaseMode ? 55 : 65))
     ) {
-      rejected.push("fake breakout environment rejected weak breakout structure");
+      softenNonSafetyRejection("fake breakout environment rejected weak breakout structure", 7, {
+        volumeSpike: Number(volumeSpike.toFixed(2)),
+        trendQualityScore: Number(symbolTrendQualityScore.toFixed(2)),
+      });
     }
     const exceptionalChopBreakout =
       breakSignal &&
@@ -1114,14 +1173,19 @@ class Scanner {
       const antiChopPenalty = Math.min(this.config.antiChopPenaltyMax, chop.score * 5);
       addScore("anti-chop filter penalty", -antiChopPenalty);
       antiChopContribution -= antiChopPenalty;
-      rejected.push(`anti-chop filter activated: ${chop.reasons.join("; ")}`);
+      softenNonSafetyRejection(`anti-chop filter activated: ${chop.reasons.join("; ")}`, 0, {
+        antiChopScore: chop.score,
+        existingPenalty: antiChopPenalty,
+      });
     } else if (chop.score > 0) {
       const minorChopPenalty = Math.min(Math.min(8, this.config.antiChopPenaltyMax), chop.score * 1.5);
       addScore(moderateChopAccepted ? "moderate chop accepted by activity floor" : "minor chop-quality penalty", -minorChopPenalty);
       antiChopContribution -= minorChopPenalty;
     }
 
-    if (regime === "CHOPPY" && !this.config.allowChoppyMarket && !meanReversion.active) rejected.push("choppy-market entries disabled by configuration");
+    if (regime === "CHOPPY" && !this.config.allowChoppyMarket && !meanReversion.active) {
+      softenNonSafetyRejection("choppy-market entries disabled by configuration", 6, { regime });
+    }
     const baseVolumeSurvivabilityFloor = this.config.highActivityMode
       ? this.config.minVolumeSpike * 0.7
       : this.config.aggressiveLearningPhase
@@ -1133,8 +1197,17 @@ class Scanner {
       this.config.tradeFrequencyRecoveryMode ? this.config.volumeSurvivabilityRelaxationMultiplier : 1
     );
     const effectiveVolumeSurvivabilityFloor = meanReversion.active ? volumeSurvivabilityFloor * 0.8 : volumeSurvivabilityFloor;
-    if (volumeSpike < effectiveVolumeSurvivabilityFloor && !fomoTrigger && !highActivityContinuation) rejected.push("volume confirmation below survivability threshold");
-    if (!hasMomentumPersistence && !fomoTrigger && !breakSignal && !meanReversion.active) rejected.push("momentum did not persist long enough");
+    if (volumeSpike < effectiveVolumeSurvivabilityFloor && !fomoTrigger && !highActivityContinuation) {
+      softenNonSafetyRejection("volume confirmation below survivability threshold", 5, {
+        volumeSpike: Number(volumeSpike.toFixed(2)),
+        floor: Number(effectiveVolumeSurvivabilityFloor.toFixed(2)),
+      });
+    }
+    if (!hasMomentumPersistence && !fomoTrigger && !breakSignal && !meanReversion.active) {
+      softenNonSafetyRejection("momentum did not persist long enough", 5, {
+        momentumPersistenceCandles,
+      });
+    }
     if (
       regime === "CHOPPY" &&
       !fomoTrigger &&
@@ -1143,18 +1216,13 @@ class Scanner {
       !this.config.learningPhaseMode &&
       !meanReversion.active
     ) {
-      rejected.push("weak chop entry lacks breakout plus persistent volume/momentum");
+      softenNonSafetyRejection("weak chop entry lacks breakout plus persistent volume/momentum", 6, {
+        volumeSpike: Number(volumeSpike.toFixed(2)),
+        momentumPersistenceCandles,
+      });
     }
 
     let finalScore = clampScore(score);
-    const inactivityRecovery = this.runtimeContext.dynamicInactivityRecovery || {
-      active: false,
-      convictionThresholdMultiplier: 1,
-      convictionThresholdDelta: 0,
-      convictionRelaxPct: 0,
-      convictionRelaxPoints: 0,
-      stage: "NONE",
-    };
     const baseAdaptiveConvictionThreshold = convictionThresholdForRegime(this.config, regimeV2.regime);
     const adaptiveConvictionThreshold = Number(
       bounded(
@@ -1234,6 +1302,8 @@ class Scanner {
       reasons: scoreBreakdown,
       scoreBreakdown,
       rejected,
+      softenedRejections,
+      participationRecoveryMode: Boolean(this.config.participationRecoveryMode),
       fastMode: this.config.fastMode,
       fomoTrigger,
       breakoutTriggered,
@@ -1384,6 +1454,46 @@ class Scanner {
         nearMissGap <= this.config.nearMissMaxPointGap
     );
     signal.nearMissGap = signal.nearMiss ? nearMissGap : 0;
+    const nearMissSmallTradeGap = Math.min(
+      Number(this.config.nearMissMaxPointGap || 5),
+      Number(this.config.nearMissSmallTradeMaxGap || 3)
+    );
+    const nearMissBlockingReason = (signal.rejected || []).find((reason) =>
+      /fee inefficiency|blacklist|exchange minimum|PANIC regime|1h macro bias opposite|liquidation|margin|insufficient|unresolved|missing TP\/SL|protection/i.test(String(reason))
+    );
+    const nearMissPositiveEdge =
+      Number(signal.projectedNetEdgePct || 0) >= this.config.explorationMinProjectedEdgePct &&
+      Number(signal.feeEdgeRatio || 0) >= this.config.explorationMinEdgeToCostRatio &&
+      Number(signal.smartProjectedNetEdgePct || signal.projectedNetEdgePct || 0) >= this.config.edgeExplorationMinNetPct &&
+      Number(signal.estimatedTpProbability || 0) >= this.config.smartEdgeMinTpProbability * 0.85;
+    if (
+      this.config.nearMissSmallTradeEnabled &&
+      signal.nearMiss &&
+      signal.nearMissGap <= nearMissSmallTradeGap &&
+      nearMissPositiveEdge &&
+      !nearMissBlockingReason
+    ) {
+      signal.eligible = true;
+      signal.tradeCategory = "EXPLORATION";
+      signal.explorationTrade = true;
+      signal.nearMissTrade = true;
+      signal.nearMissSmallTradeAllowed = true;
+      signal.nearMissAllowedReason =
+        `near-miss within ${signal.nearMissGap.toFixed(2)} points allowed as small positive-edge exploratory trade`;
+      signal.explorationWaivedRejections = [...signal.strictRejectedReasons];
+      signal.rejected = [];
+      signal.scoreBreakdown.push(`near-miss small trade allowed +0 (${signal.nearMissGap.toFixed(2)} point gap)`);
+      signal.adaptiveReasons = [
+        ...(signal.adaptiveReasons || []),
+        "near-miss small trade allowed: non-safety filters relaxed while fee and risk gates remain active",
+      ];
+    } else if (signal.nearMiss) {
+      signal.nearMissBlockedReason = nearMissBlockingReason || (
+        !nearMissPositiveEdge
+          ? "near-miss not allowed because exploration-level post-cost edge was insufficient"
+          : `near-miss gap ${signal.nearMissGap.toFixed(2)} exceeds small-trade limit ${nearMissSmallTradeGap}`
+      );
+    }
     return signal;
   }
 
@@ -1557,6 +1667,9 @@ class Scanner {
         adaptiveConvictionThreshold: item.adaptiveConvictionThreshold,
         nearMiss: item.nearMiss,
         nearMissGap: item.nearMissGap,
+        nearMissTrade: item.nearMissTrade,
+        nearMissAllowedReason: item.nearMissAllowedReason,
+        nearMissBlockedReason: item.nearMissBlockedReason,
         explorationTrade: item.explorationTrade,
         explorationRequiredScore: item.explorationRequiredScore,
         explorationRequiredConvictionScore: item.explorationRequiredConvictionScore,
@@ -1586,6 +1699,8 @@ class Scanner {
         antiChopScore: item.antiChopScore,
         antiChopReasons: item.antiChopReasons,
         antiChopContribution: item.antiChopContribution,
+        softenedRejections: item.softenedRejections,
+        participationRecoveryMode: item.participationRecoveryMode,
         volumeSurvivabilityFloor: item.volumeSurvivabilityFloor,
         baseVolumeSurvivabilityFloor: item.baseVolumeSurvivabilityFloor,
         tradeFrequencyRecoveryActive: item.tradeFrequencyRecoveryActive,
@@ -1613,10 +1728,33 @@ class Scanner {
       });
     }
     const rejectReasons = {};
+    const softenedReasons = {};
     for (const item of analyses) {
       for (const reason of item.rejected || []) {
         const key = String(reason).replace(/:\s.*$/, "");
         rejectReasons[key] = (rejectReasons[key] || 0) + 1;
+      }
+      for (const softened of item.softenedRejections || []) {
+        const key = String(softened.reason || "").replace(/:\s.*$/, "");
+        if (!key) continue;
+        softenedReasons[key] = (softenedReasons[key] || 0) + 1;
+      }
+      if (!item.eligible) {
+        this.log("DEBUG", "SIGNAL_REJECTED", {
+          symbol: item.symbol,
+          side: item.side,
+          score: item.score,
+          requiredScore: item.requiredScore,
+          convictionScore: item.convictionScore,
+          requiredConvictionScore: item.requiredConvictionScore,
+          exactReasons: item.rejected || [],
+          explorationBlockReason: item.explorationBlockReason,
+          nearMiss: item.nearMiss,
+          nearMissGap: item.nearMissGap,
+          nearMissBlockedReason: item.nearMissBlockedReason,
+          softenedNonSafetyFilters: item.softenedRejections || [],
+          inactivityRecoveryStage: item.dynamicInactivityRecovery && item.dynamicInactivityRecovery.stage,
+        });
       }
     }
     const average = (field) => {
@@ -1636,6 +1774,8 @@ class Scanner {
         candidateCount: analyses.filter((item) => item.eligible).length,
         analyzedCount: analyses.length,
         rejectReasons,
+        softenedReasons,
+        softenedNonSafetyFilterCount: analyses.reduce((total, item) => total + (Array.isArray(item.softenedRejections) ? item.softenedRejections.length : 0), 0),
         antiChopContributionAverage: average("antiChopContribution"),
         convictionContributionAverage: average("convictionContribution"),
         adaptiveMinimumScore: this.adaptive && this.config.adaptiveLearningEnabled ? this.adaptive.currentPolicy().minSignalScore : this.config.minSignalScore,
@@ -1659,6 +1799,8 @@ class Scanner {
       analysisConcurrency: this.config.scanConcurrency,
       candleRequestsPerSymbol: 5,
       apiErrors: this.scanErrors,
+      rejectReasons,
+      softenedReasons,
       marketRegimeType: market.primary,
       marketRegimeTags: market.tags,
       marketRegimeConfidence: market.confidence,
@@ -1678,6 +1820,9 @@ class Scanner {
         regime: item.marketRegimeV2,
         marketRegimeTags: item.marketRegimeTags,
         gap: item.nearMissGap,
+        allowedAsSmallTrade: Boolean(item.nearMissTrade),
+        allowedReason: item.nearMissAllowedReason,
+        blockedReason: item.nearMissBlockedReason,
         price: item.price,
         expectedMovePct: item.expectedMovePct,
         rejected: item.rejected,
