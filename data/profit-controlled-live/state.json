@@ -2,31 +2,31 @@
   "version": 1,
   "exchange": "BYBIT_V5_LINEAR",
   "strategyProfile": "BYBIT_ADAPTIVE_STAT_SCALP_V2",
-  "updatedAt": "2026-06-16T06:40:06.134Z",
+  "updatedAt": "2026-06-16T15:26:29.088Z",
   "mode": "LIVE",
   "paused": false,
   "pauseReason": null,
   "equity": {
     "startingUsdt": 100,
-    "realizedPnlUsdt": -2.330147599999999,
-    "currentUsdt": 66.964804
+    "realizedPnlUsdt": -2.613777180000002,
+    "currentUsdt": 66.665305
   },
   "daily": {
     "date": "2026-06-16",
     "startingEquity": 66.908508,
-    "tradesOpened": 2,
-    "losingTrades": 1,
-    "realizedPnlUsdt": 0.05470440000000028,
-    "feesUsdt": 0.0274956,
-    "wins": 1,
-    "closedTrades": 2,
-    "explorationTrades": 0,
-    "recoveryModeActive": false,
-    "recoveryPnlPct": 0.0841,
-    "recoveryLosingStreak": 1,
-    "recoveryNoticeKey": "2026-06-16:0:0:0",
+    "tradesOpened": 8,
+    "losingTrades": 6,
+    "realizedPnlUsdt": -0.22892578000000283,
+    "feesUsdt": 0.11142578,
+    "wins": 2,
+    "closedTrades": 8,
+    "explorationTrades": 1,
+    "recoveryModeActive": true,
+    "recoveryPnlPct": -0.3635,
+    "recoveryLosingStreak": 4,
+    "recoveryNoticeKey": "2026-06-16:0:4:6",
     "profitProtectionActive": false,
-    "profitProtectionPnlPct": 0.0841
+    "profitProtectionPnlPct": -0.3635
   },
   "ladder": {
     "activeLevel": 1,
@@ -36,22 +36,22 @@
   },
   "openPositions": [],
   "lastPrices": {
-    "SOLUSDT": 73.47,
-    "ETHUSDT": 1760.84,
+    "SOLUSDT": 72.76,
+    "ETHUSDT": 1776.36,
     "BTCUSDT": 59738.7
   },
   "symbolCooldowns": {
     "SOLUSDT": {
-      "lastClosedAt": "2026-06-16T05:02:21.581Z",
-      "lastPnlUsdt": -0.008081,
-      "reentryUntil": "2026-06-16T05:05:21.581Z",
-      "lossCooldownUntil": "2026-06-16T05:32:21.581Z"
+      "lastClosedAt": "2026-06-16T14:40:06.318Z",
+      "lastPnlUsdt": -0.042986,
+      "reentryUntil": "2026-06-16T14:43:06.318Z",
+      "lossCooldownUntil": "2026-06-16T15:10:06.318Z"
     },
     "ETHUSDT": {
-      "lastClosedAt": "2026-06-16T05:00:59.347Z",
-      "lastPnlUsdt": 0.062786,
-      "reentryUntil": "2026-06-16T05:03:59.347Z",
-      "lossCooldownUntil": null
+      "lastClosedAt": "2026-06-16T14:40:07.808Z",
+      "lastPnlUsdt": -0.133077,
+      "reentryUntil": "2026-06-16T14:43:07.808Z",
+      "lossCooldownUntil": "2026-06-16T15:10:07.808Z"
     },
     "BTCUSDT": {
       "lastClosedAt": "2026-06-06T04:45:05.072Z",
@@ -61,14 +61,14 @@
     }
   },
   "performance": {
-    "closedTrades": 277,
-    "wins": 79,
-    "losses": 198,
-    "winRatePct": 28.52,
-    "grossPnlUsdt": 2.8571,
-    "realizedPnlUsdt": -2.330147,
-    "totalFeesUsdt": 5.18725,
-    "averageHoldSeconds": 768.33,
+    "closedTrades": 283,
+    "wins": 80,
+    "losses": 203,
+    "winRatePct": 28.27,
+    "grossPnlUsdt": 2.6574,
+    "realizedPnlUsdt": -2.613778,
+    "totalFeesUsdt": 5.271181,
+    "averageHoldSeconds": 768.51,
     "bestSymbol": {
       "symbol": "BTCUSDT",
       "realizedPnlUsdt": -0.482521,
@@ -76,31 +76,31 @@
     },
     "worstSymbol": {
       "symbol": "SOLUSDT",
-      "realizedPnlUsdt": -1.033136,
-      "winRatePct": 29.41
+      "realizedPnlUsdt": -1.095553,
+      "winRatePct": 28.85
     },
     "symbols": {
       "SOLUSDT": {
-        "closedTrades": 153,
+        "closedTrades": 156,
         "wins": 45,
-        "losses": 108,
-        "winRatePct": 29.41,
-        "grossPnlUsdt": 0.8436,
-        "realizedPnlUsdt": -1.033136,
-        "totalFeesUsdt": 1.876739,
-        "averageHoldSeconds": 769.05,
+        "losses": 111,
+        "winRatePct": 28.85,
+        "grossPnlUsdt": 0.8056,
+        "realizedPnlUsdt": -1.095553,
+        "totalFeesUsdt": 1.901156,
+        "averageHoldSeconds": 771.96,
         "bestTradePnlUsdt": 0.681274,
         "worstTradePnlUsdt": -0.386474
       },
       "ETHUSDT": {
-        "closedTrades": 110,
-        "wins": 30,
-        "losses": 80,
-        "winRatePct": 27.27,
-        "grossPnlUsdt": 1.5194,
-        "realizedPnlUsdt": -0.81449,
-        "totalFeesUsdt": 2.33389,
-        "averageHoldSeconds": 754.23,
+        "closedTrades": 113,
+        "wins": 31,
+        "losses": 82,
+        "winRatePct": 27.43,
+        "grossPnlUsdt": 1.3577,
+        "realizedPnlUsdt": -1.035704,
+        "totalFeesUsdt": 2.393404,
+        "averageHoldSeconds": 751.02,
         "bestTradePnlUsdt": 0.514228,
         "worstTradePnlUsdt": -0.316773
       },
@@ -118,2566 +118,2339 @@
       }
     }
   },
-  "consecutiveApiErrors": 0,
+  "consecutiveApiErrors": 2,
   "apiRecovery": {
     "active": false,
-    "stage": 1,
-    "source": "POSITION_MONITOR",
-    "lastError": "Bybit request failed (HTTP 200, code 10002): invalid request, please check your server timestamp or recv_window param: req_timestamp[1781591711279],server_timestamp[1781591717985],recv_window[5000].",
-    "recoveredAt": "2026-06-16T06:35:18.030Z",
-    "consecutiveApiErrors": 1,
+    "stage": 2,
+    "source": "TRADING_CYCLE",
+    "lastError": "Bybit request timed out.",
+    "recoveredAt": "2026-06-16T15:26:28.241Z",
+    "consecutiveApiErrors": 2,
     "shutdownSuppressed": true
   },
   "liveValidation": null,
   "profitControlled": {
     "namespace": "data/profit-controlled-live",
     "startEquityUsdt": 69.806622,
-    "lastSizingEquityBaseUsdt": 66.964804,
-    "sizingEquityBaseUsdt": 66.964804,
-    "usableMarginUsdt": 67.000449,
-    "exchangeReportedTotalEquityUsdt": 66.964804,
+    "lastSizingEquityBaseUsdt": 66.665305,
+    "sizingEquityBaseUsdt": 66.665305,
+    "usableMarginUsdt": 66.722018,
+    "exchangeReportedTotalEquityUsdt": 66.665305,
     "riskState": "RISK_STATE_REDUCED",
     "riskStateReasons": [
       "drawdown reached reduced-risk state"
     ],
     "totalOpenStopRiskPctLimit": 2.25,
     "correlatedClusterStopRiskPctLimit": 1.75,
-    "lastEquityCheckedAt": "2026-06-16T06:40:06.111Z",
-    "drawdownPct": 4.071,
-    "lastRiskCheckedAt": "2026-06-16T06:40:03.289Z",
+    "lastEquityCheckedAt": "2026-06-16T15:23:15.499Z",
+    "drawdownPct": 4.5,
+    "lastRiskCheckedAt": "2026-06-16T15:26:29.088Z",
     "nearMissStats": {
-      "tracked": 5645,
-      "correctRejects": 3687,
-      "missedOpportunities": 1947,
-      "unresolved": 5,
+      "tracked": 5723,
+      "correctRejects": 3732,
+      "missedOpportunities": 1985,
+      "unresolved": 0,
       "bySymbol": {
-        "ETHUSDT": 1871,
-        "SOLUSDT": 1898,
-        "BTCUSDT": 1876
+        "ETHUSDT": 1895,
+        "SOLUSDT": 1931,
+        "BTCUSDT": 1897
       },
       "byRegime": {
         "VOLATILE": 192,
-        "BREAKOUT": 781,
-        "SIDEWAYS_CHOP": 837,
-        "TRENDING": 3833,
+        "BREAKOUT": 813,
+        "SIDEWAYS_CHOP": 850,
+        "TRENDING": 3866,
         "PANIC": 2
       },
-      "pending": [
-        {
-          "symbol": "SOLUSDT",
-          "direction": "LONG",
-          "conviction": 54.04,
-          "score": 42,
-          "requiredScore": 44,
-          "requiredConvictionScore": 42,
-          "regime": "SIDEWAYS_CHOP",
-          "marketRegimeTags": [
-            "SIDEWAYS_CHOP_MARKET",
-            "ALTCOIN_MOMENTUM_MARKET"
-          ],
-          "gap": 2,
-          "price": 73.89,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "smart edge filter: probability-adjusted edge 0.206% with TP probability 0.450",
-            "choppy-market entries disabled by configuration"
-          ],
-          "timestamp": "2026-06-16T06:28:43.958Z",
-          "key": "SOLUSDT:LONG:SIDEWAYS_CHOP",
-          "trackedAt": "2026-06-16T06:28:43.958Z"
-        },
-        {
-          "symbol": "SOLUSDT",
-          "direction": "LONG",
-          "conviction": 58.5,
-          "score": 45.5,
-          "requiredScore": 46,
-          "requiredConvictionScore": 42,
-          "regime": "SIDEWAYS_CHOP",
-          "marketRegimeTags": [
-            "SIDEWAYS_CHOP_MARKET",
-            "LOW_LIQUIDITY_MARKET",
-            "ALTCOIN_MOMENTUM_MARKET"
-          ],
-          "gap": 0.5,
-          "price": 73.98,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "choppy-market entries disabled by configuration"
-          ],
-          "timestamp": "2026-06-16T06:36:56.793Z",
-          "key": "SOLUSDT:LONG:SIDEWAYS_CHOP",
-          "trackedAt": "2026-06-16T06:36:56.793Z"
-        },
-        {
-          "symbol": "BTCUSDT",
-          "direction": "LONG",
-          "conviction": 50.82,
-          "score": 46.5,
-          "requiredScore": 47,
-          "requiredConvictionScore": 44,
-          "regime": "BREAKOUT",
-          "marketRegimeTags": [
-            "SIDEWAYS_CHOP_MARKET",
-            "FAKE_BREAKOUT_ENVIRONMENT"
-          ],
-          "gap": 0.5,
-          "price": 66424.2,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "smart edge filter: probability-adjusted edge 0.190% with TP probability 0.450",
-            "fake breakout environment rejected weak breakout structure",
-            "choppy-market entries disabled by configuration"
-          ],
-          "timestamp": "2026-06-16T06:39:47.221Z",
-          "key": "BTCUSDT:LONG:BREAKOUT",
-          "trackedAt": "2026-06-16T06:39:47.221Z"
-        },
-        {
-          "symbol": "BTCUSDT",
-          "direction": "LONG",
-          "conviction": 50.45,
-          "score": 46.5,
-          "requiredScore": 47,
-          "requiredConvictionScore": 44,
-          "regime": "BREAKOUT",
-          "marketRegimeTags": [
-            "SIDEWAYS_CHOP_MARKET",
-            "FAKE_BREAKOUT_ENVIRONMENT"
-          ],
-          "gap": 0.5,
-          "price": 66420.3,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "smart edge filter: probability-adjusted edge 0.190% with TP probability 0.450",
-            "fake breakout environment rejected weak breakout structure",
-            "choppy-market entries disabled by configuration"
-          ],
-          "timestamp": "2026-06-16T06:39:55.618Z",
-          "key": "BTCUSDT:LONG:BREAKOUT",
-          "trackedAt": "2026-06-16T06:39:55.618Z"
-        },
-        {
-          "symbol": "BTCUSDT",
-          "direction": "LONG",
-          "conviction": 50.45,
-          "score": 46.5,
-          "requiredScore": 47,
-          "requiredConvictionScore": 44,
-          "regime": "BREAKOUT",
-          "marketRegimeTags": [
-            "SIDEWAYS_CHOP_MARKET",
-            "FAKE_BREAKOUT_ENVIRONMENT"
-          ],
-          "gap": 0.5,
-          "price": 66420.2,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "smart edge filter: probability-adjusted edge 0.190% with TP probability 0.450",
-            "fake breakout environment rejected weak breakout structure",
-            "choppy-market entries disabled by configuration"
-          ],
-          "timestamp": "2026-06-16T06:40:03.284Z",
-          "key": "BTCUSDT:LONG:BREAKOUT",
-          "trackedAt": "2026-06-16T06:40:03.284Z"
-        }
-      ],
+      "pending": [],
       "recent": [
         {
-          "symbol": "SOLUSDT",
-          "direction": "SHORT",
-          "conviction": 54.26,
-          "score": 42.32,
-          "requiredScore": 44,
-          "requiredConvictionScore": 38,
-          "regime": "SIDEWAYS_CHOP",
-          "marketRegimeTags": [
-            "SIDEWAYS_CHOP_MARKET"
-          ],
-          "gap": 1.68,
-          "price": 72.95,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "choppy-market entries disabled by configuration"
-          ],
-          "timestamp": "2026-06-16T02:34:19.153Z",
-          "key": "SOLUSDT:SHORT:SIDEWAYS_CHOP",
-          "trackedAt": "2026-06-16T02:34:19.153Z",
-          "observedAt": "2026-06-16T03:24:32.298Z",
-          "outcome": "CORRECT_REJECT",
-          "directionalMovePct": -0.3016
-        },
-        {
-          "symbol": "SOLUSDT",
-          "direction": "SHORT",
-          "conviction": 54.26,
-          "score": 42.32,
-          "requiredScore": 44,
-          "requiredConvictionScore": 38,
-          "regime": "SIDEWAYS_CHOP",
-          "marketRegimeTags": [
-            "SIDEWAYS_CHOP_MARKET"
-          ],
-          "gap": 1.68,
-          "price": 72.94,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "choppy-market entries disabled by configuration"
-          ],
-          "timestamp": "2026-06-16T02:34:27.793Z",
-          "key": "SOLUSDT:SHORT:SIDEWAYS_CHOP",
-          "trackedAt": "2026-06-16T02:34:27.793Z",
-          "observedAt": "2026-06-16T03:24:32.298Z",
-          "outcome": "CORRECT_REJECT",
-          "directionalMovePct": -0.3153
-        },
-        {
-          "symbol": "SOLUSDT",
-          "direction": "SHORT",
-          "conviction": 52.05,
-          "score": 42.32,
-          "requiredScore": 44,
-          "requiredConvictionScore": 38,
-          "regime": "SIDEWAYS_CHOP",
-          "marketRegimeTags": [
-            "SIDEWAYS_CHOP_MARKET"
-          ],
-          "gap": 1.68,
-          "price": 72.94,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "choppy-market entries disabled by configuration"
-          ],
-          "timestamp": "2026-06-16T02:34:38.160Z",
-          "key": "SOLUSDT:SHORT:SIDEWAYS_CHOP",
-          "trackedAt": "2026-06-16T02:34:38.160Z",
-          "observedAt": "2026-06-16T03:24:32.298Z",
-          "outcome": "CORRECT_REJECT",
-          "directionalMovePct": -0.3153
-        },
-        {
-          "symbol": "SOLUSDT",
-          "direction": "SHORT",
-          "conviction": 47.32,
-          "score": 41,
-          "requiredScore": 44,
-          "requiredConvictionScore": 38,
-          "regime": "SIDEWAYS_CHOP",
-          "marketRegimeTags": [
-            "LOW_LIQUIDITY_MARKET"
-          ],
-          "gap": 3,
-          "price": 72.96,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "volume confirmation below survivability threshold"
-          ],
-          "timestamp": "2026-06-16T03:21:58.394Z",
-          "key": "SOLUSDT:SHORT:SIDEWAYS_CHOP",
-          "trackedAt": "2026-06-16T03:21:58.394Z",
-          "observedAt": "2026-06-16T03:24:32.298Z",
-          "outcome": "CORRECT_REJECT",
-          "directionalMovePct": -0.2878
-        },
-        {
-          "symbol": "SOLUSDT",
-          "direction": "SHORT",
-          "conviction": 47.32,
-          "score": 41,
-          "requiredScore": 44,
-          "requiredConvictionScore": 38,
-          "regime": "SIDEWAYS_CHOP",
-          "marketRegimeTags": [
-            "LOW_LIQUIDITY_MARKET"
-          ],
-          "gap": 3,
-          "price": 72.96,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "volume confirmation below survivability threshold"
-          ],
-          "timestamp": "2026-06-16T03:22:06.768Z",
-          "key": "SOLUSDT:SHORT:SIDEWAYS_CHOP",
-          "trackedAt": "2026-06-16T03:22:06.768Z",
-          "observedAt": "2026-06-16T03:24:32.298Z",
-          "outcome": "CORRECT_REJECT",
-          "directionalMovePct": -0.2878
-        },
-        {
-          "symbol": "ETHUSDT",
-          "direction": "SHORT",
-          "conviction": 58.34,
-          "score": 43,
-          "requiredScore": 44,
-          "requiredConvictionScore": 38,
-          "regime": "SIDEWAYS_CHOP",
-          "marketRegimeTags": [
-            "SIDEWAYS_CHOP_MARKET",
-            "ALTCOIN_MOMENTUM_MARKET"
-          ],
-          "gap": 1,
-          "price": 1768.86,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "smart edge filter: probability-adjusted edge 0.199% with TP probability 0.460",
-            "choppy-market entries disabled by configuration"
-          ],
-          "timestamp": "2026-06-16T02:57:21.919Z",
-          "key": "ETHUSDT:SHORT:SIDEWAYS_CHOP",
-          "trackedAt": "2026-06-16T02:57:21.919Z",
-          "observedAt": "2026-06-16T03:25:20.325Z",
-          "outcome": "CORRECT_REJECT",
-          "directionalMovePct": -0.3313
-        },
-        {
-          "symbol": "ETHUSDT",
-          "direction": "SHORT",
-          "conviction": 59.61,
-          "score": 43,
-          "requiredScore": 44,
-          "requiredConvictionScore": 38,
-          "regime": "SIDEWAYS_CHOP",
-          "marketRegimeTags": [
-            "SIDEWAYS_CHOP_MARKET",
-            "ALTCOIN_MOMENTUM_MARKET"
-          ],
-          "gap": 1,
-          "price": 1769.01,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "smart edge filter: probability-adjusted edge 0.199% with TP probability 0.460",
-            "choppy-market entries disabled by configuration"
-          ],
-          "timestamp": "2026-06-16T02:57:29.696Z",
-          "key": "ETHUSDT:SHORT:SIDEWAYS_CHOP",
-          "trackedAt": "2026-06-16T02:57:29.696Z",
-          "observedAt": "2026-06-16T03:25:20.325Z",
-          "outcome": "CORRECT_REJECT",
-          "directionalMovePct": -0.3228
-        },
-        {
-          "symbol": "SOLUSDT",
-          "direction": "LONG",
-          "conviction": 58.5,
-          "score": 41.5,
-          "requiredScore": 44,
-          "requiredConvictionScore": 38,
-          "regime": "SIDEWAYS_CHOP",
-          "marketRegimeTags": [
-            "SIDEWAYS_CHOP_MARKET",
-            "ALTCOIN_MOMENTUM_MARKET"
-          ],
-          "gap": 2.5,
-          "price": 73.44,
-          "expectedMovePct": 1.1285909712722728,
-          "rejected": [
-            "smart edge filter: probability-adjusted edge 0.257% with TP probability 0.450",
-            "choppy-market entries disabled by configuration"
-          ],
-          "timestamp": "2026-06-16T03:26:29.816Z",
-          "key": "SOLUSDT:LONG:SIDEWAYS_CHOP",
-          "trackedAt": "2026-06-16T03:26:29.816Z"
-        },
-        {
-          "symbol": "SOLUSDT",
-          "direction": "LONG",
-          "conviction": 61.09,
-          "score": 43,
-          "requiredScore": 44,
-          "requiredConvictionScore": 38,
-          "regime": "SIDEWAYS_CHOP",
-          "marketRegimeTags": [
-            "SIDEWAYS_CHOP_MARKET",
-            "ALTCOIN_MOMENTUM_MARKET"
-          ],
-          "gap": 1,
-          "price": 73.45,
-          "expectedMovePct": 1.1627906976744302,
-          "rejected": [
-            "smart edge filter: probability-adjusted edge 0.279% with TP probability 0.450",
-            "choppy-market entries disabled by configuration"
-          ],
-          "timestamp": "2026-06-16T03:26:44.659Z",
-          "key": "SOLUSDT:LONG:SIDEWAYS_CHOP",
-          "trackedAt": "2026-06-16T03:26:44.659Z"
-        },
-        {
-          "symbol": "SOLUSDT",
-          "direction": "LONG",
-          "conviction": 61.09,
-          "score": 43,
-          "requiredScore": 44,
-          "requiredConvictionScore": 38,
-          "regime": "SIDEWAYS_CHOP",
-          "marketRegimeTags": [
-            "SIDEWAYS_CHOP_MARKET",
-            "ALTCOIN_MOMENTUM_MARKET"
-          ],
-          "gap": 1,
-          "price": 73.45,
-          "expectedMovePct": 1.1969904240766365,
-          "rejected": [
-            "smart edge filter: probability-adjusted edge 0.294% with TP probability 0.450",
-            "choppy-market entries disabled by configuration"
-          ],
-          "timestamp": "2026-06-16T03:26:52.338Z",
-          "key": "SOLUSDT:LONG:SIDEWAYS_CHOP",
-          "trackedAt": "2026-06-16T03:26:52.338Z"
-        },
-        {
           "symbol": "ETHUSDT",
           "direction": "LONG",
-          "conviction": 60.01,
-          "score": 43,
+          "conviction": 49.63,
+          "score": 41.4,
           "requiredScore": 44,
-          "requiredConvictionScore": 38,
-          "regime": "SIDEWAYS_CHOP",
-          "marketRegimeTags": [
-            "SIDEWAYS_CHOP_MARKET",
-            "ALTCOIN_MOMENTUM_MARKET"
-          ],
-          "gap": 1,
-          "price": 1778.91,
-          "expectedMovePct": 1.1178483113715763,
-          "rejected": [
-            "smart edge filter: probability-adjusted edge 0.270% with TP probability 0.450",
-            "choppy-market entries disabled by configuration"
-          ],
-          "timestamp": "2026-06-16T03:27:00.398Z",
-          "key": "ETHUSDT:LONG:SIDEWAYS_CHOP",
-          "trackedAt": "2026-06-16T03:27:00.398Z"
-        },
-        {
-          "symbol": "SOLUSDT",
-          "direction": "LONG",
-          "conviction": 58.5,
-          "score": 41.5,
-          "requiredScore": 44,
-          "requiredConvictionScore": 38,
-          "regime": "SIDEWAYS_CHOP",
-          "marketRegimeTags": [
-            "SIDEWAYS_CHOP_MARKET",
-            "ALTCOIN_MOMENTUM_MARKET"
-          ],
-          "gap": 2.5,
-          "price": 73.44,
-          "expectedMovePct": 1.1285909712722728,
-          "rejected": [
-            "smart edge filter: probability-adjusted edge 0.257% with TP probability 0.450",
-            "choppy-market entries disabled by configuration"
-          ],
-          "timestamp": "2026-06-16T03:26:29.816Z",
-          "key": "SOLUSDT:LONG:SIDEWAYS_CHOP",
-          "trackedAt": "2026-06-16T03:26:29.816Z",
-          "observedAt": "2026-06-16T04:04:53.223Z",
-          "outcome": "MISSED_OPPORTUNITY",
-          "directionalMovePct": 0.5174
-        },
-        {
-          "symbol": "SOLUSDT",
-          "direction": "LONG",
-          "conviction": 61.09,
-          "score": 43,
-          "requiredScore": 44,
-          "requiredConvictionScore": 38,
-          "regime": "SIDEWAYS_CHOP",
-          "marketRegimeTags": [
-            "SIDEWAYS_CHOP_MARKET",
-            "ALTCOIN_MOMENTUM_MARKET"
-          ],
-          "gap": 1,
-          "price": 73.45,
-          "expectedMovePct": 1.1627906976744302,
-          "rejected": [
-            "smart edge filter: probability-adjusted edge 0.279% with TP probability 0.450",
-            "choppy-market entries disabled by configuration"
-          ],
-          "timestamp": "2026-06-16T03:26:44.659Z",
-          "key": "SOLUSDT:LONG:SIDEWAYS_CHOP",
-          "trackedAt": "2026-06-16T03:26:44.659Z",
-          "observedAt": "2026-06-16T04:05:34.948Z",
-          "outcome": "MISSED_OPPORTUNITY",
-          "directionalMovePct": 0.5718
-        },
-        {
-          "symbol": "SOLUSDT",
-          "direction": "LONG",
-          "conviction": 61.09,
-          "score": 43,
-          "requiredScore": 44,
-          "requiredConvictionScore": 38,
-          "regime": "SIDEWAYS_CHOP",
-          "marketRegimeTags": [
-            "SIDEWAYS_CHOP_MARKET",
-            "ALTCOIN_MOMENTUM_MARKET"
-          ],
-          "gap": 1,
-          "price": 73.45,
-          "expectedMovePct": 1.1969904240766365,
-          "rejected": [
-            "smart edge filter: probability-adjusted edge 0.294% with TP probability 0.450",
-            "choppy-market entries disabled by configuration"
-          ],
-          "timestamp": "2026-06-16T03:26:52.338Z",
-          "key": "SOLUSDT:LONG:SIDEWAYS_CHOP",
-          "trackedAt": "2026-06-16T03:26:52.338Z",
-          "observedAt": "2026-06-16T04:05:34.948Z",
-          "outcome": "MISSED_OPPORTUNITY",
-          "directionalMovePct": 0.5718
-        },
-        {
-          "symbol": "ETHUSDT",
-          "direction": "LONG",
-          "conviction": 60.01,
-          "score": 43,
-          "requiredScore": 44,
-          "requiredConvictionScore": 38,
-          "regime": "SIDEWAYS_CHOP",
-          "marketRegimeTags": [
-            "SIDEWAYS_CHOP_MARKET",
-            "ALTCOIN_MOMENTUM_MARKET"
-          ],
-          "gap": 1,
-          "price": 1778.91,
-          "expectedMovePct": 1.1178483113715763,
-          "rejected": [
-            "smart edge filter: probability-adjusted edge 0.270% with TP probability 0.450",
-            "choppy-market entries disabled by configuration"
-          ],
-          "timestamp": "2026-06-16T03:27:00.398Z",
-          "key": "ETHUSDT:LONG:SIDEWAYS_CHOP",
-          "trackedAt": "2026-06-16T03:27:00.398Z",
-          "observedAt": "2026-06-16T04:18:46.130Z",
-          "outcome": "CORRECT_REJECT",
-          "directionalMovePct": -0.2912
-        },
-        {
-          "symbol": "SOLUSDT",
-          "direction": "SHORT",
-          "conviction": 48.03,
-          "score": 43.5,
-          "requiredScore": 46,
           "requiredConvictionScore": 40,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "SIDEWAYS_CHOP_MARKET",
-            "LOW_LIQUIDITY_MARKET"
-          ],
-          "gap": 2.5,
-          "price": 73.55,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "smart edge filter: probability-adjusted edge 0.173% with TP probability 0.450"
-          ],
-          "timestamp": "2026-06-16T04:22:59.881Z",
-          "key": "SOLUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:22:59.881Z"
-        },
-        {
-          "symbol": "ETHUSDT",
-          "direction": "SHORT",
-          "conviction": 34.9,
-          "score": 41,
-          "requiredScore": 44,
-          "requiredConvictionScore": 36,
           "regime": "SIDEWAYS_CHOP",
           "marketRegimeTags": [
-            "LOW_LIQUIDITY_MARKET"
+            "SIDEWAYS_CHOP_MARKET"
           ],
-          "gap": 3,
-          "price": 1772.74,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "low conviction: 34.9 below 36"
-          ],
-          "timestamp": "2026-06-16T04:23:30.551Z",
-          "key": "ETHUSDT:SHORT:SIDEWAYS_CHOP",
-          "trackedAt": "2026-06-16T04:23:30.551Z"
-        },
-        {
-          "symbol": "BTCUSDT",
-          "direction": "SHORT",
-          "conviction": 49.55,
-          "score": 44.5,
-          "requiredScore": 46,
-          "requiredConvictionScore": 36,
-          "regime": "SIDEWAYS_CHOP",
-          "marketRegimeTags": [
-            "SIDEWAYS_CHOP_MARKET",
-            "LOW_LIQUIDITY_MARKET"
-          ],
-          "gap": 1.5,
-          "price": 66043.3,
+          "gap": 2.6,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 2.60 points allowed as small positive-edge exploratory trade",
+          "price": 1806.5,
           "expectedMovePct": 0.95,
           "rejected": [],
-          "timestamp": "2026-06-16T04:23:54.128Z",
-          "key": "BTCUSDT:SHORT:SIDEWAYS_CHOP",
-          "trackedAt": "2026-06-16T04:23:54.128Z"
+          "timestamp": "2026-06-16T12:11:42.192Z",
+          "key": "ETHUSDT:LONG:SIDEWAYS_CHOP",
+          "trackedAt": "2026-06-16T12:11:42.192Z"
         },
         {
-          "symbol": "BTCUSDT",
-          "direction": "SHORT",
-          "conviction": 52,
-          "score": 44.5,
-          "requiredScore": 46,
-          "requiredConvictionScore": 36,
+          "symbol": "ETHUSDT",
+          "direction": "LONG",
+          "conviction": 48.99,
+          "score": 41.4,
+          "requiredScore": 44,
+          "requiredConvictionScore": 40,
           "regime": "SIDEWAYS_CHOP",
           "marketRegimeTags": [
-            "SIDEWAYS_CHOP_MARKET",
-            "LOW_LIQUIDITY_MARKET"
+            "SIDEWAYS_CHOP_MARKET"
           ],
-          "gap": 1.5,
-          "price": 66039.1,
+          "gap": 2.6,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 2.60 points allowed as small positive-edge exploratory trade",
+          "price": 1806.1,
           "expectedMovePct": 0.95,
           "rejected": [],
-          "timestamp": "2026-06-16T04:24:01.096Z",
-          "key": "BTCUSDT:SHORT:SIDEWAYS_CHOP",
-          "trackedAt": "2026-06-16T04:24:01.096Z"
+          "timestamp": "2026-06-16T12:11:48.526Z",
+          "key": "ETHUSDT:LONG:SIDEWAYS_CHOP",
+          "trackedAt": "2026-06-16T12:11:48.526Z"
         },
         {
           "symbol": "ETHUSDT",
-          "direction": "SHORT",
-          "conviction": 41.34,
-          "score": 40,
-          "requiredScore": 42,
-          "requiredConvictionScore": 40,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "ALTCOIN_MOMENTUM_MARKET"
-          ],
-          "gap": 2,
-          "price": 1770.96,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "smart edge filter: probability-adjusted edge 0.218% with TP probability 0.480",
-            "anti-chop filter activated: symbol EMA trend is choppy; range expansion is weak; candle body is not decisive; volume confirmation is weak",
-            "volume confirmation below survivability threshold"
-          ],
-          "timestamp": "2026-06-16T04:25:41.585Z",
-          "key": "ETHUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:25:41.585Z"
-        },
-        {
-          "symbol": "SOLUSDT",
-          "direction": "SHORT",
-          "conviction": 38.14,
-          "score": 69.5,
-          "requiredScore": 42,
-          "requiredConvictionScore": 40,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "ALTCOIN_MOMENTUM_MARKET"
-          ],
-          "gap": 1.86,
-          "price": 73.54,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "volume confirmation below survivability threshold",
-            "low conviction: 38.1 below 40"
-          ],
-          "timestamp": "2026-06-16T04:27:29.084Z",
-          "key": "SOLUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:27:29.084Z"
-        },
-        {
-          "symbol": "BTCUSDT",
-          "direction": "SHORT",
-          "conviction": 44.69,
-          "score": 64.5,
-          "requiredScore": 42,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "ALTCOIN_MOMENTUM_MARKET"
-          ],
-          "gap": 1.31,
-          "price": 66004,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "volume confirmation below survivability threshold",
-            "low conviction: 44.7 below 46"
-          ],
-          "timestamp": "2026-06-16T04:27:49.191Z",
-          "key": "BTCUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:27:49.191Z"
-        },
-        {
-          "symbol": "BTCUSDT",
-          "direction": "SHORT",
-          "conviction": 44.69,
-          "score": 64.5,
-          "requiredScore": 42,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "ALTCOIN_MOMENTUM_MARKET"
-          ],
-          "gap": 1.31,
-          "price": 66004,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "volume confirmation below survivability threshold",
-            "low conviction: 44.7 below 46"
-          ],
-          "timestamp": "2026-06-16T04:27:59.863Z",
-          "key": "BTCUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:27:59.863Z"
-        },
-        {
-          "symbol": "BTCUSDT",
-          "direction": "SHORT",
-          "conviction": 44.88,
-          "score": 64.5,
-          "requiredScore": 42,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "ALTCOIN_MOMENTUM_MARKET"
-          ],
-          "gap": 1.12,
-          "price": 66006.6,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "volume confirmation below survivability threshold",
-            "low conviction: 44.9 below 46"
-          ],
-          "timestamp": "2026-06-16T04:28:09.969Z",
-          "key": "BTCUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:28:09.969Z"
-        },
-        {
-          "symbol": "SOLUSDT",
-          "direction": "SHORT",
-          "conviction": 45.54,
-          "score": 39,
-          "requiredScore": 42,
-          "requiredConvictionScore": 42,
-          "regime": "SIDEWAYS_CHOP",
-          "marketRegimeTags": [
-            "ALTCOIN_MOMENTUM_MARKET"
-          ],
-          "gap": 3,
-          "price": 73.52,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "smart edge filter: probability-adjusted edge 0.202% with TP probability 0.480",
-            "anti-chop filter activated: symbol EMA trend is choppy; range expansion is weak; candle body is not decisive; volume confirmation is weak",
-            "volume confirmation below survivability threshold"
-          ],
-          "timestamp": "2026-06-16T04:28:09.969Z",
-          "key": "SOLUSDT:SHORT:SIDEWAYS_CHOP",
-          "trackedAt": "2026-06-16T04:28:09.969Z"
-        },
-        {
-          "symbol": "BTCUSDT",
-          "direction": "SHORT",
-          "conviction": 45.49,
-          "score": 42,
-          "requiredScore": 42,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "ALTCOIN_MOMENTUM_MARKET"
-          ],
-          "gap": 0.51,
-          "price": 65999.4,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "smart edge filter: probability-adjusted edge 0.218% with TP probability 0.480",
-            "anti-chop filter activated: symbol EMA trend is choppy; range expansion is weak; candle body is not decisive; volume confirmation is weak",
-            "volume confirmation below survivability threshold",
-            "low conviction: 45.5 below 46"
-          ],
-          "timestamp": "2026-06-16T04:28:19.358Z",
-          "key": "BTCUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:28:19.358Z"
-        },
-        {
-          "symbol": "BTCUSDT",
-          "direction": "SHORT",
-          "conviction": 45.49,
-          "score": 42,
-          "requiredScore": 42,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "ALTCOIN_MOMENTUM_MARKET"
-          ],
-          "gap": 0.51,
-          "price": 65999.4,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "smart edge filter: probability-adjusted edge 0.218% with TP probability 0.480",
-            "anti-chop filter activated: symbol EMA trend is choppy; range expansion is weak; candle body is not decisive; volume confirmation is weak",
-            "volume confirmation below survivability threshold",
-            "low conviction: 45.5 below 46"
-          ],
-          "timestamp": "2026-06-16T04:28:28.031Z",
-          "key": "BTCUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:28:28.031Z"
-        },
-        {
-          "symbol": "ETHUSDT",
-          "direction": "SHORT",
-          "conviction": 34.9,
-          "score": 41,
+          "direction": "LONG",
+          "conviction": 49.63,
+          "score": 41.4,
           "requiredScore": 44,
-          "requiredConvictionScore": 36,
+          "requiredConvictionScore": 40,
           "regime": "SIDEWAYS_CHOP",
           "marketRegimeTags": [
-            "LOW_LIQUIDITY_MARKET"
+            "SIDEWAYS_CHOP_MARKET"
           ],
-          "gap": 3,
-          "price": 1772.74,
+          "gap": 2.6,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 2.60 points allowed as small positive-edge exploratory trade",
+          "price": 1806.5,
           "expectedMovePct": 0.95,
-          "rejected": [
-            "low conviction: 34.9 below 36"
+          "rejected": [],
+          "timestamp": "2026-06-16T12:11:42.192Z",
+          "key": "ETHUSDT:LONG:SIDEWAYS_CHOP",
+          "trackedAt": "2026-06-16T12:11:42.192Z",
+          "observedAt": "2026-06-16T12:16:02.114Z",
+          "outcome": "MISSED_OPPORTUNITY",
+          "directionalMovePct": 0.4312
+        },
+        {
+          "symbol": "ETHUSDT",
+          "direction": "LONG",
+          "conviction": 48.99,
+          "score": 41.4,
+          "requiredScore": 44,
+          "requiredConvictionScore": 40,
+          "regime": "SIDEWAYS_CHOP",
+          "marketRegimeTags": [
+            "SIDEWAYS_CHOP_MARKET"
           ],
-          "timestamp": "2026-06-16T04:23:30.551Z",
-          "key": "ETHUSDT:SHORT:SIDEWAYS_CHOP",
-          "trackedAt": "2026-06-16T04:23:30.551Z",
-          "observedAt": "2026-06-16T04:31:04.462Z",
+          "gap": 2.6,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 2.60 points allowed as small positive-edge exploratory trade",
+          "price": 1806.1,
+          "expectedMovePct": 0.95,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:11:48.526Z",
+          "key": "ETHUSDT:LONG:SIDEWAYS_CHOP",
+          "trackedAt": "2026-06-16T12:11:48.526Z",
+          "observedAt": "2026-06-16T12:16:02.114Z",
           "outcome": "MISSED_OPPORTUNITY",
           "directionalMovePct": 0.4535
         },
         {
-          "symbol": "ETHUSDT",
-          "direction": "SHORT",
-          "conviction": 41.34,
-          "score": 40,
-          "requiredScore": 42,
-          "requiredConvictionScore": 40,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "ALTCOIN_MOMENTUM_MARKET"
-          ],
-          "gap": 2,
-          "price": 1770.96,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "smart edge filter: probability-adjusted edge 0.218% with TP probability 0.480",
-            "anti-chop filter activated: symbol EMA trend is choppy; range expansion is weak; candle body is not decisive; volume confirmation is weak",
-            "volume confirmation below survivability threshold"
-          ],
-          "timestamp": "2026-06-16T04:25:41.585Z",
-          "key": "ETHUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:25:41.585Z",
-          "observedAt": "2026-06-16T04:31:14.786Z",
-          "outcome": "MISSED_OPPORTUNITY",
-          "directionalMovePct": 0.4834
-        },
-        {
-          "symbol": "SOLUSDT",
-          "direction": "SHORT",
-          "conviction": 48.03,
-          "score": 43.5,
-          "requiredScore": 46,
-          "requiredConvictionScore": 40,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "SIDEWAYS_CHOP_MARKET",
-            "LOW_LIQUIDITY_MARKET"
-          ],
-          "gap": 2.5,
-          "price": 73.55,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "smart edge filter: probability-adjusted edge 0.173% with TP probability 0.450"
-          ],
-          "timestamp": "2026-06-16T04:22:59.881Z",
-          "key": "SOLUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:22:59.881Z",
-          "observedAt": "2026-06-16T04:31:28.159Z",
-          "outcome": "MISSED_OPPORTUNITY",
-          "directionalMovePct": 0.4487
-        },
-        {
-          "symbol": "SOLUSDT",
-          "direction": "SHORT",
-          "conviction": 38.14,
-          "score": 69.5,
-          "requiredScore": 42,
-          "requiredConvictionScore": 40,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "ALTCOIN_MOMENTUM_MARKET"
-          ],
-          "gap": 1.86,
-          "price": 73.54,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "volume confirmation below survivability threshold",
-            "low conviction: 38.1 below 40"
-          ],
-          "timestamp": "2026-06-16T04:27:29.084Z",
-          "key": "SOLUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:27:29.084Z",
-          "observedAt": "2026-06-16T04:31:28.159Z",
-          "outcome": "MISSED_OPPORTUNITY",
-          "directionalMovePct": 0.4351
-        },
-        {
-          "symbol": "SOLUSDT",
-          "direction": "SHORT",
-          "conviction": 45.54,
-          "score": 39,
-          "requiredScore": 42,
-          "requiredConvictionScore": 42,
-          "regime": "SIDEWAYS_CHOP",
-          "marketRegimeTags": [
-            "ALTCOIN_MOMENTUM_MARKET"
-          ],
-          "gap": 3,
-          "price": 73.52,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "smart edge filter: probability-adjusted edge 0.202% with TP probability 0.480",
-            "anti-chop filter activated: symbol EMA trend is choppy; range expansion is weak; candle body is not decisive; volume confirmation is weak",
-            "volume confirmation below survivability threshold"
-          ],
-          "timestamp": "2026-06-16T04:28:09.969Z",
-          "key": "SOLUSDT:SHORT:SIDEWAYS_CHOP",
-          "trackedAt": "2026-06-16T04:28:09.969Z",
-          "observedAt": "2026-06-16T04:32:28.718Z",
-          "outcome": "MISSED_OPPORTUNITY",
-          "directionalMovePct": 0.4625
-        },
-        {
-          "symbol": "SOLUSDT",
-          "direction": "SHORT",
-          "conviction": 43.87,
-          "score": 70.5,
-          "requiredScore": 40,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "STRONG_TRENDING_MARKET"
-          ],
-          "gap": 2.13,
-          "price": 73.33,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "low conviction: 43.9 below 46"
-          ],
-          "timestamp": "2026-06-16T04:33:30.170Z",
-          "key": "SOLUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:33:30.170Z"
-        },
-        {
-          "symbol": "BTCUSDT",
-          "direction": "SHORT",
-          "conviction": 43.64,
-          "score": 67.75,
-          "requiredScore": 40,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "STRONG_TRENDING_MARKET"
-          ],
-          "gap": 2.36,
-          "price": 65883.1,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "low conviction: 43.6 below 46"
-          ],
-          "timestamp": "2026-06-16T04:33:30.170Z",
-          "key": "BTCUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:33:30.170Z"
-        },
-        {
-          "symbol": "BTCUSDT",
-          "direction": "SHORT",
-          "conviction": 45.78,
-          "score": 67.75,
-          "requiredScore": 40,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "STRONG_TRENDING_MARKET"
-          ],
-          "gap": 0.22,
-          "price": 65867.2,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "low conviction: 45.8 below 46"
-          ],
-          "timestamp": "2026-06-16T04:33:40.596Z",
-          "key": "BTCUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:33:40.596Z"
-        },
-        {
-          "symbol": "BTCUSDT",
-          "direction": "SHORT",
-          "conviction": 45.83,
-          "score": 67.75,
-          "requiredScore": 40,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "STRONG_TRENDING_MARKET"
-          ],
-          "gap": 0.17,
-          "price": 65867.1,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "low conviction: 45.8 below 46"
-          ],
-          "timestamp": "2026-06-16T04:33:50.713Z",
-          "key": "BTCUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:33:50.713Z"
-        },
-        {
-          "symbol": "BTCUSDT",
-          "direction": "SHORT",
-          "conviction": 43.33,
-          "score": 67.75,
-          "requiredScore": 40,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "STRONG_TRENDING_MARKET"
-          ],
-          "gap": 2.67,
-          "price": 65860.6,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "low conviction: 43.3 below 46"
-          ],
-          "timestamp": "2026-06-16T04:34:35.926Z",
-          "key": "BTCUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:34:35.926Z"
-        },
-        {
-          "symbol": "SOLUSDT",
-          "direction": "SHORT",
-          "conviction": 44.3,
-          "score": 75.5,
-          "requiredScore": 40,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "STRONG_TRENDING_MARKET"
-          ],
-          "gap": 1.7,
-          "price": 73.25,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "low conviction: 44.3 below 46"
-          ],
-          "timestamp": "2026-06-16T04:35:34.608Z",
-          "key": "SOLUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:35:34.608Z"
-        },
-        {
-          "symbol": "ETHUSDT",
-          "direction": "SHORT",
-          "conviction": 43.54,
-          "score": 48,
-          "requiredScore": 40,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "STRONG_TRENDING_MARKET"
-          ],
-          "gap": 2.46,
-          "price": 1763.8,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "anti-chop filter activated: symbol EMA trend is choppy; range expansion is weak; candle body is not decisive; volume confirmation is weak",
-            "volume confirmation below survivability threshold",
-            "low conviction: 43.5 below 46"
-          ],
-          "timestamp": "2026-06-16T04:36:22.160Z",
-          "key": "ETHUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:36:22.160Z"
-        },
-        {
-          "symbol": "SOLUSDT",
-          "direction": "SHORT",
-          "conviction": 45.54,
-          "score": 70,
-          "requiredScore": 40,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "STRONG_TRENDING_MARKET"
-          ],
-          "gap": 0.46,
-          "price": 73.24,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "anti-chop filter activated: symbol EMA trend is choppy; range expansion is weak; candle body is not decisive; volume confirmation is weak",
-            "volume confirmation below survivability threshold",
-            "low conviction: 45.5 below 46"
-          ],
-          "timestamp": "2026-06-16T04:36:54.225Z",
-          "key": "SOLUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:36:54.225Z"
-        },
-        {
-          "symbol": "ETHUSDT",
-          "direction": "SHORT",
-          "conviction": 43.54,
-          "score": 48,
-          "requiredScore": 40,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "STRONG_TRENDING_MARKET"
-          ],
-          "gap": 2.46,
-          "price": 1762.69,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "anti-chop filter activated: symbol EMA trend is choppy; range expansion is weak; candle body is not decisive; volume confirmation is weak",
-            "volume confirmation below survivability threshold",
-            "low conviction: 43.5 below 46"
-          ],
-          "timestamp": "2026-06-16T04:36:54.225Z",
-          "key": "ETHUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:36:54.225Z"
-        },
-        {
-          "symbol": "ETHUSDT",
-          "direction": "SHORT",
-          "conviction": 44.69,
-          "score": 63.5,
-          "requiredScore": 40,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "STRONG_TRENDING_MARKET"
-          ],
-          "gap": 1.31,
-          "price": 1762.59,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "volume confirmation below survivability threshold",
-            "low conviction: 44.7 below 46"
-          ],
-          "timestamp": "2026-06-16T04:44:14.230Z",
-          "key": "ETHUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:44:14.230Z"
-        },
-        {
-          "symbol": "BTCUSDT",
-          "direction": "SHORT",
-          "conviction": 43.89,
-          "score": 53,
-          "requiredScore": 40,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "STRONG_TRENDING_MARKET"
-          ],
-          "gap": 2.11,
-          "price": 65825.7,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "anti-chop filter activated: symbol EMA trend is choppy; EMA gap is too compressed; range expansion is weak; volume confirmation is weak",
-            "volume confirmation below survivability threshold",
-            "low conviction: 43.9 below 46"
-          ],
-          "timestamp": "2026-06-16T04:44:14.230Z",
-          "key": "BTCUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:44:14.230Z"
-        },
-        {
-          "symbol": "SOLUSDT",
-          "direction": "SHORT",
-          "conviction": 44.62,
-          "score": 63.5,
-          "requiredScore": 40,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "STRONG_TRENDING_MARKET"
-          ],
-          "gap": 1.38,
-          "price": 73.23,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "volume confirmation below survivability threshold",
-            "low conviction: 44.6 below 46"
-          ],
-          "timestamp": "2026-06-16T04:44:26.130Z",
-          "key": "SOLUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:44:26.130Z"
-        },
-        {
-          "symbol": "BTCUSDT",
-          "direction": "SHORT",
-          "conviction": 43.89,
-          "score": 53,
-          "requiredScore": 40,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "STRONG_TRENDING_MARKET"
-          ],
-          "gap": 2.11,
-          "price": 65825.7,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "anti-chop filter activated: symbol EMA trend is choppy; EMA gap is too compressed; range expansion is weak; volume confirmation is weak",
-            "volume confirmation below survivability threshold",
-            "low conviction: 43.9 below 46"
-          ],
-          "timestamp": "2026-06-16T04:44:26.130Z",
-          "key": "BTCUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:44:26.130Z"
-        },
-        {
-          "symbol": "BTCUSDT",
-          "direction": "SHORT",
-          "conviction": 43.89,
-          "score": 43,
-          "requiredScore": 40,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "STRONG_TRENDING_MARKET"
-          ],
-          "gap": 2.11,
-          "price": 65825.7,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "anti-chop filter activated: symbol EMA trend is choppy; EMA gap is too compressed; candle body is not decisive; volume confirmation is weak",
-            "volume confirmation below survivability threshold",
-            "low conviction: 43.9 below 46"
-          ],
-          "timestamp": "2026-06-16T04:44:47.967Z",
-          "key": "BTCUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:44:47.967Z"
-        },
-        {
-          "symbol": "SOLUSDT",
-          "direction": "SHORT",
-          "conviction": 44.62,
-          "score": 53.5,
-          "requiredScore": 40,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "STRONG_TRENDING_MARKET"
-          ],
-          "gap": 1.38,
-          "price": 73.21,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "low conviction: 44.6 below 46"
-          ],
-          "timestamp": "2026-06-16T04:44:58.068Z",
-          "key": "SOLUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:44:58.068Z"
-        },
-        {
-          "symbol": "ETHUSDT",
-          "direction": "SHORT",
-          "conviction": 44.69,
-          "score": 45.5,
-          "requiredScore": 42,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "STRONG_TRENDING_MARKET",
-            "LOW_LIQUIDITY_MARKET"
-          ],
-          "gap": 1.31,
-          "price": 1761.63,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "volume confirmation below survivability threshold",
-            "low conviction: 44.7 below 46"
-          ],
-          "timestamp": "2026-06-16T04:46:35.404Z",
-          "key": "ETHUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:46:35.404Z"
-        },
-        {
-          "symbol": "ETHUSDT",
-          "direction": "SHORT",
-          "conviction": 44.23,
-          "score": 45.5,
-          "requiredScore": 42,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "STRONG_TRENDING_MARKET",
-            "LOW_LIQUIDITY_MARKET"
-          ],
-          "gap": 1.77,
-          "price": 1761.76,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "volume confirmation below survivability threshold",
-            "low conviction: 44.2 below 46"
-          ],
-          "timestamp": "2026-06-16T04:46:47.304Z",
-          "key": "ETHUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:46:47.304Z"
-        },
-        {
-          "symbol": "ETHUSDT",
-          "direction": "SHORT",
-          "conviction": 44.23,
-          "score": 45.5,
-          "requiredScore": 42,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "STRONG_TRENDING_MARKET",
-            "LOW_LIQUIDITY_MARKET"
-          ],
-          "gap": 1.77,
-          "price": 1762.29,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "volume confirmation below survivability threshold",
-            "low conviction: 44.2 below 46"
-          ],
-          "timestamp": "2026-06-16T04:46:57.582Z",
-          "key": "ETHUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:46:57.582Z"
-        },
-        {
-          "symbol": "ETHUSDT",
-          "direction": "SHORT",
-          "conviction": 44.65,
-          "score": 65,
-          "requiredScore": 42,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "STRONG_TRENDING_MARKET",
-            "LOW_LIQUIDITY_MARKET"
-          ],
-          "gap": 1.35,
-          "price": 1761,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "volume confirmation below survivability threshold",
-            "low conviction: 44.6 below 46"
-          ],
-          "timestamp": "2026-06-16T04:48:25.207Z",
-          "key": "ETHUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:48:25.207Z"
-        },
-        {
-          "symbol": "SOLUSDT",
-          "direction": "SHORT",
-          "conviction": 44.31,
-          "score": 67.5,
-          "requiredScore": 42,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "STRONG_TRENDING_MARKET",
-            "LOW_LIQUIDITY_MARKET"
-          ],
-          "gap": 1.69,
-          "price": 73.19,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "volume confirmation below survivability threshold",
-            "low conviction: 44.3 below 46"
-          ],
-          "timestamp": "2026-06-16T04:48:46.635Z",
-          "key": "SOLUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:48:46.635Z"
-        },
-        {
-          "symbol": "SOLUSDT",
-          "direction": "SHORT",
-          "conviction": 43.46,
-          "score": 40,
-          "requiredScore": 42,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "STRONG_TRENDING_MARKET",
-            "LOW_LIQUIDITY_MARKET"
-          ],
-          "gap": 2.54,
-          "price": 73.2,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "anti-chop filter activated: symbol EMA trend is choppy; range expansion is weak; candle body is not decisive; volume confirmation is weak",
-            "volume confirmation below survivability threshold",
-            "low conviction: 43.5 below 46"
-          ],
-          "timestamp": "2026-06-16T04:49:10.541Z",
-          "key": "SOLUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:49:10.541Z"
-        },
-        {
-          "symbol": "SOLUSDT",
-          "direction": "SHORT",
-          "conviction": 43.46,
-          "score": 40,
-          "requiredScore": 42,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "STRONG_TRENDING_MARKET",
-            "LOW_LIQUIDITY_MARKET"
-          ],
-          "gap": 2.54,
-          "price": 73.2,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "anti-chop filter activated: symbol EMA trend is choppy; range expansion is weak; candle body is not decisive; volume confirmation is weak",
-            "volume confirmation below survivability threshold",
-            "low conviction: 43.5 below 46"
-          ],
-          "timestamp": "2026-06-16T04:49:21.274Z",
-          "key": "SOLUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:49:21.274Z"
-        },
-        {
-          "symbol": "SOLUSDT",
-          "direction": "SHORT",
-          "conviction": 43.46,
-          "score": 40,
-          "requiredScore": 42,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "STRONG_TRENDING_MARKET",
-            "LOW_LIQUIDITY_MARKET"
-          ],
-          "gap": 2.54,
-          "price": 73.2,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "anti-chop filter activated: symbol EMA trend is choppy; range expansion is weak; candle body is not decisive; volume confirmation is weak",
-            "volume confirmation below survivability threshold",
-            "low conviction: 43.5 below 46"
-          ],
-          "timestamp": "2026-06-16T04:49:52.081Z",
-          "key": "SOLUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:49:52.081Z"
-        },
-        {
-          "symbol": "ETHUSDT",
-          "direction": "SHORT",
-          "conviction": 45.19,
-          "score": 67.5,
-          "requiredScore": 42,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "STRONG_TRENDING_MARKET",
-            "LOW_LIQUIDITY_MARKET"
-          ],
-          "gap": 0.81,
-          "price": 1760.01,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "volume confirmation below survivability threshold",
-            "low conviction: 45.2 below 46"
-          ],
-          "timestamp": "2026-06-16T04:55:29.759Z",
-          "key": "ETHUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:55:29.759Z"
-        },
-        {
-          "symbol": "SOLUSDT",
-          "direction": "SHORT",
-          "conviction": 45.77,
-          "score": 53,
-          "requiredScore": 40,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "STRONG_TRENDING_MARKET"
-          ],
-          "gap": 0.23,
-          "price": 73.27,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "anti-chop filter activated: symbol EMA trend is choppy; EMA gap is too compressed; candle body is not decisive; momentum persistence is weak",
-            "momentum did not persist long enough",
-            "low conviction: 45.8 below 46"
-          ],
-          "timestamp": "2026-06-16T04:56:48.032Z",
-          "key": "SOLUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:56:48.032Z"
-        },
-        {
-          "symbol": "SOLUSDT",
-          "direction": "SHORT",
-          "conviction": 43.81,
-          "score": 53,
-          "requiredScore": 40,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "STRONG_TRENDING_MARKET"
-          ],
-          "gap": 2.19,
-          "price": 73.29,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "anti-chop filter activated: symbol EMA trend is choppy; EMA gap is too compressed; candle body is not decisive; momentum persistence is weak",
-            "momentum did not persist long enough",
-            "low conviction: 43.8 below 46"
-          ],
-          "timestamp": "2026-06-16T04:56:58.420Z",
-          "key": "SOLUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:56:58.420Z"
-        },
-        {
-          "symbol": "SOLUSDT",
-          "direction": "SHORT",
-          "conviction": 44.3,
-          "score": 75.5,
-          "requiredScore": 40,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "STRONG_TRENDING_MARKET"
-          ],
-          "gap": 1.7,
-          "price": 73.25,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "low conviction: 44.3 below 46"
-          ],
-          "timestamp": "2026-06-16T04:35:34.608Z",
-          "key": "SOLUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:35:34.608Z",
-          "observedAt": "2026-06-16T05:02:26.951Z",
-          "outcome": "CORRECT_REJECT",
-          "directionalMovePct": -0.314
-        },
-        {
-          "symbol": "SOLUSDT",
-          "direction": "SHORT",
-          "conviction": 45.54,
-          "score": 70,
-          "requiredScore": 40,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "STRONG_TRENDING_MARKET"
-          ],
-          "gap": 0.46,
-          "price": 73.24,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "anti-chop filter activated: symbol EMA trend is choppy; range expansion is weak; candle body is not decisive; volume confirmation is weak",
-            "volume confirmation below survivability threshold",
-            "low conviction: 45.5 below 46"
-          ],
-          "timestamp": "2026-06-16T04:36:54.225Z",
-          "key": "SOLUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:36:54.225Z",
-          "observedAt": "2026-06-16T05:02:26.951Z",
-          "outcome": "CORRECT_REJECT",
-          "directionalMovePct": -0.3277
-        },
-        {
-          "symbol": "SOLUSDT",
-          "direction": "SHORT",
-          "conviction": 44.62,
-          "score": 63.5,
-          "requiredScore": 40,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "STRONG_TRENDING_MARKET"
-          ],
-          "gap": 1.38,
-          "price": 73.23,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "volume confirmation below survivability threshold",
-            "low conviction: 44.6 below 46"
-          ],
-          "timestamp": "2026-06-16T04:44:26.130Z",
-          "key": "SOLUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:44:26.130Z",
-          "observedAt": "2026-06-16T05:02:26.951Z",
-          "outcome": "CORRECT_REJECT",
-          "directionalMovePct": -0.3414
-        },
-        {
-          "symbol": "SOLUSDT",
-          "direction": "SHORT",
-          "conviction": 44.62,
-          "score": 53.5,
-          "requiredScore": 40,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "STRONG_TRENDING_MARKET"
-          ],
-          "gap": 1.38,
-          "price": 73.21,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "low conviction: 44.6 below 46"
-          ],
-          "timestamp": "2026-06-16T04:44:58.068Z",
-          "key": "SOLUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:44:58.068Z",
-          "observedAt": "2026-06-16T05:02:26.951Z",
-          "outcome": "CORRECT_REJECT",
-          "directionalMovePct": -0.3688
-        },
-        {
-          "symbol": "SOLUSDT",
-          "direction": "SHORT",
-          "conviction": 44.31,
-          "score": 67.5,
-          "requiredScore": 42,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "STRONG_TRENDING_MARKET",
-            "LOW_LIQUIDITY_MARKET"
-          ],
-          "gap": 1.69,
-          "price": 73.19,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "volume confirmation below survivability threshold",
-            "low conviction: 44.3 below 46"
-          ],
-          "timestamp": "2026-06-16T04:48:46.635Z",
-          "key": "SOLUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:48:46.635Z",
-          "observedAt": "2026-06-16T05:02:26.951Z",
-          "outcome": "CORRECT_REJECT",
-          "directionalMovePct": -0.3962
-        },
-        {
-          "symbol": "SOLUSDT",
-          "direction": "SHORT",
-          "conviction": 43.46,
-          "score": 40,
-          "requiredScore": 42,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "STRONG_TRENDING_MARKET",
-            "LOW_LIQUIDITY_MARKET"
-          ],
-          "gap": 2.54,
-          "price": 73.2,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "anti-chop filter activated: symbol EMA trend is choppy; range expansion is weak; candle body is not decisive; volume confirmation is weak",
-            "volume confirmation below survivability threshold",
-            "low conviction: 43.5 below 46"
-          ],
-          "timestamp": "2026-06-16T04:49:10.541Z",
-          "key": "SOLUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:49:10.541Z",
-          "observedAt": "2026-06-16T05:02:26.951Z",
-          "outcome": "CORRECT_REJECT",
-          "directionalMovePct": -0.3825
-        },
-        {
-          "symbol": "SOLUSDT",
-          "direction": "SHORT",
-          "conviction": 43.46,
-          "score": 40,
-          "requiredScore": 42,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "STRONG_TRENDING_MARKET",
-            "LOW_LIQUIDITY_MARKET"
-          ],
-          "gap": 2.54,
-          "price": 73.2,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "anti-chop filter activated: symbol EMA trend is choppy; range expansion is weak; candle body is not decisive; volume confirmation is weak",
-            "volume confirmation below survivability threshold",
-            "low conviction: 43.5 below 46"
-          ],
-          "timestamp": "2026-06-16T04:49:21.274Z",
-          "key": "SOLUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:49:21.274Z",
-          "observedAt": "2026-06-16T05:02:26.951Z",
-          "outcome": "CORRECT_REJECT",
-          "directionalMovePct": -0.3825
-        },
-        {
-          "symbol": "SOLUSDT",
-          "direction": "SHORT",
-          "conviction": 43.46,
-          "score": 40,
-          "requiredScore": 42,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "STRONG_TRENDING_MARKET",
-            "LOW_LIQUIDITY_MARKET"
-          ],
-          "gap": 2.54,
-          "price": 73.2,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "anti-chop filter activated: symbol EMA trend is choppy; range expansion is weak; candle body is not decisive; volume confirmation is weak",
-            "volume confirmation below survivability threshold",
-            "low conviction: 43.5 below 46"
-          ],
-          "timestamp": "2026-06-16T04:49:52.081Z",
-          "key": "SOLUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:49:52.081Z",
-          "observedAt": "2026-06-16T05:02:26.951Z",
-          "outcome": "CORRECT_REJECT",
-          "directionalMovePct": -0.3825
-        },
-        {
-          "symbol": "SOLUSDT",
-          "direction": "SHORT",
-          "conviction": 45.77,
-          "score": 53,
-          "requiredScore": 40,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "STRONG_TRENDING_MARKET"
-          ],
-          "gap": 0.23,
-          "price": 73.27,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "anti-chop filter activated: symbol EMA trend is choppy; EMA gap is too compressed; candle body is not decisive; momentum persistence is weak",
-            "momentum did not persist long enough",
-            "low conviction: 45.8 below 46"
-          ],
-          "timestamp": "2026-06-16T04:56:48.032Z",
-          "key": "SOLUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:56:48.032Z",
-          "observedAt": "2026-06-16T05:02:26.951Z",
-          "outcome": "CORRECT_REJECT",
-          "directionalMovePct": -0.2866
-        },
-        {
-          "symbol": "SOLUSDT",
-          "direction": "SHORT",
-          "conviction": 43.81,
-          "score": 53,
-          "requiredScore": 40,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "STRONG_TRENDING_MARKET"
-          ],
-          "gap": 2.19,
-          "price": 73.29,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "anti-chop filter activated: symbol EMA trend is choppy; EMA gap is too compressed; candle body is not decisive; momentum persistence is weak",
-            "momentum did not persist long enough",
-            "low conviction: 43.8 below 46"
-          ],
-          "timestamp": "2026-06-16T04:56:58.420Z",
-          "key": "SOLUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:56:58.420Z",
-          "observedAt": "2026-06-16T05:03:07.359Z",
-          "outcome": "CORRECT_REJECT",
-          "directionalMovePct": -0.3138
-        },
-        {
-          "symbol": "SOLUSDT",
-          "direction": "SHORT",
-          "conviction": 43.87,
-          "score": 70.5,
-          "requiredScore": 40,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "STRONG_TRENDING_MARKET"
-          ],
-          "gap": 2.13,
-          "price": 73.33,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "low conviction: 43.9 below 46"
-          ],
-          "timestamp": "2026-06-16T04:33:30.170Z",
-          "key": "SOLUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:33:30.170Z",
-          "observedAt": "2026-06-16T05:03:14.594Z",
-          "outcome": "CORRECT_REJECT",
-          "directionalMovePct": -0.3137
-        },
-        {
-          "symbol": "ETHUSDT",
-          "direction": "SHORT",
-          "conviction": 45.19,
-          "score": 67.5,
-          "requiredScore": 42,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "STRONG_TRENDING_MARKET",
-            "LOW_LIQUIDITY_MARKET"
-          ],
-          "gap": 0.81,
-          "price": 1760.01,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "volume confirmation below survivability threshold",
-            "low conviction: 45.2 below 46"
-          ],
-          "timestamp": "2026-06-16T04:55:29.759Z",
-          "key": "ETHUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:55:29.759Z",
-          "observedAt": "2026-06-16T05:03:38.792Z",
-          "outcome": "CORRECT_REJECT",
-          "directionalMovePct": -0.2892
-        },
-        {
-          "symbol": "BTCUSDT",
-          "direction": "SHORT",
-          "conviction": 43.89,
-          "score": 53,
-          "requiredScore": 40,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "STRONG_TRENDING_MARKET"
-          ],
-          "gap": 2.11,
-          "price": 65825.7,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "anti-chop filter activated: symbol EMA trend is choppy; EMA gap is too compressed; range expansion is weak; volume confirmation is weak",
-            "volume confirmation below survivability threshold",
-            "low conviction: 43.9 below 46"
-          ],
-          "timestamp": "2026-06-16T04:44:14.230Z",
-          "key": "BTCUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:44:14.230Z",
-          "observedAt": "2026-06-16T05:13:11.745Z",
-          "outcome": "CORRECT_REJECT",
-          "directionalMovePct": -0.2853
-        },
-        {
-          "symbol": "BTCUSDT",
-          "direction": "SHORT",
-          "conviction": 43.89,
-          "score": 53,
-          "requiredScore": 40,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "STRONG_TRENDING_MARKET"
-          ],
-          "gap": 2.11,
-          "price": 65825.7,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "anti-chop filter activated: symbol EMA trend is choppy; EMA gap is too compressed; range expansion is weak; volume confirmation is weak",
-            "volume confirmation below survivability threshold",
-            "low conviction: 43.9 below 46"
-          ],
-          "timestamp": "2026-06-16T04:44:26.130Z",
-          "key": "BTCUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:44:26.130Z",
-          "observedAt": "2026-06-16T05:13:11.745Z",
-          "outcome": "CORRECT_REJECT",
-          "directionalMovePct": -0.2853
-        },
-        {
-          "symbol": "BTCUSDT",
-          "direction": "SHORT",
-          "conviction": 43.89,
-          "score": 43,
-          "requiredScore": 40,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "STRONG_TRENDING_MARKET"
-          ],
-          "gap": 2.11,
-          "price": 65825.7,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "anti-chop filter activated: symbol EMA trend is choppy; EMA gap is too compressed; candle body is not decisive; volume confirmation is weak",
-            "volume confirmation below survivability threshold",
-            "low conviction: 43.9 below 46"
-          ],
-          "timestamp": "2026-06-16T04:44:47.967Z",
-          "key": "BTCUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:44:47.967Z",
-          "observedAt": "2026-06-16T05:13:11.745Z",
-          "outcome": "CORRECT_REJECT",
-          "directionalMovePct": -0.2853
-        },
-        {
           "symbol": "SOLUSDT",
           "direction": "LONG",
-          "conviction": 53.75,
-          "score": 42,
-          "requiredScore": 44,
-          "requiredConvictionScore": 42,
-          "regime": "SIDEWAYS_CHOP",
-          "marketRegimeTags": [
-            "SIDEWAYS_CHOP_MARKET",
-            "ALTCOIN_MOMENTUM_MARKET"
-          ],
-          "gap": 2,
-          "price": 73.63,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "smart edge filter: probability-adjusted edge 0.205% with TP probability 0.450",
-            "choppy-market entries disabled by configuration"
-          ],
-          "timestamp": "2026-06-16T05:13:41.405Z",
-          "key": "SOLUSDT:LONG:SIDEWAYS_CHOP",
-          "trackedAt": "2026-06-16T05:13:41.405Z"
-        },
-        {
-          "symbol": "SOLUSDT",
-          "direction": "LONG",
-          "conviction": 56.75,
-          "score": 43.5,
-          "requiredScore": 44,
-          "requiredConvictionScore": 42,
-          "regime": "SIDEWAYS_CHOP",
-          "marketRegimeTags": [
-            "SIDEWAYS_CHOP_MARKET",
-            "ALTCOIN_MOMENTUM_MARKET"
-          ],
-          "gap": 0.5,
-          "price": 73.65,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "choppy-market entries disabled by configuration"
-          ],
-          "timestamp": "2026-06-16T05:14:28.857Z",
-          "key": "SOLUSDT:LONG:SIDEWAYS_CHOP",
-          "trackedAt": "2026-06-16T05:14:28.857Z"
-        },
-        {
-          "symbol": "BTCUSDT",
-          "direction": "SHORT",
-          "conviction": 45.78,
-          "score": 67.75,
+          "conviction": 44.15,
+          "score": 56.5,
           "requiredScore": 40,
           "requiredConvictionScore": 46,
           "regime": "TRENDING",
           "marketRegimeTags": [
             "STRONG_TRENDING_MARKET"
           ],
-          "gap": 0.22,
-          "price": 65867.2,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "low conviction: 45.8 below 46"
-          ],
-          "timestamp": "2026-06-16T04:33:40.596Z",
-          "key": "BTCUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:33:40.596Z",
-          "observedAt": "2026-06-16T05:23:18.908Z",
-          "outcome": "CORRECT_REJECT",
-          "directionalMovePct": -0.3041
-        },
-        {
-          "symbol": "BTCUSDT",
-          "direction": "SHORT",
-          "conviction": 45.83,
-          "score": 67.75,
-          "requiredScore": 40,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "STRONG_TRENDING_MARKET"
-          ],
-          "gap": 0.17,
-          "price": 65867.1,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "low conviction: 45.8 below 46"
-          ],
-          "timestamp": "2026-06-16T04:33:50.713Z",
-          "key": "BTCUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:33:50.713Z",
-          "observedAt": "2026-06-16T05:23:18.908Z",
-          "outcome": "CORRECT_REJECT",
-          "directionalMovePct": -0.3042
-        },
-        {
-          "symbol": "BTCUSDT",
-          "direction": "SHORT",
-          "conviction": 43.33,
-          "score": 67.75,
-          "requiredScore": 40,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "STRONG_TRENDING_MARKET"
-          ],
-          "gap": 2.67,
-          "price": 65860.6,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "low conviction: 43.3 below 46"
-          ],
-          "timestamp": "2026-06-16T04:34:35.926Z",
-          "key": "BTCUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:34:35.926Z",
-          "observedAt": "2026-06-16T05:23:18.908Z",
-          "outcome": "CORRECT_REJECT",
-          "directionalMovePct": -0.3141
-        },
-        {
-          "symbol": "BTCUSDT",
-          "direction": "SHORT",
-          "conviction": 43.64,
-          "score": 67.75,
-          "requiredScore": 40,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "STRONG_TRENDING_MARKET"
-          ],
-          "gap": 2.36,
-          "price": 65883.1,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "low conviction: 43.6 below 46"
-          ],
-          "timestamp": "2026-06-16T04:33:30.170Z",
-          "key": "BTCUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:33:30.170Z",
-          "observedAt": "2026-06-16T05:26:11.403Z",
-          "outcome": "CORRECT_REJECT",
-          "directionalMovePct": -0.2907
-        },
-        {
-          "symbol": "BTCUSDT",
-          "direction": "SHORT",
-          "conviction": 45.49,
-          "score": 42,
-          "requiredScore": 42,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "ALTCOIN_MOMENTUM_MARKET"
-          ],
-          "gap": 0.51,
-          "price": 65999.4,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "smart edge filter: probability-adjusted edge 0.218% with TP probability 0.480",
-            "anti-chop filter activated: symbol EMA trend is choppy; range expansion is weak; candle body is not decisive; volume confirmation is weak",
-            "volume confirmation below survivability threshold",
-            "low conviction: 45.5 below 46"
-          ],
-          "timestamp": "2026-06-16T04:28:19.358Z",
-          "key": "BTCUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:28:19.358Z",
-          "observedAt": "2026-06-16T06:18:06.314Z",
-          "outcome": "CORRECT_REJECT",
-          "directionalMovePct": -0.282
-        },
-        {
-          "symbol": "BTCUSDT",
-          "direction": "SHORT",
-          "conviction": 45.49,
-          "score": 42,
-          "requiredScore": 42,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "ALTCOIN_MOMENTUM_MARKET"
-          ],
-          "gap": 0.51,
-          "price": 65999.4,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "smart edge filter: probability-adjusted edge 0.218% with TP probability 0.480",
-            "anti-chop filter activated: symbol EMA trend is choppy; range expansion is weak; candle body is not decisive; volume confirmation is weak",
-            "volume confirmation below survivability threshold",
-            "low conviction: 45.5 below 46"
-          ],
-          "timestamp": "2026-06-16T04:28:28.031Z",
-          "key": "BTCUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:28:28.031Z",
-          "observedAt": "2026-06-16T06:18:06.314Z",
-          "outcome": "CORRECT_REJECT",
-          "directionalMovePct": -0.282
-        },
-        {
-          "symbol": "BTCUSDT",
-          "direction": "SHORT",
-          "conviction": 44.69,
-          "score": 64.5,
-          "requiredScore": 42,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "ALTCOIN_MOMENTUM_MARKET"
-          ],
-          "gap": 1.31,
-          "price": 66004,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "volume confirmation below survivability threshold",
-            "low conviction: 44.7 below 46"
-          ],
-          "timestamp": "2026-06-16T04:27:49.191Z",
-          "key": "BTCUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:27:49.191Z",
-          "observedAt": "2026-06-16T06:18:13.932Z",
-          "outcome": "CORRECT_REJECT",
-          "directionalMovePct": -0.2929
-        },
-        {
-          "symbol": "BTCUSDT",
-          "direction": "SHORT",
-          "conviction": 44.69,
-          "score": 64.5,
-          "requiredScore": 42,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "ALTCOIN_MOMENTUM_MARKET"
-          ],
-          "gap": 1.31,
-          "price": 66004,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "volume confirmation below survivability threshold",
-            "low conviction: 44.7 below 46"
-          ],
-          "timestamp": "2026-06-16T04:27:59.863Z",
-          "key": "BTCUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:27:59.863Z",
-          "observedAt": "2026-06-16T06:18:13.932Z",
-          "outcome": "CORRECT_REJECT",
-          "directionalMovePct": -0.2929
-        },
-        {
-          "symbol": "BTCUSDT",
-          "direction": "SHORT",
-          "conviction": 44.88,
-          "score": 64.5,
-          "requiredScore": 42,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "ALTCOIN_MOMENTUM_MARKET"
-          ],
-          "gap": 1.12,
-          "price": 66006.6,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "volume confirmation below survivability threshold",
-            "low conviction: 44.9 below 46"
-          ],
-          "timestamp": "2026-06-16T04:28:09.969Z",
-          "key": "BTCUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:28:09.969Z",
-          "observedAt": "2026-06-16T06:18:13.932Z",
-          "outcome": "CORRECT_REJECT",
-          "directionalMovePct": -0.2889
-        },
-        {
-          "symbol": "ETHUSDT",
-          "direction": "SHORT",
-          "conviction": 44.65,
-          "score": 65,
-          "requiredScore": 42,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "STRONG_TRENDING_MARKET",
-            "LOW_LIQUIDITY_MARKET"
-          ],
-          "gap": 1.35,
-          "price": 1761,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "volume confirmation below survivability threshold",
-            "low conviction: 44.6 below 46"
-          ],
-          "timestamp": "2026-06-16T04:48:25.207Z",
-          "key": "ETHUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:48:25.207Z",
-          "observedAt": "2026-06-16T06:18:21.319Z",
-          "outcome": "CORRECT_REJECT",
-          "directionalMovePct": -0.2851
-        },
-        {
-          "symbol": "BTCUSDT",
-          "direction": "SHORT",
-          "conviction": 52,
-          "score": 44.5,
-          "requiredScore": 46,
-          "requiredConvictionScore": 36,
-          "regime": "SIDEWAYS_CHOP",
-          "marketRegimeTags": [
-            "SIDEWAYS_CHOP_MARKET",
-            "LOW_LIQUIDITY_MARKET"
-          ],
-          "gap": 1.5,
-          "price": 66039.1,
+          "gap": 1.85,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 1.85 points allowed as small positive-edge exploratory trade",
+          "price": 75.02,
           "expectedMovePct": 0.95,
           "rejected": [],
-          "timestamp": "2026-06-16T04:24:01.096Z",
-          "key": "BTCUSDT:SHORT:SIDEWAYS_CHOP",
-          "trackedAt": "2026-06-16T04:24:01.096Z",
-          "observedAt": "2026-06-16T06:26:10.876Z",
-          "outcome": "CORRECT_REJECT",
-          "directionalMovePct": -0.2823
+          "timestamp": "2026-06-16T12:20:07.081Z",
+          "key": "SOLUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:20:07.081Z"
+        },
+        {
+          "symbol": "ETHUSDT",
+          "direction": "LONG",
+          "conviction": 45.62,
+          "score": 85,
+          "requiredScore": 40,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 0.38,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 0.38 points allowed as small positive-edge exploratory trade",
+          "price": 1821.61,
+          "expectedMovePct": 1.5338955365201457,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:20:30.564Z",
+          "key": "ETHUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:20:30.564Z"
+        },
+        {
+          "symbol": "SOLUSDT",
+          "direction": "LONG",
+          "conviction": 44.66,
+          "score": 64.25,
+          "requiredScore": 40,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 1.34,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 1.34 points allowed as small positive-edge exploratory trade",
+          "price": 75.05,
+          "expectedMovePct": 0.95,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:20:30.564Z",
+          "key": "SOLUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:20:30.564Z"
+        },
+        {
+          "symbol": "SOLUSDT",
+          "direction": "LONG",
+          "conviction": 43.99,
+          "score": 67.25,
+          "requiredScore": 40,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 2.01,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 2.01 points allowed as small positive-edge exploratory trade",
+          "price": 74.99,
+          "expectedMovePct": 0.95,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:20:40.457Z",
+          "key": "SOLUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:20:40.457Z"
+        },
+        {
+          "symbol": "SOLUSDT",
+          "direction": "LONG",
+          "conviction": 45.31,
+          "score": 56.5,
+          "requiredScore": 40,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 0.69,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 0.69 points allowed as small positive-edge exploratory trade",
+          "price": 75.04,
+          "expectedMovePct": 0.95,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:21:02.195Z",
+          "key": "SOLUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:21:02.195Z"
         },
         {
           "symbol": "BTCUSDT",
-          "direction": "SHORT",
-          "conviction": 49.55,
-          "score": 44.5,
-          "requiredScore": 46,
-          "requiredConvictionScore": 36,
-          "regime": "SIDEWAYS_CHOP",
+          "direction": "LONG",
+          "conviction": 45.98,
+          "score": 68.5,
+          "requiredScore": 40,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
           "marketRegimeTags": [
-            "SIDEWAYS_CHOP_MARKET",
-            "LOW_LIQUIDITY_MARKET"
+            "STRONG_TRENDING_MARKET"
           ],
-          "gap": 1.5,
-          "price": 66043.3,
+          "gap": 0.02,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 0.02 points allowed as small positive-edge exploratory trade",
+          "price": 66630,
           "expectedMovePct": 0.95,
           "rejected": [],
-          "timestamp": "2026-06-16T04:23:54.128Z",
-          "key": "BTCUSDT:SHORT:SIDEWAYS_CHOP",
-          "trackedAt": "2026-06-16T04:23:54.128Z",
-          "observedAt": "2026-06-16T06:28:13.237Z",
-          "outcome": "CORRECT_REJECT",
-          "directionalMovePct": -0.2883
+          "timestamp": "2026-06-16T12:21:35.056Z",
+          "key": "BTCUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:21:35.056Z"
         },
         {
           "symbol": "SOLUSDT",
           "direction": "LONG",
-          "conviction": 54.04,
-          "score": 42,
-          "requiredScore": 44,
-          "requiredConvictionScore": 42,
-          "regime": "SIDEWAYS_CHOP",
-          "marketRegimeTags": [
-            "SIDEWAYS_CHOP_MARKET",
-            "ALTCOIN_MOMENTUM_MARKET"
-          ],
-          "gap": 2,
-          "price": 73.89,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "smart edge filter: probability-adjusted edge 0.206% with TP probability 0.450",
-            "choppy-market entries disabled by configuration"
-          ],
-          "timestamp": "2026-06-16T06:28:43.958Z",
-          "key": "SOLUSDT:LONG:SIDEWAYS_CHOP",
-          "trackedAt": "2026-06-16T06:28:43.958Z"
-        },
-        {
-          "symbol": "ETHUSDT",
-          "direction": "SHORT",
-          "conviction": 44.69,
-          "score": 45.5,
-          "requiredScore": 42,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "STRONG_TRENDING_MARKET",
-            "LOW_LIQUIDITY_MARKET"
-          ],
-          "gap": 1.31,
-          "price": 1761.63,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "volume confirmation below survivability threshold",
-            "low conviction: 44.7 below 46"
-          ],
-          "timestamp": "2026-06-16T04:46:35.404Z",
-          "key": "ETHUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:46:35.404Z",
-          "observedAt": "2026-06-16T06:28:59.814Z",
-          "outcome": "CORRECT_REJECT",
-          "directionalMovePct": -0.2901
-        },
-        {
-          "symbol": "ETHUSDT",
-          "direction": "SHORT",
-          "conviction": 44.23,
-          "score": 45.5,
-          "requiredScore": 42,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "STRONG_TRENDING_MARKET",
-            "LOW_LIQUIDITY_MARKET"
-          ],
-          "gap": 1.77,
-          "price": 1761.76,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "volume confirmation below survivability threshold",
-            "low conviction: 44.2 below 46"
-          ],
-          "timestamp": "2026-06-16T04:46:47.304Z",
-          "key": "ETHUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:46:47.304Z",
-          "observedAt": "2026-06-16T06:28:59.814Z",
-          "outcome": "CORRECT_REJECT",
-          "directionalMovePct": -0.2827
-        },
-        {
-          "symbol": "SOLUSDT",
-          "direction": "LONG",
-          "conviction": 53.75,
-          "score": 42,
-          "requiredScore": 44,
-          "requiredConvictionScore": 42,
-          "regime": "SIDEWAYS_CHOP",
-          "marketRegimeTags": [
-            "SIDEWAYS_CHOP_MARKET",
-            "ALTCOIN_MOMENTUM_MARKET"
-          ],
-          "gap": 2,
-          "price": 73.63,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "smart edge filter: probability-adjusted edge 0.205% with TP probability 0.450",
-            "choppy-market entries disabled by configuration"
-          ],
-          "timestamp": "2026-06-16T05:13:41.405Z",
-          "key": "SOLUSDT:LONG:SIDEWAYS_CHOP",
-          "trackedAt": "2026-06-16T05:13:41.405Z",
-          "observedAt": "2026-06-16T06:28:59.814Z",
-          "outcome": "MISSED_OPPORTUNITY",
-          "directionalMovePct": 0.4346
-        },
-        {
-          "symbol": "ETHUSDT",
-          "direction": "SHORT",
-          "conviction": 44.69,
-          "score": 63.5,
+          "conviction": 43.23,
+          "score": 48.5,
           "requiredScore": 40,
           "requiredConvictionScore": 46,
           "regime": "TRENDING",
           "marketRegimeTags": [
             "STRONG_TRENDING_MARKET"
           ],
-          "gap": 1.31,
-          "price": 1762.59,
+          "gap": 2.77,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 2.77 points allowed as small positive-edge exploratory trade",
+          "price": 75.03,
           "expectedMovePct": 0.95,
-          "rejected": [
-            "volume confirmation below survivability threshold",
-            "low conviction: 44.7 below 46"
-          ],
-          "timestamp": "2026-06-16T04:44:14.230Z",
-          "key": "ETHUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:44:14.230Z",
-          "observedAt": "2026-06-16T06:29:55.042Z",
-          "outcome": "CORRECT_REJECT",
-          "directionalMovePct": -0.282
-        },
-        {
-          "symbol": "ETHUSDT",
-          "direction": "SHORT",
-          "conviction": 44.23,
-          "score": 45.5,
-          "requiredScore": 42,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
-          "marketRegimeTags": [
-            "STRONG_TRENDING_MARKET",
-            "LOW_LIQUIDITY_MARKET"
-          ],
-          "gap": 1.77,
-          "price": 1762.29,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "volume confirmation below survivability threshold",
-            "low conviction: 44.2 below 46"
-          ],
-          "timestamp": "2026-06-16T04:46:57.582Z",
-          "key": "ETHUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:46:57.582Z",
-          "observedAt": "2026-06-16T06:29:55.042Z",
-          "outcome": "CORRECT_REJECT",
-          "directionalMovePct": -0.299
+          "rejected": [],
+          "timestamp": "2026-06-16T12:21:35.056Z",
+          "key": "SOLUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:21:35.056Z"
         },
         {
           "symbol": "SOLUSDT",
           "direction": "LONG",
-          "conviction": 56.75,
-          "score": 43.5,
-          "requiredScore": 44,
-          "requiredConvictionScore": 42,
-          "regime": "SIDEWAYS_CHOP",
-          "marketRegimeTags": [
-            "SIDEWAYS_CHOP_MARKET",
-            "ALTCOIN_MOMENTUM_MARKET"
-          ],
-          "gap": 0.5,
-          "price": 73.65,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "choppy-market entries disabled by configuration"
-          ],
-          "timestamp": "2026-06-16T05:14:28.857Z",
-          "key": "SOLUSDT:LONG:SIDEWAYS_CHOP",
-          "trackedAt": "2026-06-16T05:14:28.857Z",
-          "observedAt": "2026-06-16T06:31:28.932Z",
-          "outcome": "MISSED_OPPORTUNITY",
-          "directionalMovePct": 0.4616
-        },
-        {
-          "symbol": "ETHUSDT",
-          "direction": "SHORT",
-          "conviction": 43.54,
-          "score": 48,
+          "conviction": 43.23,
+          "score": 48.5,
           "requiredScore": 40,
           "requiredConvictionScore": 46,
           "regime": "TRENDING",
           "marketRegimeTags": [
             "STRONG_TRENDING_MARKET"
           ],
-          "gap": 2.46,
-          "price": 1762.69,
+          "gap": 2.77,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 2.77 points allowed as small positive-edge exploratory trade",
+          "price": 74.98,
           "expectedMovePct": 0.95,
-          "rejected": [
-            "anti-chop filter activated: symbol EMA trend is choppy; range expansion is weak; candle body is not decisive; volume confirmation is weak",
-            "volume confirmation below survivability threshold",
-            "low conviction: 43.5 below 46"
-          ],
-          "timestamp": "2026-06-16T04:36:54.225Z",
-          "key": "ETHUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:36:54.225Z",
-          "observedAt": "2026-06-16T06:31:37.465Z",
-          "outcome": "CORRECT_REJECT",
-          "directionalMovePct": -0.282
+          "rejected": [],
+          "timestamp": "2026-06-16T12:21:47.259Z",
+          "key": "SOLUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:21:47.259Z"
         },
         {
           "symbol": "SOLUSDT",
           "direction": "LONG",
-          "conviction": 58.5,
-          "score": 45.5,
-          "requiredScore": 46,
+          "conviction": 45.31,
+          "score": 56.5,
+          "requiredScore": 40,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 0.69,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 0.69 points allowed as small positive-edge exploratory trade",
+          "price": 74.98,
+          "expectedMovePct": 0.95,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:21:58.662Z",
+          "key": "SOLUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:21:58.662Z"
+        },
+        {
+          "symbol": "ETHUSDT",
+          "direction": "LONG",
+          "conviction": 45.62,
+          "score": 85,
+          "requiredScore": 40,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 0.38,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 0.38 points allowed as small positive-edge exploratory trade",
+          "price": 1821.61,
+          "expectedMovePct": 1.5338955365201457,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:20:30.564Z",
+          "key": "ETHUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:20:30.564Z",
+          "observedAt": "2026-06-16T12:24:15.562Z",
+          "outcome": "CORRECT_REJECT",
+          "directionalMovePct": -0.2882
+        },
+        {
+          "symbol": "ETHUSDT",
+          "direction": "LONG",
+          "conviction": 45.93,
+          "score": 84.25,
+          "requiredScore": 42,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "ALTCOIN_MOMENTUM_MARKET"
+          ],
+          "gap": 0.07,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 0.07 points allowed as small positive-edge exploratory trade",
+          "price": 1819.5,
+          "expectedMovePct": 1.065795365962885,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:26:19.163Z",
+          "key": "ETHUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:26:19.163Z"
+        },
+        {
+          "symbol": "ETHUSDT",
+          "direction": "LONG",
+          "conviction": 45.5,
+          "score": 64,
+          "requiredScore": 40,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 0.5,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 0.50 points allowed as small positive-edge exploratory trade",
+          "price": 1818.64,
+          "expectedMovePct": 1.0110626440880448,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:27:02.694Z",
+          "key": "ETHUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:27:02.694Z"
+        },
+        {
+          "symbol": "ETHUSDT",
+          "direction": "LONG",
+          "conviction": 45.5,
+          "score": 64,
+          "requiredScore": 40,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 0.5,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 0.50 points allowed as small positive-edge exploratory trade",
+          "price": 1818.59,
+          "expectedMovePct": 0.950359079826841,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:27:13.000Z",
+          "key": "ETHUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:27:13.000Z"
+        },
+        {
+          "symbol": "ETHUSDT",
+          "direction": "LONG",
+          "conviction": 45.5,
+          "score": 64,
+          "requiredScore": 40,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 0.5,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 0.50 points allowed as small positive-edge exploratory trade",
+          "price": 1818.36,
+          "expectedMovePct": 0.952349360622288,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:27:23.393Z",
+          "key": "ETHUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:27:23.393Z"
+        },
+        {
+          "symbol": "ETHUSDT",
+          "direction": "LONG",
+          "conviction": 45.5,
+          "score": 64,
+          "requiredScore": 40,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 0.5,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 0.50 points allowed as small positive-edge exploratory trade",
+          "price": 1818.79,
+          "expectedMovePct": 0.9782230109631229,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:27:53.507Z",
+          "key": "ETHUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:27:53.507Z"
+        },
+        {
+          "symbol": "SOLUSDT",
+          "direction": "LONG",
+          "conviction": 43.28,
+          "score": 61.5,
+          "requiredScore": 40,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 2.72,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 2.72 points allowed as small positive-edge exploratory trade",
+          "price": 74.94,
+          "expectedMovePct": 0.95,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:27:53.507Z",
+          "key": "SOLUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:27:53.507Z"
+        },
+        {
+          "symbol": "SOLUSDT",
+          "direction": "LONG",
+          "conviction": 43.05,
+          "score": 69.25,
+          "requiredScore": 40,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 2.95,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 2.95 points allowed as small positive-edge exploratory trade",
+          "price": 74.97,
+          "expectedMovePct": 0.95,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:29:36.705Z",
+          "key": "SOLUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:29:36.705Z"
+        },
+        {
+          "symbol": "SOLUSDT",
+          "direction": "LONG",
+          "conviction": 45.19,
+          "score": 73.25,
+          "requiredScore": 40,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 0.81,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 0.81 points allowed as small positive-edge exploratory trade",
+          "price": 74.98,
+          "expectedMovePct": 0.95,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:29:48.219Z",
+          "key": "SOLUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:29:48.219Z"
+        },
+        {
+          "symbol": "ETHUSDT",
+          "direction": "LONG",
+          "conviction": 44.77,
+          "score": 89,
+          "requiredScore": 40,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 1.23,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 1.23 points allowed as small positive-edge exploratory trade",
+          "price": 1819.5,
+          "expectedMovePct": 1.1145572454513837,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:29:58.447Z",
+          "key": "ETHUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:29:58.447Z"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "direction": "LONG",
+          "conviction": 45.9,
+          "score": 55.25,
+          "requiredScore": 44,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "LOW_LIQUIDITY_MARKET"
+          ],
+          "gap": 0.1,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 0.10 points allowed as small positive-edge exploratory trade",
+          "price": 66597.3,
+          "expectedMovePct": 0.95,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:30:59.065Z",
+          "key": "BTCUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:30:59.065Z"
+        },
+        {
+          "symbol": "SOLUSDT",
+          "direction": "LONG",
+          "conviction": 43.46,
+          "score": 53.25,
+          "requiredScore": 44,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "LOW_LIQUIDITY_MARKET"
+          ],
+          "gap": 2.54,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 2.54 points allowed as small positive-edge exploratory trade",
+          "price": 75.01,
+          "expectedMovePct": 0.95,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:30:59.065Z",
+          "key": "SOLUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:30:59.065Z"
+        },
+        {
+          "symbol": "ETHUSDT",
+          "direction": "LONG",
+          "conviction": 45.93,
+          "score": 84.25,
+          "requiredScore": 42,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "ALTCOIN_MOMENTUM_MARKET"
+          ],
+          "gap": 0.07,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 0.07 points allowed as small positive-edge exploratory trade",
+          "price": 1819.5,
+          "expectedMovePct": 1.065795365962885,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:26:19.163Z",
+          "key": "ETHUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:26:19.163Z",
+          "observedAt": "2026-06-16T12:31:27.883Z",
+          "outcome": "MISSED_OPPORTUNITY",
+          "directionalMovePct": 0.4875
+        },
+        {
+          "symbol": "ETHUSDT",
+          "direction": "LONG",
+          "conviction": 45.5,
+          "score": 64,
+          "requiredScore": 40,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 0.5,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 0.50 points allowed as small positive-edge exploratory trade",
+          "price": 1818.64,
+          "expectedMovePct": 1.0110626440880448,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:27:02.694Z",
+          "key": "ETHUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:27:02.694Z",
+          "observedAt": "2026-06-16T12:31:27.883Z",
+          "outcome": "MISSED_OPPORTUNITY",
+          "directionalMovePct": 0.535
+        },
+        {
+          "symbol": "ETHUSDT",
+          "direction": "LONG",
+          "conviction": 45.5,
+          "score": 64,
+          "requiredScore": 40,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 0.5,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 0.50 points allowed as small positive-edge exploratory trade",
+          "price": 1818.59,
+          "expectedMovePct": 0.950359079826841,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:27:13.000Z",
+          "key": "ETHUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:27:13.000Z",
+          "observedAt": "2026-06-16T12:31:27.883Z",
+          "outcome": "MISSED_OPPORTUNITY",
+          "directionalMovePct": 0.5378
+        },
+        {
+          "symbol": "ETHUSDT",
+          "direction": "LONG",
+          "conviction": 45.5,
+          "score": 64,
+          "requiredScore": 40,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 0.5,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 0.50 points allowed as small positive-edge exploratory trade",
+          "price": 1818.36,
+          "expectedMovePct": 0.952349360622288,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:27:23.393Z",
+          "key": "ETHUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:27:23.393Z",
+          "observedAt": "2026-06-16T12:31:27.883Z",
+          "outcome": "MISSED_OPPORTUNITY",
+          "directionalMovePct": 0.5505
+        },
+        {
+          "symbol": "ETHUSDT",
+          "direction": "LONG",
+          "conviction": 45.5,
+          "score": 64,
+          "requiredScore": 40,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 0.5,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 0.50 points allowed as small positive-edge exploratory trade",
+          "price": 1818.79,
+          "expectedMovePct": 0.9782230109631229,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:27:53.507Z",
+          "key": "ETHUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:27:53.507Z",
+          "observedAt": "2026-06-16T12:31:27.883Z",
+          "outcome": "MISSED_OPPORTUNITY",
+          "directionalMovePct": 0.5267
+        },
+        {
+          "symbol": "SOLUSDT",
+          "direction": "LONG",
+          "conviction": 43.28,
+          "score": 61.5,
+          "requiredScore": 40,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 2.72,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 2.72 points allowed as small positive-edge exploratory trade",
+          "price": 74.94,
+          "expectedMovePct": 0.95,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:27:53.507Z",
+          "key": "SOLUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:27:53.507Z",
+          "observedAt": "2026-06-16T12:31:47.144Z",
+          "outcome": "MISSED_OPPORTUNITY",
+          "directionalMovePct": 0.4404
+        },
+        {
+          "symbol": "ETHUSDT",
+          "direction": "LONG",
+          "conviction": 44.77,
+          "score": 89,
+          "requiredScore": 40,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 1.23,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 1.23 points allowed as small positive-edge exploratory trade",
+          "price": 1819.5,
+          "expectedMovePct": 1.1145572454513837,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:29:58.447Z",
+          "key": "ETHUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:29:58.447Z",
+          "observedAt": "2026-06-16T12:31:58.264Z",
+          "outcome": "MISSED_OPPORTUNITY",
+          "directionalMovePct": 0.5743
+        },
+        {
+          "symbol": "SOLUSDT",
+          "direction": "LONG",
+          "conviction": 43.99,
+          "score": 67.25,
+          "requiredScore": 40,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 2.01,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 2.01 points allowed as small positive-edge exploratory trade",
+          "price": 74.99,
+          "expectedMovePct": 0.95,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:20:40.457Z",
+          "key": "SOLUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:20:40.457Z",
+          "observedAt": "2026-06-16T12:33:33.965Z",
+          "outcome": "MISSED_OPPORTUNITY",
+          "directionalMovePct": 0.4401
+        },
+        {
+          "symbol": "SOLUSDT",
+          "direction": "LONG",
+          "conviction": 43.23,
+          "score": 48.5,
+          "requiredScore": 40,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 2.77,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 2.77 points allowed as small positive-edge exploratory trade",
+          "price": 74.98,
+          "expectedMovePct": 0.95,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:21:47.259Z",
+          "key": "SOLUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:21:47.259Z",
+          "observedAt": "2026-06-16T12:33:33.965Z",
+          "outcome": "MISSED_OPPORTUNITY",
+          "directionalMovePct": 0.4535
+        },
+        {
+          "symbol": "SOLUSDT",
+          "direction": "LONG",
+          "conviction": 45.31,
+          "score": 56.5,
+          "requiredScore": 40,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 0.69,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 0.69 points allowed as small positive-edge exploratory trade",
+          "price": 74.98,
+          "expectedMovePct": 0.95,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:21:58.662Z",
+          "key": "SOLUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:21:58.662Z",
+          "observedAt": "2026-06-16T12:33:33.965Z",
+          "outcome": "MISSED_OPPORTUNITY",
+          "directionalMovePct": 0.4535
+        },
+        {
+          "symbol": "SOLUSDT",
+          "direction": "LONG",
+          "conviction": 43.05,
+          "score": 69.25,
+          "requiredScore": 40,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 2.95,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 2.95 points allowed as small positive-edge exploratory trade",
+          "price": 74.97,
+          "expectedMovePct": 0.95,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:29:36.705Z",
+          "key": "SOLUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:29:36.705Z",
+          "observedAt": "2026-06-16T12:33:33.965Z",
+          "outcome": "MISSED_OPPORTUNITY",
+          "directionalMovePct": 0.4669
+        },
+        {
+          "symbol": "SOLUSDT",
+          "direction": "LONG",
+          "conviction": 45.19,
+          "score": 73.25,
+          "requiredScore": 40,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 0.81,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 0.81 points allowed as small positive-edge exploratory trade",
+          "price": 74.98,
+          "expectedMovePct": 0.95,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:29:48.219Z",
+          "key": "SOLUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:29:48.219Z",
+          "observedAt": "2026-06-16T12:33:33.965Z",
+          "outcome": "MISSED_OPPORTUNITY",
+          "directionalMovePct": 0.4535
+        },
+        {
+          "symbol": "SOLUSDT",
+          "direction": "LONG",
+          "conviction": 43.46,
+          "score": 53.25,
+          "requiredScore": 44,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "LOW_LIQUIDITY_MARKET"
+          ],
+          "gap": 2.54,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 2.54 points allowed as small positive-edge exploratory trade",
+          "price": 75.01,
+          "expectedMovePct": 0.95,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:30:59.065Z",
+          "key": "SOLUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:30:59.065Z",
+          "observedAt": "2026-06-16T12:33:45.389Z",
+          "outcome": "MISSED_OPPORTUNITY",
+          "directionalMovePct": 0.4399
+        },
+        {
+          "symbol": "SOLUSDT",
+          "direction": "LONG",
+          "conviction": 44.15,
+          "score": 56.5,
+          "requiredScore": 40,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 1.85,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 1.85 points allowed as small positive-edge exploratory trade",
+          "price": 75.02,
+          "expectedMovePct": 0.95,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:20:07.081Z",
+          "key": "SOLUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:20:07.081Z",
+          "observedAt": "2026-06-16T12:33:56.901Z",
+          "outcome": "MISSED_OPPORTUNITY",
+          "directionalMovePct": 0.5465
+        },
+        {
+          "symbol": "SOLUSDT",
+          "direction": "LONG",
+          "conviction": 44.66,
+          "score": 64.25,
+          "requiredScore": 40,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 1.34,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 1.34 points allowed as small positive-edge exploratory trade",
+          "price": 75.05,
+          "expectedMovePct": 0.95,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:20:30.564Z",
+          "key": "SOLUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:20:30.564Z",
+          "observedAt": "2026-06-16T12:33:56.901Z",
+          "outcome": "MISSED_OPPORTUNITY",
+          "directionalMovePct": 0.5063
+        },
+        {
+          "symbol": "SOLUSDT",
+          "direction": "LONG",
+          "conviction": 45.31,
+          "score": 56.5,
+          "requiredScore": 40,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 0.69,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 0.69 points allowed as small positive-edge exploratory trade",
+          "price": 75.04,
+          "expectedMovePct": 0.95,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:21:02.195Z",
+          "key": "SOLUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:21:02.195Z",
+          "observedAt": "2026-06-16T12:33:56.901Z",
+          "outcome": "MISSED_OPPORTUNITY",
+          "directionalMovePct": 0.5197
+        },
+        {
+          "symbol": "SOLUSDT",
+          "direction": "LONG",
+          "conviction": 43.23,
+          "score": 48.5,
+          "requiredScore": 40,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 2.77,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 2.77 points allowed as small positive-edge exploratory trade",
+          "price": 75.03,
+          "expectedMovePct": 0.95,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:21:35.056Z",
+          "key": "SOLUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:21:35.056Z",
+          "observedAt": "2026-06-16T12:33:56.901Z",
+          "outcome": "MISSED_OPPORTUNITY",
+          "directionalMovePct": 0.5331
+        },
+        {
+          "symbol": "SOLUSDT",
+          "direction": "LONG",
+          "conviction": 44.15,
+          "score": 64.5,
+          "requiredScore": 40,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 1.85,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 1.85 points allowed as small positive-edge exploratory trade",
+          "price": 75.41,
+          "expectedMovePct": 1.2979035919348527,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:35:23.273Z",
+          "key": "SOLUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:35:23.273Z"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "direction": "LONG",
+          "conviction": 44.23,
+          "score": 51.5,
+          "requiredScore": 40,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 1.77,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 1.77 points allowed as small positive-edge exploratory trade",
+          "price": 66730,
+          "expectedMovePct": 0.95,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:35:23.273Z",
+          "key": "BTCUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:35:23.273Z"
+        },
+        {
+          "symbol": "ETHUSDT",
+          "direction": "LONG",
+          "conviction": 44.23,
+          "score": 67.25,
+          "requiredScore": 40,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 1.77,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 1.77 points allowed as small positive-edge exploratory trade",
+          "price": 1833.65,
+          "expectedMovePct": 1.7397769516728578,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:35:33.916Z",
+          "key": "ETHUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:35:33.916Z"
+        },
+        {
+          "symbol": "SOLUSDT",
+          "direction": "LONG",
+          "conviction": 44.15,
+          "score": 56.5,
+          "requiredScore": 40,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 1.85,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 1.85 points allowed as small positive-edge exploratory trade",
+          "price": 75.4,
+          "expectedMovePct": 1.2257978368273592,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:35:33.916Z",
+          "key": "SOLUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:35:33.916Z"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "direction": "LONG",
+          "conviction": 44.23,
+          "score": 54.25,
+          "requiredScore": 40,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 1.77,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 1.77 points allowed as small positive-edge exploratory trade",
+          "price": 66725.2,
+          "expectedMovePct": 0.95,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:35:33.916Z",
+          "key": "BTCUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:35:33.916Z"
+        },
+        {
+          "symbol": "SOLUSDT",
+          "direction": "LONG",
+          "conviction": 44.15,
+          "score": 56.5,
+          "requiredScore": 40,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 1.85,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 1.85 points allowed as small positive-edge exploratory trade",
+          "price": 75.37,
+          "expectedMovePct": 1.2257978368273592,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:35:44.082Z",
+          "key": "SOLUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:35:44.082Z"
+        },
+        {
+          "symbol": "ETHUSDT",
+          "direction": "LONG",
+          "conviction": 44.23,
+          "score": 67.25,
+          "requiredScore": 40,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 1.77,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 1.77 points allowed as small positive-edge exploratory trade",
+          "price": 1833.68,
+          "expectedMovePct": 1.744733581164799,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:35:54.957Z",
+          "key": "ETHUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:35:54.957Z"
+        },
+        {
+          "symbol": "SOLUSDT",
+          "direction": "LONG",
+          "conviction": 44.15,
+          "score": 59.25,
+          "requiredScore": 40,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 1.85,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 1.85 points allowed as small positive-edge exploratory trade",
+          "price": 75.42,
+          "expectedMovePct": 1.2257978368273592,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:35:54.957Z",
+          "key": "SOLUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:35:54.957Z"
+        },
+        {
+          "symbol": "ETHUSDT",
+          "direction": "LONG",
+          "conviction": 44.23,
+          "score": 67.25,
+          "requiredScore": 40,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 1.77,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 1.77 points allowed as small positive-edge exploratory trade",
+          "price": 1833.65,
+          "expectedMovePct": 1.7397769516728578,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:35:33.916Z",
+          "key": "ETHUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:35:33.916Z",
+          "observedAt": "2026-06-16T12:36:45.937Z",
+          "outcome": "CORRECT_REJECT",
+          "directionalMovePct": -0.301
+        },
+        {
+          "symbol": "ETHUSDT",
+          "direction": "LONG",
+          "conviction": 44.23,
+          "score": 67.25,
+          "requiredScore": 40,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 1.77,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 1.77 points allowed as small positive-edge exploratory trade",
+          "price": 1833.68,
+          "expectedMovePct": 1.744733581164799,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:35:54.957Z",
+          "key": "ETHUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:35:54.957Z",
+          "observedAt": "2026-06-16T12:36:45.937Z",
+          "outcome": "CORRECT_REJECT",
+          "directionalMovePct": -0.3027
+        },
+        {
+          "symbol": "SOLUSDT",
+          "direction": "LONG",
+          "conviction": 44.15,
+          "score": 59.25,
+          "requiredScore": 40,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 1.85,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 1.85 points allowed as small positive-edge exploratory trade",
+          "price": 75.42,
+          "expectedMovePct": 1.2257978368273592,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:35:54.957Z",
+          "key": "SOLUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:35:54.957Z",
+          "observedAt": "2026-06-16T12:37:46.914Z",
+          "outcome": "CORRECT_REJECT",
+          "directionalMovePct": -0.2917
+        },
+        {
+          "symbol": "SOLUSDT",
+          "direction": "LONG",
+          "conviction": 43.41,
+          "score": 72.25,
+          "requiredScore": 40,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 2.59,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 2.59 points allowed as small positive-edge exploratory trade",
+          "price": 75.24,
+          "expectedMovePct": 0.95,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:37:56.460Z",
+          "key": "SOLUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:37:56.460Z"
+        },
+        {
+          "symbol": "ETHUSDT",
+          "direction": "LONG",
+          "conviction": 43.3,
+          "score": 72.25,
+          "requiredScore": 40,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 2.7,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 2.70 points allowed as small positive-edge exploratory trade",
+          "price": 1824.3,
+          "expectedMovePct": 1.1674849972722239,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:38:59.618Z",
+          "key": "ETHUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:38:59.618Z"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "direction": "LONG",
+          "conviction": 43.59,
+          "score": 75.25,
+          "requiredScore": 40,
+          "requiredConvictionScore": 44,
+          "regime": "BREAKOUT",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 0.41,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 0.41 points allowed as small positive-edge exploratory trade",
+          "price": 66594.7,
+          "expectedMovePct": 0.95,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:39:19.996Z",
+          "key": "BTCUSDT:LONG:BREAKOUT",
+          "trackedAt": "2026-06-16T12:39:19.996Z"
+        },
+        {
+          "symbol": "ETHUSDT",
+          "direction": "LONG",
+          "conviction": 43.46,
+          "score": 69.75,
+          "requiredScore": 40,
+          "requiredConvictionScore": 44,
+          "regime": "BREAKOUT",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 0.54,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 0.54 points allowed as small positive-edge exploratory trade",
+          "price": 1825.17,
+          "expectedMovePct": 0.95,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:39:32.021Z",
+          "key": "ETHUSDT:LONG:BREAKOUT",
+          "trackedAt": "2026-06-16T12:39:32.021Z"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "direction": "LONG",
+          "conviction": 41.73,
+          "score": 63.75,
+          "requiredScore": 40,
+          "requiredConvictionScore": 44,
+          "regime": "BREAKOUT",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 2.27,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 2.27 points allowed as small positive-edge exploratory trade",
+          "price": 66597.3,
+          "expectedMovePct": 0.95,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:39:32.021Z",
+          "key": "BTCUSDT:LONG:BREAKOUT",
+          "trackedAt": "2026-06-16T12:39:32.021Z"
+        },
+        {
+          "symbol": "ETHUSDT",
+          "direction": "LONG",
+          "conviction": 44.86,
+          "score": 72.25,
+          "requiredScore": 40,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 1.14,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 1.14 points allowed as small positive-edge exploratory trade",
+          "price": 1824.01,
+          "expectedMovePct": 0.95,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:39:43.280Z",
+          "key": "ETHUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:39:43.280Z"
+        },
+        {
+          "symbol": "SOLUSDT",
+          "direction": "LONG",
+          "conviction": 44.15,
+          "score": 64.5,
+          "requiredScore": 40,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 1.85,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 1.85 points allowed as small positive-edge exploratory trade",
+          "price": 75.41,
+          "expectedMovePct": 1.2979035919348527,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:35:23.273Z",
+          "key": "SOLUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:35:23.273Z",
+          "observedAt": "2026-06-16T12:40:26.323Z",
+          "outcome": "CORRECT_REJECT",
+          "directionalMovePct": -0.358
+        },
+        {
+          "symbol": "SOLUSDT",
+          "direction": "LONG",
+          "conviction": 44.15,
+          "score": 56.5,
+          "requiredScore": 40,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 1.85,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 1.85 points allowed as small positive-edge exploratory trade",
+          "price": 75.4,
+          "expectedMovePct": 1.2257978368273592,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:35:33.916Z",
+          "key": "SOLUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:35:33.916Z",
+          "observedAt": "2026-06-16T12:40:26.323Z",
+          "outcome": "CORRECT_REJECT",
+          "directionalMovePct": -0.3448
+        },
+        {
+          "symbol": "SOLUSDT",
+          "direction": "LONG",
+          "conviction": 44.15,
+          "score": 56.5,
+          "requiredScore": 40,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 1.85,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 1.85 points allowed as small positive-edge exploratory trade",
+          "price": 75.37,
+          "expectedMovePct": 1.2257978368273592,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:35:44.082Z",
+          "key": "SOLUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:35:44.082Z",
+          "observedAt": "2026-06-16T12:40:26.323Z",
+          "outcome": "CORRECT_REJECT",
+          "directionalMovePct": -0.3052
+        },
+        {
+          "symbol": "BTCUSDT",
+          "direction": "LONG",
+          "conviction": 44.23,
+          "score": 51.5,
+          "requiredScore": 40,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 1.77,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 1.77 points allowed as small positive-edge exploratory trade",
+          "price": 66730,
+          "expectedMovePct": 0.95,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:35:23.273Z",
+          "key": "BTCUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:35:23.273Z",
+          "observedAt": "2026-06-16T12:40:36.385Z",
+          "outcome": "CORRECT_REJECT",
+          "directionalMovePct": -0.3003
+        },
+        {
+          "symbol": "BTCUSDT",
+          "direction": "LONG",
+          "conviction": 44.23,
+          "score": 54.25,
+          "requiredScore": 40,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 1.77,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 1.77 points allowed as small positive-edge exploratory trade",
+          "price": 66725.2,
+          "expectedMovePct": 0.95,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:35:33.916Z",
+          "key": "BTCUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:35:33.916Z",
+          "observedAt": "2026-06-16T12:40:36.385Z",
+          "outcome": "CORRECT_REJECT",
+          "directionalMovePct": -0.2931
+        },
+        {
+          "symbol": "SOLUSDT",
+          "direction": "LONG",
+          "conviction": 43.41,
+          "score": 72.25,
+          "requiredScore": 40,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 2.59,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 2.59 points allowed as small positive-edge exploratory trade",
+          "price": 75.24,
+          "expectedMovePct": 0.95,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:37:56.460Z",
+          "key": "SOLUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:37:56.460Z",
+          "observedAt": "2026-06-16T12:40:47.935Z",
+          "outcome": "CORRECT_REJECT",
+          "directionalMovePct": -0.319
+        },
+        {
+          "symbol": "ETHUSDT",
+          "direction": "LONG",
+          "conviction": 43.3,
+          "score": 72.25,
+          "requiredScore": 40,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 2.7,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 2.70 points allowed as small positive-edge exploratory trade",
+          "price": 1824.3,
+          "expectedMovePct": 1.1674849972722239,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:38:59.618Z",
+          "key": "ETHUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:38:59.618Z",
+          "observedAt": "2026-06-16T12:40:47.935Z",
+          "outcome": "CORRECT_REJECT",
+          "directionalMovePct": -0.3333
+        },
+        {
+          "symbol": "ETHUSDT",
+          "direction": "LONG",
+          "conviction": 43.46,
+          "score": 69.75,
+          "requiredScore": 40,
+          "requiredConvictionScore": 44,
+          "regime": "BREAKOUT",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 0.54,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 0.54 points allowed as small positive-edge exploratory trade",
+          "price": 1825.17,
+          "expectedMovePct": 0.95,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:39:32.021Z",
+          "key": "ETHUSDT:LONG:BREAKOUT",
+          "trackedAt": "2026-06-16T12:39:32.021Z",
+          "observedAt": "2026-06-16T12:40:47.935Z",
+          "outcome": "CORRECT_REJECT",
+          "directionalMovePct": -0.3808
+        },
+        {
+          "symbol": "ETHUSDT",
+          "direction": "LONG",
+          "conviction": 44.86,
+          "score": 72.25,
+          "requiredScore": 40,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 1.14,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 1.14 points allowed as small positive-edge exploratory trade",
+          "price": 1824.01,
+          "expectedMovePct": 0.95,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:39:43.280Z",
+          "key": "ETHUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:39:43.280Z",
+          "observedAt": "2026-06-16T12:40:47.935Z",
+          "outcome": "CORRECT_REJECT",
+          "directionalMovePct": -0.3174
+        },
+        {
+          "symbol": "ETHUSDT",
+          "direction": "LONG",
+          "conviction": 39.05,
+          "score": 56.25,
+          "requiredScore": 42,
           "requiredConvictionScore": 42,
           "regime": "SIDEWAYS_CHOP",
           "marketRegimeTags": [
-            "SIDEWAYS_CHOP_MARKET",
-            "LOW_LIQUIDITY_MARKET",
             "ALTCOIN_MOMENTUM_MARKET"
           ],
-          "gap": 0.5,
+          "gap": 2.95,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 2.95 points allowed as small positive-edge exploratory trade",
+          "price": 1818.45,
+          "expectedMovePct": 1.1289369109001937,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:40:55.879Z",
+          "key": "ETHUSDT:LONG:SIDEWAYS_CHOP",
+          "trackedAt": "2026-06-16T12:40:55.879Z"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "direction": "LONG",
+          "conviction": 45.98,
+          "score": 68.5,
+          "requiredScore": 40,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 0.02,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 0.02 points allowed as small positive-edge exploratory trade",
+          "price": 66630,
+          "expectedMovePct": 0.95,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:21:35.056Z",
+          "key": "BTCUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:21:35.056Z",
+          "observedAt": "2026-06-16T12:41:22.999Z",
+          "outcome": "CORRECT_REJECT",
+          "directionalMovePct": -0.2985
+        },
+        {
+          "symbol": "BTCUSDT",
+          "direction": "LONG",
+          "conviction": 43.59,
+          "score": 52.5,
+          "requiredScore": 44,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "SIDEWAYS_CHOP_MARKET"
+          ],
+          "gap": 2.41,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 2.41 points allowed as small positive-edge exploratory trade",
+          "price": 66488.4,
+          "expectedMovePct": 0.95,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:43:19.882Z",
+          "key": "BTCUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:43:19.882Z"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "direction": "LONG",
+          "conviction": 44.2,
+          "score": 52.5,
+          "requiredScore": 44,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "SIDEWAYS_CHOP_MARKET"
+          ],
+          "gap": 1.8,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 1.80 points allowed as small positive-edge exploratory trade",
+          "price": 66490.4,
+          "expectedMovePct": 0.95,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:43:26.548Z",
+          "key": "BTCUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:43:26.548Z"
+        },
+        {
+          "symbol": "ETHUSDT",
+          "direction": "LONG",
+          "conviction": 39.05,
+          "score": 56.25,
+          "requiredScore": 42,
+          "requiredConvictionScore": 42,
+          "regime": "SIDEWAYS_CHOP",
+          "marketRegimeTags": [
+            "ALTCOIN_MOMENTUM_MARKET"
+          ],
+          "gap": 2.95,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 2.95 points allowed as small positive-edge exploratory trade",
+          "price": 1818.45,
+          "expectedMovePct": 1.1289369109001937,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:40:55.879Z",
+          "key": "ETHUSDT:LONG:SIDEWAYS_CHOP",
+          "trackedAt": "2026-06-16T12:40:55.879Z",
+          "observedAt": "2026-06-16T12:46:27.663Z",
+          "outcome": "CORRECT_REJECT",
+          "directionalMovePct": -0.3102
+        },
+        {
+          "symbol": "BTCUSDT",
+          "direction": "LONG",
+          "conviction": 45.9,
+          "score": 55.25,
+          "requiredScore": 44,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "LOW_LIQUIDITY_MARKET"
+          ],
+          "gap": 0.1,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 0.10 points allowed as small positive-edge exploratory trade",
+          "price": 66597.3,
+          "expectedMovePct": 0.95,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:30:59.065Z",
+          "key": "BTCUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:30:59.065Z",
+          "observedAt": "2026-06-16T12:49:27.112Z",
+          "outcome": "CORRECT_REJECT",
+          "directionalMovePct": -0.2811
+        },
+        {
+          "symbol": "BTCUSDT",
+          "direction": "LONG",
+          "conviction": 41.73,
+          "score": 63.75,
+          "requiredScore": 40,
+          "requiredConvictionScore": 44,
+          "regime": "BREAKOUT",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 2.27,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 2.27 points allowed as small positive-edge exploratory trade",
+          "price": 66597.3,
+          "expectedMovePct": 0.95,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:39:32.021Z",
+          "key": "BTCUSDT:LONG:BREAKOUT",
+          "trackedAt": "2026-06-16T12:39:32.021Z",
+          "observedAt": "2026-06-16T12:49:27.112Z",
+          "outcome": "CORRECT_REJECT",
+          "directionalMovePct": -0.2811
+        },
+        {
+          "symbol": "BTCUSDT",
+          "direction": "LONG",
+          "conviction": 43.59,
+          "score": 75.25,
+          "requiredScore": 40,
+          "requiredConvictionScore": 44,
+          "regime": "BREAKOUT",
+          "marketRegimeTags": [
+            "STRONG_TRENDING_MARKET"
+          ],
+          "gap": 0.41,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 0.41 points allowed as small positive-edge exploratory trade",
+          "price": 66594.7,
+          "expectedMovePct": 0.95,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:39:19.996Z",
+          "key": "BTCUSDT:LONG:BREAKOUT",
+          "trackedAt": "2026-06-16T12:39:19.996Z",
+          "observedAt": "2026-06-16T12:49:58.563Z",
+          "outcome": "CORRECT_REJECT",
+          "directionalMovePct": -0.3182
+        },
+        {
+          "symbol": "BTCUSDT",
+          "direction": "LONG",
+          "conviction": 43.59,
+          "score": 52.5,
+          "requiredScore": 44,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "SIDEWAYS_CHOP_MARKET"
+          ],
+          "gap": 2.41,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 2.41 points allowed as small positive-edge exploratory trade",
+          "price": 66488.4,
+          "expectedMovePct": 0.95,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:43:19.882Z",
+          "key": "BTCUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:43:19.882Z",
+          "observedAt": "2026-06-16T13:08:04.460Z",
+          "outcome": "CORRECT_REJECT",
+          "directionalMovePct": -0.2814
+        },
+        {
+          "symbol": "BTCUSDT",
+          "direction": "LONG",
+          "conviction": 44.2,
+          "score": 52.5,
+          "requiredScore": 44,
+          "requiredConvictionScore": 46,
+          "regime": "TRENDING",
+          "marketRegimeTags": [
+            "SIDEWAYS_CHOP_MARKET"
+          ],
+          "gap": 1.8,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 1.80 points allowed as small positive-edge exploratory trade",
+          "price": 66490.4,
+          "expectedMovePct": 0.95,
+          "rejected": [],
+          "timestamp": "2026-06-16T12:43:26.548Z",
+          "key": "BTCUSDT:LONG:TRENDING",
+          "trackedAt": "2026-06-16T12:43:26.548Z",
+          "observedAt": "2026-06-16T13:08:04.460Z",
+          "outcome": "CORRECT_REJECT",
+          "directionalMovePct": -0.2844
+        },
+        {
+          "symbol": "SOLUSDT",
+          "direction": "SHORT",
+          "conviction": 74.96,
+          "score": 45.989999999999995,
+          "requiredScore": 47,
+          "requiredConvictionScore": 44,
+          "regime": "BREAKOUT",
+          "marketRegimeTags": [
+            "SIDEWAYS_CHOP_MARKET",
+            "FAKE_BREAKOUT_ENVIRONMENT",
+            "ALTCOIN_MOMENTUM_MARKET"
+          ],
+          "gap": 1.01,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 1.01 points allowed as small positive-edge exploratory trade",
           "price": 73.98,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "choppy-market entries disabled by configuration"
+          "expectedMovePct": 2.1,
+          "rejected": [],
+          "timestamp": "2026-06-16T13:11:28.234Z",
+          "key": "SOLUSDT:SHORT:BREAKOUT",
+          "trackedAt": "2026-06-16T13:11:28.234Z"
+        },
+        {
+          "symbol": "SOLUSDT",
+          "direction": "SHORT",
+          "conviction": 74.96,
+          "score": 45.989999999999995,
+          "requiredScore": 47,
+          "requiredConvictionScore": 44,
+          "regime": "BREAKOUT",
+          "marketRegimeTags": [
+            "SIDEWAYS_CHOP_MARKET",
+            "FAKE_BREAKOUT_ENVIRONMENT",
+            "ALTCOIN_MOMENTUM_MARKET"
           ],
-          "timestamp": "2026-06-16T06:36:56.793Z",
-          "key": "SOLUSDT:LONG:SIDEWAYS_CHOP",
-          "trackedAt": "2026-06-16T06:36:56.793Z"
+          "gap": 1.01,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 1.01 points allowed as small positive-edge exploratory trade",
+          "price": 73.92,
+          "expectedMovePct": 2.1,
+          "rejected": [],
+          "timestamp": "2026-06-16T13:11:47.331Z",
+          "key": "SOLUSDT:SHORT:BREAKOUT",
+          "trackedAt": "2026-06-16T13:11:47.331Z"
+        },
+        {
+          "symbol": "SOLUSDT",
+          "direction": "SHORT",
+          "conviction": 74.96,
+          "score": 45.989999999999995,
+          "requiredScore": 47,
+          "requiredConvictionScore": 44,
+          "regime": "BREAKOUT",
+          "marketRegimeTags": [
+            "SIDEWAYS_CHOP_MARKET",
+            "FAKE_BREAKOUT_ENVIRONMENT",
+            "ALTCOIN_MOMENTUM_MARKET"
+          ],
+          "gap": 1.01,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 1.01 points allowed as small positive-edge exploratory trade",
+          "price": 73.94,
+          "expectedMovePct": 2.1,
+          "rejected": [],
+          "timestamp": "2026-06-16T13:11:53.828Z",
+          "key": "SOLUSDT:SHORT:BREAKOUT",
+          "trackedAt": "2026-06-16T13:11:53.828Z"
+        },
+        {
+          "symbol": "SOLUSDT",
+          "direction": "SHORT",
+          "conviction": 74.96,
+          "score": 45.989999999999995,
+          "requiredScore": 47,
+          "requiredConvictionScore": 44,
+          "regime": "BREAKOUT",
+          "marketRegimeTags": [
+            "SIDEWAYS_CHOP_MARKET",
+            "FAKE_BREAKOUT_ENVIRONMENT",
+            "ALTCOIN_MOMENTUM_MARKET"
+          ],
+          "gap": 1.01,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 1.01 points allowed as small positive-edge exploratory trade",
+          "price": 73.92,
+          "expectedMovePct": 2.1,
+          "rejected": [],
+          "timestamp": "2026-06-16T13:11:47.331Z",
+          "key": "SOLUSDT:SHORT:BREAKOUT",
+          "trackedAt": "2026-06-16T13:11:47.331Z",
+          "observedAt": "2026-06-16T13:12:13.394Z",
+          "outcome": "CORRECT_REJECT",
+          "directionalMovePct": -0.2841
+        },
+        {
+          "symbol": "SOLUSDT",
+          "direction": "SHORT",
+          "conviction": 71.26,
+          "score": 46.589999999999996,
+          "requiredScore": 47,
+          "requiredConvictionScore": 44,
+          "regime": "BREAKOUT",
+          "marketRegimeTags": [
+            "SIDEWAYS_CHOP_MARKET",
+            "FAKE_BREAKOUT_ENVIRONMENT",
+            "ALTCOIN_MOMENTUM_MARKET"
+          ],
+          "gap": 0.41,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 0.41 points allowed as small positive-edge exploratory trade",
+          "price": 74.13,
+          "expectedMovePct": 1.826435246996007,
+          "rejected": [],
+          "timestamp": "2026-06-16T13:12:13.393Z",
+          "key": "SOLUSDT:SHORT:BREAKOUT",
+          "trackedAt": "2026-06-16T13:12:13.393Z"
+        },
+        {
+          "symbol": "SOLUSDT",
+          "direction": "SHORT",
+          "conviction": 71.26,
+          "score": 46.589999999999996,
+          "requiredScore": 47,
+          "requiredConvictionScore": 44,
+          "regime": "BREAKOUT",
+          "marketRegimeTags": [
+            "SIDEWAYS_CHOP_MARKET",
+            "FAKE_BREAKOUT_ENVIRONMENT",
+            "ALTCOIN_MOMENTUM_MARKET"
+          ],
+          "gap": 0.41,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 0.41 points allowed as small positive-edge exploratory trade",
+          "price": 74.14,
+          "expectedMovePct": 1.7303070761014656,
+          "rejected": [],
+          "timestamp": "2026-06-16T13:12:19.898Z",
+          "key": "SOLUSDT:SHORT:BREAKOUT",
+          "trackedAt": "2026-06-16T13:12:19.898Z"
+        },
+        {
+          "symbol": "SOLUSDT",
+          "direction": "SHORT",
+          "conviction": 74.96,
+          "score": 45.989999999999995,
+          "requiredScore": 47,
+          "requiredConvictionScore": 44,
+          "regime": "BREAKOUT",
+          "marketRegimeTags": [
+            "SIDEWAYS_CHOP_MARKET",
+            "FAKE_BREAKOUT_ENVIRONMENT",
+            "ALTCOIN_MOMENTUM_MARKET"
+          ],
+          "gap": 1.01,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 1.01 points allowed as small positive-edge exploratory trade",
+          "price": 73.94,
+          "expectedMovePct": 2.1,
+          "rejected": [],
+          "timestamp": "2026-06-16T13:11:53.828Z",
+          "key": "SOLUSDT:SHORT:BREAKOUT",
+          "trackedAt": "2026-06-16T13:11:53.828Z",
+          "observedAt": "2026-06-16T13:12:26.559Z",
+          "outcome": "CORRECT_REJECT",
+          "directionalMovePct": -0.3246
+        },
+        {
+          "symbol": "SOLUSDT",
+          "direction": "SHORT",
+          "conviction": 71.26,
+          "score": 46.589999999999996,
+          "requiredScore": 47,
+          "requiredConvictionScore": 44,
+          "regime": "BREAKOUT",
+          "marketRegimeTags": [
+            "SIDEWAYS_CHOP_MARKET",
+            "FAKE_BREAKOUT_ENVIRONMENT",
+            "ALTCOIN_MOMENTUM_MARKET"
+          ],
+          "gap": 0.41,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 0.41 points allowed as small positive-edge exploratory trade",
+          "price": 74.18,
+          "expectedMovePct": 1.706275033377856,
+          "rejected": [],
+          "timestamp": "2026-06-16T13:12:26.559Z",
+          "key": "SOLUSDT:SHORT:BREAKOUT",
+          "trackedAt": "2026-06-16T13:12:26.559Z"
+        },
+        {
+          "symbol": "SOLUSDT",
+          "direction": "SHORT",
+          "conviction": 71.26,
+          "score": 46.589999999999996,
+          "requiredScore": 47,
+          "requiredConvictionScore": 44,
+          "regime": "BREAKOUT",
+          "marketRegimeTags": [
+            "SIDEWAYS_CHOP_MARKET",
+            "FAKE_BREAKOUT_ENVIRONMENT",
+            "ALTCOIN_MOMENTUM_MARKET"
+          ],
+          "gap": 0.41,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 0.41 points allowed as small positive-edge exploratory trade",
+          "price": 74.18,
+          "expectedMovePct": 1.6822429906542125,
+          "rejected": [],
+          "timestamp": "2026-06-16T13:12:33.351Z",
+          "key": "SOLUSDT:SHORT:BREAKOUT",
+          "trackedAt": "2026-06-16T13:12:33.351Z"
+        },
+        {
+          "symbol": "SOLUSDT",
+          "direction": "SHORT",
+          "conviction": 74.96,
+          "score": 45.989999999999995,
+          "requiredScore": 47,
+          "requiredConvictionScore": 44,
+          "regime": "BREAKOUT",
+          "marketRegimeTags": [
+            "SIDEWAYS_CHOP_MARKET",
+            "FAKE_BREAKOUT_ENVIRONMENT",
+            "ALTCOIN_MOMENTUM_MARKET"
+          ],
+          "gap": 1.01,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 1.01 points allowed as small positive-edge exploratory trade",
+          "price": 73.98,
+          "expectedMovePct": 2.1,
+          "rejected": [],
+          "timestamp": "2026-06-16T13:11:28.234Z",
+          "key": "SOLUSDT:SHORT:BREAKOUT",
+          "trackedAt": "2026-06-16T13:11:28.234Z",
+          "observedAt": "2026-06-16T13:12:39.554Z",
+          "outcome": "CORRECT_REJECT",
+          "directionalMovePct": -0.3109
+        },
+        {
+          "symbol": "SOLUSDT",
+          "direction": "SHORT",
+          "conviction": 71.26,
+          "score": 46.589999999999996,
+          "requiredScore": 47,
+          "requiredConvictionScore": 44,
+          "regime": "BREAKOUT",
+          "marketRegimeTags": [
+            "SIDEWAYS_CHOP_MARKET",
+            "FAKE_BREAKOUT_ENVIRONMENT",
+            "ALTCOIN_MOMENTUM_MARKET"
+          ],
+          "gap": 0.41,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 0.41 points allowed as small positive-edge exploratory trade",
+          "price": 74.21,
+          "expectedMovePct": 1.6341789052069589,
+          "rejected": [],
+          "timestamp": "2026-06-16T13:12:39.554Z",
+          "key": "SOLUSDT:SHORT:BREAKOUT",
+          "trackedAt": "2026-06-16T13:12:39.554Z"
+        },
+        {
+          "symbol": "SOLUSDT",
+          "direction": "SHORT",
+          "conviction": 71.26,
+          "score": 46.589999999999996,
+          "requiredScore": 47,
+          "requiredConvictionScore": 44,
+          "regime": "BREAKOUT",
+          "marketRegimeTags": [
+            "SIDEWAYS_CHOP_MARKET",
+            "FAKE_BREAKOUT_ENVIRONMENT",
+            "ALTCOIN_MOMENTUM_MARKET"
+          ],
+          "gap": 0.41,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 0.41 points allowed as small positive-edge exploratory trade",
+          "price": 74.13,
+          "expectedMovePct": 1.826435246996007,
+          "rejected": [],
+          "timestamp": "2026-06-16T13:12:13.393Z",
+          "key": "SOLUSDT:SHORT:BREAKOUT",
+          "trackedAt": "2026-06-16T13:12:13.393Z",
+          "observedAt": "2026-06-16T13:15:52.856Z",
+          "outcome": "CORRECT_REJECT",
+          "directionalMovePct": -0.3103
+        },
+        {
+          "symbol": "SOLUSDT",
+          "direction": "SHORT",
+          "conviction": 71.26,
+          "score": 46.589999999999996,
+          "requiredScore": 47,
+          "requiredConvictionScore": 44,
+          "regime": "BREAKOUT",
+          "marketRegimeTags": [
+            "SIDEWAYS_CHOP_MARKET",
+            "FAKE_BREAKOUT_ENVIRONMENT",
+            "ALTCOIN_MOMENTUM_MARKET"
+          ],
+          "gap": 0.41,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 0.41 points allowed as small positive-edge exploratory trade",
+          "price": 74.14,
+          "expectedMovePct": 1.7303070761014656,
+          "rejected": [],
+          "timestamp": "2026-06-16T13:12:19.898Z",
+          "key": "SOLUSDT:SHORT:BREAKOUT",
+          "trackedAt": "2026-06-16T13:12:19.898Z",
+          "observedAt": "2026-06-16T13:15:52.856Z",
+          "outcome": "CORRECT_REJECT",
+          "directionalMovePct": -0.2967
+        },
+        {
+          "symbol": "SOLUSDT",
+          "direction": "SHORT",
+          "conviction": 71.26,
+          "score": 46.589999999999996,
+          "requiredScore": 47,
+          "requiredConvictionScore": 44,
+          "regime": "BREAKOUT",
+          "marketRegimeTags": [
+            "SIDEWAYS_CHOP_MARKET",
+            "FAKE_BREAKOUT_ENVIRONMENT",
+            "ALTCOIN_MOMENTUM_MARKET"
+          ],
+          "gap": 0.41,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 0.41 points allowed as small positive-edge exploratory trade",
+          "price": 74.18,
+          "expectedMovePct": 1.706275033377856,
+          "rejected": [],
+          "timestamp": "2026-06-16T13:12:26.559Z",
+          "key": "SOLUSDT:SHORT:BREAKOUT",
+          "trackedAt": "2026-06-16T13:12:26.559Z",
+          "observedAt": "2026-06-16T13:16:51.916Z",
+          "outcome": "CORRECT_REJECT",
+          "directionalMovePct": -0.2966
+        },
+        {
+          "symbol": "SOLUSDT",
+          "direction": "SHORT",
+          "conviction": 71.26,
+          "score": 46.589999999999996,
+          "requiredScore": 47,
+          "requiredConvictionScore": 44,
+          "regime": "BREAKOUT",
+          "marketRegimeTags": [
+            "SIDEWAYS_CHOP_MARKET",
+            "FAKE_BREAKOUT_ENVIRONMENT",
+            "ALTCOIN_MOMENTUM_MARKET"
+          ],
+          "gap": 0.41,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 0.41 points allowed as small positive-edge exploratory trade",
+          "price": 74.18,
+          "expectedMovePct": 1.6822429906542125,
+          "rejected": [],
+          "timestamp": "2026-06-16T13:12:33.351Z",
+          "key": "SOLUSDT:SHORT:BREAKOUT",
+          "trackedAt": "2026-06-16T13:12:33.351Z",
+          "observedAt": "2026-06-16T13:16:51.916Z",
+          "outcome": "CORRECT_REJECT",
+          "directionalMovePct": -0.2966
+        },
+        {
+          "symbol": "SOLUSDT",
+          "direction": "SHORT",
+          "conviction": 71.26,
+          "score": 46.589999999999996,
+          "requiredScore": 47,
+          "requiredConvictionScore": 44,
+          "regime": "BREAKOUT",
+          "marketRegimeTags": [
+            "SIDEWAYS_CHOP_MARKET",
+            "FAKE_BREAKOUT_ENVIRONMENT",
+            "ALTCOIN_MOMENTUM_MARKET"
+          ],
+          "gap": 0.41,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 0.41 points allowed as small positive-edge exploratory trade",
+          "price": 74.21,
+          "expectedMovePct": 1.6341789052069589,
+          "rejected": [],
+          "timestamp": "2026-06-16T13:12:39.554Z",
+          "key": "SOLUSDT:SHORT:BREAKOUT",
+          "trackedAt": "2026-06-16T13:12:39.554Z",
+          "observedAt": "2026-06-16T14:16:36.914Z",
+          "outcome": "MISSED_OPPORTUNITY",
+          "directionalMovePct": 0.7816
+        },
+        {
+          "symbol": "SOLUSDT",
+          "direction": "SHORT",
+          "conviction": 63.94,
+          "score": 44.2,
+          "requiredScore": 46,
+          "requiredConvictionScore": 42,
+          "regime": "SIDEWAYS_CHOP",
+          "marketRegimeTags": [
+            "SIDEWAYS_CHOP_MARKET",
+            "LOW_LIQUIDITY_MARKET"
+          ],
+          "gap": 1.8,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 1.80 points allowed as small positive-edge exploratory trade",
+          "price": 73.51,
+          "expectedMovePct": 1.6976556184316964,
+          "rejected": [],
+          "timestamp": "2026-06-16T14:17:22.292Z",
+          "key": "SOLUSDT:SHORT:SIDEWAYS_CHOP",
+          "trackedAt": "2026-06-16T14:17:22.292Z"
         },
         {
           "symbol": "ETHUSDT",
           "direction": "SHORT",
-          "conviction": 43.54,
-          "score": 48,
-          "requiredScore": 40,
-          "requiredConvictionScore": 46,
-          "regime": "TRENDING",
+          "conviction": 65.97,
+          "score": 45.2,
+          "requiredScore": 46,
+          "requiredConvictionScore": 44,
+          "regime": "BREAKOUT",
           "marketRegimeTags": [
-            "STRONG_TRENDING_MARKET"
+            "SIDEWAYS_CHOP_MARKET",
+            "LOW_LIQUIDITY_MARKET"
           ],
-          "gap": 2.46,
-          "price": 1763.8,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "anti-chop filter activated: symbol EMA trend is choppy; range expansion is weak; candle body is not decisive; volume confirmation is weak",
-            "volume confirmation below survivability threshold",
-            "low conviction: 43.5 below 46"
+          "gap": 0.8,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 0.80 points allowed as small positive-edge exploratory trade",
+          "price": 1787.58,
+          "expectedMovePct": 1.6130516999484132,
+          "rejected": [],
+          "timestamp": "2026-06-16T14:17:36.370Z",
+          "key": "ETHUSDT:SHORT:BREAKOUT",
+          "trackedAt": "2026-06-16T14:17:36.370Z"
+        },
+        {
+          "symbol": "ETHUSDT",
+          "direction": "SHORT",
+          "conviction": 65.97,
+          "score": 45.2,
+          "requiredScore": 46,
+          "requiredConvictionScore": 44,
+          "regime": "BREAKOUT",
+          "marketRegimeTags": [
+            "SIDEWAYS_CHOP_MARKET",
+            "LOW_LIQUIDITY_MARKET"
           ],
-          "timestamp": "2026-06-16T04:36:22.160Z",
-          "key": "ETHUSDT:SHORT:TRENDING",
-          "trackedAt": "2026-06-16T04:36:22.160Z",
-          "observedAt": "2026-06-16T06:37:04.797Z",
+          "gap": 0.8,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 0.80 points allowed as small positive-edge exploratory trade",
+          "price": 1787.58,
+          "expectedMovePct": 1.6130516999484132,
+          "rejected": [],
+          "timestamp": "2026-06-16T14:17:36.370Z",
+          "key": "ETHUSDT:SHORT:BREAKOUT",
+          "trackedAt": "2026-06-16T14:17:36.370Z",
+          "observedAt": "2026-06-16T14:23:40.888Z",
+          "outcome": "MISSED_OPPORTUNITY",
+          "directionalMovePct": 0.791
+        },
+        {
+          "symbol": "SOLUSDT",
+          "direction": "SHORT",
+          "conviction": 63.94,
+          "score": 44.2,
+          "requiredScore": 46,
+          "requiredConvictionScore": 42,
+          "regime": "SIDEWAYS_CHOP",
+          "marketRegimeTags": [
+            "SIDEWAYS_CHOP_MARKET",
+            "LOW_LIQUIDITY_MARKET"
+          ],
+          "gap": 1.8,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 1.80 points allowed as small positive-edge exploratory trade",
+          "price": 73.51,
+          "expectedMovePct": 1.6976556184316964,
+          "rejected": [],
+          "timestamp": "2026-06-16T14:17:22.292Z",
+          "key": "SOLUSDT:SHORT:SIDEWAYS_CHOP",
+          "trackedAt": "2026-06-16T14:17:22.292Z",
+          "observedAt": "2026-06-16T14:23:47.232Z",
+          "outcome": "MISSED_OPPORTUNITY",
+          "directionalMovePct": 0.7754
+        },
+        {
+          "symbol": "SOLUSDT",
+          "direction": "SHORT",
+          "conviction": 58.21,
+          "score": 45.2,
+          "requiredScore": 46,
+          "requiredConvictionScore": 42,
+          "regime": "SIDEWAYS_CHOP",
+          "marketRegimeTags": [
+            "SIDEWAYS_CHOP_MARKET",
+            "LOW_LIQUIDITY_MARKET"
+          ],
+          "gap": 0.8,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 0.80 points allowed as small positive-edge exploratory trade",
+          "price": 72.55,
+          "expectedMovePct": 1.57377049180328,
+          "rejected": [],
+          "timestamp": "2026-06-16T14:32:10.305Z",
+          "key": "SOLUSDT:SHORT:SIDEWAYS_CHOP",
+          "trackedAt": "2026-06-16T14:32:10.305Z"
+        },
+        {
+          "symbol": "SOLUSDT",
+          "direction": "SHORT",
+          "conviction": 58.21,
+          "score": 45.2,
+          "requiredScore": 46,
+          "requiredConvictionScore": 42,
+          "regime": "SIDEWAYS_CHOP",
+          "marketRegimeTags": [
+            "SIDEWAYS_CHOP_MARKET",
+            "LOW_LIQUIDITY_MARKET"
+          ],
+          "gap": 0.8,
+          "allowedAsSmallTrade": true,
+          "allowedReason": "near-miss within 0.80 points allowed as small positive-edge exploratory trade",
+          "price": 72.55,
+          "expectedMovePct": 1.57377049180328,
+          "rejected": [],
+          "timestamp": "2026-06-16T14:32:10.305Z",
+          "key": "SOLUSDT:SHORT:SIDEWAYS_CHOP",
+          "trackedAt": "2026-06-16T14:32:10.305Z",
+          "observedAt": "2026-06-16T14:35:23.573Z",
           "outcome": "CORRECT_REJECT",
-          "directionalMovePct": -0.3419
-        },
-        {
-          "symbol": "BTCUSDT",
-          "direction": "LONG",
-          "conviction": 50.82,
-          "score": 46.5,
-          "requiredScore": 47,
-          "requiredConvictionScore": 44,
-          "regime": "BREAKOUT",
-          "marketRegimeTags": [
-            "SIDEWAYS_CHOP_MARKET",
-            "FAKE_BREAKOUT_ENVIRONMENT"
-          ],
-          "gap": 0.5,
-          "price": 66424.2,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "smart edge filter: probability-adjusted edge 0.190% with TP probability 0.450",
-            "fake breakout environment rejected weak breakout structure",
-            "choppy-market entries disabled by configuration"
-          ],
-          "timestamp": "2026-06-16T06:39:47.221Z",
-          "key": "BTCUSDT:LONG:BREAKOUT",
-          "trackedAt": "2026-06-16T06:39:47.221Z"
-        },
-        {
-          "symbol": "BTCUSDT",
-          "direction": "LONG",
-          "conviction": 50.45,
-          "score": 46.5,
-          "requiredScore": 47,
-          "requiredConvictionScore": 44,
-          "regime": "BREAKOUT",
-          "marketRegimeTags": [
-            "SIDEWAYS_CHOP_MARKET",
-            "FAKE_BREAKOUT_ENVIRONMENT"
-          ],
-          "gap": 0.5,
-          "price": 66420.3,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "smart edge filter: probability-adjusted edge 0.190% with TP probability 0.450",
-            "fake breakout environment rejected weak breakout structure",
-            "choppy-market entries disabled by configuration"
-          ],
-          "timestamp": "2026-06-16T06:39:55.618Z",
-          "key": "BTCUSDT:LONG:BREAKOUT",
-          "trackedAt": "2026-06-16T06:39:55.618Z"
-        },
-        {
-          "symbol": "BTCUSDT",
-          "direction": "LONG",
-          "conviction": 50.45,
-          "score": 46.5,
-          "requiredScore": 47,
-          "requiredConvictionScore": 44,
-          "regime": "BREAKOUT",
-          "marketRegimeTags": [
-            "SIDEWAYS_CHOP_MARKET",
-            "FAKE_BREAKOUT_ENVIRONMENT"
-          ],
-          "gap": 0.5,
-          "price": 66420.2,
-          "expectedMovePct": 0.95,
-          "rejected": [
-            "smart edge filter: probability-adjusted edge 0.190% with TP probability 0.450",
-            "fake breakout environment rejected weak breakout structure",
-            "choppy-market entries disabled by configuration"
-          ],
-          "timestamp": "2026-06-16T06:40:03.284Z",
-          "key": "BTCUSDT:LONG:BREAKOUT",
-          "trackedAt": "2026-06-16T06:40:03.284Z"
+          "directionalMovePct": -0.317
         }
       ]
     }
