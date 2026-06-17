@@ -50,6 +50,31 @@ function bounded(value, minimum, maximum) {
   return Math.max(minimum, Math.min(maximum, value));
 }
 
+function rejectionGroup(reason = "") {
+  const raw = String(reason || "");
+  if (/fee inefficiency|fee killer|edge gate|low-edge|smart edge|probability-adjusted edge|projected edge|execution costs|net edge/i.test(raw)) return "POST_COST_EDGE";
+  if (/anti-chop|choppy-market|sideways chop|weak chop|chop setup|noisy chop/i.test(raw)) return "CHOP";
+  if (/momentum did not persist|momentum persistence|persistent momentum/i.test(raw)) return "MOMENTUM";
+  if (/volume confirmation|volume survivability|volume spike|low volume/i.test(raw)) return "VOLUME";
+  if (/range expansion|weak range/i.test(raw)) return "RANGE";
+  if (/btc\/eth disagreement|benchmark|macro bias|1h macro|multi.*opposite/i.test(raw)) return "TIMEFRAME_OR_BENCHMARK";
+  if (/liquidity/i.test(raw)) return "LIQUIDITY";
+  if (/low conviction|conviction.*below/i.test(raw)) return "CONVICTION";
+  return raw.replace(/:\s.*$/, "");
+}
+
+function dedupeRejectionReasons(reasons = []) {
+  const seen = new Set();
+  const output = [];
+  for (const reason of reasons) {
+    const group = rejectionGroup(reason);
+    if (seen.has(group)) continue;
+    seen.add(group);
+    output.push(reason);
+  }
+  return output;
+}
+
 function analysisDirection(analysis, trigger = false) {
   const ema = emaDirection(analysis);
   if (ema !== "CHOPPY") return ema;
@@ -1384,6 +1409,7 @@ class Scanner {
     if (signal.marketRegimeV2 === "PANIC" && !signal.eliteSetup) {
       signal.rejected.push("PANIC regime requires elite setup");
     }
+    signal.rejected = dedupeRejectionReasons(signal.rejected);
     signal.convictionContribution = Number((Number(signal.convictionScore || 0) - Number(signal.requiredConvictionScore || this.config.minConvictionScore)).toFixed(2));
     const policyRequiredScore = this.adaptive && this.config.adaptiveLearningEnabled
       ? this.adaptive.currentPolicy().minSignalScore
