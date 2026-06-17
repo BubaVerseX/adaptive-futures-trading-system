@@ -1500,13 +1500,16 @@ async function testActiveAdaptiveScalperTradingReport() {
     { stage: "SCAN" }
   );
   const report = bot.writeTradingReport(true);
+  const rejectionReport = bot.writeRejectionReport(true);
+  const today = new Date().toISOString().slice(0, 10);
   assert.equal(report.tradesTaken, 1);
   assert.equal(report.tradesRejected, 1);
-  assert.equal(report.rejectionReasons["low conviction"], 1);
+  assert.equal(report.rejectionReasons.CONVICTION_BELOW_THRESHOLD, 1);
   assert.equal(report.winRatePct, 100);
   assert.equal(report.pnlUsdt, 0.3);
   assert.equal(report.averageMaximumFavorableExcursionPct, 0.8);
   assert.equal(report.averageMaximumAdverseExcursionPct, 0.25);
+  assert.equal(report.exitEfficiency.averageMaximumFavorableExcursionPct, 0.8);
   assert.equal(report.symbolPerformance.ETHUSDT.trades, 1);
   assert.equal(report.participation.inactivityRelaxation.closedTrades, 1);
   assert.equal(report.protections.dailyLossLimitActive, true);
@@ -1517,6 +1520,11 @@ async function testActiveAdaptiveScalperTradingReport() {
   assert.ok(fs.existsSync(path.join(cfg.reportsDir, "expectancy.json")));
   assert.ok(fs.existsSync(path.join(cfg.reportsDir, "system-health.json")));
   assert.ok(fs.existsSync(path.join(cfg.reportsDir, "latest-summary.json")));
+  assert.ok(fs.existsSync(path.join(cfg.reportsDir, "rejection-report.json")));
+  assert.ok(fs.existsSync(path.join(cfg.reportsDir, "daily", `${today}-diagnostics.json`)));
+  assert.equal(rejectionReport.rankedRejectionReasons[0].reason, "CONVICTION_BELOW_THRESHOLD");
+  assert.equal(rejectionReport.dailyDiagnostics.rejectedSignals[0].setupType, "BREAKOUT_RETEST");
+  assert.equal(rejectionReport.exitEfficiency.averageMaximumFavorableExcursionPct, 0.8);
   assert.ok(events.some((event) => event.message === "PAPER_TRADE_REJECTED"));
 }
 
@@ -1594,6 +1602,64 @@ async function testParticipationRecoverySoftensOnlyNonSafetyFilters() {
   assert.ok(signal.softenedRejections.some((item) => item.inactivityRelaxed));
   assert.equal(signal.rejected.some((reason) => /volume confirmation below survivability/i.test(reason)), false);
   assert.ok(signal.scoreBreakdown.some((reason) => /participation recovery softened/i.test(reason)));
+}
+
+async function testProfitControlledRejectionReportAndDiagnostics() {
+  const { events, log } = logCollector();
+  const cfg = config({
+    dryRun: true,
+    profitControlledEquityMode: true,
+    participationRecoveryMode: true,
+  });
+  const bot = new LadderBot(cfg);
+  bot.log = log;
+  bot.store.state.mode = "PROFIT_CONTROLLED_EQUITY_MODE";
+  bot.recordRejectedTrade(
+    {
+      symbol: "ETHUSDT",
+      side: "LONG",
+      score: 69,
+      requiredScore: 70,
+      convictionScore: 48,
+      requiredConvictionScore: 45,
+      setupType: "BREAKOUT_RETEST",
+      marketRegimeV2: "SIDEWAYS_CHOP",
+      rejected: [
+        "smart edge filter: probability-adjusted edge 0.050% with TP probability 0.300",
+        "fee inefficiency: expected move 0.120% vs cost 0.100% ratio 1.20",
+      ],
+    },
+    "smart edge filter: probability-adjusted edge 0.050% with TP probability 0.300",
+    { stage: "SCAN" }
+  );
+  bot.recordAcceptedRelaxedSignal(
+    {
+      symbol: "ETHUSDT",
+      side: "LONG",
+      score: 69,
+      requiredScore: 70,
+      convictionScore: 48,
+      requiredConvictionScore: 45,
+      setupType: "BREAKOUT_RETEST",
+      marketRegimeV2: "SIDEWAYS_CHOP",
+      nearMissTrade: true,
+      nearMissGap: 1,
+      softenedRejections: [{ reason: "momentum did not persist long enough" }],
+    },
+    "near-miss positive-edge signal accepted",
+    { stage: "NEAR_MISS_SIGNAL" }
+  );
+  const report = bot.writeRejectionReport(true);
+  const today = new Date().toISOString().slice(0, 10);
+  assert.equal(report.mode, "PROFIT_CONTROLLED_EQUITY_MODE");
+  assert.equal(report.rankedRejectionReasons[0].reason, "POST_COST_EDGE_INSUFFICIENT");
+  assert.equal(report.rankedRejectionReasons[0].count, 1);
+  assert.equal(report.totalAcceptedRelaxedSignals, 1);
+  assert.equal(report.dailyDiagnostics.rejectedSignals[0].symbol, "ETHUSDT");
+  assert.equal(report.dailyDiagnostics.acceptedRelaxedSignals[0].nearMiss, true);
+  assert.ok(fs.existsSync(path.join(cfg.reportsDir, "rejection-report.json")));
+  assert.ok(fs.existsSync(path.join(cfg.reportsDir, "daily", `${today}-diagnostics.json`)));
+  assert.ok(events.some((event) => event.message === "REJECTION_REPORT_UPDATED"));
 }
 
 async function testMarketRegimeClassification() {
@@ -4347,6 +4413,7 @@ async function run() {
   await testActiveAdaptiveScalperConfidenceSizingAndDailyLoss();
   await testActiveAdaptiveScalperTradingReport();
   await testParticipationRecoverySoftensOnlyNonSafetyFilters();
+  await testProfitControlledRejectionReportAndDiagnostics();
   await testExplorationSignalPath();
   await testExplorationMemoryRelaxation();
   await testFeeAwareStatsAndSymbolCooldown();

@@ -107,6 +107,7 @@ function initialState(config) {
           rejectionReasons: {},
           recentRejectedTrades: [],
           lastReportAt: null,
+          lastRejectionReportAt: null,
         }
       : null,
     telegramUpdateOffset: 0,

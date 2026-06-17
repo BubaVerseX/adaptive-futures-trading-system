@@ -94,6 +94,10 @@ function numeric(value, fallback = 0) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function round(value, places = 6) {
+  return Number(numeric(value).toFixed(places));
+}
+
 function effectivelyUnchanged(currentValue, intendedValue, tolerancePct = 0.01) {
   if (intendedValue === undefined || intendedValue === null || intendedValue === "") return true;
   if (currentValue === undefined || currentValue === null || currentValue === "") return false;
@@ -125,6 +129,44 @@ function secondsHeld(position) {
   const openedAt = Date.parse(position.openedAt || "");
   if (!Number.isFinite(openedAt)) return 0;
   return Math.max(0, (Date.now() - openedAt) / 1000);
+}
+
+function normalizeRejectionReason(reason = "UNKNOWN_REJECTION") {
+  const raw = String(reason || "UNKNOWN_REJECTION").replace(/:\s.*$/, "").trim();
+  if (/fee inefficiency|fee killer|edge gate|low-edge|smart edge|probability-adjusted edge|reward is too small|projected edge|execution costs|net edge/i.test(raw)) {
+    return "POST_COST_EDGE_INSUFFICIENT";
+  }
+  if (/anti-chop|choppy-market|sideways chop|weak chop|chop setup|noisy chop/i.test(raw)) {
+    return "CHOP_OR_RANGE_QUALITY";
+  }
+  if (/momentum did not persist|momentum persistence|persistent momentum/i.test(raw)) {
+    return "MOMENTUM_PERSISTENCE_WEAK";
+  }
+  if (/volume confirmation|volume survivability|volume spike|low volume/i.test(raw)) {
+    return "VOLUME_CONFIRMATION_WEAK";
+  }
+  if (/range expansion|weak range/i.test(raw)) {
+    return "RANGE_EXPANSION_WEAK";
+  }
+  if (/btc\/eth disagreement|btc.*eth.*disagree|benchmark|macro bias|timeframe.*conflict|1h macro|multi.*opposite/i.test(raw)) {
+    return "BENCHMARK_OR_TIMEFRAME_CONFLICT";
+  }
+  if (/liquidity/i.test(raw)) {
+    return "LIQUIDITY_WEAK";
+  }
+  if (/low conviction|conviction.*below/i.test(raw)) {
+    return "CONVICTION_BELOW_THRESHOLD";
+  }
+  if (/quality score|profit-mode quality|strong-only quality/i.test(raw)) {
+    return "QUALITY_SCORE_BELOW_THRESHOLD";
+  }
+  if (/minimum order|exchange minimum|risk-sized|quantity invalid|below this symbol/i.test(raw)) {
+    return "EXCHANGE_MINIMUM_OR_POSITION_SIZE";
+  }
+  if (/portfolio|max loss|margin|exposure|open positions|liquidation|balance|protection|reconciliation|unmanaged|pending exchange|emergency|stop-loss|leverage/i.test(raw)) {
+    return "SAFETY_OR_PORTFOLIO_PROTECTION";
+  }
+  return raw || "UNKNOWN_REJECTION";
 }
 
 class LadderBot {
@@ -1003,6 +1045,7 @@ class LadderBot {
       this.writeLiveValidationStatusReport();
       this.writeProfitControlledStatusReport();
       this.writeTradingReport();
+      this.writeRejectionReport();
       if (!this.stopping) {
         this.timer = setTimeout(() => void this.runCycle(), this.config.scanIntervalMs);
       }
@@ -1041,6 +1084,7 @@ class LadderBot {
         rejectionReasons: {},
         recentRejectedTrades: [],
         lastReportAt: null,
+        lastRejectionReportAt: null,
       };
     }
     if (!this.store.state.activeAdaptiveScalper.rejectionReasons) this.store.state.activeAdaptiveScalper.rejectionReasons = {};
@@ -1048,12 +1092,74 @@ class LadderBot {
     return this.store.state.activeAdaptiveScalper;
   }
 
-  recordRejectedTrade(signal = {}, reason = "UNKNOWN_REJECTION", details = {}) {
-    const state = this.ensureActiveScalperState();
+  ensureParticipationAuditState() {
+    const state = this.config.activeAdaptiveScalperMode
+      ? this.ensureActiveScalperState()
+      : this.config.profitControlledEquityMode
+        ? (() => {
+            const profile = ensureProfitControlledState(this.store.state, this.config);
+            if (!profile.participationAudit) {
+              profile.participationAudit = {
+                namespace: "data/profit-controlled-live",
+                tradesRejected: 0,
+                tradesAccepted: 0,
+                rejectionReasons: {},
+                rejectionRawReasons: {},
+                rejectionCategories: {},
+                recentRejectedTrades: [],
+                acceptedRelaxedSignals: [],
+                dailyDiagnostics: null,
+                lastReportAt: null,
+              };
+            }
+            return profile.participationAudit;
+          })()
+        : null;
     if (!state) return null;
-    const normalizedReason = String(reason || "UNKNOWN_REJECTION").replace(/:\s.*$/, "");
+    if (!state.rejectionReasons) state.rejectionReasons = {};
+    if (!state.rejectionRawReasons) state.rejectionRawReasons = {};
+    if (!state.rejectionCategories) state.rejectionCategories = {};
+    if (!Array.isArray(state.recentRejectedTrades)) state.recentRejectedTrades = [];
+    if (!Array.isArray(state.acceptedRelaxedSignals)) state.acceptedRelaxedSignals = [];
+    if (state.lastRejectionReportAt === undefined) state.lastRejectionReportAt = null;
+    return state;
+  }
+
+  ensureDailyDiagnostics(state) {
+    if (!state) return null;
+    const date = new Date().toISOString().slice(0, 10);
+    if (!state.dailyDiagnostics || state.dailyDiagnostics.date !== date) {
+      state.dailyDiagnostics = {
+        date,
+        generatedAt: new Date().toISOString(),
+        rejectedSignals: [],
+        acceptedRelaxedSignals: [],
+        rejectionReasons: {},
+        rejectionCategories: {},
+        bySymbol: {},
+        bySetup: {},
+        byRegime: {},
+        byHour: {},
+      };
+    }
+    return state.dailyDiagnostics;
+  }
+
+  recordRejectedTrade(signal = {}, reason = "UNKNOWN_REJECTION", details = {}) {
+    const state = this.ensureParticipationAuditState();
+    if (!state) return null;
+    const rawReasons = Array.isArray(details.rejected)
+      ? details.rejected
+      : Array.isArray(signal.rejected) && signal.rejected.length
+        ? signal.rejected
+        : [reason];
+    const normalizedReasons = [...new Set(rawReasons.map((item) => normalizeRejectionReason(item)))];
+    const rawReason = String(reason || rawReasons[0] || "UNKNOWN_REJECTION").trim();
+    const normalizedReason = normalizeRejectionReason(rawReason);
+    const timestamp = new Date().toISOString();
+    const hourUtc = Number(timestamp.slice(11, 13));
     const record = {
-      timestamp: new Date().toISOString(),
+      timestamp,
       stage: details.stage || "ENTRY_EVALUATION",
       symbol: signal.symbol || details.symbol || "UNKNOWN",
       side: signal.side || details.side || "UNKNOWN",
@@ -1063,21 +1169,45 @@ class LadderBot {
       requiredConvictionScore: Number(signal.requiredConvictionScore || details.requiredConvictionScore || 0),
       setupType: signal.setupType || signal.continuationSetupType || details.setupType || "UNKNOWN",
       marketRegime: signal.marketRegimeV2 || signal.marketRegimeType || signal.regime || details.marketRegime || "UNKNOWN",
+      hourUtc,
+      rawReason,
       reason: normalizedReason,
+      normalizedReasons,
       antiChopContribution: Number(signal.antiChopContribution || 0),
       convictionContribution: Number(signal.convictionContribution || 0),
-      allReasons: Array.isArray(details.rejected)
-        ? details.rejected
-        : Array.isArray(signal.rejected)
-          ? signal.rejected
-          : [normalizedReason],
+      allReasons: rawReasons,
+      softenedRejections: signal.softenedRejections || [],
+      nearMiss: Boolean(signal.nearMiss),
+      nearMissGap: Number(signal.nearMissGap || 0),
+      inactivityRecoveryStage: signal.dynamicInactivityRecovery && signal.dynamicInactivityRecovery.stage,
     };
     state.tradesRejected = Number(state.tradesRejected || 0) + 1;
-    state.rejectionReasons[normalizedReason] = Number(state.rejectionReasons[normalizedReason] || 0) + 1;
+    state.rejectionRawReasons[rawReason] = Number(state.rejectionRawReasons[rawReason] || 0) + 1;
+    for (const item of normalizedReasons) {
+      state.rejectionReasons[item] = Number(state.rejectionReasons[item] || 0) + 1;
+      state.rejectionCategories[item] = Number(state.rejectionCategories[item] || 0) + 1;
+    }
     state.recentRejectedTrades.push(record);
     state.recentRejectedTrades = state.recentRejectedTrades.slice(-this.config.activeScalperRejectedLogMax);
-    this.log("INFO", "PAPER_TRADE_REJECTED", {
+    const diagnostics = this.ensureDailyDiagnostics(state);
+    if (diagnostics) {
+      diagnostics.generatedAt = timestamp;
+      diagnostics.rejectedSignals.push(record);
+      diagnostics.rejectedSignals = diagnostics.rejectedSignals.slice(-2000);
+      for (const item of normalizedReasons) {
+        diagnostics.rejectionReasons[item] = Number(diagnostics.rejectionReasons[item] || 0) + 1;
+        diagnostics.rejectionCategories[item] = Number(diagnostics.rejectionCategories[item] || 0) + 1;
+      }
+      diagnostics.bySymbol[record.symbol] = Number(diagnostics.bySymbol[record.symbol] || 0) + 1;
+      diagnostics.bySetup[record.setupType] = Number(diagnostics.bySetup[record.setupType] || 0) + 1;
+      diagnostics.byRegime[record.marketRegime] = Number(diagnostics.byRegime[record.marketRegime] || 0) + 1;
+      diagnostics.byHour[String(hourUtc).padStart(2, "0")] = Number(diagnostics.byHour[String(hourUtc).padStart(2, "0")] || 0) + 1;
+    }
+    this.log("INFO", this.config.activeAdaptiveScalperMode ? "PAPER_TRADE_REJECTED" : "TRADE_SIGNAL_REJECTED", {
       reason: record.reason,
+      rawReason: record.rawReason,
+      normalizedReasons: record.normalizedReasons,
+      allReasons: record.allReasons,
       score: record.score,
       symbol: record.symbol,
       side: record.side,
@@ -1092,8 +1222,45 @@ class LadderBot {
     return record;
   }
 
+  recordAcceptedRelaxedSignal(signal = {}, reason = "RELAXED_SIGNAL_ACCEPTED", details = {}) {
+    const state = this.ensureParticipationAuditState();
+    if (!state) return null;
+    const timestamp = new Date().toISOString();
+    const record = {
+      timestamp,
+      stage: details.stage || "SIGNAL_ACCEPTED",
+      symbol: signal.symbol || details.symbol || "UNKNOWN",
+      side: signal.side || details.side || "UNKNOWN",
+      setupType: signal.setupType || signal.continuationSetupType || details.setupType || "UNKNOWN",
+      marketRegime: signal.marketRegimeV2 || signal.marketRegimeType || signal.regime || details.marketRegime || "UNKNOWN",
+      score: Number(signal.score || 0),
+      requiredScore: Number(signal.requiredScore || 0),
+      convictionScore: Number(signal.convictionScore || 0),
+      requiredConvictionScore: Number(signal.requiredConvictionScore || 0),
+      reason,
+      nearMiss: Boolean(signal.nearMissTrade || signal.nearMiss),
+      nearMissGap: Number(signal.nearMissGap || 0),
+      softenedRejections: signal.softenedRejections || [],
+      inactivityRecoveryStage: signal.dynamicInactivityRecovery && signal.dynamicInactivityRecovery.stage,
+      feeProtectionStillRequired: true,
+      riskControlsUnchanged: true,
+    };
+    state.tradesAccepted = Number(state.tradesAccepted || 0) + 1;
+    state.acceptedRelaxedSignals.push(record);
+    state.acceptedRelaxedSignals = state.acceptedRelaxedSignals.slice(-this.config.activeScalperRejectedLogMax);
+    const diagnostics = this.ensureDailyDiagnostics(state);
+    if (diagnostics) {
+      diagnostics.generatedAt = timestamp;
+      diagnostics.acceptedRelaxedSignals.push(record);
+      diagnostics.acceptedRelaxedSignals = diagnostics.acceptedRelaxedSignals.slice(-1000);
+    }
+    this.log("INFO", "RELAXED_SIGNAL_ACCEPTED_FOR_EVALUATION", record);
+    this.store.saveState();
+    return record;
+  }
+
   recordPaperScanRejections(scan) {
-    if (!this.config.activeAdaptiveScalperMode || !scan || !Array.isArray(scan.analyses)) return;
+    if (!this.ensureParticipationAuditState() || !scan || !Array.isArray(scan.analyses)) return;
     for (const item of scan.analyses) {
       if (item.eligible) continue;
       const reasons = Array.isArray(item.rejected) && item.rejected.length
@@ -1105,6 +1272,96 @@ class LadderBot {
           ];
       this.recordRejectedTrade(item, reasons[0], { stage: "SCAN", rejected: reasons });
     }
+  }
+
+  exitEfficiencySummary(trades = []) {
+    const closed = trades.filter((trade) => trade.status === "CLOSED" && Number.isFinite(Number(trade.pnlUsdt || trade.netPnlAfterCostsUsdt)));
+    const winners = closed.filter((trade) => numeric(trade.pnlUsdt, numeric(trade.netPnlAfterCostsUsdt)) > 0);
+    const average = (rows, selector) => rows.length ? rows.reduce((total, row) => total + numeric(selector(row)), 0) / rows.length : 0;
+    const withMfe = closed.filter((trade) => numeric(trade.maximumFavorableExcursionPct) > 0);
+    const captureRows = withMfe.map((trade) => {
+      const mfe = numeric(trade.maximumFavorableExcursionPct);
+      const pnlPct = numeric(trade.pnlPct);
+      return mfe > 0 ? Math.max(0, Math.min(1, pnlPct / mfe)) : 0;
+    });
+    return {
+      closedTrades: closed.length,
+      winners: winners.length,
+      averageMaximumFavorableExcursionPct: round(average(closed, (trade) => trade.maximumFavorableExcursionPct), 4),
+      averageMaximumAdverseExcursionPct: round(average(closed, (trade) => trade.maximumAdverseExcursionPct), 4),
+      averageProfitGivenBackPct: round(average(closed, (trade) => trade.profitGivenBackPct), 4),
+      averageWinnerMfePct: round(average(winners, (trade) => trade.maximumFavorableExcursionPct), 4),
+      averageWinnerProfitGivenBackPct: round(average(winners, (trade) => trade.profitGivenBackPct), 4),
+      averageCaptureEfficiencyPct: captureRows.length
+        ? round((captureRows.reduce((total, value) => total + value, 0) / captureRows.length) * 100, 2)
+        : 0,
+      runnerContributionUsdt: round(closed.reduce((total, trade) => total + numeric(trade.runnerNetContributionUsdt), 0)),
+      exitEfficiencyNote: "Capture efficiency compares final pnlPct with maximum favorable excursion when MFE is available.",
+    };
+  }
+
+  rankedObject(counts = {}) {
+    return Object.entries(counts || {})
+      .map(([reason, count]) => ({ reason, count: Number(count || 0) }))
+      .sort((left, right) => right.count - left.count || left.reason.localeCompare(right.reason));
+  }
+
+  writeRejectionReport(force = false) {
+    const state = this.ensureParticipationAuditState();
+    if (!state) return null;
+    const intervalMs = Math.max(15000, this.config.scanIntervalMs * 5);
+    if (!force && state.lastRejectionReportAt && Date.now() - Date.parse(state.lastRejectionReportAt) < intervalMs) return null;
+    const reportsDir = this.config.reportsDir || path.join(
+      this.config.projectRoot,
+      "data",
+      this.config.profitControlledEquityMode ? "profit-controlled-live" : "paper-trading",
+      "reports"
+    );
+    const today = new Date().toISOString().slice(0, 10);
+    const diagnostics = this.ensureDailyDiagnostics(state);
+    const trades = this.store.trades.filter((trade) => trade.mode === this.store.state.mode);
+    const report = {
+      generatedAt: new Date().toISOString(),
+      mode: this.config.profitControlledEquityMode ? "PROFIT_CONTROLLED_EQUITY_MODE" : "ACTIVE_ADAPTIVE_SCALPER_PAPER",
+      totalRejectedSignals: Number(state.tradesRejected || 0),
+      totalAcceptedRelaxedSignals: Number(state.tradesAccepted || 0),
+      rankedRejectionReasons: this.rankedObject(state.rejectionReasons),
+      rankedRawRejectionReasons: this.rankedObject(state.rejectionRawReasons),
+      rankedRejectionCategories: this.rankedObject(state.rejectionCategories),
+      recentRejectedSignals: state.recentRejectedTrades || [],
+      acceptedRelaxedSignals: state.acceptedRelaxedSignals || [],
+      dailyDiagnostics: diagnostics,
+      exitEfficiency: this.exitEfficiencySummary(trades),
+      inactivityVisibility: {
+        lastTradeOpenedAt: this.store.state.lastTradeOpenedAt || null,
+        inactivityRecoveryMode: Boolean(this.config.inactivityRecoveryMode),
+        participationRecoveryMode: Boolean(this.config.participationRecoveryMode),
+        nonSafetyFiltersCanSoften: Boolean(this.config.participationRecoveryMode),
+        safetyFiltersNeverRelaxed: true,
+      },
+      protectionsUnchanged: {
+        stopLossRequired: true,
+        liquidationProtection: true,
+        exposureLimits: true,
+        emergencyStopFile: path.basename(this.config.emergencyStopFile),
+        apiRateLimitProtection: true,
+        noMartingale: true,
+        noAveragingDown: true,
+      },
+    };
+    fs.mkdirSync(path.join(reportsDir, "daily"), { recursive: true });
+    fs.writeFileSync(path.join(reportsDir, "rejection-report.json"), `${JSON.stringify(report, null, 2)}\n`, "utf8");
+    fs.writeFileSync(path.join(reportsDir, "daily", `${today}-diagnostics.json`), `${JSON.stringify(diagnostics, null, 2)}\n`, "utf8");
+    state.lastRejectionReportAt = report.generatedAt;
+    this.store.saveState();
+    this.log("INFO", "REJECTION_REPORT_UPDATED", {
+      file: path.join(reportsDir, "rejection-report.json"),
+      dailyDiagnosticsFile: path.join(reportsDir, "daily", `${today}-diagnostics.json`),
+      topRejectionReason: report.rankedRejectionReasons[0],
+      totalRejectedSignals: report.totalRejectedSignals,
+      totalAcceptedRelaxedSignals: report.totalAcceptedRelaxedSignals,
+    });
+    return report;
   }
 
   writeTradingReport(force = false) {
@@ -1182,6 +1439,7 @@ class LadderBot {
       averageLossUsdt: Number(average(losers, (trade) => trade.pnlUsdt).toFixed(6)),
       averageMaximumFavorableExcursionPct: Number(average(closedTrades, (trade) => trade.maximumFavorableExcursionPct).toFixed(4)),
       averageMaximumAdverseExcursionPct: Number(average(closedTrades, (trade) => trade.maximumAdverseExcursionPct).toFixed(4)),
+      exitEfficiency: this.exitEfficiencySummary(trades),
       symbolPerformance,
       participation,
       drawdown: this.adaptive.memory.stats && this.adaptive.memory.stats.drawdown,
@@ -1750,6 +2008,7 @@ class LadderBot {
         Math.max(0, numeric(profile.sizingEquityBaseUsdt) * (this.config.maxTotalOpenStopRiskPct / 100) - this.totalOpenRiskAtStopUsdt()).toFixed(6)
       ),
       totalOpenStopRiskUsdt: Number(this.totalOpenRiskAtStopUsdt().toFixed(6)),
+      exitEfficiency: this.exitEfficiencySummary(this.store.trades),
     };
     const reportsDir = this.config.reportsDir || path.join(this.config.projectRoot, "data", "profit-controlled-live", "reports");
     const today = new Date().toISOString().slice(0, 10);
@@ -1818,6 +2077,7 @@ class LadderBot {
     const reportsDir = this.config.reportsDir || path.join(this.config.projectRoot, "data", "profit-controlled-live", "reports");
     fs.mkdirSync(reportsDir, { recursive: true });
     const report = profitExpectancyReport(this.store.trades, this.config);
+    report.exitEfficiency = this.exitEfficiencySummary(this.store.trades);
     fs.writeFileSync(path.join(reportsDir, "expectancy.json"), `${JSON.stringify(report, null, 2)}\n`, "utf8");
     this.log("INFO", "PORTFOLIO_EXPECTANCY_REPORT_UPDATED", {
       file: path.join(reportsDir, "expectancy.json"),
@@ -1842,6 +2102,7 @@ class LadderBot {
     const reportsDir = this.config.reportsDir || path.join(this.config.projectRoot, "data", "profit-controlled-live", "reports");
     fs.mkdirSync(reportsDir, { recursive: true });
     const report = profitSystemHealthReport(this.store.trades, this.config);
+    report.exitEfficiency = this.exitEfficiencySummary(this.store.trades);
     const profile = this.store.state.profitControlled || {};
     report.nearMissStats = profile.nearMissStats || {
       tracked: 0,
@@ -1868,6 +2129,7 @@ class LadderBot {
     const reportsDir = this.config.reportsDir || path.join(this.config.projectRoot, "data", "profit-controlled-live", "reports");
     fs.mkdirSync(reportsDir, { recursive: true });
     const report = profitEdgeReport(this.store.trades, this.config);
+    report.exitEfficiency = this.exitEfficiencySummary(this.store.trades);
     fs.writeFileSync(path.join(reportsDir, "edge-report.json"), `${JSON.stringify(report, null, 2)}\n`, "utf8");
     this.log("INFO", "EDGE_REPORT_UPDATED", {
       file: path.join(reportsDir, "edge-report.json"),
@@ -2185,7 +2447,19 @@ class LadderBot {
             riskControlsUnchanged: true,
             feeProtectionStillRequired: true,
           });
+          this.recordAcceptedRelaxedSignal(signal, signal.nearMissAllowedReason || "near-miss positive-edge signal accepted", {
+            stage: "NEAR_MISS_SIGNAL",
+          });
+        } else if (Array.isArray(signal.softenedRejections) && signal.softenedRejections.length) {
+          this.recordAcceptedRelaxedSignal(signal, "non-safety filters softened into score penalties", {
+            stage: "SOFTENED_FILTER_SIGNAL",
+          });
         }
+      }
+      if (!signal.explorationTrade && Array.isArray(signal.softenedRejections) && signal.softenedRejections.length) {
+        this.recordAcceptedRelaxedSignal(signal, "non-safety filters softened into score penalties", {
+          stage: "SOFTENED_FILTER_SIGNAL",
+        });
       }
       if (signal.moderateChopAccepted) {
         this.log("INFO", "Moderate chop accepted for controlled participation.", {
