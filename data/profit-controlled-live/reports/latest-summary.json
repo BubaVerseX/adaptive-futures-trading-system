@@ -1,20 +1,20 @@
 {
-  "generatedAt": "2026-06-19T17:56:37.659Z",
+  "generatedAt": "2026-06-20T20:06:42.001Z",
   "objective": "MAXIMIZE_DAILY_REALIZED_NET_PNL_WITH_QUALIFIED_HIGH_ACTIVITY",
   "account": {
     "equity": {
       "startingUsdt": 100,
       "realizedPnlUsdt": -3.1609889999999976,
-      "currentUsdt": 66.115257
+      "currentUsdt": 66.102552
     },
     "openPositions": 0,
     "totalCostsUsdt": 5.78889,
     "currentRiskLevel": 0
   },
   "activity": {
-    "completedTradesToday": 2,
+    "completedTradesToday": 0,
     "completedTradesAllTime": 314,
-    "continuationTradesToday": 2,
+    "continuationTradesToday": 0,
     "reentriesToday": 0
   },
   "quality": {
@@ -71,16 +71,16 @@
       "grossPositiveButNetNegativeTrades": 0
     },
     "today": {
-      "trades": 2,
-      "netPnlUsdt": -0.17175,
-      "grossPnlUsdt": -0.1382,
-      "feesUsdt": 0.033549,
+      "trades": 0,
+      "netPnlUsdt": 0,
+      "grossPnlUsdt": 0,
+      "feesUsdt": 0,
       "postCostWinRatePct": 0,
       "profitFactor": 0,
-      "expectancyUsdt": -0.085875,
+      "expectancyUsdt": 0,
       "averageWinnerUsdt": 0,
-      "averageLoserUsdt": -0.085875,
-      "feeBleedRatio": 0.1953,
+      "averageLoserUsdt": 0,
+      "feeBleedRatio": 0,
       "grossPositiveButNetNegativeTrades": 0
     }
   },

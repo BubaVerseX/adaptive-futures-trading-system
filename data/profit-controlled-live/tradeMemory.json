@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-06-19T17:31:35.832Z",
+  "updatedAt": "2026-06-20T16:08:33.753Z",
   "trades": [
     {
       "id": "x10-trade-1780408472217-50130",
@@ -35294,15 +35294,15 @@
         "reason": "poor condition stats: 14.29% winrate over 7 trades"
       },
       "SOLUSDT:MOMENTUM_RESUMPTION:LONG:UP": {
-        "until": "2026-06-19T18:09:01.814Z",
+        "until": "2026-06-20T20:26:40.698Z",
         "reason": "poor condition stats: 6.67% winrate over 15 trades"
       },
       "ETHUSDT:MOMENTUM_RESUMPTION:LONG:UP": {
-        "until": "2026-06-19T18:10:50.264Z",
+        "until": "2026-06-20T20:03:39.964Z",
         "reason": "poor condition stats: 6.67% winrate over 15 trades"
       },
       "BTCUSDT:MOMENTUM_RESUMPTION:LONG:UP": {
-        "until": "2026-06-19T18:09:47.321Z",
+        "until": "2026-06-20T17:11:00.086Z",
         "reason": "poor condition stats: 6.67% winrate over 15 trades"
       },
       "BTCUSDT:BREAKOUT:LONG:UP": {
@@ -35318,27 +35318,27 @@
         "reason": "poor condition stats: 0% winrate over 2 trades"
       },
       "ETHUSDT:VOLUME_MOMENTUM:LONG:UP": {
-        "until": "2026-06-19T18:16:42.850Z",
+        "until": "2026-06-20T20:07:44.557Z",
         "reason": "poor condition stats: 20% winrate over 10 trades"
       },
       "BTCUSDT:VOLUME_MOMENTUM:LONG:UP": {
-        "until": "2026-06-19T18:16:47.876Z",
+        "until": "2026-06-20T18:59:58.812Z",
         "reason": "poor condition stats: 20% winrate over 10 trades"
       },
       "SOLUSDT:VOLUME_MOMENTUM:LONG:UP": {
-        "until": "2026-06-19T18:16:44.057Z",
+        "until": "2026-06-20T20:26:29.286Z",
         "reason": "poor condition stats: 20% winrate over 10 trades"
       },
       "BTCUSDT:BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-06-19T17:52:08.293Z",
+        "until": "2026-06-20T19:04:58.290Z",
         "reason": "poor condition stats: 0% winrate over 2 trades"
       },
       "ETHUSDT:BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-06-19T17:52:17.834Z",
+        "until": "2026-06-20T19:29:57.628Z",
         "reason": "poor condition stats: 0% winrate over 2 trades"
       },
       "SOLUSDT:BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-06-19T17:52:26.196Z",
+        "until": "2026-06-20T19:30:25.840Z",
         "reason": "poor condition stats: 0% winrate over 2 trades"
       }
     },
