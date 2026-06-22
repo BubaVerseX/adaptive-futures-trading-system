@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-06-20T16:08:33.753Z",
+  "updatedAt": "2026-06-21T12:04:02.692Z",
   "trades": [
     {
       "id": "x10-trade-1780408472217-50130",
@@ -35274,11 +35274,11 @@
         "reason": "poor condition stats: 19.7% winrate over 66 trades"
       },
       "SOLUSDT:BREAKOUT:SHORT:DOWN": {
-        "until": "2026-06-19T12:58:12.167Z",
+        "until": "2026-06-21T14:41:11.900Z",
         "reason": "poor condition stats: 0% winrate over 9 trades"
       },
       "ETHUSDT:BREAKOUT:SHORT:DOWN": {
-        "until": "2026-06-19T13:06:35.319Z",
+        "until": "2026-06-21T14:58:00.672Z",
         "reason": "poor condition stats: 0% winrate over 9 trades"
       },
       "BTCUSDT:BREAKOUT:SHORT:DOWN": {
@@ -35330,15 +35330,15 @@
         "reason": "poor condition stats: 20% winrate over 10 trades"
       },
       "BTCUSDT:BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-06-20T19:04:58.290Z",
+        "until": "2026-06-21T13:54:01.413Z",
         "reason": "poor condition stats: 0% winrate over 2 trades"
       },
       "ETHUSDT:BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-06-20T19:29:57.628Z",
+        "until": "2026-06-21T14:49:08.147Z",
         "reason": "poor condition stats: 0% winrate over 2 trades"
       },
       "SOLUSDT:BREAKOUT:LONG:CHOPPY": {
-        "until": "2026-06-20T19:30:25.840Z",
+        "until": "2026-06-21T14:49:09.360Z",
         "reason": "poor condition stats: 0% winrate over 2 trades"
       }
     },
