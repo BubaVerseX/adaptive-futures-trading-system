@@ -2,18 +2,18 @@
   "version": 1,
   "exchange": "BYBIT_V5_LINEAR",
   "strategyProfile": "BYBIT_ADAPTIVE_STAT_SCALP_V2",
-  "updatedAt": "2026-06-02T12:30:37.645Z",
+  "updatedAt": "2026-06-24T18:37:03.494Z",
   "mode": "LIVE",
   "paused": false,
   "pauseReason": null,
   "equity": {
     "startingUsdt": 100,
     "realizedPnlUsdt": -46.260376999999956,
-    "currentUsdt": 49.594363
+    "currentUsdt": 66.630524
   },
   "daily": {
-    "date": "2026-06-02",
-    "startingEquity": 49.594363,
+    "date": "2026-06-24",
+    "startingEquity": 66.63039,
     "tradesOpened": 0,
     "losingTrades": 0,
     "realizedPnlUsdt": 0,
@@ -22,11 +22,11 @@
     "closedTrades": 0,
     "explorationTrades": 0,
     "recoveryModeActive": true,
-    "recoveryPnlPct": 0,
+    "recoveryPnlPct": 0.0002,
     "recoveryLosingStreak": 2,
-    "recoveryNoticeKey": "2026-06-02:0:2:0",
+    "recoveryNoticeKey": "2026-06-24:0:2:0",
     "profitProtectionActive": false,
-    "profitProtectionPnlPct": 0
+    "profitProtectionPnlPct": 0.0002
   },
   "ladder": {
     "activeLevel": 1,
@@ -852,5 +852,7 @@
     "shutdownSuppressed": true
   },
   "liveValidation": null,
+  "profitControlled": null,
+  "activeAdaptiveScalper": null,
   "telegramUpdateOffset": 0
 }

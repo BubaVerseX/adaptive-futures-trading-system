@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-06-02T12:30:13.076Z",
+  "updatedAt": "2026-06-24T18:36:14.446Z",
   "totalPnl": {
     "count": 564,
     "wins": 81,
@@ -3524,7 +3524,7 @@
     "maxDrawdownUsdt": -46.270218
   },
   "adaptivePolicy": {
-    "mode": "CAUTIOUS_ACTIVE",
+    "mode": "CAUTIOUS_LEARNING",
     "sampleSize": 20,
     "rollingWinRatePct": 20,
     "rollingPnlUsdt": -0.405733,
@@ -3533,7 +3533,7 @@
     "recoveryPnlUsdt": -0.147548,
     "recoveryAggressionRestored": false,
     "learningPhaseActive": true,
-    "aggressiveLearningPhaseActive": true,
+    "aggressiveLearningPhaseActive": false,
     "highActivityModeActive": true,
     "highActivityAdjustment": -1,
     "continuousExecutionMode": true,
@@ -3543,9 +3543,9 @@
     "shortHoldPressure": false,
     "dailyTradeLimitsDisabled": true,
     "explorationDailyCapDisabled": true,
-    "riskMultiplier": 0.84099,
-    "signalThresholdAdjustment": 2,
-    "minSignalScore": 44,
+    "riskMultiplier": 0.8149799999999999,
+    "signalThresholdAdjustment": 3,
+    "minSignalScore": 45,
     "explorationEnabled": true,
     "explorationBudget": 9007199254740991,
     "explorationExpansionActive": true,
@@ -3560,7 +3560,7 @@
       "worstRegime": "SIDEWAYS_CHOP_MARKET",
       "memoryWeight": 0.18
     },
-    "maxLeverage": 8,
+    "maxLeverage": 7,
     "maxOpenPositions": 3,
     "maxTradesPerDay": 9007199254740991
   }
