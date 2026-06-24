@@ -75,6 +75,92 @@ function dedupeRejectionReasons(reasons = []) {
   return output;
 }
 
+function isHardSafetyRejectionReason(reason = "") {
+  return /blacklist|liquidation|margin|exchange minimum|minimum order|risk-sized|missing TP\/SL|TP\/SL protection|insufficient balance|no available|unresolved|reconciliation|emergency|unmanaged|pending exchange/i.test(
+    String(reason || "")
+  );
+}
+
+function scannerQualityTier(config, signal = {}) {
+  const hardRejectedReasons = (signal.rejected || []).filter(isHardSafetyRejectionReason);
+  if (hardRejectedReasons.length) {
+    return {
+      tier: "REJECT",
+      category: "HARD_SAFETY",
+      reason: hardRejectedReasons[0],
+      hardRejectedReasons,
+    };
+  }
+  if (!signal.eligible) {
+    const reason = (signal.rejected && signal.rejected[0]) || signal.explorationBlockReason || "scanner quality threshold not met";
+    return {
+      tier: "REJECT",
+      category: "QUALITY",
+      reason,
+      hardRejectedReasons: [],
+    };
+  }
+  if (signal.explorationTrade || signal.tradeCategory === "EXPLORATION" || signal.nearMissTrade) {
+    return {
+      tier: "EXPLORATION",
+      category: "ACCEPTED",
+      reason: signal.nearMissAllowedReason || signal.explorationBlockReason || "positive-edge exploration quality assigned by scanner",
+      hardRejectedReasons: [],
+    };
+  }
+  if (signal.eliteSetup || Number(signal.score || 0) >= Number(config.profitModeEliteQualityScore || 95)) {
+    return {
+      tier: "ELITE",
+      category: "ACCEPTED",
+      reason: "elite quality assigned by scanner",
+      hardRejectedReasons: [],
+    };
+  }
+  if (
+    signal.highQualityContinuation ||
+    signal.eliteContinuationCandidate ||
+    Number(signal.score || 0) >= Number(config.profitModeStrongQualityScore || 85) ||
+    Number(signal.continuationStrength || 0) >= Number(config.continuationMinStrength || 60) + 10
+  ) {
+    return {
+      tier: "STRONG",
+      category: "ACCEPTED",
+      reason: "strong quality assigned by scanner",
+      hardRejectedReasons: [],
+    };
+  }
+  return {
+    tier: "NORMAL",
+    category: "ACCEPTED",
+    reason: "normal positive-edge quality assigned by scanner",
+    hardRejectedReasons: [],
+  };
+}
+
+function assignScannerTradeQuality(config, signal = {}) {
+  const quality = scannerQualityTier(config, signal);
+  signal.tradeQualityTier = quality.tier;
+  signal.scannerQualityTier = quality.tier;
+  signal.qualityTier = quality.tier;
+  signal.tradeQualification = {
+    tier: quality.tier,
+    category: quality.category,
+    reason: quality.reason,
+    assignedBy: "scanner.js",
+    hardRejectedReasons: quality.hardRejectedReasons,
+    softenedRejections: signal.softenedRejections || [],
+    explorationConversion: Boolean(signal.v12ExplorationConversion || signal.nearMissSmallTradeAllowed),
+  };
+  signal.tradeQualityAssignedBy = "scanner.js";
+  signal.rejectionCategory = quality.category;
+  signal.rejectionReason = quality.tier === "REJECT" ? quality.reason : null;
+  signal.explorationConversion = signal.tradeQualification.explorationConversion;
+  if (quality.tier !== "REJECT") {
+    signal.rejected = [];
+  }
+  return signal;
+}
+
 function analysisDirection(analysis, trigger = false) {
   const ema = emaDirection(analysis);
   if (ema !== "CHOPPY") return ema;
@@ -1484,18 +1570,30 @@ class Scanner {
       Number(this.config.nearMissMaxPointGap || 5),
       Number(this.config.nearMissSmallTradeMaxGap || 3)
     );
-    const nearMissBlockingReason = (signal.rejected || []).find((reason) =>
-      /fee inefficiency|blacklist|exchange minimum|PANIC regime|1h macro bias opposite|liquidation|margin|insufficient|unresolved|missing TP\/SL|protection/i.test(String(reason))
-    );
+    const nearMissBlockingReason = (signal.rejected || []).find(isHardSafetyRejectionReason);
     const nearMissPositiveEdge =
       Number(signal.projectedNetEdgePct || 0) >= this.config.explorationMinProjectedEdgePct &&
       Number(signal.feeEdgeRatio || 0) >= this.config.explorationMinEdgeToCostRatio &&
       Number(signal.smartProjectedNetEdgePct || signal.projectedNetEdgePct || 0) >= this.config.edgeExplorationMinNetPct &&
       Number(signal.estimatedTpProbability || 0) >= this.config.smartEdgeMinTpProbability * 0.85;
+    const explorationScoreGap = Math.max(
+      0,
+      Number((Number(signal.explorationRequiredScore || this.config.explorationMinSignalScore) - Number(signal.score || 0)).toFixed(2))
+    );
+    const explorationConvictionGap = Math.max(
+      0,
+      Number((Number(signal.explorationRequiredConvictionScore || this.config.explorationMinConvictionScore) - Number(signal.convictionScore || 0)).toFixed(2))
+    );
+    const explorationThresholdGap = Math.max(explorationScoreGap, explorationConvictionGap);
+    const nearThresholdExplorationConversion =
+      !signal.eligible &&
+      nearMissPositiveEdge &&
+      !nearMissBlockingReason &&
+      Boolean(signal.explorationBlockReason) &&
+      explorationThresholdGap <= nearMissSmallTradeGap;
     if (
       this.config.nearMissSmallTradeEnabled &&
-      signal.nearMiss &&
-      signal.nearMissGap <= nearMissSmallTradeGap &&
+      ((signal.nearMiss && signal.nearMissGap <= nearMissSmallTradeGap) || nearThresholdExplorationConversion) &&
       nearMissPositiveEdge &&
       !nearMissBlockingReason
     ) {
@@ -1504,11 +1602,19 @@ class Scanner {
       signal.explorationTrade = true;
       signal.nearMissTrade = true;
       signal.nearMissSmallTradeAllowed = true;
+      signal.v12ExplorationConversion = true;
       signal.nearMissAllowedReason =
-        `near-miss within ${signal.nearMissGap.toFixed(2)} points allowed as small positive-edge exploratory trade`;
+        signal.nearMiss
+          ? `near-miss within ${signal.nearMissGap.toFixed(2)} points allowed as small positive-edge exploratory trade`
+          : `near-threshold scanner rejection softened into EXPLORATION (${explorationThresholdGap.toFixed(2)} point exploration gap)`;
       signal.explorationWaivedRejections = [...signal.strictRejectedReasons];
+      if (signal.explorationBlockReason) {
+        signal.explorationWaivedRejections.push(signal.explorationBlockReason);
+      }
       signal.rejected = [];
-      signal.scoreBreakdown.push(`near-miss small trade allowed +0 (${signal.nearMissGap.toFixed(2)} point gap)`);
+      signal.scoreBreakdown.push(
+        `near-threshold exploration conversion +0 (${(signal.nearMiss ? signal.nearMissGap : explorationThresholdGap).toFixed(2)} point gap)`
+      );
       signal.adaptiveReasons = [
         ...(signal.adaptiveReasons || []),
         "near-miss small trade allowed: non-safety filters relaxed while fee and risk gates remain active",
@@ -1520,7 +1626,7 @@ class Scanner {
           : `near-miss gap ${signal.nearMissGap.toFixed(2)} exceeds small-trade limit ${nearMissSmallTradeGap}`
       );
     }
-    return signal;
+    return assignScannerTradeQuality(this.config, signal);
   }
 
   applyEliteClassification(signal) {
@@ -1654,9 +1760,28 @@ class Scanner {
           rejected: item.rejected,
         });
       }
+      if (item.explorationConversion) {
+        this.log("INFO", "V12_EXPLORATION_CONVERSION", {
+          symbol: item.symbol,
+          side: item.side,
+          qualityTier: item.tradeQualityTier,
+          reason: item.nearMissAllowedReason,
+          waivedRejections: item.explorationWaivedRejections,
+          projectedNetEdgePct: item.projectedNetEdgePct,
+          smartProjectedNetEdgePct: item.smartProjectedNetEdgePct,
+          feeEdgeRatio: item.feeEdgeRatio,
+          estimatedTpProbability: item.estimatedTpProbability,
+          safetyControlsPreserved: true,
+        });
+      }
       this.log(item.eligible ? "INFO" : "DEBUG", item.eligible ? "Candidate passed signal threshold." : "High-ranked candidate rejected.", {
         symbol: item.symbol,
         side: item.side,
+        qualityTier: item.tradeQualityTier,
+        tradeQualification: item.tradeQualification,
+        rejectionCategory: item.rejectionCategory,
+        rejectionReason: item.rejectionReason,
+        explorationConversion: item.explorationConversion,
         score: item.score,
         baseScore: item.baseScore,
         requiredScore: item.requiredScore,
@@ -1754,8 +1879,14 @@ class Scanner {
       });
     }
     const rejectReasons = {};
+    const rejectionCategories = {};
     const softenedReasons = {};
+    const qualityTiers = {};
     for (const item of analyses) {
+      qualityTiers[item.tradeQualityTier || "UNCLASSIFIED"] = (qualityTiers[item.tradeQualityTier || "UNCLASSIFIED"] || 0) + 1;
+      if (item.rejectionCategory) {
+        rejectionCategories[item.rejectionCategory] = (rejectionCategories[item.rejectionCategory] || 0) + 1;
+      }
       for (const reason of item.rejected || []) {
         const key = String(reason).replace(/:\s.*$/, "");
         rejectReasons[key] = (rejectReasons[key] || 0) + 1;
@@ -1769,6 +1900,9 @@ class Scanner {
         this.log("DEBUG", "SIGNAL_REJECTED", {
           symbol: item.symbol,
           side: item.side,
+          qualityTier: item.tradeQualityTier,
+          rejectionCategory: item.rejectionCategory,
+          rejectionReason: item.rejectionReason,
           score: item.score,
           requiredScore: item.requiredScore,
           convictionScore: item.convictionScore,
@@ -1800,6 +1934,9 @@ class Scanner {
         candidateCount: analyses.filter((item) => item.eligible).length,
         analyzedCount: analyses.length,
         rejectReasons,
+        rejectionCategories,
+        qualityTiers,
+        explorationTradesAccepted: analyses.filter((item) => item.tradeQualityTier === "EXPLORATION" && item.eligible).length,
         softenedReasons,
         softenedNonSafetyFilterCount: analyses.reduce((total, item) => total + (Array.isArray(item.softenedRejections) ? item.softenedRejections.length : 0), 0),
         antiChopContributionAverage: average("antiChopContribution"),
@@ -1826,6 +1963,9 @@ class Scanner {
       candleRequestsPerSymbol: 5,
       apiErrors: this.scanErrors,
       rejectReasons,
+      rejectionCategories,
+      qualityTiers,
+      explorationTradesAccepted: analyses.filter((item) => item.tradeQualityTier === "EXPLORATION" && item.eligible).length,
       softenedReasons,
       marketRegimeType: market.primary,
       marketRegimeTags: market.tags,
@@ -1836,6 +1976,14 @@ class Scanner {
       marketProfile: market,
       analyses,
       candidates: analyses.filter((item) => item.eligible),
+      participationMetrics: {
+        totalCandidates: analyses.length,
+        acceptedCandidates: analyses.filter((item) => item.eligible).length,
+        rejectedCandidates: analyses.filter((item) => !item.eligible).length,
+        rejectionCountsByCategory: rejectionCategories,
+        qualityTiers,
+        explorationTradesAccepted: analyses.filter((item) => item.tradeQualityTier === "EXPLORATION" && item.eligible).length,
+      },
       nearMisses: analyses.filter((item) => item.nearMiss).map((item) => ({
         symbol: item.symbol,
         direction: item.side,

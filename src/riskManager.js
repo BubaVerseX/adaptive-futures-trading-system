@@ -340,10 +340,20 @@ class RiskManager {
       signal.btcTrendAligned &&
       ["STRONG_VOLUME_SPIKE", "CONFIRMED_VOLUME"].includes(signal.volumeCondition) &&
       Number(signal.projectedNetEdgePct || 0) >= this.config.minProjectedEdgePct + (signal.highActivityContinuation ? 0.2 : 0.35);
-    const profitQualityTier = String(signal.profitQualityTier || "").toUpperCase();
+    const scannerQualityTier = String(
+      signal.tradeQualityTier ||
+        signal.scannerQualityTier ||
+        signal.qualityTier ||
+        (signal.tradeQualification && signal.tradeQualification.tier) ||
+        ""
+    ).toUpperCase();
+    const profitQualityTier = String(signal.profitQualityTier || scannerQualityTier || "").toUpperCase();
     const eliteSetup = Boolean(signal.eliteSetup || profitQualityTier === "ELITE");
     const profitStrongSetup = profitQualityTier === "STRONG";
     const profitNormalSetup = profitQualityTier === "NORMAL";
+    if (scannerQualityTier) {
+      reasonsForSizingTier.push(`V12 scanner-owned quality tier ${scannerQualityTier} used as sizing metadata; existing risk caps unchanged`);
+    }
     if (eliteSetup) {
       convictionTier = "TIER_3_ELITE_SETUP";
       tierMarginMin = this.config.tier3MarginMinUsdt;

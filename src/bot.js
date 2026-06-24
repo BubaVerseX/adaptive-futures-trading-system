@@ -169,6 +169,18 @@ function normalizeRejectionReason(reason = "UNKNOWN_REJECTION") {
   return raw || "UNKNOWN_REJECTION";
 }
 
+const ACCEPTED_SCANNER_QUALITY_TIERS = new Set(["ELITE", "STRONG", "NORMAL", "EXPLORATION"]);
+
+function scannerQualityTier(signal = {}) {
+  return String(
+    signal.tradeQualityTier ||
+      signal.scannerQualityTier ||
+      signal.qualityTier ||
+      (signal.tradeQualification && signal.tradeQualification.tier) ||
+      ""
+  ).toUpperCase();
+}
+
 class LadderBot {
   constructor(config) {
     this.config = config;
@@ -1005,8 +1017,14 @@ class LadderBot {
         this.recordActivityEvent("scanCandidate", { count: scan.analyses.length });
         this.recordActivityEvent("scanAccepted", { count: scan.candidates.length });
         this.recordActivityEvent("scanRejected", { count: Math.max(0, scan.analyses.length - scan.candidates.length) });
+        if (scan.participationMetrics) {
+          this.recordActivityEvent("scanParticipationMetrics", scan.participationMetrics);
+        }
         for (const candidate of scan.candidates) {
           this.recordActivityEvent("qualifiedCandidate", { symbol: candidate.symbol, side: candidate.side });
+          if (this.scannerQualityTier(candidate) === "EXPLORATION") {
+            this.recordActivityEvent("explorationAccepted", { symbol: candidate.symbol, side: candidate.side });
+          }
         }
       }
       if (scan.hadApiErrors) {
@@ -1170,6 +1188,9 @@ class LadderBot {
       setupType: signal.setupType || signal.continuationSetupType || details.setupType || "UNKNOWN",
       marketRegime: signal.marketRegimeV2 || signal.marketRegimeType || signal.regime || details.marketRegime || "UNKNOWN",
       hourUtc,
+      qualityTier: this.scannerQualityTier(signal) || details.qualityTier || "UNCLASSIFIED",
+      rejectionCategory: signal.rejectionCategory || details.rejectionCategory || "ENTRY_REJECTION",
+      tradeQualification: signal.tradeQualification || null,
       rawReason,
       reason: normalizedReason,
       normalizedReasons,
@@ -1212,6 +1233,8 @@ class LadderBot {
       symbol: record.symbol,
       side: record.side,
       stage: record.stage,
+      qualityTier: record.qualityTier,
+      rejectionCategory: record.rejectionCategory,
       requiredScore: record.requiredScore,
       convictionScore: record.convictionScore,
       requiredConvictionScore: record.requiredConvictionScore,
@@ -1233,6 +1256,9 @@ class LadderBot {
       side: signal.side || details.side || "UNKNOWN",
       setupType: signal.setupType || signal.continuationSetupType || details.setupType || "UNKNOWN",
       marketRegime: signal.marketRegimeV2 || signal.marketRegimeType || signal.regime || details.marketRegime || "UNKNOWN",
+      qualityTier: this.scannerQualityTier(signal) || details.qualityTier || "UNCLASSIFIED",
+      tradeQualification: signal.tradeQualification || null,
+      explorationConversion: Boolean(signal.explorationConversion || signal.v12ExplorationConversion),
       score: Number(signal.score || 0),
       requiredScore: Number(signal.requiredScore || 0),
       convictionScore: Number(signal.convictionScore || 0),
@@ -1528,6 +1554,7 @@ class LadderBot {
       rejectedNegativeNetEdgePerHour: count("rejectedNegativeNetEdge"),
       rejectedRiskBudgetPerHour: count("rejectedRiskBudget"),
       continuationEntriesPerHour: count("continuationEntry"),
+      explorationTradesAcceptedPerHour: count("explorationAccepted"),
       edgeApprovedCandidatesPerHour: count("edgeApprovedCandidate"),
       netPnlPerExecutedTrade: Number(
         (closed.reduce((total, trade) => total + numeric(trade.netPnlAfterCostsUsdt, numeric(trade.pnlUsdt)), 0) / executed).toFixed(6)
@@ -2037,15 +2064,34 @@ class LadderBot {
     }).length;
     const lastTradeMs = this.lastTradeOpenedAtMs();
     const inactiveHours = Number(((now - lastTradeMs) / 3600000).toFixed(4));
+    const participationAudit = this.ensureParticipationAuditState();
+    const latestScanMetrics = [...this.activityEvents]
+      .reverse()
+      .find((event) => event.type === "scanParticipationMetrics");
     const report = {
       generatedAt: new Date().toISOString(),
       mode: "V11_ACTIVE_MARKET_ENGINE",
+      v12ParticipationRefactor: {
+        active: true,
+        scannerOwnsTradeQuality: true,
+        duplicateQualityVetoesSkippedAfterScannerAcceptance: true,
+        hardSafetyRejectionsPreserved: true,
+      },
       tradesToday,
       tradesPerDay: Number((rates.executedTradesPerHour * 24).toFixed(4)),
       inactiveHours: Math.max(0, inactiveHours),
       candidateCount: rates.candidateCountPerHour,
       rejectedCount: rates.rejectedCandidatesPerHour,
       acceptedCount: rates.acceptedCandidatesPerHour,
+      totalCandidates: latestScanMetrics ? latestScanMetrics.totalCandidates : rates.candidateCountPerHour,
+      acceptedCandidates: latestScanMetrics ? latestScanMetrics.acceptedCandidates : rates.acceptedCandidatesPerHour,
+      rejectedCandidates: latestScanMetrics ? latestScanMetrics.rejectedCandidates : rates.rejectedCandidatesPerHour,
+      rejectionCountsByCategory: latestScanMetrics
+        ? latestScanMetrics.rejectionCountsByCategory || {}
+        : (participationAudit && participationAudit.rejectionCategories) || {},
+      qualityTierCounts: latestScanMetrics ? latestScanMetrics.qualityTiers || {} : {},
+      explorationTradesAccepted: latestScanMetrics ? latestScanMetrics.explorationTradesAccepted || 0 : rates.explorationTradesAcceptedPerHour,
+      explorationTradesAcceptedPerHour: rates.explorationTradesAcceptedPerHour,
       qualifiedCandidatesPerHour: rates.qualifiedCandidatesPerHour,
       executedTradesPerHour: rates.executedTradesPerHour,
       rejectedNegativeNetEdgePerHour: rates.rejectedNegativeNetEdgePerHour,
@@ -2374,10 +2420,21 @@ class LadderBot {
       }
       if (this.config.profitControlledEquityMode && this.config.profitExpansionMode) {
         const keepNearMissSmallTrade = Boolean(signal.nearMissTrade && this.config.nearMissSmallTradeEnabled);
-        signal.explorationTrade = keepNearMissSmallTrade;
+        const keepScannerExploration = this.scannerQualityTier(signal) === "EXPLORATION";
+        signal.explorationTrade = Boolean(signal.explorationTrade || keepNearMissSmallTrade || keepScannerExploration);
         signal.forcedMarketSampling = false;
         signal.explorationExpansionActive = false;
         signal.adaptivePolicyMode = "PROFIT_MODE";
+      }
+      if (this.scannerQualityAccepted(signal)) {
+        this.log("INFO", "V12_SCANNER_TRADE_QUALITY_ACCEPTED", {
+          symbol: signal.symbol,
+          side: signal.side,
+          qualityTier: this.scannerQualityTier(signal),
+          tradeQualification: signal.tradeQualification,
+          duplicateQualityVetoesSkipped: true,
+          safetyGatesStillActive: true,
+        });
       }
       if (signal.explorationTrade) {
         const dailyExplorationTrades = Number(this.store.state.daily.explorationTrades || 0);
@@ -2479,6 +2536,10 @@ class LadderBot {
         requiredScore: signal.requiredScore,
         setupType: signal.setupType,
         tradeCategory: signal.tradeCategory,
+        qualityTier: this.scannerQualityTier(signal),
+        tradeQualification: signal.tradeQualification,
+        rejectionCategory: signal.rejectionCategory,
+        explorationConversion: signal.explorationConversion,
         eliteSetup: signal.eliteSetup,
         marketPersonality: signal.marketPersonality,
         continuationSetupType: signal.continuationSetupType,
@@ -2881,7 +2942,8 @@ class LadderBot {
       }
       signal.executionType = this.executionTypeForSignal(signal);
       const finalEdgeGate = edgeGate(this.config, signal, plan, allocatedEquity);
-      if (finalEdgeGate.rejected) {
+      const scannerFinalEdgeAllowed = this.scannerQualityAccepted(signal) && this.positiveEdgeStillValid(signal, finalEdgeGate.model);
+      if (finalEdgeGate.rejected && !scannerFinalEdgeAllowed) {
         this.log("INFO", "EDGE_GATE_REJECTED", {
           symbol: signal.symbol,
           side: signal.side,
@@ -2902,13 +2964,30 @@ class LadderBot {
         });
         continue;
       }
+      if (finalEdgeGate.rejected && scannerFinalEdgeAllowed) {
+        this.log("INFO", "V12_FINAL_EDGE_QUALITY_RECHECK_SOFTENED", {
+          symbol: signal.symbol,
+          side: signal.side,
+          qualityTier: this.scannerQualityTier(signal),
+          originalReason: finalEdgeGate.reason,
+          expectedNetEdgePct: finalEdgeGate.model.expectedNetEdgePct,
+          expectedNetEdgeUsdt: finalEdgeGate.model.projectedNetProfitUsdt,
+          expectedRewardCostRatio: finalEdgeGate.model.expectedRewardCostRatio,
+          expectedTotalCostUsdt: finalEdgeGate.model.projectedTotalCostUsdt,
+          positiveEdgeStillRequired: true,
+        });
+      }
       if (this.config.profitControlledEquityMode && this.config.profitExpansionMode) {
         const rewardCost = Number(finalEdgeGate.model.expectedRewardCostRatio || 0);
         const projectedNetProfitUsdt = Number(finalEdgeGate.model.projectedNetProfitUsdt || 0);
         const projectedTotalCostUsdt = Number(finalEdgeGate.model.projectedTotalCostUsdt || 0);
         const minimumRewardCost = Math.max(this.config.profitModeMinRewardCostRatio, finalEdgeGate.requirements.minRewardCostRatio);
         const minimumNetProfitUsdt = projectedTotalCostUsdt * this.config.profitModeMinNetProfitToCostRatio;
-        if (projectedNetProfitUsdt <= 0 || rewardCost < minimumRewardCost || projectedNetProfitUsdt < minimumNetProfitUsdt) {
+        const scannerFeeKillerSoftened =
+          this.scannerQualityAccepted(signal) &&
+          this.positiveEdgeStillValid(signal, finalEdgeGate.model) &&
+          projectedNetProfitUsdt > 0;
+        if (projectedNetProfitUsdt <= 0 || (!scannerFeeKillerSoftened && (rewardCost < minimumRewardCost || projectedNetProfitUsdt < minimumNetProfitUsdt))) {
           this.log("INFO", "FEE_KILLER_REJECTED_FINAL_SIZED_ENTRY", {
             symbol: signal.symbol,
             side: signal.side,
@@ -2927,6 +3006,19 @@ class LadderBot {
             expectedRewardCostRatio: rewardCost,
           });
           continue;
+        }
+        if (scannerFeeKillerSoftened && (rewardCost < minimumRewardCost || projectedNetProfitUsdt < minimumNetProfitUsdt)) {
+          this.log("INFO", "V12_FEE_KILLER_DUPLICATE_THRESHOLD_SOFTENED", {
+            symbol: signal.symbol,
+            side: signal.side,
+            qualityTier: this.scannerQualityTier(signal),
+            projectedNetProfitUsdt,
+            projectedTotalCostUsdt,
+            expectedRewardCostRatio: rewardCost,
+            minimumRewardCostRatio: minimumRewardCost,
+            minimumNetProfitUsdt,
+            negativeNetEdgeStillRejected: true,
+          });
         }
       }
       signal.edgeTier = finalEdgeGate.model.tier;
@@ -3445,6 +3537,37 @@ class LadderBot {
     return true;
   }
 
+  scannerQualityTier(signal = {}) {
+    return scannerQualityTier(signal);
+  }
+
+  scannerQualityAccepted(signal = {}) {
+    return ACCEPTED_SCANNER_QUALITY_TIERS.has(this.scannerQualityTier(signal)) &&
+      String(signal.tradeQualityAssignedBy || (signal.tradeQualification && signal.tradeQualification.assignedBy) || "").toLowerCase().includes("scanner");
+  }
+
+  positiveEdgeStillValid(signal = {}, edgeModel = {}) {
+    const expectedNetEdgePct = Number.isFinite(Number(edgeModel.expectedNetEdgePct))
+      ? Number(edgeModel.expectedNetEdgePct)
+      : Number(signal.smartProjectedNetEdgePct || signal.projectedNetEdgePct || 0);
+    const projectedNetProfitUsdt = Number(edgeModel.projectedNetProfitUsdt || 0);
+    const hasSizedProjection =
+      Number(edgeModel.projectedTotalCostUsdt || 0) > 0 ||
+      Number(edgeModel.projectedGrossProfitUsdt || 0) > 0;
+    const projectedEdgePct = Number(signal.projectedNetEdgePct || 0);
+    const smartEdgePct = Number(signal.smartProjectedNetEdgePct || signal.projectedNetEdgePct || 0);
+    const rewardCostRatio = Number(edgeModel.expectedRewardCostRatio || signal.feeEdgeRatio || 0);
+    const tpProbability = Number(signal.estimatedTpProbability || this.config.smartEdgeMinTpProbability || 0);
+    return (
+      expectedNetEdgePct > 0 &&
+      projectedEdgePct >= 0 &&
+      smartEdgePct >= 0 &&
+      rewardCostRatio > 0 &&
+      tpProbability >= Number(this.config.smartEdgeMinTpProbability || 0) * 0.75 &&
+      (!hasSizedProjection || projectedNetProfitUsdt > 0)
+    );
+  }
+
   intelligentReentrySignal(signal) {
     if (!signal || this.config.smartReentryWindowMinutes <= 0) return false;
     const cutoff = Date.now() - this.config.smartReentryWindowMinutes * 60 * 1000;
@@ -3604,6 +3727,8 @@ class LadderBot {
       trendDominance,
       clusterRisk,
     });
+    const scannerAccepted = this.scannerQualityAccepted(signal);
+    const scannerTier = this.scannerQualityTier(signal);
     const nearMissQualityRequired = /sideways chop requires strong/i.test(String(quality.reason || ""))
       ? Number(quality.thresholds && quality.thresholds.strong)
       : Number(quality.thresholds && quality.thresholds.normal);
@@ -3627,6 +3752,25 @@ class LadderBot {
       signal.explorationTrade = true;
       signal.tradeCategory = "EXPLORATION";
     }
+    if (scannerAccepted) {
+      const originalQualityDecision = {
+        rejected: quality.rejected,
+        tier: quality.tier,
+        rawTier: quality.rawTier,
+        reason: quality.reason,
+        score: quality.score,
+      };
+      quality.rejected = false;
+      quality.tier = scannerTier;
+      quality.rawTier = scannerTier;
+      quality.reason = `V12 scanner-owned ${scannerTier} quality accepted; duplicate profit-mode quality veto skipped`;
+      quality.v12DuplicateQualityBypass = true;
+      quality.v12OriginalQualityDecision = originalQualityDecision;
+      quality.thresholds = quality.thresholds || {};
+      quality.thresholds.v12ScannerQualityTier = scannerTier;
+      signal.v12DuplicateQualityBypass = true;
+      signal.v12OriginalProfitQualityDecision = originalQualityDecision;
+    }
     signal.profitQualityScore = quality.score;
     signal.profitQualityTier = quality.tier === "REJECT" ? null : quality.tier;
     signal.symbolPerformanceMemoryV2 = quality.symbolMemory;
@@ -3646,7 +3790,11 @@ class LadderBot {
       (trendDominance ? trendDominance.runnerExtensionMultiplier : 1);
     signal.adaptiveMode = "PROFIT_MODE";
     signal.adaptivePolicyMode = "PROFIT_MODE";
-    signal.explorationTrade = Boolean(signal.nearMissTrade && this.config.nearMissSmallTradeEnabled);
+    signal.explorationTrade = Boolean(
+      signal.explorationTrade ||
+        scannerTier === "EXPLORATION" ||
+        (signal.nearMissTrade && this.config.nearMissSmallTradeEnabled)
+    );
     signal.forcedMarketSampling = false;
     if (quality.tier === "ELITE") {
       signal.eliteSetup = true;
@@ -3657,6 +3805,9 @@ class LadderBot {
       if (!signal.tradeCategory || signal.tradeCategory === "EXPLORATION") signal.tradeCategory = "STRONG_CONTINUATION";
     } else if (quality.tier === "NORMAL") {
       if (!signal.tradeCategory || signal.tradeCategory === "EXPLORATION") signal.tradeCategory = "NORMAL_CONTINUATION";
+    } else if (quality.tier === "EXPLORATION") {
+      signal.tradeCategory = "EXPLORATION";
+      signal.explorationTrade = true;
     }
     this.log(quality.rejected ? "INFO" : "INFO", quality.rejected ? "PROFIT_MODE_QUALITY_REJECTED" : "PROFIT_MODE_QUALITY_APPROVED", {
       symbol: signal.symbol,
@@ -3665,6 +3816,10 @@ class LadderBot {
       tier: quality.tier,
       rawTier: quality.rawTier,
       reason: quality.reason,
+      scannerQualityAccepted: scannerAccepted,
+      scannerQualityTier: scannerTier,
+      v12DuplicateQualityBypass: quality.v12DuplicateQualityBypass,
+      v12OriginalQualityDecision: quality.v12OriginalQualityDecision,
       nearMissTrade: signal.nearMissTrade,
       nearMissQualityAllowed: quality.nearMissQualityAllowed,
       nearMissQualityGap: quality.nearMissQualityGap,
@@ -3825,8 +3980,10 @@ class LadderBot {
   }
 
   feeAwareEntryCheck(signal) {
+    const scannerAccepted = this.scannerQualityAccepted(signal);
+    const scannerTier = this.scannerQualityTier(signal);
     const netEdgeGate = edgeGate(this.config, signal);
-    if (netEdgeGate.rejected) {
+    if (netEdgeGate.rejected && !(scannerAccepted && this.positiveEdgeStillValid(signal, netEdgeGate.model))) {
       return {
         rejected: true,
         reason: `EDGE_GATE_REJECTED: ${netEdgeGate.reason}`,
@@ -3835,6 +3992,41 @@ class LadderBot {
         requiredSmartEdgePct: netEdgeGate.requirements.minNetEdgePct,
         edgeModel: netEdgeGate.model,
         edgeRequirements: netEdgeGate.requirements,
+      };
+    }
+    if (scannerAccepted) {
+      if (!this.positiveEdgeStillValid(signal, netEdgeGate.model)) {
+        return {
+          rejected: true,
+          reason: "fee killer rejected candidate: scanner quality accepted but projected net edge is not positive",
+          requiredProjectedEdgePct: netEdgeGate.requirements.minNetEdgePct,
+          requiredEdgeToCostRatio: netEdgeGate.requirements.minRewardCostRatio,
+          requiredSmartEdgePct: netEdgeGate.requirements.minNetEdgePct,
+          edgeModel: netEdgeGate.model,
+          edgeRequirements: netEdgeGate.requirements,
+        };
+      }
+      this.log("INFO", "V12_DUPLICATE_EDGE_QUALITY_RECHECK_SKIPPED", {
+        symbol: signal.symbol,
+        side: signal.side,
+        qualityTier: scannerTier,
+        scannerReason: signal.tradeQualification && signal.tradeQualification.reason,
+        edgeGateOriginallyRejected: netEdgeGate.rejected,
+        edgeGateReason: netEdgeGate.reason,
+        expectedNetEdgePct: netEdgeGate.model.expectedNetEdgePct,
+        expectedRewardCostRatio: netEdgeGate.model.expectedRewardCostRatio,
+        projectedNetProfitUsdt: netEdgeGate.model.projectedNetProfitUsdt,
+        feeProtectionPositiveEdgeRequired: true,
+      });
+      return {
+        rejected: false,
+        requiredProjectedEdgePct: netEdgeGate.requirements.minNetEdgePct,
+        requiredEdgeToCostRatio: netEdgeGate.requirements.minRewardCostRatio,
+        requiredSmartEdgePct: netEdgeGate.requirements.minNetEdgePct,
+        edgeModel: netEdgeGate.model,
+        edgeRequirements: netEdgeGate.requirements,
+        scannerQualityBypass: true,
+        qualityTier: scannerTier,
       };
     }
     const qualityMultiplier = signal.qualityPacingActive ? this.config.qualityPacingEdgeMultiplier : 1;
