@@ -10,6 +10,17 @@ function bounded(value, min, max) {
 }
 
 function edgeTier(signal = {}) {
+  const scannerTier = String(
+    signal.tradeQualityTier ||
+      signal.scannerQualityTier ||
+      signal.qualityTier ||
+      (signal.tradeQualification && signal.tradeQualification.tier) ||
+      ""
+  ).toUpperCase();
+  if (scannerTier === "ELITE") return "ELITE_CONTINUATION";
+  if (scannerTier === "STRONG") return "STRONG_CONTINUATION";
+  if (scannerTier === "EXPLORATION") return "EXPLORATION_POSITIVE_EDGE";
+  if (scannerTier === "NORMAL") return "NORMAL_CONTINUATION";
   if (signal.eliteSetup || signal.tradeCategory === "ELITE_SETUP" || signal.convictionTier === "TIER_3_ELITE_SETUP") return "ELITE_CONTINUATION";
   if (signal.eliteContinuationCandidate || signal.convictionTier === "TIER_2_STRONG_SETUP") return "STRONG_CONTINUATION";
   if (signal.explorationTrade || signal.tradeCategory === "EXPLORATION") return "EXPLORATION_POSITIVE_EDGE";

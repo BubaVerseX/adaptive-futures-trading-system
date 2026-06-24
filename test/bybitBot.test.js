@@ -3913,6 +3913,76 @@ async function testScannerInactivityRecoverySummaryScope() {
   assert.equal(completedLog.details.inactivityRecovery.convictionThresholdDelta, -4);
 }
 
+async function testV12ScannerQualityAvoidsDuplicateBotVetoes() {
+  const { events, log } = logCollector();
+  const bot = new LadderBot(config({
+    dryRun: true,
+    profitControlledEquityMode: true,
+    profitExpansionMode: true,
+    nearMissSmallTradeEnabled: true,
+    smartEdgeMinTpProbability: 0.35,
+  }));
+  bot.log = log;
+  bot.store.trades = [];
+
+  const scannerAcceptedExploration = {
+    symbol: "ETHUSDT",
+    side: "LONG",
+    setupType: "TREND_CONTINUATION",
+    continuationSetupType: "PULLBACK_CONTINUATION",
+    tradeQualityTier: "EXPLORATION",
+    scannerQualityTier: "EXPLORATION",
+    tradeQualityAssignedBy: "scanner.js",
+    tradeQualification: {
+      tier: "EXPLORATION",
+      category: "ACCEPTED",
+      assignedBy: "scanner.js",
+      reason: "near-threshold positive-edge exploration",
+    },
+    tradeCategory: "EXPLORATION",
+    explorationTrade: true,
+    score: 43,
+    requiredScore: 70,
+    convictionScore: 39,
+    requiredConvictionScore: 55,
+    projectedNetEdgePct: 0.08,
+    smartProjectedNetEdgePct: 0.07,
+    expectedMovePct: 0.38,
+    estimatedTpProbability: 0.52,
+    feeEdgeRatio: 1.12,
+    spreadPct: 0.01,
+    estimatedEntryFeePct: 0.02,
+    estimatedExitFeePct: 0.02,
+    estimatedSlippagePct: 0.01,
+    continuationStrength: 55,
+    marketRegimeV2: "SIDEWAYS_CHOP",
+    marketRegimeTags: ["SIDEWAYS_CHOP_MARKET"],
+    rejected: [],
+  };
+
+  const edgeCheck = bot.feeAwareEntryCheck(scannerAcceptedExploration);
+  assert.equal(edgeCheck.rejected, false);
+  assert.equal(edgeCheck.scannerQualityBypass, true);
+  assert.ok(events.some((event) => event.message === "V12_DUPLICATE_EDGE_QUALITY_RECHECK_SKIPPED"));
+
+  const qualityCheck = bot.profitModeQualityCheck(scannerAcceptedExploration, edgeCheck.edgeModel);
+  assert.equal(qualityCheck.rejected, false);
+  assert.equal(qualityCheck.tier, "EXPLORATION");
+  assert.equal(qualityCheck.v12DuplicateQualityBypass, true);
+  assert.equal(scannerAcceptedExploration.explorationTrade, true);
+
+  const negativeEdge = {
+    ...scannerAcceptedExploration,
+    projectedNetEdgePct: -0.02,
+    smartProjectedNetEdgePct: -0.02,
+    expectedMovePct: 0.02,
+    estimatedTpProbability: 0.2,
+  };
+  const negativeEdgeCheck = bot.feeAwareEntryCheck(negativeEdge);
+  assert.equal(negativeEdgeCheck.rejected, true);
+  assert.match(negativeEdgeCheck.reason, /not positive|EDGE_GATE_REJECTED/);
+}
+
 async function testProfitProtectionReducesExplorationAndRisk() {
   const bot = new LadderBot(config({
     dryRun: true,
@@ -4437,6 +4507,7 @@ async function run() {
   await testV95AdaptiveEdgeReinforcement();
   await testV10TrendDominanceEngine();
   await testScannerInactivityRecoverySummaryScope();
+  await testV12ScannerQualityAvoidsDuplicateBotVetoes();
   await testProfitProtectionReducesExplorationAndRisk();
   await testMomentumContinuationHoldLogic();
   await testAdaptiveEnginePolicyAndConfidence();
