@@ -57,6 +57,7 @@ const ISOLATED_ENV_DEFAULTS = Object.freeze({
   DRY_RUN: "true",
   PAPER_TRADING_MODE: "false",
   ACTIVE_ADAPTIVE_SCALPER_MODE: "false",
+  SWING_MOMENTUM_MODE: "false",
   LIVE_VALIDATION_MODE: "false",
   PROFIT_CONTROLLED_EQUITY_MODE: "false",
   ACKNOWLEDGE_LIVE_VALIDATION_RISK: "false",
@@ -4453,6 +4454,125 @@ async function testForcedMarketSamplingPromotion() {
   assert.equal(bot.forcedSamplingEligible({ ...promoted[0], symbol: "WIFUSDT" }), false);
 }
 
+async function testV13SwingMomentumConfigAndBudget() {
+  const loaded = withEnv(
+    {
+      SWING_MOMENTUM_MODE: "true",
+      MAX_DEPLOYABLE_CAPITAL_USDT: "75",
+      MAX_POSITIONS_PER_SYMBOL: "3",
+      CANDLE_INTERVAL_FAST: undefined,
+      CANDLE_INTERVAL_MAIN: undefined,
+      CANDLE_INTERVAL_TREND: undefined,
+      CANDLE_INTERVAL_MACRO: undefined,
+      CANDLE_INTERVAL_MACRO_LONG: undefined,
+    },
+    () => loadConfig()
+  );
+  assert.equal(loaded.swingMomentumMode, true);
+  assert.deepEqual(loaded.focusedTradingSymbolsList, ["BTCUSDT", "ETHUSDT", "SOLUSDT"]);
+  assert.equal(loaded.maxDeployableCapitalUsdt, 75);
+  assert.equal(loaded.maxPositionsPerSymbol, 3);
+  assert.equal(loaded.candleIntervalFast, "15M");
+  assert.equal(loaded.candleIntervalMain, "60M");
+  assert.equal(loaded.candleIntervalTrend, "240M");
+  assert.equal(loaded.candleIntervalMacro, "1D");
+  assert.equal(loaded.fastMode, false);
+  assert.equal(loaded.fomoBreakoutMode, false);
+  assert.equal(loaded.microBreakoutEntries, false);
+  assert.equal(loaded.forcedMarketSamplingEnabled, false);
+  assert.equal(loaded.explorationModeEnabled, false);
+  assert.ok(packageJson.scripts.swing.includes("SWING_MOMENTUM_MODE=true"));
+  assert.ok(packageJson.scripts.swing.includes("DRY_RUN=true"));
+}
+
+async function testV13SwingMultiEntryAndDuplicateGuard() {
+  const cfg = config({
+    swingMomentumMode: true,
+    maxPositionsPerSymbol: 3,
+    maxOpenPositions: 9,
+    maxDeployableCapitalUsdt: 25,
+    continuousExecutionMode: false,
+  });
+  const bot = new LadderBot(cfg);
+  const now = new Date().toISOString();
+  const signal = {
+    symbol: "BTCUSDT",
+    side: "LONG",
+    continuationSetupType: "PULLBACK_CONTINUATION",
+    marketRegimeV2: "TRENDING",
+    trend1h: "UP",
+  };
+  const fingerprint = bot.swingSignalFingerprint(signal);
+  bot.store.state.openPositions = [
+    { id: "one", status: "OPEN", symbol: "BTCUSDT", side: "LONG", notional: 10, leverage: 2, openedAt: now, swingSignalFingerprint: "BTCUSDT:LONG:BREAKOUT_RETEST:TRENDING:UP" },
+    { id: "two", status: "OPEN", symbol: "BTCUSDT", side: "LONG", notional: 8, leverage: 2, openedAt: now, swingSignalFingerprint: "BTCUSDT:LONG:MOMENTUM_RESUMPTION:TRENDING:UP" },
+  ];
+  assert.equal(bot.risk.entryBlockReason(100, "BTCUSDT"), null);
+  assert.equal(bot.swingDuplicateEntryReason(signal), null);
+  bot.store.state.openPositions.push({
+    id: "duplicate",
+    status: "OPEN",
+    symbol: "BTCUSDT",
+    side: "LONG",
+    notional: 6,
+    leverage: 2,
+    openedAt: now,
+    swingSignalFingerprint: fingerprint,
+  });
+  assert.match(bot.risk.entryBlockReason(100, "BTCUSDT"), /maximum positions per symbol/);
+  assert.match(bot.swingDuplicateEntryReason(signal), /duplicate identical swing entry/);
+  const budget = bot.deployableCapitalCheck({ marginUsedUsdt: 16, notional: 32, leverage: 2 });
+  assert.equal(budget.rejected, true);
+  assert.match(budget.reason, /deployable capital budget/);
+}
+
+async function testV13SwingAdoptsExchangePositionWithoutOrders() {
+  const { events, log } = logCollector();
+  const cfg = config({
+    swingMomentumMode: true,
+    dryRun: false,
+    maxDeployableCapitalUsdt: 50,
+    winnerAmplifierPartialTakeProfitPct: 50,
+  });
+  const bot = new LadderBot(cfg);
+  bot.log = log;
+  let tradingStopCalls = 0;
+  bot.client = {
+    positionIdx: () => 0,
+    setTradingStop: async () => {
+      tradingStopCalls += 1;
+      return {};
+    },
+  };
+  bot.instrumentRulesBySymbol.set("ETHUSDT", {
+    symbol: "ETHUSDT",
+    priceFilter: { tickSize: "0.01" },
+    lotSizeFilter: { qtyStep: "0.001", minOrderQty: "0.001", minNotionalValue: "5" },
+  });
+  const adopted = await bot.adoptExchangePosition({
+    symbol: "ETHUSDT",
+    side: "Sell",
+    avgPrice: "3000",
+    size: "0.01",
+    leverage: "3",
+    positionIdx: 0,
+    liqPrice: "3900",
+    takeProfit: "",
+    stopLoss: "",
+  });
+  assert.equal(adopted, true);
+  assert.equal(tradingStopCalls, 1);
+  assert.equal(bot.store.state.openPositions.length, 1);
+  const position = bot.store.state.openPositions[0];
+  assert.equal(position.symbol, "ETHUSDT");
+  assert.equal(position.side, "SHORT");
+  assert.equal(position.swingAdoptedFromExchange, true);
+  assert.equal(position.nativeProtectionVerified, true);
+  assert.ok(position.stopLossPrice > position.entryPrice);
+  assert.ok(position.takeProfitPrice < position.entryPrice);
+  assert.ok(events.some((event) => event.message === "SWING_EXISTING_POSITION_ADOPTED"));
+}
+
 async function run() {
   await testDemoTradingConfigUsesDemoOnlyEndpoints();
   await testLiveValidationConfigGuards();
@@ -4517,6 +4637,9 @@ async function run() {
   await testContinuousExecutionClearsStaleTradeLimitPause();
   await testAggressiveLearningCooldownsAreAdvisory();
   await testForcedMarketSamplingPromotion();
+  await testV13SwingMomentumConfigAndBudget();
+  await testV13SwingMultiEntryAndDuplicateGuard();
+  await testV13SwingAdoptsExchangePositionWithoutOrders();
   console.log("Bybit client and bot tests passed: REST signing, centralized 34040 no-change handling, duplicate TP/SL skip, execution ledger fill dedupe, net edge gate, portfolio risk-at-stop checks, UTA balance parsing, live safety balance use, native protection payloads, WebSocket reconnect, API auto-recovery without shutdown, reconciliation, hedge exposure detection, native TP events, regime intelligence, V11 active market universe restriction, survivability scoring, next-generation continuation scoring, V11 mean reversion and activity reporting, active adaptive paper scalper mode, exploration path, exploration memory relaxation, fee-aware stats, advisory symbol cooldowns, adaptive learning, continuation market memory, cautious active recovery, activity floor, daily shutdown removal, forced market sampling, profit protection sizing, fee-aware entries, dynamic sizing, live-validation guards, allocation ladder, risk degradation, promotion checks, execution-cost logging, V6 profit-controlled config guards, setup preservation, deferred leverage mutation, exchange-minimum feasibility, risk degradation, maker/taker routing, V7 profit mode, quality score gate, fee killer, symbol memory V2/V3, expectancy report, winner amplifier continuation holds, V7.1 trade frequency recovery tuning, V8 professional trend/expectancy optimization, V9 edge maximization, V9.5 adaptive edge reinforcement, V10 aggressive adaptive trend dominance, and V11 active market engine.");
 }
 
