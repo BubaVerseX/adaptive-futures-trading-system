@@ -303,8 +303,24 @@ class RiskManager {
     }
     const policy = this.adaptive && this.config.adaptiveLearningEnabled ? this.adaptive.currentPolicy() : null;
     const maxOpenPositions = policy ? policy.maxOpenPositions : this.config.maxOpenPositions;
-    if (state.openPositions.length >= maxOpenPositions) return "maximum open positions reached";
-    if (state.openPositions.some((position) => position.symbol === symbol)) return "symbol already has an open position; averaging down is forbidden";
+    const activePositions = state.openPositions.filter((position) => !["CLOSED", "ENTRY_FAILED", "FAILED"].includes(position.status));
+    if (activePositions.length >= maxOpenPositions) return "maximum open positions reached";
+    const sameSymbolPositions = activePositions.filter((position) => position.symbol === symbol);
+    if (!this.config.swingMomentumMode && sameSymbolPositions.length) {
+      return "symbol already has an open position; averaging down is forbidden";
+    }
+    if (this.config.swingMomentumMode && sameSymbolPositions.length >= this.config.maxPositionsPerSymbol) {
+      return `maximum positions per symbol reached (${sameSymbolPositions.length}/${this.config.maxPositionsPerSymbol})`;
+    }
+    if (this.config.swingMomentumMode && sameSymbolPositions.length) {
+      this.log("INFO", "SWING_MULTI_ENTRY_SYMBOL_SLOT_AVAILABLE", {
+        symbol,
+        openPositionsForSymbol: sameSymbolPositions.length,
+        maxPositionsPerSymbol: this.config.maxPositionsPerSymbol,
+        averagingDownStillForbidden: true,
+        independentSignalRequired: true,
+      });
+    }
     const cooldown = state.symbolCooldowns && state.symbolCooldowns[symbol];
     if (cooldown) {
       const now = Date.now();
@@ -515,7 +531,7 @@ class RiskManager {
       tickSize,
       !isLong
     );
-    const winnerAmplifier = Boolean(this.config.profitControlledEquityMode && this.config.winnerAmplifierEnabled);
+    const winnerAmplifier = Boolean((this.config.profitControlledEquityMode && this.config.winnerAmplifierEnabled) || this.config.swingMomentumMode);
     const runnerAllocation = this.config.edgeReinforcementMode
       ? asymmetricRunnerAllocation(this.config, signal)
       : {

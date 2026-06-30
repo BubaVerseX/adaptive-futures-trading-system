@@ -54,6 +54,25 @@ const PENDING_LIVE_ENTRY_STATUSES = new Set([
 ]);
 const LEGACY_UNKNOWN_ENTRY_PAUSE = "live entry status unknown; verify exchange position manually";
 
+function rotateLogIfNeeded(config) {
+  if (!config.logRotationEnabled) return;
+  const maxBytes = Number(config.logMaxBytes || 0);
+  if (!(maxBytes > 0) || !fs.existsSync(config.logFile)) return;
+  const stat = fs.statSync(config.logFile);
+  if (stat.size < maxBytes) return;
+  const archivePath = `${config.logFile}.${new Date().toISOString().replace(/[:.]/g, "-")}`;
+  fs.renameSync(config.logFile, archivePath);
+  const directory = path.dirname(config.logFile);
+  const basename = path.basename(config.logFile);
+  const archives = fs.readdirSync(directory)
+    .filter((file) => file.startsWith(`${basename}.`))
+    .map((file) => ({ file, path: path.join(directory, file), mtimeMs: fs.statSync(path.join(directory, file)).mtimeMs }))
+    .sort((left, right) => right.mtimeMs - left.mtimeMs);
+  for (const archive of archives.slice(Number(config.logArchiveCount || 5))) {
+    fs.unlinkSync(archive.path);
+  }
+}
+
 function makeLogger(config) {
   fs.mkdirSync(path.dirname(config.logFile), { recursive: true });
   return (level, message, details = {}) => {
@@ -61,6 +80,7 @@ function makeLogger(config) {
     const detailsText = Object.keys(details).length ? ` ${JSON.stringify(details)}` : "";
     console.log(`[${event.time}] [${level}] ${message}${detailsText}`);
     try {
+      rotateLogIfNeeded(config);
       fs.appendFileSync(config.logFile, `${JSON.stringify(event)}\n`, "utf8");
     } catch (error) {
       console.error(`[${event.time}] [WARN] Log file write failed: ${error.message}`);
@@ -514,7 +534,17 @@ class LadderBot {
     }
     await this.reconcileLivePositions();
     if (this.config.profitControlledEquityMode) {
-      if (positions.length) {
+      if (this.config.swingMomentumMode) {
+        this.log("WARN", "V13_SWING_MOMENTUM_MODE_ACTIVE", {
+          symbols: this.config.focusedTradingSymbolsList,
+          maxDeployableCapitalUsdt: this.config.maxDeployableCapitalUsdt,
+          maxPositionsPerSymbol: this.config.maxPositionsPerSymbol,
+          preferredHoldingPeriod: "several hours to multiple days",
+          scalpFirstLogicDisabled: true,
+          existingPositionsAdoptedWhenSafe: this.config.swingAdoptExistingPositions,
+        });
+      }
+      if (positions.length && (!this.config.swingMomentumMode || this.unmanagedLiveExposure)) {
         this.unmanagedLiveExposure = true;
         this.enterProfitControlledProtectionOnly("existing mainnet exposure discovered at profit-controlled startup", {
           positions: positions.map((position) => ({ symbol: position.symbol, side: position.side, size: position.size })),
@@ -690,10 +720,18 @@ class LadderBot {
           noDailyTradeCountCap: true,
         });
       }
+      if (!unresolved && this.config.swingMomentumMode && positions.length && !this.unmanagedLiveExposure) {
+        this.log("INFO", "READY_TO_SCAN_FOR_NET_POSITIVE_QUALIFIED_ENTRIES", {
+          adoptedExistingPositions: positions.length,
+          managingExistingPositions: true,
+          newEntriesRequireIndependentSwingSignals: true,
+          maxDeployableCapitalUsdt: this.config.maxDeployableCapitalUsdt,
+        });
+      }
       this.writeProfitControlledStatusReport(true);
     }
     if (this.config.liveValidationMode) {
-      if (positions.length) {
+      if (positions.length && (!this.config.swingMomentumMode || this.unmanagedLiveExposure)) {
         this.unmanagedLiveExposure = true;
         this.log("ERROR", "HUMAN_REVIEW_REQUIRED", {
           reason: "Existing mainnet exposure discovered at live-validation startup; new entries remain blocked until manually reviewed.",
@@ -721,6 +759,13 @@ class LadderBot {
             "EXPLORATION_POSITIVE_EDGE",
           ],
           noDailyTradeCountCap: true,
+        });
+      }
+      if (!unresolved && this.config.swingMomentumMode && positions.length && !this.unmanagedLiveExposure) {
+        this.log("INFO", "READY_TO_SCAN_FOR_NEW_QUALIFIED_ENTRIES", {
+          adoptedExistingPositions: positions.length,
+          managingExistingPositions: true,
+          newEntriesRequireIndependentSwingSignals: true,
         });
       }
       this.writeLiveValidationStatusReport(true);
@@ -1692,6 +1737,10 @@ class LadderBot {
     return this.instrumentRulesBySymbol.get(signal.symbol) || signal.info || {};
   }
 
+  instrumentInfoForSymbol(symbol) {
+    return this.instrumentRulesBySymbol.get(symbol) || { symbol };
+  }
+
   liveValidationRiskCapForSignal(signal, plan = null) {
     if (plan && Number.isFinite(Number(plan.liveValidationRiskCapPct))) return Number(plan.liveValidationRiskCapPct);
     if (signal.eliteSetup || signal.tradeCategory === "ELITE_SETUP" || signal.convictionTier === "TIER_3_ELITE_SETUP") {
@@ -2628,6 +2677,19 @@ class LadderBot {
           marketPersonality: signal.marketPersonality,
         });
       }
+      const swingDuplicateReason = this.swingDuplicateEntryReason(signal);
+      if (swingDuplicateReason) {
+        this.log("INFO", "SWING_DUPLICATE_ENTRY_REJECTED", {
+          symbol: signal.symbol,
+          side: signal.side,
+          reason: swingDuplicateReason,
+          fingerprint: this.swingSignalFingerprint(signal),
+          maxPositionsPerSymbol: this.config.maxPositionsPerSymbol,
+        });
+        this.recordActivityEvent("rejectedRiskBudget", { symbol: signal.symbol, reason: swingDuplicateReason });
+        this.recordRejectedTrade(signal, swingDuplicateReason, { stage: "SWING_DUPLICATE_ENTRY" });
+        continue;
+      }
       const block = this.risk.entryBlockReason(equity, signal.symbol);
       if (block) {
         this.log("INFO", "Candidate entry rejected by portfolio safety rule.", { symbol: signal.symbol, reason: block });
@@ -3064,6 +3126,21 @@ class LadderBot {
       }
       plan.finalRoundedMaxLossAtStopUsdt = minimumOrderFeasibility.finalRoundedMaxLossAtStopUsdt;
       plan.maxLossAtStopUsdt = minimumOrderFeasibility.finalRoundedMaxLossAtStopUsdt;
+      const deployableCapital = this.deployableCapitalCheck(plan);
+      if (deployableCapital.rejected) {
+        this.log("INFO", "SWING_DEPLOYABLE_CAPITAL_REJECTED", {
+          symbol: signal.symbol,
+          side: signal.side,
+          reason: deployableCapital.reason,
+          deployedCapitalUsdt: deployableCapital.deployedCapitalUsdt,
+          candidateMarginUsdt: deployableCapital.candidateMarginUsdt,
+          maxDeployableCapitalUsdt: deployableCapital.maxDeployableCapitalUsdt,
+        });
+        this.recordActivityEvent("rejectedRiskBudget", { symbol: signal.symbol, reason: deployableCapital.reason });
+        this.recordRejectedTrade(signal, deployableCapital.reason, { stage: "SWING_DEPLOYABLE_CAPITAL" });
+        this.logProfitControlledPreMutationRejection(signal, deployableCapital.reason, deployableCapital);
+        continue;
+      }
       const portfolioRisk = this.portfolioRiskCheck(signal, plan, allocatedEquity);
       if (portfolioRisk.rejected) {
         this.log(portfolioRisk.humanReviewRequired ? "ERROR" : "INFO", portfolioRisk.humanReviewRequired ? "HUMAN_REVIEW_REQUIRED" : "Candidate rejected by portfolio max loss-at-stop control.", {
@@ -3287,6 +3364,56 @@ class LadderBot {
       (total, position) => total + Number(position.notional || Number(position.size) * position.entryPrice) / Number(position.leverage || 1),
       0
     );
+  }
+
+  deployedCapitalUsdt() {
+    return Number(this.reservedMarginUsdt().toFixed(6));
+  }
+
+  deployableCapitalCheck(plan) {
+    if (!this.config.swingMomentumMode) return { rejected: false };
+    const deployedCapitalUsdt = this.deployedCapitalUsdt();
+    const candidateMarginUsdt = Number((Number(plan.marginUsedUsdt || 0) || Number(plan.notional || 0) / Number(plan.leverage || 1)).toFixed(6));
+    const maxDeployableCapitalUsdt = Number(this.config.maxDeployableCapitalUsdt || 0);
+    const projectedCapitalUsdt = Number((deployedCapitalUsdt + candidateMarginUsdt).toFixed(6));
+    const base = {
+      deployedCapitalUsdt,
+      candidateMarginUsdt,
+      projectedCapitalUsdt,
+      maxDeployableCapitalUsdt,
+    };
+    if (!(maxDeployableCapitalUsdt > 0)) {
+      return { rejected: true, reason: "MAX_DEPLOYABLE_CAPITAL_USDT is not configured", ...base };
+    }
+    if (projectedCapitalUsdt > maxDeployableCapitalUsdt + 0.000001) {
+      return { rejected: true, reason: "swing deployable capital budget exceeded", ...base };
+    }
+    this.log("INFO", "SWING_DEPLOYABLE_CAPITAL_APPROVED", base);
+    return { rejected: false, ...base };
+  }
+
+  swingSignalFingerprint(signal = {}) {
+    const setup = String(signal.continuationSetupType || signal.setupType || signal.tradeCategory || "UNKNOWN").toUpperCase();
+    const regime = String(signal.marketRegimeV2 || signal.marketRegimeType || signal.regime || "UNKNOWN").toUpperCase();
+    const macro = String(signal.trend1h || signal.macroTrend || "UNKNOWN").toUpperCase();
+    return [signal.symbol, signal.side, setup, regime, macro].join(":");
+  }
+
+  swingDuplicateEntryReason(signal) {
+    if (!this.config.swingMomentumMode) return null;
+    const fingerprint = this.swingSignalFingerprint(signal);
+    const windowMs = Math.max(0, Number(this.config.swingDuplicateEntryWindowMinutes || 0)) * 60 * 1000;
+    const now = Date.now();
+    const duplicate = this.store.state.openPositions.find((position) => {
+      if (position.symbol !== signal.symbol || position.side !== signal.side) return false;
+      const existingFingerprint = position.swingSignalFingerprint || this.swingSignalFingerprint(position);
+      if (existingFingerprint !== fingerprint) return false;
+      if (!windowMs) return true;
+      const openedAt = Date.parse(position.openedAt || position.entryTime || "");
+      return !Number.isFinite(openedAt) || now - openedAt <= windowMs;
+    });
+    if (!duplicate) return null;
+    return "duplicate identical swing entry already managed";
   }
 
   totalOpenRiskAtStopUsdt() {
@@ -4330,9 +4457,9 @@ class LadderBot {
       partialTakeProfitPrice: plan.partialTakeProfitPrice,
       runnerTakeProfitPrice: plan.runnerTakeProfitPrice,
       standardTakeProfitPrice: plan.standardTakeProfitPrice,
-      eliteTrendRider: Boolean((plan.eliteSetup || plan.winnerAmplifier) && this.config.eliteTrendRiderEnabled),
-      winnerAmplifier: Boolean(plan.winnerAmplifier),
-      runnerPartialPct: plan.runnerPartialPct || (plan.winnerAmplifier ? this.config.winnerAmplifierPartialTakeProfitPct : plan.eliteSetup ? this.config.elitePartialTakeProfitPct : 0),
+      eliteTrendRider: Boolean((plan.eliteSetup || plan.winnerAmplifier || this.config.swingMomentumMode) && this.config.eliteTrendRiderEnabled),
+      winnerAmplifier: Boolean(plan.winnerAmplifier || this.config.swingMomentumMode),
+      runnerPartialPct: plan.runnerPartialPct || (plan.winnerAmplifier || this.config.swingMomentumMode ? this.config.winnerAmplifierPartialTakeProfitPct : plan.eliteSetup ? this.config.elitePartialTakeProfitPct : 0),
       runnerAllocation: plan.runnerAllocation,
       runnerTakeProfitMultiplier: plan.runnerTakeProfitMultiplier,
       runnerPartialTaken: false,
@@ -4497,6 +4624,11 @@ class LadderBot {
       profitControlledRiskState: signal.profitControlledRiskState,
       profitControlledSizingEquityBaseUsdt: this.store.state.profitControlled && this.store.state.profitControlled.sizingEquityBaseUsdt,
       profitControlledEarnedRiskTier: earnedRiskTier(signal),
+      swingMomentumMode: this.config.swingMomentumMode,
+      swingSignalFingerprint: this.swingSignalFingerprint(signal),
+      swingMaxPositionsPerSymbol: this.config.maxPositionsPerSymbol,
+      swingMaxDeployableCapitalUsdt: this.config.maxDeployableCapitalUsdt,
+      swingPreferredHoldingPeriod: this.config.swingMomentumMode ? "several hours to multiple days" : null,
       expectedGrossMoveUsdt: signal.edgeModel && signal.edgeModel.projectedGrossProfitUsdt,
       expectedEntryFeeUsdt: signal.edgeModel && Number((plan.notional * (Number(signal.edgeModel.estimatedEntryFeePct || 0) / 100)).toFixed(6)),
       expectedExitFeeUsdt: signal.edgeModel && Number((plan.notional * (Number(signal.edgeModel.estimatedExitFeePct || 0) / 100)).toFixed(6)),
@@ -4808,7 +4940,28 @@ class LadderBot {
           momentumPersistenceCandles: analysis.momentumPersistenceCandles,
         });
       }
+      if (this.config.swingMomentumMode && secondsHeld(position) >= this.config.swingMaxHoldSeconds && !strongContinuation) {
+        await this.closePosition(position, price, "swing max hold elapsed without strong continuation");
+        continue;
+      }
       if (trendReversed && !strongContinuation) {
+        if (this.config.swingMomentumMode) {
+          const invalidated = this.swingTrendInvalidated(position, analysis, pnlPct);
+          const heldSeconds = secondsHeld(position);
+          if (!invalidated && heldSeconds < this.config.swingTrendExitMinHoldSeconds) {
+            this.log("INFO", "SWING_TREND_EXIT_DELAYED", {
+              symbol: position.symbol,
+              side: position.side,
+              holdSeconds: heldSeconds.toFixed(1),
+              minTrendExitHoldSeconds: this.config.swingTrendExitMinHoldSeconds,
+              pnlPct: pnlPct.toFixed(3),
+              reason: "short-term trend deterioration without full swing invalidation",
+            });
+            continue;
+          }
+          await this.closePosition(position, price, invalidated ? "swing setup invalidated" : "swing trend deteriorated after minimum hold");
+          continue;
+        }
         await this.closePosition(position, price, "EMA trend reversed");
       } else if (momentumGone) {
         const heldSeconds = secondsHeld(position);
@@ -4975,6 +5128,23 @@ class LadderBot {
       analysis.volumeCondition !== "LOW_VOLUME" &&
       analysis.volatilityRegime !== "NEWS_LIKE_ABNORMAL"
     );
+  }
+
+  swingTrendInvalidated(position, analysis, pnlPct = 0) {
+    if (!this.config.swingMomentumMode || !this.config.swingTrendDeteriorationExitEnabled) return false;
+    const long = position.side === "LONG";
+    const opposite5m = long ? analysis.trend5m === "DOWN" : analysis.trend5m === "UP";
+    const oppositeMacro = long
+      ? analysis.trend1h === "DOWN" || analysis.macroContradicts
+      : analysis.trend1h === "UP" || analysis.macroContradicts;
+    const adverseMomentum = long
+      ? analysis.momentum1mPct < 0 && analysis.momentum5mPct < 0
+      : analysis.momentum1mPct > 0 && analysis.momentum5mPct > 0;
+    const weakConviction = Number(analysis.convictionScore || 0) < Math.max(35, this.config.minConvictionScore - 6);
+    const hostileRegime = Array.isArray(analysis.marketRegimeTags) &&
+      analysis.marketRegimeTags.some((tag) => ["FAKE_BREAKOUT_ENVIRONMENT", "DEAD_MARKET_CONDITIONS"].includes(tag));
+    const stopThreat = pnlPct <= -this.config.stopLossPct * 0.55;
+    return Boolean(opposite5m && adverseMomentum && (oppositeMacro || weakConviction || hostileRegime || stopThreat));
   }
 
   async closePartialPosition(position, referencePrice, reason, fraction) {
@@ -5405,15 +5575,33 @@ class LadderBot {
       const exchangeSide = exchange.side === "Buy" ? "LONG" : exchange.side === "Sell" ? "SHORT" : null;
       if (exchangeSide === managed.side && Number.isFinite(entryPrice) && entryPrice > 0 && size > 0) {
         matchedManagedPositions.add(`${exchange.symbol}:${exchange.positionIdx}`);
+        const sameExchangeKeyCount = this.store.state.openPositions.filter(
+          (position) => position.symbol === managed.symbol && Number(position.positionIdx || 0) === Number(managed.positionIdx || 0)
+        ).length;
+        const preserveLogicalTrancheSize = Boolean(this.config.swingMomentumMode && sameExchangeKeyCount > 1);
         const entryWasPending = pendingLiveEntry(managed);
         const plannedEntryPrice = numeric(managed.plannedEntryPrice, numeric(managed.entryPrice, entryPrice));
         const slippagePct =
           managed.side === "SHORT"
             ? ((plannedEntryPrice - entryPrice) / plannedEntryPrice) * 100
             : ((entryPrice - plannedEntryPrice) / plannedEntryPrice) * 100;
-        managed.entryPrice = entryPrice;
-        managed.size = String(size);
-        managed.slippagePct = Number.isFinite(slippagePct) ? Number(slippagePct.toFixed(4)) : 0;
+        managed.exchangeAggregateEntryPrice = entryPrice;
+        managed.exchangeAggregateSize = String(size);
+        if (!preserveLogicalTrancheSize) {
+          managed.entryPrice = entryPrice;
+          managed.size = String(size);
+          managed.slippagePct = Number.isFinite(slippagePct) ? Number(slippagePct.toFixed(4)) : 0;
+        } else {
+          managed.slippagePct = Number.isFinite(Number(managed.slippagePct)) ? managed.slippagePct : 0;
+          this.log("INFO", "SWING_LOGICAL_TRANCHE_RECONCILED_WITH_AGGREGATE_EXCHANGE_POSITION", {
+            symbol: managed.symbol,
+            side: managed.side,
+            logicalPositionId: managed.id,
+            logicalSize: managed.size,
+            exchangeAggregateSize: String(size),
+            exchangeAggregateEntryPrice: entryPrice,
+          });
+        }
         managed.positionIdx = Number(exchange.positionIdx);
         managed.leverage = Number(exchange.leverage) || managed.leverage;
         managed.liquidationPrice = Number(exchange.liqPrice) || null;
@@ -5421,27 +5609,28 @@ class LadderBot {
         managed.exchangeStopLoss = exchange.stopLoss || exchange.sl || managed.exchangeStopLoss || null;
         managed.exchangeTrailingStop = exchange.trailingStop || managed.exchangeTrailingStop || null;
         managed.exchangeTrailingActivePrice = exchange.activePrice || exchange.trailingActive || managed.exchangeTrailingActivePrice || null;
+        const protectionEntryPrice = preserveLogicalTrancheSize ? numeric(managed.entryPrice, entryPrice) : entryPrice;
         managed.stopLossPrice =
           managed.side === "LONG"
-            ? roundedPrice(entryPrice * (1 - this.config.stopLossPct / 100), managed.tickSize, false)
-            : roundedPrice(entryPrice * (1 + this.config.stopLossPct / 100), managed.tickSize, true);
+            ? roundedPrice(protectionEntryPrice * (1 - this.config.stopLossPct / 100), managed.tickSize, false)
+            : roundedPrice(protectionEntryPrice * (1 + this.config.stopLossPct / 100), managed.tickSize, true);
         managed.standardTakeProfitPrice =
           managed.side === "LONG"
-            ? roundedPrice(entryPrice * (1 + this.config.takeProfitPct / 100), managed.tickSize, false)
-            : roundedPrice(entryPrice * (1 - this.config.takeProfitPct / 100), managed.tickSize, true);
-        managed.partialTakeProfitPrice = managed.eliteTrendRider ? managed.standardTakeProfitPrice : null;
+            ? roundedPrice(protectionEntryPrice * (1 + this.config.takeProfitPct / 100), managed.tickSize, false)
+            : roundedPrice(protectionEntryPrice * (1 - this.config.takeProfitPct / 100), managed.tickSize, true);
+        managed.partialTakeProfitPrice = managed.eliteTrendRider || managed.winnerAmplifier || managed.swingMomentumMode ? managed.standardTakeProfitPrice : null;
         const managedRunnerMultiplier =
           managed.runnerTakeProfitMultiplier ||
           (managed.eliteSetup ? this.config.eliteRunnerTakeProfitMultiplier : managed.winnerAmplifier ? this.config.runnerTrendExtensionMultiplier : 1);
         managed.takeProfitPrice =
           managed.side === "LONG"
             ? roundedPrice(
-                entryPrice * (1 + (this.config.takeProfitPct * managedRunnerMultiplier) / 100),
+                protectionEntryPrice * (1 + (this.config.takeProfitPct * managedRunnerMultiplier) / 100),
                 managed.tickSize,
                 false
               )
             : roundedPrice(
-                entryPrice * (1 - (this.config.takeProfitPct * managedRunnerMultiplier) / 100),
+                protectionEntryPrice * (1 - (this.config.takeProfitPct * managedRunnerMultiplier) / 100),
                 managed.tickSize,
                 true
               );
@@ -5458,10 +5647,12 @@ class LadderBot {
             trade.entryPrice = entryPrice;
             trade.slippagePct = managed.slippagePct;
             trade.actualSlippagePct = managed.slippagePct;
-            trade.size = String(size);
+            trade.exchangeAggregateSize = String(size);
+            trade.exchangeAggregateEntryPrice = entryPrice;
+            if (!preserveLogicalTrancheSize) trade.size = String(size);
             trade.positionIdx = managed.positionIdx;
             trade.fillLatencyMs = managed.fillLatencyMs;
-            trade.averageFillPrice = entryPrice;
+            trade.averageFillPrice = preserveLogicalTrancheSize ? numeric(trade.averageFillPrice, managed.entryPrice) : entryPrice;
           }
           this.risk.registerOpen(Boolean(managed.explorationTrade));
           if (this.store.state.pauseReason === LEGACY_UNKNOWN_ENTRY_PAUSE) {
@@ -5524,6 +5715,13 @@ class LadderBot {
     }
     for (const exchange of exchangePositions) {
       if (!matchedManagedPositions.has(`${exchange.symbol}:${exchange.positionIdx}`)) {
+        if (this.config.swingMomentumMode && this.config.swingAdoptExistingPositions) {
+          const adopted = await this.adoptExchangePosition(exchange);
+          if (adopted) {
+            matchedManagedPositions.add(`${exchange.symbol}:${exchange.positionIdx}`);
+            continue;
+          }
+        }
         this.unmanagedLiveExposure = true;
         this.log("WARN", "Unmanaged live exchange position blocks new entries.", {
           symbol: exchange.symbol,
@@ -5532,6 +5730,116 @@ class LadderBot {
       }
     }
     this.store.saveAll();
+  }
+
+  async adoptExchangePosition(exchange) {
+    if (!exchange || !this.config.focusedTradingSymbols.has(exchange.symbol)) return false;
+    const entryPrice = Number(exchange.avgPrice);
+    const size = Number(exchange.size);
+    const side = exchange.side === "Buy" ? "LONG" : exchange.side === "Sell" ? "SHORT" : null;
+    if (!side || !(entryPrice > 0) || !(size > 0)) return false;
+    const info = this.instrumentInfoForSymbol(exchange.symbol);
+    const lot = info.lotSizeFilter || {};
+    const tickSize = info.priceFilter && info.priceFilter.tickSize;
+    const qtyStep = lot.qtyStep || "0.001";
+    const sizeDecimals = decimalPlaces(qtyStep);
+    const long = side === "LONG";
+    const exchangeStop = Number(exchange.stopLoss || exchange.sl || 0);
+    const exchangeTakeProfit = Number(exchange.takeProfit || exchange.tp || 0);
+    const stopLossPrice = exchangeStop > 0
+      ? roundedPrice(exchangeStop, tickSize, !long)
+      : roundedPrice(entryPrice * (long ? 1 - this.config.stopLossPct / 100 : 1 + this.config.stopLossPct / 100), tickSize, !long);
+    const standardTakeProfitPrice = exchangeTakeProfit > 0
+      ? roundedPrice(exchangeTakeProfit, tickSize, !long)
+      : roundedPrice(entryPrice * (long ? 1 + this.config.takeProfitPct / 100 : 1 - this.config.takeProfitPct / 100), tickSize, !long);
+    const runnerMultiplier = Math.max(1, this.config.runnerTrendExtensionMultiplier || 1);
+    const takeProfitPrice = exchangeTakeProfit > 0
+      ? roundedPrice(exchangeTakeProfit, tickSize, !long)
+      : roundedPrice(entryPrice * (long ? 1 + (this.config.takeProfitPct * runnerMultiplier) / 100 : 1 - (this.config.takeProfitPct * runnerMultiplier) / 100), tickSize, !long);
+    const leverage = Number(exchange.leverage) || this.config.maxLeverage;
+    const notional = Number((entryPrice * size).toFixed(6));
+    const maxLossAtStopUsdt = Number((Math.abs(entryPrice - stopLossPrice) * size).toFixed(6));
+    const id = makeId("adopted");
+    const position = {
+      id,
+      mode: "LIVE",
+      status: "OPEN",
+      symbol: exchange.symbol,
+      side,
+      size: size.toFixed(sizeDecimals),
+      notional,
+      leverage,
+      entryPrice,
+      plannedEntryPrice: entryPrice,
+      stopLossPrice,
+      takeProfitPrice,
+      standardTakeProfitPrice,
+      partialTakeProfitPrice: standardTakeProfitPrice,
+      runnerTakeProfitPrice: takeProfitPrice,
+      eliteTrendRider: true,
+      winnerAmplifier: true,
+      runnerPartialPct: this.config.winnerAmplifierPartialTakeProfitPct,
+      runnerPartialTaken: false,
+      runnerStopMovedToBreakeven: false,
+      runnerExtensionCount: 0,
+      peakPrice: entryPrice,
+      adversePrice: entryPrice,
+      maximumFavorableExcursionPct: 0,
+      maximumAdverseExcursionPct: 0,
+      trailingStopPrice: null,
+      openedAt: new Date().toISOString(),
+      setupType: "ADOPTED_EXISTING_SWING_POSITION",
+      tradeCategory: "SWING_ADOPTED",
+      swingMomentumMode: true,
+      swingSignalFingerprint: `${exchange.symbol}:${side}:ADOPTED_EXISTING_SWING_POSITION:EXCHANGE_SYNC:UNKNOWN`,
+      swingAdoptedFromExchange: true,
+      swingMaxPositionsPerSymbol: this.config.maxPositionsPerSymbol,
+      swingMaxDeployableCapitalUsdt: this.config.maxDeployableCapitalUsdt,
+      marginUsedUsdt: Number((notional / leverage).toFixed(6)),
+      maxLossAtStopUsdt,
+      riskPctOfEquity: 0,
+      positionIdx: Number(exchange.positionIdx || this.client.positionIdx(side)),
+      nativeProtection: "ADOPTED_FROM_EXCHANGE",
+      nativeProtectionVerified: false,
+      tickSize,
+      entryFeesUsdt: 0,
+      exitFeesUsdt: 0,
+      liquidationPrice: Number(exchange.liqPrice) || null,
+      exchangeTakeProfit: exchange.takeProfit || exchange.tp || null,
+      exchangeStopLoss: exchange.stopLoss || exchange.sl || null,
+      exchangeTrailingStop: exchange.trailingStop || null,
+      exchangeTrailingActivePrice: exchange.activePrice || exchange.trailingActive || null,
+      sessionType: sessionType(),
+      profitControlledEquityMode: this.config.profitControlledEquityMode,
+    };
+    this.store.state.openPositions.push(position);
+    this.store.trades.push({ ...position, status: "OPEN", adoptedFromExchange: true });
+    this.executionLedger.beginTrade(position, {
+      adoptedFromExchange: true,
+      maxLossAtStopUsdt: position.maxLossAtStopUsdt,
+      executionType: "EXCHANGE_EXISTING_POSITION",
+    });
+    await this.ensureNativeProtection(position);
+    if (this.positionTooCloseToLiquidation(position)) {
+      this.unmanagedLiveExposure = true;
+      this.log("ERROR", "Adopted exchange position is too close to liquidation; human review required before new entries.", {
+        symbol: position.symbol,
+        entryPrice: position.entryPrice,
+        liquidationPrice: position.liquidationPrice,
+      });
+      return false;
+    }
+    this.log("WARN", "SWING_EXISTING_POSITION_ADOPTED", {
+      symbol: position.symbol,
+      side: position.side,
+      size: position.size,
+      entryPrice: position.entryPrice,
+      stopLossPrice: position.stopLossPrice,
+      takeProfitPrice: position.takeProfitPrice,
+      maxLossAtStopUsdt: position.maxLossAtStopUsdt,
+      managingExistingPosition: true,
+    });
+    return true;
   }
 
   positionTooCloseToLiquidation(position) {
