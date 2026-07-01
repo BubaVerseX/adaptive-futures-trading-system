@@ -351,7 +351,7 @@ function loadConfig() {
     swingMinimumHoldSeconds: numberValue("SWING_MIN_HOLD_SECONDS", 7200, { minimum: 0 }),
     swingTrendExitMinHoldSeconds: numberValue("SWING_TREND_EXIT_MIN_HOLD_SECONDS", 14400, { minimum: 0 }),
     swingMaxHoldSeconds: numberValue("SWING_MAX_HOLD_SECONDS", 259200, { positive: true }),
-    swingScanIntervalMs: numberValue("SWING_SCAN_INTERVAL_MS", 60000, { positive: true, integer: true }),
+    swingScanIntervalMs: numberValue("SWING_SCAN_INTERVAL_MS", 15000, { positive: true, integer: true }),
     swingPositionMonitorIntervalMs: numberValue("SWING_POSITION_MONITOR_INTERVAL_MS", 30000, { positive: true, integer: true }),
     swingTrendDeteriorationExitEnabled: booleanValue("SWING_TREND_DETERIORATION_EXIT_ENABLED", true),
     swingAdoptExistingPositions: booleanValue("SWING_ADOPT_EXISTING_POSITIONS", true),
@@ -605,7 +605,7 @@ function loadConfig() {
     config.focusedTradingSymbols = new Set(FOCUSED_TRADING_SYMBOLS);
     config.maxDeployableCapitalUsdt = config.maxDeployableCapitalUsdt > 0
       ? config.maxDeployableCapitalUsdt
-      : config.accountStartUsdt;
+      : 64;
     if (!process.env.CANDLE_INTERVAL_FAST) config.candleIntervalFast = "15M";
     if (!process.env.CANDLE_INTERVAL_MAIN) config.candleIntervalMain = "60M";
     if (!process.env.CANDLE_INTERVAL_TREND) config.candleIntervalTrend = "240M";
@@ -619,12 +619,17 @@ function loadConfig() {
     config.v11MeanReversionEnabled = false;
     config.learningPhaseMode = false;
     config.aggressiveLearningPhase = false;
-    config.highActivityMode = false;
+    config.highActivityMode = true;
     config.continuationEngineEnabled = true;
     config.pullbackContinuationEnabled = true;
     config.retestEntryEnabled = true;
     config.momentumResumptionEnabled = true;
     config.trendAccelerationEnabled = true;
+    config.minSignalScore = Math.min(config.minSignalScore, 40);
+    config.minConvictionScore = Math.min(config.minConvictionScore, 42);
+    config.continuationMinStrength = Math.min(config.continuationMinStrength, 52);
+    config.continuationMinScore = Math.min(config.continuationMinScore, 56);
+    config.minMomentumPersistenceCandles = Math.min(config.minMomentumPersistenceCandles, 2);
     config.takeProfitPct = Math.max(config.takeProfitPct, config.swingTakeProfitPct);
     config.stopLossPct = Math.max(config.stopLossPct, config.swingStopLossPct);
     config.trailingStartPct = Math.max(config.trailingStartPct, config.swingTrailingStartPct);
@@ -637,6 +642,13 @@ function loadConfig() {
       config.maxOpenPositions,
       Math.min(10, config.focusedTradingSymbolsList.length * config.maxPositionsPerSymbol)
     );
+    config.normalRiskAtStopMaxPct = Math.max(config.normalRiskAtStopMaxPct, 0.9);
+    config.strongRiskAtStopMaxPct = Math.max(config.strongRiskAtStopMaxPct, 1.5);
+    config.eliteRiskAtStopMaxPct = Math.max(config.eliteRiskAtStopMaxPct, 2);
+    config.tier2MarginMaxUsdt = Math.max(config.tier2MarginMaxUsdt, config.maxDeployableCapitalUsdt * 0.25);
+    config.tier3MarginMinUsdt = Math.max(config.tier3MarginMinUsdt, config.maxDeployableCapitalUsdt * 0.25);
+    config.tier3MarginMaxUsdt = Math.max(config.tier3MarginMaxUsdt, config.maxDeployableCapitalUsdt * 0.45);
+    config.maxPositionNotionalUsdt = Math.max(config.maxPositionNotionalUsdt, config.tier3MarginMaxUsdt * Math.max(1, config.maxLeverage));
     config.explorationModeEnabled = false;
     config.explorationTradeRatio = 0;
     config.allowChoppyMarket = false;

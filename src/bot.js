@@ -539,7 +539,9 @@ class LadderBot {
           symbols: this.config.focusedTradingSymbolsList,
           maxDeployableCapitalUsdt: this.config.maxDeployableCapitalUsdt,
           maxPositionsPerSymbol: this.config.maxPositionsPerSymbol,
-          preferredHoldingPeriod: "several hours to multiple days",
+          preferredHoldingPeriod: "2-6 hours preferred; multiple days while trend quality remains strong",
+          aggressiveSwingParticipation: true,
+          highActivityScanningPreserved: this.config.highActivityMode,
           scalpFirstLogicDisabled: true,
           existingPositionsAdoptedWhenSafe: this.config.swingAdoptExistingPositions,
         });

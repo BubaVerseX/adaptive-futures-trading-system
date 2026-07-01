@@ -4477,12 +4477,31 @@ async function testV13SwingMomentumConfigAndBudget() {
   assert.equal(loaded.candleIntervalTrend, "240M");
   assert.equal(loaded.candleIntervalMacro, "1D");
   assert.equal(loaded.fastMode, false);
+  assert.equal(loaded.highActivityMode, true);
   assert.equal(loaded.fomoBreakoutMode, false);
   assert.equal(loaded.microBreakoutEntries, false);
   assert.equal(loaded.forcedMarketSamplingEnabled, false);
   assert.equal(loaded.explorationModeEnabled, false);
   assert.ok(packageJson.scripts.swing.includes("SWING_MOMENTUM_MODE=true"));
+  assert.ok(packageJson.scripts.swing.includes("MAX_DEPLOYABLE_CAPITAL_USDT=64"));
   assert.ok(packageJson.scripts.swing.includes("DRY_RUN=true"));
+  assert.equal(loaded.scanIntervalMs, 15000);
+  assert.equal(loaded.normalRiskAtStopMaxPct, 0.9);
+  assert.equal(loaded.strongRiskAtStopMaxPct, 1.5);
+  assert.equal(loaded.eliteRiskAtStopMaxPct, 2);
+  const fallback = withEnv(
+    {
+      SWING_MOMENTUM_MODE: "true",
+      MAX_DEPLOYABLE_CAPITAL_USDT: undefined,
+      CANDLE_INTERVAL_FAST: undefined,
+      CANDLE_INTERVAL_MAIN: undefined,
+      CANDLE_INTERVAL_TREND: undefined,
+      CANDLE_INTERVAL_MACRO: undefined,
+      CANDLE_INTERVAL_MACRO_LONG: undefined,
+    },
+    () => loadConfig()
+  );
+  assert.equal(fallback.maxDeployableCapitalUsdt, 64);
 }
 
 async function testV13SwingMultiEntryAndDuplicateGuard() {
