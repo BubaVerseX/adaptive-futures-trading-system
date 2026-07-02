@@ -129,6 +129,16 @@ class TrendPortfolioEngine {
         scalpDecisionLogicReused: false,
         maximizeNetProfitAfterFees: true,
       });
+      this.log("WARN", "V14_1_AGGRESSIVE_MOMENTUM_UPGRADE_ACTIVE", {
+        aggressiveMomentumMode: this.config.trendPortfolioAggressiveMomentumMode,
+        minScore: this.config.trendPortfolioMinScore,
+        normalScore: this.config.trendPortfolioNormalScore,
+        highScore: this.config.trendPortfolioStrongScore,
+        eliteScore: this.config.trendPortfolioEliteScore,
+        minNetEdgePct: this.config.trendPortfolioMinNetEdgePct,
+        minRewardCostRatio: this.config.trendPortfolioMinRewardCostRatio,
+        objective: "increase emerging-trend participation without returning to scalping",
+      });
       this.log("INFO", "V14_TRADING_UNIVERSE_LOCKED", {
         allowedSymbols: TREND_SYMBOLS,
         removedSymbols: "all symbols outside BTCUSDT, ETHUSDT, SOLUSDT",
@@ -224,7 +234,11 @@ class TrendPortfolioEngine {
     const allAligned = Object.values(directions).every((direction) => direction === expected);
     const trendAndMacroOpposite = directions.trend4h === opposite && directions.macro1d === opposite;
     const macroOpposite = directions.macro1d === opposite || directions.macroLong === opposite;
-    const mtfScore = clampScore(mtfRaw + (allAligned ? 8 : 0) - (trendAndMacroOpposite ? this.config.trendPortfolioMacroOppositionPenalty : macroOpposite ? 12 : 0));
+    const developingTrend =
+      directions.entry15m === expected &&
+      directions.confirmation1h === expected &&
+      directions.trend4h !== opposite;
+    const mtfScore = clampScore(mtfRaw + (allAligned ? 8 : 0) + (developingTrend ? 6 : 0) - (trendAndMacroOpposite ? this.config.trendPortfolioMacroOppositionPenalty : macroOpposite ? 8 : 0));
 
     const confirmationTrend = trendStructure(side, analyses.confirmation);
     const htfTrend = trendStructure(side, analyses.trend);
@@ -266,11 +280,13 @@ class TrendPortfolioEngine {
     if (rangeExpansion >= this.config.minRangeExpansion) add("volatility/range expansion", 7);
     if (breakoutContinuation) add("breakout continuation structure", 9);
     if (directionalBody) add("directional candle body", 5);
+    if (developingTrend) add("early developing trend participation", 8);
+    if (directions.entry15m === expected && movingInSide(side, analyses.entry)) add("15m trigger moved with emerging trend", 5);
     if (breadth.allAligned) add("BTC/ETH/SOL portfolio alignment", 7);
     else if (breadth.conflictCount >= 2) add("portfolio trend conflict", -10);
-    if (marketProfile && Array.isArray(marketProfile.tags) && marketProfile.tags.includes("SIDEWAYS_CHOP_MARKET")) add("market chop patience penalty", -8);
+    if (marketProfile && Array.isArray(marketProfile.tags) && marketProfile.tags.includes("SIDEWAYS_CHOP_MARKET")) add("market chop patience penalty", -4);
     if (trendAndMacroOpposite) add("4h plus daily opposition", -this.config.trendPortfolioMacroOppositionPenalty);
-    else if (macroOpposite) add("daily macro opposition", -12);
+    else if (macroOpposite) add("daily macro opposition", -8);
 
     const roundTripFeePct = this.config.estimatedFeePctPerSide * 2;
     const estimatedRoundTripCostPct = roundTripFeePct + this.config.estimatedSlippagePct + item.spreadPct;
@@ -300,16 +316,21 @@ class TrendPortfolioEngine {
     if (projectedNetEdgePct >= this.config.trendPortfolioMinNetEdgePct && feeEdgeRatio >= this.config.trendPortfolioMinRewardCostRatio) {
       add("post-cost trend edge validated", 8);
     } else {
-      add("post-cost edge insufficient", -14);
+      add("post-cost edge insufficient", -8);
     }
 
     let finalScore = clampScore(score);
     const rejected = [];
-    if (mtfScore < 48) rejected.push(`trend thesis too weak: MTF score ${mtfScore}`);
+    const emergingTrendQualified =
+      developingTrend &&
+      mtfScore >= 40 &&
+      (confirmationTrend || continuationMomentum || breakoutContinuation) &&
+      volumeSpike >= this.config.minVolumeSpike * 0.65;
+    if (mtfScore < 40 && !emergingTrendQualified) rejected.push(`trend thesis too weak: MTF score ${mtfScore}`);
     if (trendAndMacroOpposite) rejected.push("4h and daily trend oppose entry thesis");
-    if (!confirmationTrend && !htfTrend) rejected.push("no complete 1h/4h trend structure");
-    if (!continuationMomentum && !breakoutContinuation) rejected.push("no momentum continuation or breakout continuation");
-    if (volumeSpike < this.config.minVolumeSpike * 0.8) rejected.push("volume confirmation too weak for swing thesis");
+    if (!confirmationTrend && !htfTrend && !emergingTrendQualified) rejected.push("no complete 1h/4h trend structure");
+    if (!continuationMomentum && !breakoutContinuation && !(developingTrend && movingInSide(side, analyses.entry))) rejected.push("no momentum continuation or breakout continuation");
+    if (volumeSpike < this.config.minVolumeSpike * 0.65) rejected.push("volume confirmation too weak for swing thesis");
     if (projectedNetEdgePct < this.config.trendPortfolioMinNetEdgePct) rejected.push(`projected net edge ${projectedNetEdgePct}% below V14 minimum`);
     if (feeEdgeRatio < this.config.trendPortfolioMinRewardCostRatio) rejected.push(`reward/cost ${feeEdgeRatio.toFixed(2)} below V14 minimum`);
 
@@ -323,6 +344,7 @@ class TrendPortfolioEngine {
     });
     finalScore = clampScore(finalScore + adaptive.scoreAdjustment);
     const tier = rejected.length ? "REJECT" : qualityTier(this.config, finalScore);
+    const confidenceClass = tier === "ELITE" ? "ELITE" : tier === "STRONG" ? "HIGH" : tier === "NORMAL" ? "STANDARD" : "REJECT";
     const eligible = tier !== "REJECT" && finalScore >= this.config.trendPortfolioMinScore;
     const signal = {
       symbol: item.info.symbol,
@@ -344,6 +366,7 @@ class TrendPortfolioEngine {
       rejected,
       eligible,
       tradeQualityTier: tier,
+      confidenceClass,
       scannerQualityTier: tier,
       qualityTier: tier,
       profitQualityTier: tier,
@@ -353,6 +376,7 @@ class TrendPortfolioEngine {
         reason: eligible ? "V14 complete trend thesis accepted" : rejected[0] || "V14 trend score below threshold",
         assignedBy: "trendPortfolioEngine.js",
         scalpDecisionLogicReused: false,
+        earlyTrendParticipation: emergingTrendQualified,
       },
       tradeQualityAssignedBy: "trendPortfolioEngine.js",
       rejectionCategory: eligible ? "ACCEPTED" : "TREND_THESIS",
@@ -387,7 +411,8 @@ class TrendPortfolioEngine {
         directions,
         mtfScore,
         thesis: eligible ? "HTF trend alignment with post-cost edge" : "No qualified swing thesis",
-        holdingIntent: "2h to multiple days while trend remains valid",
+        holdingIntent: "2h to 24h preferred; multiple days while trend remains valid",
+        earlyTrendParticipation: emergingTrendQualified,
       },
       trendThesisKey: null,
       swingSignalFingerprint: null,
@@ -399,6 +424,7 @@ class TrendPortfolioEngine {
       macroAligned: directions.macro1d === expected,
       macroContradicts: macroOpposite,
       multiTimeframeAligned: mtfScore >= 70,
+      earlyTrendParticipation: emergingTrendQualified,
       multiTimeframeTrendScore: mtfScore,
       multiTimeframeDirections: directions,
       multiTimeframeAllAligned: allAligned,
@@ -565,6 +591,8 @@ class TrendPortfolioEngine {
         smartProjectedNetEdgePct: item.smartProjectedNetEdgePct,
         feeEdgeRatio: item.feeEdgeRatio,
         estimatedTpProbability: item.estimatedTpProbability,
+        confidenceClass: item.confidenceClass,
+        earlyTrendParticipation: item.earlyTrendParticipation,
         rejected: item.rejected,
         scoreBreakdown: item.scoreBreakdown,
         scalpDecisionLogicReused: false,

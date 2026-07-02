@@ -87,7 +87,7 @@ function loadConfig() {
   const dataDir = path.join(
     PROJECT_ROOT,
     "data",
-    profitControlledEquityMode ? "profit-controlled-live" : liveValidationMode ? "live-validation" : bybitDemoTrading ? "demo" : (paperTradingMode || activeAdaptiveScalperMode) ? "paper-trading" : ""
+    trendPortfolioMode ? "trend-portfolio" : profitControlledEquityMode ? "profit-controlled-live" : liveValidationMode ? "live-validation" : bybitDemoTrading ? "demo" : (paperTradingMode || activeAdaptiveScalperMode) ? "paper-trading" : ""
   );
   const defaultRestBaseUrl = bybitDemoTrading
     ? DEMO_REST_BASE_URL
@@ -366,14 +366,15 @@ function loadConfig() {
     swingNormalTargetMarginUsdt: numberValue("SWING_NORMAL_TARGET_MARGIN_USDT", 22, { positive: true }),
     swingStrongTargetMarginUsdt: numberValue("SWING_STRONG_TARGET_MARGIN_USDT", 28, { positive: true }),
     swingEliteTargetMarginUsdt: numberValue("SWING_ELITE_TARGET_MARGIN_USDT", 40, { positive: true }),
-    trendPortfolioMinScore: numberValue("TREND_PORTFOLIO_MIN_SCORE", 64, { positive: true, maximum: 100 }),
-    trendPortfolioNormalScore: numberValue("TREND_PORTFOLIO_NORMAL_SCORE", 68, { positive: true, maximum: 100 }),
-    trendPortfolioStrongScore: numberValue("TREND_PORTFOLIO_STRONG_SCORE", 78, { positive: true, maximum: 100 }),
-    trendPortfolioEliteScore: numberValue("TREND_PORTFOLIO_ELITE_SCORE", 88, { positive: true, maximum: 100 }),
-    trendPortfolioMinNetEdgePct: numberValue("TREND_PORTFOLIO_MIN_NET_EDGE_PCT", 0.18, { minimum: 0 }),
-    trendPortfolioMinRewardCostRatio: numberValue("TREND_PORTFOLIO_MIN_REWARD_COST_RATIO", 2.2, { positive: true }),
+    trendPortfolioAggressiveMomentumMode: booleanValue("TREND_PORTFOLIO_AGGRESSIVE_MOMENTUM_MODE", true),
+    trendPortfolioMinScore: numberValue("TREND_PORTFOLIO_MIN_SCORE", 54, { positive: true, maximum: 100 }),
+    trendPortfolioNormalScore: numberValue("TREND_PORTFOLIO_NORMAL_SCORE", 58, { positive: true, maximum: 100 }),
+    trendPortfolioStrongScore: numberValue("TREND_PORTFOLIO_STRONG_SCORE", 66, { positive: true, maximum: 100 }),
+    trendPortfolioEliteScore: numberValue("TREND_PORTFOLIO_ELITE_SCORE", 76, { positive: true, maximum: 100 }),
+    trendPortfolioMinNetEdgePct: numberValue("TREND_PORTFOLIO_MIN_NET_EDGE_PCT", 0.14, { minimum: 0 }),
+    trendPortfolioMinRewardCostRatio: numberValue("TREND_PORTFOLIO_MIN_REWARD_COST_RATIO", 1.8, { positive: true }),
     trendPortfolioExpectedMoveAtrMultiplier: numberValue("TREND_PORTFOLIO_EXPECTED_MOVE_ATR_MULTIPLIER", 2.8, { positive: true }),
-    trendPortfolioMacroOppositionPenalty: numberValue("TREND_PORTFOLIO_MACRO_OPPOSITION_PENALTY", 28, { minimum: 0, maximum: 50 }),
+    trendPortfolioMacroOppositionPenalty: numberValue("TREND_PORTFOLIO_MACRO_OPPOSITION_PENALTY", 22, { minimum: 0, maximum: 50 }),
     trendPortfolioStopAtrMultiplier: numberValue("TREND_PORTFOLIO_STOP_ATR_MULTIPLIER", 1.9, { positive: true, maximum: 8 }),
     trendPortfolioTargetAtrMultiplier: numberValue("TREND_PORTFOLIO_TARGET_ATR_MULTIPLIER", 4.8, { positive: true, maximum: 16 }),
     trendPortfolioPyramidWindowMinutes: numberValue("TREND_PORTFOLIO_PYRAMID_WINDOW_MINUTES", 360, { minimum: 0 }),
@@ -731,10 +732,12 @@ function loadConfig() {
     );
     config.tier1MarginMinUsdt = Math.max(config.tier1MarginMinUsdt, 10);
     config.tier1MarginMaxUsdt = Math.max(config.tier1MarginMaxUsdt, 18);
-    config.tier2MarginMinUsdt = Math.max(config.tier2MarginMinUsdt, 20);
-    config.tier2MarginMaxUsdt = Math.max(config.tier2MarginMaxUsdt, 30);
-    config.tier3MarginMinUsdt = Math.max(config.tier3MarginMinUsdt, 30);
-    config.tier3MarginMaxUsdt = Math.max(config.tier3MarginMaxUsdt, config.maxDeployableCapitalUsdt * 0.75);
+    config.swingStrongTargetMarginUsdt = Math.max(config.swingStrongTargetMarginUsdt, config.maxDeployableCapitalUsdt * 0.55);
+    config.swingEliteTargetMarginUsdt = Math.max(config.swingEliteTargetMarginUsdt, config.maxDeployableCapitalUsdt * 0.85);
+    config.tier2MarginMinUsdt = Math.max(config.tier2MarginMinUsdt, 24);
+    config.tier2MarginMaxUsdt = Math.max(config.tier2MarginMaxUsdt, config.maxDeployableCapitalUsdt * 0.6);
+    config.tier3MarginMinUsdt = Math.max(config.tier3MarginMinUsdt, config.maxDeployableCapitalUsdt * 0.5);
+    config.tier3MarginMaxUsdt = Math.max(config.tier3MarginMaxUsdt, config.maxDeployableCapitalUsdt * 0.88);
     config.maxPositionNotionalUsdt = Math.max(config.maxPositionNotionalUsdt, config.tier3MarginMaxUsdt * Math.max(1, config.maxLeverage));
   }
 
