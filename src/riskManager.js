@@ -306,14 +306,15 @@ class RiskManager {
     const activePositions = state.openPositions.filter((position) => !["CLOSED", "ENTRY_FAILED", "FAILED"].includes(position.status));
     if (activePositions.length >= maxOpenPositions) return "maximum open positions reached";
     const sameSymbolPositions = activePositions.filter((position) => position.symbol === symbol);
-    if (!this.config.swingMomentumMode && sameSymbolPositions.length) {
+    const patientTrendMode = Boolean(this.config.swingMomentumMode || this.config.trendPortfolioMode);
+    if (!patientTrendMode && sameSymbolPositions.length) {
       return "symbol already has an open position; averaging down is forbidden";
     }
-    if (this.config.swingMomentumMode && sameSymbolPositions.length >= this.config.maxPositionsPerSymbol) {
+    if (patientTrendMode && sameSymbolPositions.length >= this.config.maxPositionsPerSymbol) {
       return `maximum positions per symbol reached (${sameSymbolPositions.length}/${this.config.maxPositionsPerSymbol})`;
     }
-    if (this.config.swingMomentumMode && sameSymbolPositions.length) {
-      this.log("INFO", "SWING_MULTI_ENTRY_SYMBOL_SLOT_AVAILABLE", {
+    if (patientTrendMode && sameSymbolPositions.length) {
+      this.log("INFO", this.config.trendPortfolioMode ? "V14_PYRAMID_SYMBOL_SLOT_AVAILABLE" : "SWING_MULTI_ENTRY_SYMBOL_SLOT_AVAILABLE", {
         symbol,
         openPositionsForSymbol: sameSymbolPositions.length,
         maxPositionsPerSymbol: this.config.maxPositionsPerSymbol,
@@ -487,11 +488,35 @@ class RiskManager {
     const marginCappedNotional = equity * leverage * (this.config.maxMarginUsagePct / 100);
     const configuredNotionalCap = this.config.maxPositionNotionalUsdt || Number.POSITIVE_INFINITY;
     const sizingConviction = Math.max(Number(signal.convictionScore || 0), Number(signal.profitQualityScore || 0), continuationStrength * 0.96);
-    const targetMarginUsdt = bounded(
+    let targetMarginUsdt = bounded(
       tierMarginMin + (tierMarginMax - tierMarginMin) * bounded(sizingConviction / 100, 0, 1),
       tierMarginMin,
       tierMarginMax
     );
+    if (this.config.swingMomentumMode || this.config.trendPortfolioMode) {
+      let swingFloor = this.config.swingMinTargetMarginUsdt;
+      let swingCeiling = this.config.swingNormalTargetMarginUsdt;
+      if (convictionTier === "TIER_2_STRONG_SETUP") {
+        swingFloor = this.config.swingNormalTargetMarginUsdt;
+        swingCeiling = this.config.swingStrongTargetMarginUsdt;
+      } else if (convictionTier === "TIER_3_ELITE_SETUP") {
+        swingFloor = this.config.swingStrongTargetMarginUsdt;
+        swingCeiling = this.config.swingEliteTargetMarginUsdt;
+      }
+      const effectiveCeiling = Math.min(
+        Math.max(swingCeiling, swingFloor),
+        Number(this.config.maxDeployableCapitalUsdt || swingCeiling)
+      );
+      const effectiveFloor = Math.min(swingFloor, effectiveCeiling);
+      targetMarginUsdt = bounded(
+        Math.max(targetMarginUsdt, effectiveFloor),
+        effectiveFloor,
+        effectiveCeiling
+      );
+      reasonsForSizingTier.push(
+        `${this.config.trendPortfolioMode ? "V14 trend portfolio" : "V13 swing"} margin target ${Number(targetMarginUsdt.toFixed(4))} USDT within earned ${convictionTier} budget`
+      );
+    }
     const tierTargetNotional = targetMarginUsdt * leverage;
     const lot = symbolInfo.lotSizeFilter || {};
     const tickSize = symbolInfo.priceFilter && symbolInfo.priceFilter.tickSize;
@@ -531,7 +556,7 @@ class RiskManager {
       tickSize,
       !isLong
     );
-    const winnerAmplifier = Boolean((this.config.profitControlledEquityMode && this.config.winnerAmplifierEnabled) || this.config.swingMomentumMode);
+    const winnerAmplifier = Boolean((this.config.profitControlledEquityMode && this.config.winnerAmplifierEnabled) || this.config.swingMomentumMode || this.config.trendPortfolioMode);
     const runnerAllocation = this.config.edgeReinforcementMode
       ? asymmetricRunnerAllocation(this.config, signal)
       : {
