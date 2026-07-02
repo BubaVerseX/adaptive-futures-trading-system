@@ -466,15 +466,22 @@ class BybitClient extends EventEmitter {
       reduceOnly: Boolean(order.reduceOnly),
     };
     if (!body.reduceOnly) {
-      Object.assign(body, {
-        takeProfit: order.takeProfit,
-        stopLoss: order.stopLoss,
-        tpslMode: "Full",
-        tpOrderType: "Market",
-        slOrderType: "Market",
-        tpTriggerBy: "MarkPrice",
-        slTriggerBy: "MarkPrice",
-      });
+      if (order.takeProfit !== undefined && order.takeProfit !== null && order.takeProfit !== "") {
+        Object.assign(body, {
+          takeProfit: order.takeProfit,
+          tpslMode: "Full",
+          tpOrderType: "Market",
+          tpTriggerBy: "MarkPrice",
+        });
+      }
+      if (order.stopLoss !== undefined && order.stopLoss !== null && order.stopLoss !== "") {
+        Object.assign(body, {
+          stopLoss: order.stopLoss,
+          tpslMode: "Full",
+          slOrderType: "Market",
+          slTriggerBy: "MarkPrice",
+        });
+      }
     }
     return this.privateRequest("POST", "/v5/order/create", {}, body);
   }
@@ -493,15 +500,22 @@ class BybitClient extends EventEmitter {
       reduceOnly: Boolean(order.reduceOnly),
     };
     if (!body.reduceOnly) {
-      Object.assign(body, {
-        takeProfit: order.takeProfit,
-        stopLoss: order.stopLoss,
-        tpslMode: "Full",
-        tpOrderType: "Market",
-        slOrderType: "Market",
-        tpTriggerBy: "MarkPrice",
-        slTriggerBy: "MarkPrice",
-      });
+      if (order.takeProfit !== undefined && order.takeProfit !== null && order.takeProfit !== "") {
+        Object.assign(body, {
+          takeProfit: order.takeProfit,
+          tpslMode: "Full",
+          tpOrderType: "Market",
+          tpTriggerBy: "MarkPrice",
+        });
+      }
+      if (order.stopLoss !== undefined && order.stopLoss !== null && order.stopLoss !== "") {
+        Object.assign(body, {
+          stopLoss: order.stopLoss,
+          tpslMode: "Full",
+          slOrderType: "Market",
+          slTriggerBy: "MarkPrice",
+        });
+      }
     }
     return this.privateRequest("POST", "/v5/order/create", {}, body);
   }

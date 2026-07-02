@@ -12,6 +12,7 @@ const { BybitClient, intervalForApi, normalizedOrderStatus, parseUnifiedUsdtBala
 const { LadderBot } = require("../src/bot");
 const { loadConfig } = require("../src/config");
 const { Scanner, marketBreadthScore, multiTimeframeTrendConfirmation, portfolioAlphaScore } = require("../src/scanner");
+const { TrendPortfolioEngine } = require("../src/trendPortfolioEngine");
 const { AdaptiveEngine } = require("../src/adaptiveEngine");
 const { marketProfileFromBenchmarks, marketRegimeV2, sessionProfile } = require("../src/marketRegime");
 const { classifyBybitError } = require("../src/bybitErrors");
@@ -58,6 +59,7 @@ const ISOLATED_ENV_DEFAULTS = Object.freeze({
   PAPER_TRADING_MODE: "false",
   ACTIVE_ADAPTIVE_SCALPER_MODE: "false",
   SWING_MOMENTUM_MODE: "false",
+  TREND_PORTFOLIO_MODE: "false",
   LIVE_VALIDATION_MODE: "false",
   PROFIT_CONTROLLED_EQUITY_MODE: "false",
   ACKNOWLEDGE_LIVE_VALIDATION_RISK: "false",
@@ -534,6 +536,22 @@ async function testClientContracts() {
   assert.equal(calls[0].body.stopLoss, "99");
   assert.equal(calls[0].body.tpslMode, "Full");
 
+  await client.placeMarketOrder({
+    symbol: "ETHUSDT",
+    side: "Buy",
+    qty: "0.01",
+    positionIdx: 0,
+    orderLinkId: "swing-entry-1",
+    reduceOnly: false,
+    stopLoss: "99",
+  });
+  assert.equal(calls[1].endpoint, "/v5/order/create");
+  assert.equal(calls[1].body.stopLoss, "99");
+  assert.equal(calls[1].body.slOrderType, "Market");
+  assert.equal(calls[1].body.slTriggerBy, "MarkPrice");
+  assert.equal(Object.hasOwn(calls[1].body, "takeProfit"), false);
+  assert.equal(Object.hasOwn(calls[1].body, "tpOrderType"), false);
+
   await client.setTradingStop({
     symbol: "BTCUSDT",
     positionIdx: 0,
@@ -542,8 +560,8 @@ async function testClientContracts() {
     trailingStop: "0.5",
     activePrice: "100.5",
   });
-  assert.equal(calls[1].endpoint, "/v5/position/trading-stop");
-  assert.equal(calls[1].body.trailingStop, "0.5");
+  assert.equal(calls[2].endpoint, "/v5/position/trading-stop");
+  assert.equal(calls[2].body.trailingStop, "0.5");
 }
 
 async function testSignedRestHeaders() {
@@ -4489,6 +4507,10 @@ async function testV13SwingMomentumConfigAndBudget() {
   assert.equal(loaded.normalRiskAtStopMaxPct, 0.9);
   assert.equal(loaded.strongRiskAtStopMaxPct, 1.5);
   assert.equal(loaded.eliteRiskAtStopMaxPct, 2);
+  assert.equal(loaded.swingDisableNativeTakeProfit, true);
+  assert.equal(loaded.swingProfitExitMinHoldSeconds, 7200);
+  assert.ok(loaded.tier2MarginMaxUsdt >= 28);
+  assert.ok(loaded.tier3MarginMaxUsdt >= 40);
   const fallback = withEnv(
     {
       SWING_MOMENTUM_MODE: "true",
@@ -4592,6 +4614,459 @@ async function testV13SwingAdoptsExchangePositionWithoutOrders() {
   assert.ok(events.some((event) => event.message === "SWING_EXISTING_POSITION_ADOPTED"));
 }
 
+async function testV13SwingUsesStopOnlyNativeProtection() {
+  const { events, log } = logCollector();
+  const cfg = config({
+    swingMomentumMode: true,
+    dryRun: false,
+    swingDisableNativeTakeProfit: true,
+    maxDeployableCapitalUsdt: 64,
+  });
+  const bot = new LadderBot(cfg);
+  bot.log = log;
+  const calls = [];
+  bot.client = {
+    setTradingStop: async (payload) => {
+      calls.push(payload);
+      return {};
+    },
+  };
+  const position = {
+    id: "swing-stop-only",
+    symbol: "ETHUSDT",
+    side: "LONG",
+    positionIdx: 0,
+    entryPrice: 3000,
+    takeProfitPrice: 3180,
+    stopLossPrice: 2934,
+    tickSize: "0.01",
+  };
+  await bot.ensureNativeProtection(position);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].stopLoss, "2934");
+  assert.equal(Object.hasOwn(calls[0], "takeProfit"), false);
+  assert.equal(position.nativeProtection, "BYBIT_NATIVE_STOP_VERIFIED_SWING_TP_DISABLED");
+  assert.ok(events.some((event) => event.message === "Native Bybit swing stop protection verified."));
+}
+
+async function testV13SwingBlocksEarlyTakeProfitExit() {
+  const { events, log } = logCollector();
+  const cfg = config({
+    swingMomentumMode: true,
+    dryRun: true,
+    maxDeployableCapitalUsdt: 64,
+    swingProfitExitMinHoldSeconds: 7200,
+    swingMinimumHoldSeconds: 7200,
+    swingTrailingMinHoldSeconds: 1800,
+  });
+  const bot = new LadderBot(cfg);
+  bot.log = log;
+  bot.client = {
+    getTicker: async () => ({ lastPrice: 107 }),
+  };
+  bot.scanner = {
+    analysisForPosition: async () => ({
+      side: "LONG",
+      trend5m: "UP",
+      trend1h: "UP",
+      macroContradicts: false,
+      momentum1mPct: 0.12,
+      momentum5mPct: 0.2,
+      continuationStrength: 70,
+      continuationSetupType: "PULLBACK_CONTINUATION",
+      marketRegimeTags: ["STRONG_TRENDING_MARKET"],
+      volatilityRegime: "NORMAL",
+      convictionScore: 80,
+      momentumPersistenceCandles: 3,
+      volumeCondition: "NORMAL_VOLUME",
+    }),
+  };
+  const openedAt = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  const position = {
+    id: "early-swing-profit",
+    mode: "DRY_RUN",
+    status: "OPEN",
+    symbol: "ETHUSDT",
+    side: "LONG",
+    size: "0.01",
+    entryPrice: 100,
+    stopLossPrice: 94,
+    takeProfitPrice: 106,
+    partialTakeProfitPrice: 104,
+    runnerTakeProfitPrice: 106,
+    standardTakeProfitPrice: 104,
+    eliteTrendRider: true,
+    winnerAmplifier: true,
+    runnerPartialPct: 40,
+    runnerPartialTaken: false,
+    peakPrice: 100,
+    adversePrice: 100,
+    openedAt,
+    tickSize: "0.01",
+  };
+  bot.store.state.openPositions = [position];
+  bot.store.trades = [{ ...position }];
+  await bot.managePositions({});
+  assert.equal(bot.store.state.openPositions.length, 1);
+  assert.equal(bot.store.state.openPositions[0].runnerPartialTaken, false);
+  assert.ok(events.some((event) => event.message === "SWING_TP1_HOLD_DELAYED"));
+  assert.ok(!events.some((event) => event.message === "PARTIAL RUNNER ENABLED"));
+}
+
+async function testV13SwingHardStopStillExitsImmediately() {
+  const { log } = logCollector();
+  const cfg = config({
+    swingMomentumMode: true,
+    dryRun: true,
+    maxDeployableCapitalUsdt: 64,
+    swingProfitExitMinHoldSeconds: 7200,
+  });
+  const bot = new LadderBot(cfg);
+  bot.log = log;
+  bot.client = {
+    getTicker: async () => ({ lastPrice: 93 }),
+  };
+  const openedAt = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+  const position = {
+    id: "early-swing-stop",
+    mode: "DRY_RUN",
+    status: "OPEN",
+    symbol: "ETHUSDT",
+    side: "LONG",
+    size: "0.01",
+    entryPrice: 100,
+    stopLossPrice: 94,
+    takeProfitPrice: 112,
+    peakPrice: 100,
+    adversePrice: 100,
+    openedAt,
+  };
+  bot.store.state.openPositions = [position];
+  bot.store.trades = [{ ...position }];
+  await bot.managePositions({});
+  assert.equal(bot.store.state.openPositions.length, 0);
+  assert.equal(bot.store.trades[0].exitReason, "hard stop loss hit");
+}
+
+function trendInstrument(symbol, overrides = {}) {
+  return {
+    ...instrument(symbol, overrides),
+    contractType: "LinearPerpetual",
+    settleCoin: "USDT",
+  };
+}
+
+function trendCandles(direction = "UP", start = 100, count = 90) {
+  const candles = [];
+  let price = start;
+  for (let index = 0; index < count; index += 1) {
+    const drift = direction === "UP" ? 0.004 : -0.004;
+    const open = price;
+    const close = index === count - 1
+      ? open * (1 + drift * 3.1)
+      : open * (1 + drift);
+    const high = Math.max(open, close) * (index === count - 1 ? 1.006 : 1.002);
+    const low = Math.min(open, close) * (index === count - 1 ? 0.996 : 0.998);
+    const volume = index === count - 1 ? 2800 : 1000 + index;
+    candles.push({
+      time: 1700000000000 + index * 60000,
+      open: Number(open.toFixed(6)),
+      high: Number(high.toFixed(6)),
+      low: Number(low.toFixed(6)),
+      close: Number(close.toFixed(6)),
+      volume,
+      turnover: Number((volume * close).toFixed(6)),
+    });
+    price = close;
+  }
+  return candles;
+}
+
+async function testV14TrendPortfolioConfigAndLaunchPath() {
+  const loaded = withEnv(
+    {
+      TREND_PORTFOLIO_MODE: "true",
+      MAX_DEPLOYABLE_CAPITAL_USDT: undefined,
+      MAX_POSITIONS_PER_SYMBOL: "3",
+      CANDLE_INTERVAL_FAST: undefined,
+      CANDLE_INTERVAL_MAIN: undefined,
+      CANDLE_INTERVAL_TREND: undefined,
+      CANDLE_INTERVAL_MACRO: undefined,
+      CANDLE_INTERVAL_MACRO_LONG: undefined,
+    },
+    () => loadConfig()
+  );
+  assert.equal(loaded.trendPortfolioMode, true);
+  assert.equal(loaded.swingMomentumMode, false);
+  assert.deepEqual(loaded.focusedTradingSymbolsList, ["BTCUSDT", "ETHUSDT", "SOLUSDT"]);
+  assert.equal(loaded.maxDeployableCapitalUsdt, 64);
+  assert.equal(loaded.maxPositionsPerSymbol, 3);
+  assert.equal(loaded.candleIntervalFast, "15M");
+  assert.equal(loaded.candleIntervalMain, "60M");
+  assert.equal(loaded.candleIntervalTrend, "240M");
+  assert.equal(loaded.candleIntervalMacro, "1D");
+  assert.equal(loaded.fastMode, false);
+  assert.equal(loaded.fomoBreakoutMode, false);
+  assert.equal(loaded.microBreakoutEntries, false);
+  assert.equal(loaded.forcedMarketSamplingEnabled, false);
+  assert.equal(loaded.explorationModeEnabled, false);
+  assert.equal(loaded.swingDisableNativeTakeProfit, true);
+  assert.ok(loaded.swingProfitExitMinHoldSeconds >= 7200);
+  assert.ok(loaded.swingMaxHoldSeconds >= 259200);
+  assert.ok(packageJson.scripts.trend.includes("TREND_PORTFOLIO_MODE=true"));
+  assert.ok(packageJson.scripts.trend.includes("MAX_DEPLOYABLE_CAPITAL_USDT=64"));
+  assert.ok(packageJson.scripts.check.includes("src/trendPortfolioEngine.js"));
+  assert.throws(
+    () => withEnv({ TREND_PORTFOLIO_MODE: "true", SWING_MOMENTUM_MODE: "true" }, () => loadConfig()),
+    /independent V14 trend profile/
+  );
+}
+
+async function testV14TrendPortfolioEngineBuildsIndependentThesis() {
+  const { events, log } = logCollector();
+  const cfg = config({
+    trendPortfolioMode: true,
+    adaptiveLearningEnabled: false,
+    min24hVolumeUsdt: 1000,
+    maxSpreadPct: 0.2,
+    minVolumeSpike: 1.1,
+    minRangeExpansion: 1.1,
+    trendPortfolioMinScore: 54,
+    trendPortfolioNormalScore: 58,
+    trendPortfolioStrongScore: 68,
+    trendPortfolioEliteScore: 78,
+    trendPortfolioMinNetEdgePct: 0.01,
+    trendPortfolioMinRewardCostRatio: 1.1,
+    scanConcurrency: 3,
+  });
+  const subscribed = [];
+  const baseBySymbol = { BTCUSDT: 100, ETHUSDT: 200, SOLUSDT: 50 };
+  const client = {
+    getSymbols: async () => [
+      trendInstrument("BTCUSDT"),
+      trendInstrument("ETHUSDT"),
+      trendInstrument("SOLUSDT"),
+      trendInstrument("DOGEUSDT"),
+    ],
+    getTicker: async (symbol) => ({
+      symbol,
+      lastPrice: String(baseBySymbol[symbol] || 1),
+      turnover24h: "50000000",
+      bid1Price: String((baseBySymbol[symbol] || 1) * 0.9998),
+      ask1Price: String((baseBySymbol[symbol] || 1) * 1.0002),
+    }),
+    getKlines: async (symbol) => trendCandles("UP", baseBySymbol[symbol] || 100),
+    subscribeTickers: (symbols) => subscribed.push(...symbols),
+  };
+  const engine = new TrendPortfolioEngine(cfg, client, log, null);
+  const scan = await engine.scan({
+    direction: "UP",
+    primary: "TRENDING",
+    tags: ["STRONG_TRENDING_MARKET"],
+    confidence: 90,
+    reasons: ["test trending tape"],
+  });
+  assert.deepEqual(subscribed, ["BTCUSDT", "ETHUSDT", "SOLUSDT"]);
+  assert.ok(scan.analyses.length >= 3);
+  assert.ok(scan.candidates.length >= 1);
+  const best = scan.candidates[0];
+  assert.equal(best.tradeQualification.assignedBy, "trendPortfolioEngine.js");
+  assert.equal(best.tradeQualification.scalpDecisionLogicReused, false);
+  assert.equal(best.trendPortfolioMode, true);
+  assert.equal(best.explorationTrade, false);
+  assert.equal(best.forcedMarketSampling, false);
+  assert.ok(["BTCUSDT", "ETHUSDT", "SOLUSDT"].includes(best.symbol));
+  assert.ok(best.multiTimeframeTrendScore >= 60);
+  assert.ok(best.trendThesis && best.trendThesis.holdingIntent.includes("multiple days"));
+  assert.ok(events.some((event) => event.message === "V14_TREND_PORTFOLIO_ENGINE_ACTIVE"));
+  assert.ok(events.some((event) => event.message === "V14_TREND_PORTFOLIO_SCAN_COMPLETED"));
+}
+
+async function testV14TrendUsesStopOnlyNativeProtection() {
+  const cfg = config({
+    trendPortfolioMode: true,
+    dryRun: false,
+    swingDisableNativeTakeProfit: true,
+    maxDeployableCapitalUsdt: 64,
+  });
+  const bot = new LadderBot(cfg);
+  const calls = [];
+  bot.client = {
+    setTradingStop: async (payload) => {
+      calls.push(payload);
+      return {};
+    },
+  };
+  const position = {
+    id: "v14-stop-only",
+    symbol: "BTCUSDT",
+    side: "SHORT",
+    positionIdx: 0,
+    entryPrice: 100,
+    takeProfitPrice: 88,
+    stopLossPrice: 104,
+    tickSize: "0.01",
+  };
+  await bot.ensureNativeProtection(position);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].stopLoss, "104");
+  assert.equal(Object.hasOwn(calls[0], "takeProfit"), false);
+  assert.equal(position.nativeProtection, "BYBIT_NATIVE_STOP_VERIFIED_SWING_TP_DISABLED");
+}
+
+async function testV14TrendAdoptsExchangePositionWithoutOrders() {
+  const { events, log } = logCollector();
+  const cfg = config({
+    trendPortfolioMode: true,
+    dryRun: false,
+    maxDeployableCapitalUsdt: 64,
+    swingDisableNativeTakeProfit: true,
+  });
+  const bot = new LadderBot(cfg);
+  bot.log = log;
+  let tradingStopCalls = 0;
+  bot.client = {
+    positionIdx: () => 0,
+    setTradingStop: async () => {
+      tradingStopCalls += 1;
+      return {};
+    },
+  };
+  bot.instrumentRulesBySymbol.set("SOLUSDT", {
+    symbol: "SOLUSDT",
+    priceFilter: { tickSize: "0.001" },
+    lotSizeFilter: { qtyStep: "0.1", minOrderQty: "0.1", minNotionalValue: "5" },
+  });
+  const adopted = await bot.adoptExchangePosition({
+    symbol: "SOLUSDT",
+    side: "Buy",
+    avgPrice: "150",
+    size: "0.2",
+    leverage: "3",
+    positionIdx: 0,
+    liqPrice: "80",
+    takeProfit: "",
+    stopLoss: "",
+  });
+  assert.equal(adopted, true);
+  assert.equal(tradingStopCalls, 1);
+  assert.equal(bot.store.state.openPositions.length, 1);
+  const position = bot.store.state.openPositions[0];
+  assert.equal(position.trendPortfolioMode, true);
+  assert.equal(position.swingMomentumMode, false);
+  assert.equal(position.setupType, "ADOPTED_EXISTING_TREND_POSITION");
+  assert.equal(position.tradeCategory, "TREND_PORTFOLIO_ADOPTED");
+  assert.ok(position.stopLossPrice < position.entryPrice);
+  assert.ok(events.some((event) => event.message === "TREND_EXISTING_POSITION_ADOPTED"));
+}
+
+async function testV14TrendBlocksEarlyTakeProfitExit() {
+  const { events, log } = logCollector();
+  const cfg = config({
+    trendPortfolioMode: true,
+    dryRun: true,
+    maxDeployableCapitalUsdt: 64,
+    swingProfitExitMinHoldSeconds: 7200,
+    swingTrailingMinHoldSeconds: 1800,
+  });
+  const bot = new LadderBot(cfg);
+  bot.log = log;
+  bot.client = {
+    getTicker: async () => ({ lastPrice: 107 }),
+  };
+  bot.trendPortfolio = {
+    analysisForPosition: async () => ({
+      side: "LONG",
+      trend5m: "UP",
+      trend1h: "UP",
+      macroContradicts: false,
+      momentum1mPct: 0.12,
+      momentum5mPct: 0.2,
+      continuationStrength: 76,
+      continuationSetupType: "TREND_MOMENTUM_CONTINUATION",
+      marketRegimeTags: ["STRONG_TRENDING_MARKET"],
+      volatilityRegime: "NORMAL",
+      convictionScore: 84,
+      momentumPersistenceCandles: 4,
+      volumeCondition: "CONFIRMED_VOLUME",
+    }),
+  };
+  const openedAt = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  const position = {
+    id: "early-v14-profit",
+    mode: "DRY_RUN",
+    status: "OPEN",
+    symbol: "ETHUSDT",
+    side: "LONG",
+    size: "0.01",
+    entryPrice: 100,
+    stopLossPrice: 94,
+    takeProfitPrice: 106,
+    partialTakeProfitPrice: 104,
+    runnerTakeProfitPrice: 106,
+    standardTakeProfitPrice: 104,
+    eliteTrendRider: true,
+    winnerAmplifier: true,
+    trendPortfolioMode: true,
+    runnerPartialPct: 40,
+    runnerPartialTaken: false,
+    peakPrice: 100,
+    adversePrice: 100,
+    openedAt,
+    tickSize: "0.01",
+  };
+  bot.store.state.openPositions = [position];
+  bot.store.trades = [{ ...position }];
+  await bot.managePositions({});
+  assert.equal(bot.store.state.openPositions.length, 1);
+  assert.equal(bot.store.state.openPositions[0].runnerPartialTaken, false);
+  assert.ok(events.some((event) => event.message === "SWING_TP1_HOLD_DELAYED"));
+}
+
+async function testV14TrendPyramidingDuplicateAndBudgetGuards() {
+  const cfg = config({
+    trendPortfolioMode: true,
+    maxPositionsPerSymbol: 3,
+    maxOpenPositions: 9,
+    maxDeployableCapitalUsdt: 25,
+    continuousExecutionMode: false,
+  });
+  const bot = new LadderBot(cfg);
+  const now = new Date().toISOString();
+  const signal = {
+    symbol: "BTCUSDT",
+    side: "LONG",
+    continuationSetupType: "TREND_BREAKOUT_CONTINUATION",
+    marketRegimeV2: "TRENDING",
+    trend1h: "UP",
+    trend4h: "UP",
+    macroTrend: "UP",
+    trendThesisKey: "BTCUSDT:LONG:TREND_BREAKOUT_CONTINUATION:UP:UP:UP:UP",
+  };
+  const fingerprint = bot.swingSignalFingerprint(signal);
+  bot.store.state.openPositions = [
+    { id: "one", status: "OPEN", symbol: "BTCUSDT", side: "LONG", notional: 10, leverage: 2, openedAt: now, swingSignalFingerprint: "BTCUSDT:LONG:TREND_MOMENTUM_CONTINUATION:TRENDING:UP" },
+    { id: "two", status: "OPEN", symbol: "BTCUSDT", side: "LONG", notional: 8, leverage: 2, openedAt: now, swingSignalFingerprint: "BTCUSDT:LONG:BREAKOUT_RETEST:TRENDING:UP" },
+  ];
+  assert.equal(bot.risk.entryBlockReason(100, "BTCUSDT"), null);
+  assert.equal(bot.swingDuplicateEntryReason(signal), null);
+  bot.store.state.openPositions.push({
+    id: "duplicate",
+    status: "OPEN",
+    symbol: "BTCUSDT",
+    side: "LONG",
+    notional: 6,
+    leverage: 2,
+    openedAt: now,
+    swingSignalFingerprint: fingerprint,
+  });
+  assert.match(bot.risk.entryBlockReason(100, "BTCUSDT"), /maximum positions per symbol/);
+  assert.match(bot.swingDuplicateEntryReason(signal), /duplicate identical trend thesis/);
+  const budget = bot.deployableCapitalCheck({ marginUsedUsdt: 16, notional: 32, leverage: 2 });
+  assert.equal(budget.rejected, true);
+  assert.match(budget.reason, /deployable capital budget/);
+}
+
 async function run() {
   await testDemoTradingConfigUsesDemoOnlyEndpoints();
   await testLiveValidationConfigGuards();
@@ -4659,6 +5134,15 @@ async function run() {
   await testV13SwingMomentumConfigAndBudget();
   await testV13SwingMultiEntryAndDuplicateGuard();
   await testV13SwingAdoptsExchangePositionWithoutOrders();
+  await testV13SwingUsesStopOnlyNativeProtection();
+  await testV13SwingBlocksEarlyTakeProfitExit();
+  await testV13SwingHardStopStillExitsImmediately();
+  await testV14TrendPortfolioConfigAndLaunchPath();
+  await testV14TrendPortfolioEngineBuildsIndependentThesis();
+  await testV14TrendUsesStopOnlyNativeProtection();
+  await testV14TrendAdoptsExchangePositionWithoutOrders();
+  await testV14TrendBlocksEarlyTakeProfitExit();
+  await testV14TrendPyramidingDuplicateAndBudgetGuards();
   console.log("Bybit client and bot tests passed: REST signing, centralized 34040 no-change handling, duplicate TP/SL skip, execution ledger fill dedupe, net edge gate, portfolio risk-at-stop checks, UTA balance parsing, live safety balance use, native protection payloads, WebSocket reconnect, API auto-recovery without shutdown, reconciliation, hedge exposure detection, native TP events, regime intelligence, V11 active market universe restriction, survivability scoring, next-generation continuation scoring, V11 mean reversion and activity reporting, active adaptive paper scalper mode, exploration path, exploration memory relaxation, fee-aware stats, advisory symbol cooldowns, adaptive learning, continuation market memory, cautious active recovery, activity floor, daily shutdown removal, forced market sampling, profit protection sizing, fee-aware entries, dynamic sizing, live-validation guards, allocation ladder, risk degradation, promotion checks, execution-cost logging, V6 profit-controlled config guards, setup preservation, deferred leverage mutation, exchange-minimum feasibility, risk degradation, maker/taker routing, V7 profit mode, quality score gate, fee killer, symbol memory V2/V3, expectancy report, winner amplifier continuation holds, V7.1 trade frequency recovery tuning, V8 professional trend/expectancy optimization, V9 edge maximization, V9.5 adaptive edge reinforcement, V10 aggressive adaptive trend dominance, and V11 active market engine.");
 }
 

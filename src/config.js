@@ -72,6 +72,7 @@ function loadConfig() {
   const paperTradingMode = booleanValue("PAPER_TRADING_MODE", false);
   const activeAdaptiveScalperMode = booleanValue("ACTIVE_ADAPTIVE_SCALPER_MODE", paperTradingMode ? true : false);
   const swingMomentumMode = booleanValue("SWING_MOMENTUM_MODE", false);
+  const trendPortfolioMode = booleanValue("TREND_PORTFOLIO_MODE", false);
   const exchangeEnvironment = profitControlledEquityMode
     ? "PROFIT_CONTROLLED_LIVE"
     : liveValidationMode
@@ -126,6 +127,7 @@ function loadConfig() {
     paperTradingMode,
     activeAdaptiveScalperMode,
     swingMomentumMode,
+    trendPortfolioMode,
     exchangeEnvironment,
     restBaseUrl,
     publicWsBaseUrl,
@@ -349,6 +351,9 @@ function loadConfig() {
     swingTrailingDistancePct: numberValue("SWING_TRAILING_DISTANCE_PCT", 1.4, { positive: true }),
     swingRunnerAtrTrailingMultiplier: numberValue("SWING_RUNNER_ATR_TRAILING_MULTIPLIER", 1.8, { positive: true, maximum: 6 }),
     swingMinimumHoldSeconds: numberValue("SWING_MIN_HOLD_SECONDS", 7200, { minimum: 0 }),
+    swingProfitExitMinHoldSeconds: numberValue("SWING_PROFIT_EXIT_MIN_HOLD_SECONDS", 7200, { minimum: 0 }),
+    swingTrailingMinHoldSeconds: numberValue("SWING_TRAILING_MIN_HOLD_SECONDS", 1800, { minimum: 0 }),
+    swingThesisFailureMinHoldSeconds: numberValue("SWING_THESIS_FAILURE_MIN_HOLD_SECONDS", 3600, { minimum: 0 }),
     swingTrendExitMinHoldSeconds: numberValue("SWING_TREND_EXIT_MIN_HOLD_SECONDS", 14400, { minimum: 0 }),
     swingMaxHoldSeconds: numberValue("SWING_MAX_HOLD_SECONDS", 259200, { positive: true }),
     swingScanIntervalMs: numberValue("SWING_SCAN_INTERVAL_MS", 15000, { positive: true, integer: true }),
@@ -356,6 +361,22 @@ function loadConfig() {
     swingTrendDeteriorationExitEnabled: booleanValue("SWING_TREND_DETERIORATION_EXIT_ENABLED", true),
     swingAdoptExistingPositions: booleanValue("SWING_ADOPT_EXISTING_POSITIONS", true),
     swingDuplicateEntryWindowMinutes: numberValue("SWING_DUPLICATE_ENTRY_WINDOW_MINUTES", 240, { minimum: 0 }),
+    swingDisableNativeTakeProfit: booleanValue("SWING_DISABLE_NATIVE_TAKE_PROFIT", true),
+    swingMinTargetMarginUsdt: numberValue("SWING_MIN_TARGET_MARGIN_USDT", 20, { positive: true }),
+    swingNormalTargetMarginUsdt: numberValue("SWING_NORMAL_TARGET_MARGIN_USDT", 22, { positive: true }),
+    swingStrongTargetMarginUsdt: numberValue("SWING_STRONG_TARGET_MARGIN_USDT", 28, { positive: true }),
+    swingEliteTargetMarginUsdt: numberValue("SWING_ELITE_TARGET_MARGIN_USDT", 40, { positive: true }),
+    trendPortfolioMinScore: numberValue("TREND_PORTFOLIO_MIN_SCORE", 64, { positive: true, maximum: 100 }),
+    trendPortfolioNormalScore: numberValue("TREND_PORTFOLIO_NORMAL_SCORE", 68, { positive: true, maximum: 100 }),
+    trendPortfolioStrongScore: numberValue("TREND_PORTFOLIO_STRONG_SCORE", 78, { positive: true, maximum: 100 }),
+    trendPortfolioEliteScore: numberValue("TREND_PORTFOLIO_ELITE_SCORE", 88, { positive: true, maximum: 100 }),
+    trendPortfolioMinNetEdgePct: numberValue("TREND_PORTFOLIO_MIN_NET_EDGE_PCT", 0.18, { minimum: 0 }),
+    trendPortfolioMinRewardCostRatio: numberValue("TREND_PORTFOLIO_MIN_REWARD_COST_RATIO", 2.2, { positive: true }),
+    trendPortfolioExpectedMoveAtrMultiplier: numberValue("TREND_PORTFOLIO_EXPECTED_MOVE_ATR_MULTIPLIER", 2.8, { positive: true }),
+    trendPortfolioMacroOppositionPenalty: numberValue("TREND_PORTFOLIO_MACRO_OPPOSITION_PENALTY", 28, { minimum: 0, maximum: 50 }),
+    trendPortfolioStopAtrMultiplier: numberValue("TREND_PORTFOLIO_STOP_ATR_MULTIPLIER", 1.9, { positive: true, maximum: 8 }),
+    trendPortfolioTargetAtrMultiplier: numberValue("TREND_PORTFOLIO_TARGET_ATR_MULTIPLIER", 4.8, { positive: true, maximum: 16 }),
+    trendPortfolioPyramidWindowMinutes: numberValue("TREND_PORTFOLIO_PYRAMID_WINDOW_MINUTES", 360, { minimum: 0 }),
     minSignalScore: numberValue("MIN_SIGNAL_SCORE", 42, { positive: true, maximum: 100 }),
     closePositionOnExit: booleanValue("CLOSE_POSITION_ON_EXIT", true),
     maxPositionNotionalUsdt: numberValue("MAX_POSITION_NOTIONAL_USDT", 150, { positive: true }),
@@ -636,6 +657,8 @@ function loadConfig() {
     config.trailingDistancePct = Math.max(config.trailingDistancePct, config.swingTrailingDistancePct);
     config.runnerAtrTrailingMultiplier = Math.max(config.runnerAtrTrailingMultiplier, config.swingRunnerAtrTrailingMultiplier);
     config.minHoldSecondsBeforeMomentumExit = Math.max(config.minHoldSecondsBeforeMomentumExit, config.swingMinimumHoldSeconds);
+    config.swingProfitExitMinHoldSeconds = Math.max(config.swingProfitExitMinHoldSeconds, config.swingMinimumHoldSeconds);
+    config.swingTrendExitMinHoldSeconds = Math.max(config.swingTrendExitMinHoldSeconds, config.swingThesisFailureMinHoldSeconds);
     config.scanIntervalMs = Math.max(config.scanIntervalMs, config.swingScanIntervalMs);
     config.positionMonitorIntervalMs = Math.max(config.positionMonitorIntervalMs, config.swingPositionMonitorIntervalMs);
     config.maxOpenPositions = Math.max(
@@ -645,14 +668,74 @@ function loadConfig() {
     config.normalRiskAtStopMaxPct = Math.max(config.normalRiskAtStopMaxPct, 0.9);
     config.strongRiskAtStopMaxPct = Math.max(config.strongRiskAtStopMaxPct, 1.5);
     config.eliteRiskAtStopMaxPct = Math.max(config.eliteRiskAtStopMaxPct, 2);
+    config.tier1MarginMinUsdt = Math.max(config.tier1MarginMinUsdt, config.swingMinTargetMarginUsdt * 0.6);
+    config.tier1MarginMaxUsdt = Math.max(config.tier1MarginMaxUsdt, config.swingNormalTargetMarginUsdt);
+    config.tier2MarginMinUsdt = Math.max(config.tier2MarginMinUsdt, config.swingMinTargetMarginUsdt);
+    config.tier2MarginMaxUsdt = Math.max(config.tier2MarginMaxUsdt, config.swingStrongTargetMarginUsdt);
     config.tier2MarginMaxUsdt = Math.max(config.tier2MarginMaxUsdt, config.maxDeployableCapitalUsdt * 0.25);
     config.tier3MarginMinUsdt = Math.max(config.tier3MarginMinUsdt, config.maxDeployableCapitalUsdt * 0.25);
-    config.tier3MarginMaxUsdt = Math.max(config.tier3MarginMaxUsdt, config.maxDeployableCapitalUsdt * 0.45);
+    config.tier3MarginMinUsdt = Math.max(config.tier3MarginMinUsdt, config.swingStrongTargetMarginUsdt);
+    config.tier3MarginMaxUsdt = Math.max(config.tier3MarginMaxUsdt, config.maxDeployableCapitalUsdt * 0.45, config.swingEliteTargetMarginUsdt);
     config.maxPositionNotionalUsdt = Math.max(config.maxPositionNotionalUsdt, config.tier3MarginMaxUsdt * Math.max(1, config.maxLeverage));
     config.explorationModeEnabled = false;
     config.explorationTradeRatio = 0;
     config.allowChoppyMarket = false;
     config.allowChoppyMarketUnconditionally = false;
+  }
+
+  if (config.trendPortfolioMode) {
+    config.focusedTradingSymbolsList = [...FOCUSED_TRADING_SYMBOLS];
+    config.focusedTradingSymbols = new Set(FOCUSED_TRADING_SYMBOLS);
+    config.maxDeployableCapitalUsdt = config.maxDeployableCapitalUsdt > 0
+      ? config.maxDeployableCapitalUsdt
+      : 64;
+    config.maxPositionsPerSymbol = Math.max(config.maxPositionsPerSymbol, 3);
+    if (!process.env.CANDLE_INTERVAL_FAST) config.candleIntervalFast = "15M";
+    if (!process.env.CANDLE_INTERVAL_MAIN) config.candleIntervalMain = "60M";
+    if (!process.env.CANDLE_INTERVAL_TREND) config.candleIntervalTrend = "240M";
+    if (!process.env.CANDLE_INTERVAL_MACRO) config.candleIntervalMacro = "1D";
+    if (!process.env.CANDLE_INTERVAL_MACRO_LONG) config.candleIntervalMacroLong = "1D";
+    config.fastMode = false;
+    config.fomoBreakoutMode = false;
+    config.microBreakoutEntries = false;
+    config.forcedMarketSamplingEnabled = false;
+    config.forcedExecutionSamplingActive = false;
+    config.learningPhaseMode = false;
+    config.aggressiveLearningPhase = false;
+    config.explorationModeEnabled = false;
+    config.explorationTradeRatio = 0;
+    config.allowChoppyMarket = false;
+    config.allowChoppyMarketUnconditionally = false;
+    config.highActivityMode = false;
+    config.continuationEngineEnabled = true;
+    config.pullbackContinuationEnabled = true;
+    config.retestEntryEnabled = true;
+    config.momentumResumptionEnabled = true;
+    config.trendAccelerationEnabled = true;
+    config.takeProfitPct = Math.max(config.takeProfitPct, 8);
+    config.stopLossPct = Math.max(config.stopLossPct, 2.4);
+    config.trailingStartPct = Math.max(config.trailingStartPct, 3.2);
+    config.trailingDistancePct = Math.max(config.trailingDistancePct, 1.8);
+    config.minHoldSecondsBeforeMomentumExit = Math.max(config.minHoldSecondsBeforeMomentumExit, 7200);
+    config.swingMinimumHoldSeconds = Math.max(config.swingMinimumHoldSeconds, 7200);
+    config.swingProfitExitMinHoldSeconds = Math.max(config.swingProfitExitMinHoldSeconds, 7200);
+    config.swingThesisFailureMinHoldSeconds = Math.max(config.swingThesisFailureMinHoldSeconds, 7200);
+    config.swingTrendExitMinHoldSeconds = Math.max(config.swingTrendExitMinHoldSeconds, 14400);
+    config.swingMaxHoldSeconds = Math.max(config.swingMaxHoldSeconds, 259200);
+    config.swingDisableNativeTakeProfit = true;
+    config.scanIntervalMs = Math.max(config.scanIntervalMs, 60000);
+    config.positionMonitorIntervalMs = Math.max(config.positionMonitorIntervalMs, 60000);
+    config.maxOpenPositions = Math.max(
+      config.maxOpenPositions,
+      Math.min(10, config.focusedTradingSymbolsList.length * config.maxPositionsPerSymbol)
+    );
+    config.tier1MarginMinUsdt = Math.max(config.tier1MarginMinUsdt, 10);
+    config.tier1MarginMaxUsdt = Math.max(config.tier1MarginMaxUsdt, 18);
+    config.tier2MarginMinUsdt = Math.max(config.tier2MarginMinUsdt, 20);
+    config.tier2MarginMaxUsdt = Math.max(config.tier2MarginMaxUsdt, 30);
+    config.tier3MarginMinUsdt = Math.max(config.tier3MarginMinUsdt, 30);
+    config.tier3MarginMaxUsdt = Math.max(config.tier3MarginMaxUsdt, config.maxDeployableCapitalUsdt * 0.75);
+    config.maxPositionNotionalUsdt = Math.max(config.maxPositionNotionalUsdt, config.tier3MarginMaxUsdt * Math.max(1, config.maxLeverage));
   }
 
   const supportedIntervals = new Set(["1M", "3M", "5M", "15M", "30M", "60M", "120M", "240M", "360M", "720M", "1D", "1W", "1MO"]);
@@ -714,8 +797,14 @@ function loadConfig() {
   if (config.activeAdaptiveScalperMode && config.swingMomentumMode) {
     throw new Error("SWING_MOMENTUM_MODE is a medium-term profile and cannot be combined with ACTIVE_ADAPTIVE_SCALPER_MODE.");
   }
+  if (config.trendPortfolioMode && (config.activeAdaptiveScalperMode || config.swingMomentumMode)) {
+    throw new Error("TREND_PORTFOLIO_MODE is an independent V14 trend profile; do not combine it with scalper or V13 swing modes.");
+  }
   if (config.swingMomentumMode && config.maxDeployableCapitalUsdt <= 0) {
     throw new Error("SWING_MOMENTUM_MODE requires MAX_DEPLOYABLE_CAPITAL_USDT to resolve to a positive budget.");
+  }
+  if (config.trendPortfolioMode && config.maxDeployableCapitalUsdt <= 0) {
+    throw new Error("TREND_PORTFOLIO_MODE requires MAX_DEPLOYABLE_CAPITAL_USDT to resolve to a positive budget.");
   }
   if (config.activeAdaptiveScalperMode && !config.dryRun) {
     throw new Error("ACTIVE_ADAPTIVE_SCALPER_MODE requires DRY_RUN=true. Paper trading must be validated before live deployment.");
