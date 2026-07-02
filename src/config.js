@@ -687,6 +687,7 @@ function loadConfig() {
   if (config.trendPortfolioMode) {
     config.focusedTradingSymbolsList = [...FOCUSED_TRADING_SYMBOLS];
     config.focusedTradingSymbols = new Set(FOCUSED_TRADING_SYMBOLS);
+    config.maxLeverage = Math.max(config.maxLeverage, 10);
     config.maxDeployableCapitalUsdt = config.maxDeployableCapitalUsdt > 0
       ? config.maxDeployableCapitalUsdt
       : 64;

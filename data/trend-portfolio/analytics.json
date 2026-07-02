@@ -1,0 +1,155 @@
+{
+  "version": 1,
+  "updatedAt": "2026-07-02T14:44:37.409Z",
+  "totalPnl": {
+    "count": 0,
+    "wins": 0,
+    "losses": 0,
+    "winRatePct": 0,
+    "totalPnlUsdt": 0,
+    "totalPnlPct": 0,
+    "feeAdjustedPnlUsdt": 0,
+    "totalFeesUsdt": 0,
+    "averagePnlUsdt": 0,
+    "averagePnlPct": 0,
+    "averageHoldSeconds": 0,
+    "averageSlippagePct": 0,
+    "profitFactor": 0
+  },
+  "rolling": {
+    "last20": {
+      "count": 0,
+      "wins": 0,
+      "losses": 0,
+      "winRatePct": 0,
+      "totalPnlUsdt": 0,
+      "totalPnlPct": 0,
+      "feeAdjustedPnlUsdt": 0,
+      "totalFeesUsdt": 0,
+      "averagePnlUsdt": 0,
+      "averagePnlPct": 0,
+      "averageHoldSeconds": 0,
+      "averageSlippagePct": 0,
+      "profitFactor": 0
+    },
+    "last50": {
+      "count": 0,
+      "wins": 0,
+      "losses": 0,
+      "winRatePct": 0,
+      "totalPnlUsdt": 0,
+      "totalPnlPct": 0,
+      "feeAdjustedPnlUsdt": 0,
+      "totalFeesUsdt": 0,
+      "averagePnlUsdt": 0,
+      "averagePnlPct": 0,
+      "averageHoldSeconds": 0,
+      "averageSlippagePct": 0,
+      "profitFactor": 0
+    },
+    "last200": {
+      "count": 0,
+      "wins": 0,
+      "losses": 0,
+      "winRatePct": 0,
+      "totalPnlUsdt": 0,
+      "totalPnlPct": 0,
+      "feeAdjustedPnlUsdt": 0,
+      "totalFeesUsdt": 0,
+      "averagePnlUsdt": 0,
+      "averagePnlPct": 0,
+      "averageHoldSeconds": 0,
+      "averageSlippagePct": 0,
+      "profitFactor": 0
+    }
+  },
+  "dailyPnl": {},
+  "weeklyPnl": {},
+  "symbolLeaderboard": {
+    "best": [],
+    "worst": []
+  },
+  "setupLeaderboard": {
+    "best": [],
+    "worst": []
+  },
+  "sessionLeaderboard": {
+    "strongest": [],
+    "weakest": []
+  },
+  "marketRegimeLeaderboard": {
+    "best": [],
+    "worst": []
+  },
+  "eliteConditionLeaderboard": {
+    "best": []
+  },
+  "continuationLeaderboard": {
+    "best": [],
+    "worst": []
+  },
+  "symbolSpecializationLeaderboard": {
+    "best": []
+  },
+  "marketPersonalityPerformance": {},
+  "continuationPerformance": {},
+  "continuationVsFlipPerformance": {},
+  "continuationStrengthPerformance": {},
+  "symbolContinuationPerformance": {},
+  "macroAlignmentPerformance": {},
+  "costBucketPerformance": {},
+  "spreadBucketPerformance": {},
+  "sizeTierPerformance": {},
+  "executionTypePerformance": {},
+  "regimeSessionPerformance": {},
+  "bestWorstConditions": {
+    "best": [],
+    "worst": []
+  },
+  "leverageEffectiveness": {},
+  "averageTradeDurationSeconds": 0,
+  "drawdown": {
+    "maxDrawdownUsdt": 0
+  },
+  "adaptivePolicy": {
+    "mode": "BASELINE",
+    "sampleSize": 0,
+    "rollingWinRatePct": 0,
+    "rollingPnlUsdt": 0,
+    "recoverySampleSize": 0,
+    "recoveryWinRatePct": 0,
+    "recoveryPnlUsdt": 0,
+    "recoveryAggressionRestored": false,
+    "learningPhaseActive": false,
+    "aggressiveLearningPhaseActive": false,
+    "highActivityModeActive": false,
+    "highActivityAdjustment": 0,
+    "continuousExecutionMode": true,
+    "qualityPacingActive": false,
+    "qualityPacingReason": null,
+    "feeDragRatio": 0,
+    "shortHoldPressure": false,
+    "dailyTradeLimitsDisabled": true,
+    "explorationDailyCapDisabled": true,
+    "riskMultiplier": 1,
+    "signalThresholdAdjustment": 0,
+    "minSignalScore": 42,
+    "explorationEnabled": false,
+    "explorationBudget": 0,
+    "explorationExpansionActive": false,
+    "activityFloorEngaged": false,
+    "activityFloorSignalRelaxPoints": 0,
+    "activityFloorConvictionRelaxPoints": 0,
+    "activityFloorChopToleranceBonus": 0,
+    "explorationMinSignalScore": 28,
+    "explorationMinConvictionScore": 34,
+    "regimeSelfTuning": {
+      "bestRegime": null,
+      "worstRegime": null,
+      "memoryWeight": 0.18
+    },
+    "maxLeverage": 8,
+    "maxOpenPositions": 9,
+    "maxTradesPerDay": 9007199254740991
+  }
+}
