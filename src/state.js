@@ -110,6 +110,13 @@ function initialState(config) {
           lastRejectionReportAt: null,
         }
       : null,
+    trendPortfolio: config.trendPortfolioMode
+      ? {
+          namespace: "data/trend-portfolio",
+          aggressiveMomentumMode: config.trendPortfolioAggressiveMomentumMode,
+          priorScalpingMemoryIsolated: true,
+        }
+      : null,
     telegramUpdateOffset: 0,
   };
 }
@@ -140,6 +147,9 @@ class StateStore {
       : null;
     this.state.activeAdaptiveScalper = this.config.activeAdaptiveScalperMode
       ? { ...initialState(this.config).activeAdaptiveScalper, ...(loaded.activeAdaptiveScalper || {}) }
+      : null;
+    this.state.trendPortfolio = this.config.trendPortfolioMode
+      ? { ...initialState(this.config).trendPortfolio, ...(loaded.trendPortfolio || {}) }
       : null;
     this.trades = Array.isArray(trades) ? trades : [];
     this.migrateExchange(loaded.exchange);
@@ -213,6 +223,7 @@ class StateStore {
     this.state.liveValidation = defaults.liveValidation;
     this.state.profitControlled = defaults.profitControlled;
     this.state.activeAdaptiveScalper = defaults.activeAdaptiveScalper;
+    this.state.trendPortfolio = defaults.trendPortfolio;
     this.log("WARN", "Operating mode changed; performance counters reset for the new mode.", {
       fromMode: priorMode,
       toMode: mode,

@@ -4799,8 +4799,15 @@ async function testV14TrendPortfolioConfigAndLaunchPath() {
   assert.equal(loaded.trendPortfolioMode, true);
   assert.equal(loaded.swingMomentumMode, false);
   assert.deepEqual(loaded.focusedTradingSymbolsList, ["BTCUSDT", "ETHUSDT", "SOLUSDT"]);
+  assert.ok(loaded.dataDir.endsWith(path.join("data", "trend-portfolio")));
+  assert.ok(loaded.tradeMemoryFile.endsWith(path.join("data", "trend-portfolio", "tradeMemory.json")));
+  assert.equal(loaded.trendPortfolioAggressiveMomentumMode, true);
   assert.equal(loaded.maxDeployableCapitalUsdt, 64);
   assert.equal(loaded.maxPositionsPerSymbol, 3);
+  assert.equal(loaded.trendPortfolioMinScore, 54);
+  assert.equal(loaded.trendPortfolioStrongScore, 66);
+  assert.equal(loaded.trendPortfolioEliteScore, 76);
+  assert.equal(loaded.trendPortfolioMinRewardCostRatio, 1.8);
   assert.equal(loaded.candleIntervalFast, "15M");
   assert.equal(loaded.candleIntervalMain, "60M");
   assert.equal(loaded.candleIntervalTrend, "240M");
@@ -4815,6 +4822,8 @@ async function testV14TrendPortfolioConfigAndLaunchPath() {
   assert.ok(loaded.swingMaxHoldSeconds >= 259200);
   assert.ok(packageJson.scripts.trend.includes("TREND_PORTFOLIO_MODE=true"));
   assert.ok(packageJson.scripts.trend.includes("MAX_DEPLOYABLE_CAPITAL_USDT=64"));
+  assert.ok(packageJson.scripts["trend:live"].includes("TREND_PORTFOLIO_MODE=true"));
+  assert.ok(packageJson.scripts["trend:live"].includes("DRY_RUN=false"));
   assert.ok(packageJson.scripts.check.includes("src/trendPortfolioEngine.js"));
   assert.throws(
     () => withEnv({ TREND_PORTFOLIO_MODE: "true", SWING_MOMENTUM_MODE: "true" }, () => loadConfig()),
@@ -4879,7 +4888,69 @@ async function testV14TrendPortfolioEngineBuildsIndependentThesis() {
   assert.ok(best.multiTimeframeTrendScore >= 60);
   assert.ok(best.trendThesis && best.trendThesis.holdingIntent.includes("multiple days"));
   assert.ok(events.some((event) => event.message === "V14_TREND_PORTFOLIO_ENGINE_ACTIVE"));
+  assert.ok(events.some((event) => event.message === "V14_1_AGGRESSIVE_MOMENTUM_UPGRADE_ACTIVE"));
   assert.ok(events.some((event) => event.message === "V14_TREND_PORTFOLIO_SCAN_COMPLETED"));
+}
+
+async function testV141TrendSizingExpandsHighAndEliteConfidence() {
+  const cfg = config({
+    trendPortfolioMode: true,
+    maxDeployableCapitalUsdt: 64,
+    maxLeverage: 3,
+    stopLossPct: 2.4,
+    swingStrongTargetMarginUsdt: 64 * 0.55,
+    swingEliteTargetMarginUsdt: 64 * 0.85,
+    tier2MarginMinUsdt: 24,
+    tier2MarginMaxUsdt: 64 * 0.6,
+    tier3MarginMinUsdt: 64 * 0.5,
+    tier3MarginMaxUsdt: 64 * 0.88,
+  });
+  const bot = new LadderBot(cfg);
+  const symbolInfo = trendInstrument("ETHUSDT");
+  const baseSignal = {
+    symbol: "ETHUSDT",
+    side: "LONG",
+    price: 100,
+    score: 60,
+    convictionScore: 60,
+    continuationStrength: 60,
+    liquidityScore: 90,
+    btcTrendAligned: true,
+    volumeCondition: "CONFIRMED_VOLUME",
+    projectedNetEdgePct: 1.5,
+    feeEdgeRatio: 3.2,
+    volatilityRegime: "NORMAL",
+  };
+  const normalPlan = bot.risk.sizingPlan({
+    ...baseSignal,
+    tradeQualityTier: "NORMAL",
+    profitQualityTier: "NORMAL",
+  }, 1000, symbolInfo, 3);
+  const strongPlan = bot.risk.sizingPlan({
+    ...baseSignal,
+    score: 70,
+    convictionScore: 72,
+    continuationStrength: 74,
+    tradeQualityTier: "STRONG",
+    profitQualityTier: "STRONG",
+  }, 1000, symbolInfo, 3);
+  const elitePlan = bot.risk.sizingPlan({
+    ...baseSignal,
+    score: 82,
+    convictionScore: 88,
+    continuationStrength: 88,
+    tradeQualityTier: "ELITE",
+    profitQualityTier: "ELITE",
+    eliteSetup: true,
+  }, 1000, symbolInfo, 3);
+  assert.equal(normalPlan.rejected, false);
+  assert.equal(strongPlan.rejected, false);
+  assert.equal(elitePlan.rejected, false);
+  assert.ok(strongPlan.targetMarginUsdt > normalPlan.targetMarginUsdt);
+  assert.ok(elitePlan.targetMarginUsdt > strongPlan.targetMarginUsdt);
+  assert.ok(strongPlan.targetMarginUsdt >= cfg.maxDeployableCapitalUsdt * 0.45);
+  assert.ok(elitePlan.targetMarginUsdt >= cfg.maxDeployableCapitalUsdt * 0.75);
+  assert.ok(elitePlan.targetMarginUsdt <= cfg.maxDeployableCapitalUsdt);
 }
 
 async function testV14TrendUsesStopOnlyNativeProtection() {
@@ -5139,6 +5210,7 @@ async function run() {
   await testV13SwingHardStopStillExitsImmediately();
   await testV14TrendPortfolioConfigAndLaunchPath();
   await testV14TrendPortfolioEngineBuildsIndependentThesis();
+  await testV141TrendSizingExpandsHighAndEliteConfidence();
   await testV14TrendUsesStopOnlyNativeProtection();
   await testV14TrendAdoptsExchangePositionWithoutOrders();
   await testV14TrendBlocksEarlyTakeProfitExit();
