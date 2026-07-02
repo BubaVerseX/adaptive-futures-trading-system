@@ -4804,6 +4804,7 @@ async function testV14TrendPortfolioConfigAndLaunchPath() {
   assert.equal(loaded.trendPortfolioAggressiveMomentumMode, true);
   assert.equal(loaded.maxDeployableCapitalUsdt, 64);
   assert.equal(loaded.maxPositionsPerSymbol, 3);
+  assert.equal(loaded.maxLeverage, 10);
   assert.equal(loaded.trendPortfolioMinScore, 54);
   assert.equal(loaded.trendPortfolioStrongScore, 66);
   assert.equal(loaded.trendPortfolioEliteScore, 76);
@@ -5031,6 +5032,60 @@ async function testV14TrendAdoptsExchangePositionWithoutOrders() {
   assert.ok(events.some((event) => event.message === "TREND_EXISTING_POSITION_ADOPTED"));
 }
 
+async function testV14TrendAdoptsExistingTenXPosition() {
+  const { events, log } = logCollector();
+  const loaded = withEnv(
+    {
+      TREND_PORTFOLIO_MODE: "true",
+      DRY_RUN: "false",
+      BYBIT_TESTNET: "false",
+      ACKNOWLEDGE_LIVE_TRADING: "true",
+      ACKNOWLEDGE_HIGH_LEVERAGE_RISK: "true",
+      MAX_LEVERAGE: undefined,
+      MAX_DEPLOYABLE_CAPITAL_USDT: "64",
+      MAX_POSITIONS_PER_SYMBOL: "3",
+    },
+    () => loadConfig()
+  );
+  assert.equal(loaded.maxLeverage, 10);
+  const bot = new LadderBot(config({
+    ...loaded,
+    projectRoot: `/private/tmp/bybit-bot-project-v14-10x-${Math.random()}`,
+    logFile: `/private/tmp/bybit-bot-v14-10x-${Math.random()}.log`,
+    stateFile: `/private/tmp/bybit-bot-v14-10x-state-${Math.random()}.json`,
+    tradesFile: `/private/tmp/bybit-bot-v14-10x-trades-${Math.random()}.json`,
+    tradeMemoryFile: `/private/tmp/bybit-bot-v14-10x-memory-${Math.random()}.json`,
+    analyticsFile: `/private/tmp/bybit-bot-v14-10x-analytics-${Math.random()}.json`,
+    executionLedgerFile: `/private/tmp/bybit-bot-v14-10x-ledger-${Math.random()}.json`,
+    reportsDir: `/private/tmp/bybit-bot-v14-10x-reports-${Math.random()}`,
+  }));
+  bot.log = log;
+  bot.client = {
+    positionIdx: () => 0,
+    setTradingStop: async () => ({}),
+  };
+  bot.instrumentRulesBySymbol.set("BTCUSDT", {
+    symbol: "BTCUSDT",
+    priceFilter: { tickSize: "0.1" },
+    lotSizeFilter: { qtyStep: "0.001", minOrderQty: "0.001", minNotionalValue: "5" },
+  });
+  const adopted = await bot.adoptExchangePosition({
+    symbol: "BTCUSDT",
+    side: "Buy",
+    avgPrice: "100000",
+    size: "0.001",
+    leverage: "10",
+    positionIdx: 0,
+    liqPrice: "70000",
+    takeProfit: "",
+    stopLoss: "",
+  });
+  assert.equal(adopted, true);
+  assert.equal(bot.store.state.openPositions[0].leverage, 10);
+  assert.equal(bot.positionTooCloseToLiquidation(bot.store.state.openPositions[0]), false);
+  assert.ok(events.some((event) => event.message === "TREND_EXISTING_POSITION_ADOPTED"));
+}
+
 async function testV14TrendBlocksEarlyTakeProfitExit() {
   const { events, log } = logCollector();
   const cfg = config({
@@ -5213,6 +5268,7 @@ async function run() {
   await testV141TrendSizingExpandsHighAndEliteConfidence();
   await testV14TrendUsesStopOnlyNativeProtection();
   await testV14TrendAdoptsExchangePositionWithoutOrders();
+  await testV14TrendAdoptsExistingTenXPosition();
   await testV14TrendBlocksEarlyTakeProfitExit();
   await testV14TrendPyramidingDuplicateAndBudgetGuards();
   console.log("Bybit client and bot tests passed: REST signing, centralized 34040 no-change handling, duplicate TP/SL skip, execution ledger fill dedupe, net edge gate, portfolio risk-at-stop checks, UTA balance parsing, live safety balance use, native protection payloads, WebSocket reconnect, API auto-recovery without shutdown, reconciliation, hedge exposure detection, native TP events, regime intelligence, V11 active market universe restriction, survivability scoring, next-generation continuation scoring, V11 mean reversion and activity reporting, active adaptive paper scalper mode, exploration path, exploration memory relaxation, fee-aware stats, advisory symbol cooldowns, adaptive learning, continuation market memory, cautious active recovery, activity floor, daily shutdown removal, forced market sampling, profit protection sizing, fee-aware entries, dynamic sizing, live-validation guards, allocation ladder, risk degradation, promotion checks, execution-cost logging, V6 profit-controlled config guards, setup preservation, deferred leverage mutation, exchange-minimum feasibility, risk degradation, maker/taker routing, V7 profit mode, quality score gate, fee killer, symbol memory V2/V3, expectancy report, winner amplifier continuation holds, V7.1 trade frequency recovery tuning, V8 professional trend/expectancy optimization, V9 edge maximization, V9.5 adaptive edge reinforcement, V10 aggressive adaptive trend dominance, and V11 active market engine.");
