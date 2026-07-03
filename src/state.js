@@ -115,6 +115,7 @@ function initialState(config) {
           namespace: "data/trend-portfolio",
           aggressiveMomentumMode: config.trendPortfolioAggressiveMomentumMode,
           multiStrategyPortfolioEngineEnabled: config.multiStrategyPortfolioEngineEnabled,
+          activeOpportunityMode: config.activeOpportunityMode,
           strategies: ["TREND_BREAKOUT", "MULTI_TIMEFRAME_TREND", "TREND_PULLBACK"],
           priorScalpingMemoryIsolated: true,
         }

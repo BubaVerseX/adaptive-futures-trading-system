@@ -76,6 +76,7 @@ const ISOLATED_ENV_DEFAULTS = Object.freeze({
   LEARNING_PHASE_MODE: "true",
   AGGRESSIVE_LEARNING_PHASE: "true",
   PROFIT_EXPANSION_MODE: "false",
+  ACTIVE_OPPORTUNITY_MODE: "false",
   EXPLORATION_MODE_ENABLED: "true",
   EXPLORATION_TRADE_RATIO: "0.55",
   FORCED_MARKET_SAMPLING_ENABLED: "true",
@@ -4816,6 +4817,10 @@ async function testV14TrendPortfolioConfigAndLaunchPath() {
   assert.equal(loaded.v15MultiTimeframeTrendWeight, 0.45);
   assert.equal(loaded.v15TrendPullbackWeight, 0.3);
   assert.equal(loaded.v16PortfolioMinConfidence, 46);
+  assert.equal(loaded.activeOpportunityMode, true);
+  assert.equal(loaded.v17TrendBreakoutMinConfidence, 56);
+  assert.equal(loaded.v17MultiTimeframeTrendMinConfidence, 52);
+  assert.equal(loaded.v17TrendPullbackMinConfidence, 54);
   assert.equal(loaded.v15MinRewardRisk, 1.3);
   assert.equal(loaded.candleIntervalFast, "15M");
   assert.equal(loaded.candleIntervalMain, "60M");
@@ -4894,6 +4899,8 @@ async function testV14TrendPortfolioEngineBuildsIndependentThesis() {
   assert.equal(best.tradeQualification.scalpDecisionLogicReused, false);
   assert.equal(best.trendPortfolioMode, true);
   assert.equal(best.v15MultiStrategyPortfolioMode, true);
+  assert.equal(best.activeOpportunityMode, true);
+  assert.equal(best.portfolioDecisionEngine, "V17_ACTIVE_OPPORTUNITY_ENGINE");
   assert.equal(best.explorationTrade, false);
   assert.equal(best.forcedMarketSampling, false);
   assert.ok(["TREND_BREAKOUT", "MULTI_TIMEFRAME_TREND", "TREND_PULLBACK"].includes(best.strategyId));
@@ -4908,6 +4915,8 @@ async function testV14TrendPortfolioEngineBuildsIndependentThesis() {
   assert.ok(events.some((event) => event.message === "V14_TREND_PORTFOLIO_ENGINE_ACTIVE"));
   assert.ok(events.some((event) => event.message === "V14_1_AGGRESSIVE_MOMENTUM_UPGRADE_ACTIVE"));
   assert.ok(events.some((event) => event.message === "V15_MULTI_STRATEGY_PORTFOLIO_ENGINE_ACTIVE"));
+  assert.ok(events.some((event) => event.message === "V17_ACTIVE_OPPORTUNITY_MODE_ACTIVE"));
+  assert.ok(events.some((event) => event.message === "V17_ACTIVE_OPPORTUNITY_DECISION"));
   assert.ok(events.some((event) => event.message === "V14_TREND_PORTFOLIO_SCAN_COMPLETED"));
 }
 
@@ -4931,6 +4940,7 @@ async function testV15PortfolioBacktestAndLearningBuckets() {
     SOLUSDT: trendCandles("DOWN", 50, 130),
   }, { notionalUsdt: 25, spreadPct: 0.02 });
   assert.ok(report.results.PORTFOLIO_COMBINED);
+  assert.ok(report.results.V17_ACTIVE_OPPORTUNITY);
   assert.ok(report.results.TREND_BREAKOUT);
   assert.ok(report.results.MULTI_TIMEFRAME_TREND);
   assert.ok(report.results.TREND_PULLBACK);
@@ -4940,6 +4950,11 @@ async function testV15PortfolioBacktestAndLearningBuckets() {
   assert.ok(Object.hasOwn(report.results.PORTFOLIO_COMBINED, "feesPaidUsdt"));
   assert.ok(Object.hasOwn(report.results.PORTFOLIO_COMBINED, "averageHoldSeconds"));
   assert.ok(Object.hasOwn(report.results.PORTFOLIO_COMBINED, "strategyContributionPercentages"));
+  assert.ok(Object.hasOwn(report.results.V17_ACTIVE_OPPORTUNITY, "averageHoldSeconds"));
+  assert.ok(Object.hasOwn(report.results.V17_ACTIVE_OPPORTUNITY, "feesPaidUsdt"));
+  assert.ok(Object.hasOwn(report.comparison, "netProfitDeltaUsdt"));
+  assert.ok(Object.hasOwn(report.comparison, "tradeCountDelta"));
+  assert.ok(Object.hasOwn(report.comparison, "averageHoldingTimeSeconds"));
 
   const adaptive = new AdaptiveEngine(cfg, log);
   adaptive.recordClosedTrade({
@@ -4971,6 +4986,7 @@ async function testV15PortfolioBacktestAndLearningBuckets() {
 
   const decision = new PortfolioDecisionEngine(cfg, () => {});
   assert.equal(typeof decision.evaluate, "function");
+  assert.equal(typeof decision.evaluateOpportunities, "function");
 }
 
 async function testV141TrendSizingExpandsHighAndEliteConfidence() {
