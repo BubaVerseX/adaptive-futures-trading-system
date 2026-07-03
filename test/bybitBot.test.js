@@ -4807,14 +4807,16 @@ async function testV14TrendPortfolioConfigAndLaunchPath() {
   assert.equal(loaded.maxDeployableCapitalUsdt, 64);
   assert.equal(loaded.maxPositionsPerSymbol, 3);
   assert.equal(loaded.maxLeverage, 10);
-  assert.equal(loaded.trendPortfolioMinScore, 54);
+  assert.equal(loaded.trendPortfolioMinScore, 46);
   assert.equal(loaded.trendPortfolioStrongScore, 66);
   assert.equal(loaded.trendPortfolioEliteScore, 76);
   assert.equal(loaded.trendPortfolioMinRewardCostRatio, 1.8);
   assert.equal(loaded.multiStrategyPortfolioEngineEnabled, true);
-  assert.equal(loaded.v15TrendBreakoutWeight, 0.38);
-  assert.equal(loaded.v15MultiTimeframeTrendWeight, 0.34);
-  assert.equal(loaded.v15TrendPullbackWeight, 0.28);
+  assert.equal(loaded.v15TrendBreakoutWeight, 0.25);
+  assert.equal(loaded.v15MultiTimeframeTrendWeight, 0.45);
+  assert.equal(loaded.v15TrendPullbackWeight, 0.3);
+  assert.equal(loaded.v16PortfolioMinConfidence, 46);
+  assert.equal(loaded.v15MinRewardRisk, 1.3);
   assert.equal(loaded.candleIntervalFast, "15M");
   assert.equal(loaded.candleIntervalMain, "60M");
   assert.equal(loaded.candleIntervalTrend, "240M");
@@ -4898,6 +4900,8 @@ async function testV14TrendPortfolioEngineBuildsIndependentThesis() {
   assert.ok(best.strategyCombination.includes(best.strategyId));
   assert.ok(Array.isArray(best.strategyContributions));
   assert.ok(best.strategyContributions.length >= 3);
+  assert.ok(best.strategyCapitalTargetUsdt > 0);
+  assert.equal(best.adaptiveDefensiveThresholdFreezeAvoided, false);
   assert.ok(["BTCUSDT", "ETHUSDT", "SOLUSDT"].includes(best.symbol));
   assert.ok(best.multiTimeframeTrendScore >= 60);
   assert.ok(best.trendThesis && best.trendThesis.holdingIntent.includes("multiple days"));
@@ -4934,6 +4938,8 @@ async function testV15PortfolioBacktestAndLearningBuckets() {
   assert.ok(Object.hasOwn(report.results.PORTFOLIO_COMBINED, "sharpeRatio"));
   assert.ok(Object.hasOwn(report.results.PORTFOLIO_COMBINED, "sortinoRatio"));
   assert.ok(Object.hasOwn(report.results.PORTFOLIO_COMBINED, "feesPaidUsdt"));
+  assert.ok(Object.hasOwn(report.results.PORTFOLIO_COMBINED, "averageHoldSeconds"));
+  assert.ok(Object.hasOwn(report.results.PORTFOLIO_COMBINED, "strategyContributionPercentages"));
 
   const adaptive = new AdaptiveEngine(cfg, log);
   adaptive.recordClosedTrade({

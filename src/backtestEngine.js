@@ -52,11 +52,31 @@ function summarizeTrades(trades) {
     winRatePct: trades.length ? round((wins.length / trades.length) * 100, 2) : 0,
     averageWinnerUsdt: wins.length ? round(grossWin / wins.length) : 0,
     averageLoserUsdt: losses.length ? round(grossLoss / losses.length) : 0,
+    averageHoldSeconds: trades.length ? round(trades.reduce((sum, trade) => sum + numeric(trade.holdSeconds), 0) / trades.length, 2) : 0,
     maxDrawdownUsdt: round(maxDrawdown),
     sharpeRatio: returns.standardDeviation > 0 ? round(returns.average / returns.standardDeviation, 4) : 0,
     sortinoRatio: returns.downsideDeviation > 0 ? round(returns.average / returns.downsideDeviation, 4) : 0,
     feesPaidUsdt: round(trades.reduce((sum, trade) => sum + trade.feesUsdt, 0)),
+    strategyContributionPercentages: strategyContributionPercentages(trades),
   };
+}
+
+function strategyContributionPercentages(trades) {
+  const counts = {};
+  let total = 0;
+  for (const trade of trades) {
+    const contributions = Array.isArray(trade.strategyContributions) && trade.strategyContributions.length
+      ? trade.strategyContributions
+      : trade.strategyId
+        ? [{ strategyId: trade.strategyId }]
+        : [];
+    for (const contribution of contributions) {
+      const key = contribution.strategyId || "UNKNOWN";
+      counts[key] = (counts[key] || 0) + 1;
+      total += 1;
+    }
+  }
+  return Object.fromEntries(Object.entries(counts).map(([key, value]) => [key, total ? round((value / total) * 100, 2) : 0]));
 }
 
 function makeAnalyses(candles, index, window = 90) {
@@ -117,6 +137,7 @@ function simulateExit(signal, candles, index, config, notionalUsdt) {
     entry,
     exit,
     reason,
+    holdSeconds: Math.max(0, (Math.min(candles.length - 1, index + holdingBars) - index) * 15 * 60),
     grossPct: round(grossPct, 4),
     netReturnPct: round(netPct, 4),
     grossPnlUsdt: round(notionalUsdt * (grossPct / 100)),
@@ -172,11 +193,18 @@ function runV15Backtest(config, candlesBySymbol, options = {}) {
       };
       const decision = portfolio.evaluate(context);
       if (decision.eligible) {
+        const selectedContributions = decision.strategyOutputs.map((output) => ({
+          strategyId: output.strategyId,
+          contributionPct: Math.round((output.weight || 0) * 10000) / 100,
+          selectedSideConfidence: output.sideEvaluations[decision.side].confidence,
+          oppositeSideConfidence: output.sideEvaluations[decision.side === "LONG" ? "SHORT" : "LONG"].confidence,
+        }));
         grouped.PORTFOLIO_COMBINED.push({
           symbol,
           side: decision.side,
           strategyId: "PORTFOLIO_COMBINED",
           strategyCombination: decision.strategyCombination,
+          strategyContributions: selectedContributions,
           ...simulateExit({
             side: decision.side,
             expectedMovePct: decision.expectedMovePct,

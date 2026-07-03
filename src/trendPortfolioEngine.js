@@ -613,7 +613,8 @@ class TrendPortfolioEngine {
       explorationTrade: false,
     };
     const adaptive = this.applyAdaptiveGuidance(baseSignal);
-    const finalScore = clampScore(decision.confidence + adaptive.scoreAdjustment);
+    const adaptiveConfidenceAdjustment = Math.max(0, adaptive.scoreAdjustment);
+    const finalScore = clampScore(decision.confidence + adaptiveConfidenceAdjustment);
     const finalTier = decision.eligible ? qualityTier(this.config, finalScore) : "REJECT";
     const eligible = decision.eligible && finalTier !== "REJECT" && finalScore >= this.config.trendPortfolioMinScore;
     const confidenceClass = finalTier === "ELITE" ? "ELITE" : finalTier === "STRONG" ? "HIGH" : finalTier === "NORMAL" ? "STANDARD" : "REJECT";
@@ -644,7 +645,7 @@ class TrendPortfolioEngine {
       tradeQualification: {
         tier: finalTier,
         category: eligible ? "ACCEPTED" : "V15_PORTFOLIO_REJECTED",
-        reason: eligible ? "V15 weighted portfolio strategy decision accepted" : decision.rejectionReasons[0] || "V15 weighted strategy confidence below threshold",
+        reason: eligible ? "V16 weighted portfolio strategy decision accepted" : decision.rejectionReasons[0] || "V16 weighted strategy confidence below threshold",
         assignedBy: "portfolioDecisionEngine.js",
         scalpDecisionLogicReused: false,
       },
@@ -652,7 +653,7 @@ class TrendPortfolioEngine {
       rejectionCategory: eligible ? "ACCEPTED" : "V15_PORTFOLIO_DECISION",
       rejectionReason: eligible ? null : decision.rejectionReasons[0] || "V15 no trade",
       setupType: decision.setupType,
-      tradeCategory: finalTier === "ELITE" ? "ELITE_SETUP" : "V15_MULTI_STRATEGY_PORTFOLIO",
+      tradeCategory: finalTier === "ELITE" ? "ELITE_SETUP" : "V16_MULTI_STRATEGY_PORTFOLIO",
       explorationTrade: false,
       forcedMarketSampling: false,
       eliteSetup: finalTier === "ELITE",
@@ -753,7 +754,7 @@ class TrendPortfolioEngine {
       marketPersonality: "V15_MULTI_STRATEGY_PORTFOLIO",
       regime: marketProfile && marketProfile.direction,
       regimeAggressionMultiplier: 1,
-      regimeRiskMultiplier: decision.marketRegime.regime === "HIGH_VOLATILITY" ? 0.92 : 1,
+      regimeRiskMultiplier: 1,
       regimeLeverageMultiplier: 1,
       regimeHoldMultiplier: 1.55,
       regimeTrailingDistanceMultiplier: decision.marketRegime.regime === "HIGH_VOLATILITY" ? 1.25 : 1.45,
@@ -779,8 +780,11 @@ class TrendPortfolioEngine {
       strategyVotes: decision.votes,
       strategyPreferredHoldingTimeSeconds: decision.preferredHoldingTimeSeconds,
       strategyPositionSizeMultiplier: decision.positionSizeMultiplier,
+      strategyCapitalTargetUsdt: decision.capitalTargetUsdt,
+      strategyRegimeSizeMultiplier: decision.regimeSizeMultiplier,
       strategyExpectedRewardRisk: decision.expectedRewardRisk,
       strategyDynamicExit: decision.dynamicExit,
+      adaptiveDefensiveThresholdFreezeAvoided: adaptive.scoreAdjustment < 0,
       marketRegimeV15: decision.marketRegime,
       microBreakoutTriggered: false,
       fomoTrigger: false,
