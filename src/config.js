@@ -378,6 +378,17 @@ function loadConfig() {
     trendPortfolioStopAtrMultiplier: numberValue("TREND_PORTFOLIO_STOP_ATR_MULTIPLIER", 1.9, { positive: true, maximum: 8 }),
     trendPortfolioTargetAtrMultiplier: numberValue("TREND_PORTFOLIO_TARGET_ATR_MULTIPLIER", 4.8, { positive: true, maximum: 16 }),
     trendPortfolioPyramidWindowMinutes: numberValue("TREND_PORTFOLIO_PYRAMID_WINDOW_MINUTES", 360, { minimum: 0 }),
+    multiStrategyPortfolioEngineEnabled: booleanValue("MULTI_STRATEGY_PORTFOLIO_ENGINE_ENABLED", trendPortfolioMode ? true : false),
+    v15TrendBreakoutWeight: numberValue("V15_TREND_BREAKOUT_WEIGHT", 0.38, { minimum: 0 }),
+    v15MultiTimeframeTrendWeight: numberValue("V15_MULTI_TIMEFRAME_TREND_WEIGHT", 0.34, { minimum: 0 }),
+    v15TrendPullbackWeight: numberValue("V15_TREND_PULLBACK_WEIGHT", 0.28, { minimum: 0 }),
+    v15DonchianEntryLookback: numberValue("V15_DONCHIAN_ENTRY_LOOKBACK", 20, { positive: true, integer: true, maximum: 80 }),
+    v15DonchianConfirmationLookback: numberValue("V15_DONCHIAN_CONFIRMATION_LOOKBACK", 20, { positive: true, integer: true, maximum: 80 }),
+    v15PullbackLookback: numberValue("V15_PULLBACK_LOOKBACK", 10, { positive: true, integer: true, maximum: 40 }),
+    v15StrategyMinConfidence: numberValue("V15_STRATEGY_MIN_CONFIDENCE", 52, { positive: true, maximum: 100 }),
+    v15MinRewardRisk: numberValue("V15_MIN_REWARD_RISK", 1.2, { positive: true, maximum: 10 }),
+    v15MinAtrPct: numberValue("V15_MIN_ATR_PCT", 0.08, { minimum: 0, maximum: 5 }),
+    v15MinStopAtrMultiplier: numberValue("V15_MIN_STOP_ATR_MULTIPLIER", 1.25, { positive: true, maximum: 8 }),
     minSignalScore: numberValue("MIN_SIGNAL_SCORE", 42, { positive: true, maximum: 100 }),
     closePositionOnExit: booleanValue("CLOSE_POSITION_ON_EXIT", true),
     maxPositionNotionalUsdt: numberValue("MAX_POSITION_NOTIONAL_USDT", 150, { positive: true }),
@@ -704,6 +715,7 @@ function loadConfig() {
     config.forcedExecutionSamplingActive = false;
     config.learningPhaseMode = false;
     config.aggressiveLearningPhase = false;
+    config.multiStrategyPortfolioEngineEnabled = true;
     config.explorationModeEnabled = false;
     config.explorationTradeRatio = 0;
     config.allowChoppyMarket = false;
