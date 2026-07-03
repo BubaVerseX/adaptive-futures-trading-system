@@ -388,6 +388,11 @@ function loadConfig() {
     v15StrategyMinConfidence: numberValue("V15_STRATEGY_MIN_CONFIDENCE", 52, { positive: true, maximum: 100 }),
     v15MinRewardRisk: numberValue("V15_MIN_REWARD_RISK", 1.3, { positive: true, maximum: 10 }),
     v16PortfolioMinConfidence: numberValue("V16_PORTFOLIO_MIN_CONFIDENCE", 46, { positive: true, maximum: 100 }),
+    activeOpportunityMode: booleanValue("ACTIVE_OPPORTUNITY_MODE", trendPortfolioMode ? true : false),
+    v17TrendBreakoutMinConfidence: numberValue("V17_TREND_BREAKOUT_MIN_CONFIDENCE", 56, { positive: true, maximum: 100 }),
+    v17MultiTimeframeTrendMinConfidence: numberValue("V17_MULTI_TIMEFRAME_TREND_MIN_CONFIDENCE", 52, { positive: true, maximum: 100 }),
+    v17TrendPullbackMinConfidence: numberValue("V17_TREND_PULLBACK_MIN_CONFIDENCE", 54, { positive: true, maximum: 100 }),
+    v17OpportunityMinRewardRisk: numberValue("V17_OPPORTUNITY_MIN_REWARD_RISK", 1.3, { positive: true, maximum: 10 }),
     v16TrendRegimeSizeMultiplier: numberValue("V16_TREND_REGIME_SIZE_MULTIPLIER", 1, { minimum: 0, maximum: 2 }),
     v16RangeRegimeSizeMultiplier: numberValue("V16_RANGE_REGIME_SIZE_MULTIPLIER", 0.7, { minimum: 0, maximum: 2 }),
     v16ChoppyRegimeSizeMultiplier: numberValue("V16_CHOPPY_REGIME_SIZE_MULTIPLIER", 0.5, { minimum: 0, maximum: 2 }),
@@ -722,6 +727,7 @@ function loadConfig() {
     config.learningPhaseMode = false;
     config.aggressiveLearningPhase = false;
     config.multiStrategyPortfolioEngineEnabled = true;
+    config.activeOpportunityMode = true;
     config.explorationModeEnabled = false;
     config.explorationTradeRatio = 0;
     config.allowChoppyMarket = false;

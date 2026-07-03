@@ -61,6 +61,38 @@ function summarizeTrades(trades) {
   };
 }
 
+function compareSummaries(current = {}, previous = {}) {
+  return {
+    current: "V17_ACTIVE_OPPORTUNITY",
+    previous: "PORTFOLIO_COMBINED",
+    netProfitDeltaUsdt: round(numeric(current.netProfitUsdt) - numeric(previous.netProfitUsdt)),
+    maxDrawdownDeltaUsdt: round(numeric(current.maxDrawdownUsdt) - numeric(previous.maxDrawdownUsdt)),
+    feesDeltaUsdt: round(numeric(current.feesPaidUsdt) - numeric(previous.feesPaidUsdt)),
+    tradeCountDelta: numeric(current.trades) - numeric(previous.trades),
+    averageHoldSecondsDelta: round(numeric(current.averageHoldSeconds) - numeric(previous.averageHoldSeconds), 2),
+    netProfit: {
+      v17ActiveOpportunity: numeric(current.netProfitUsdt),
+      previousCombinedPortfolio: numeric(previous.netProfitUsdt),
+    },
+    drawdown: {
+      v17ActiveOpportunity: numeric(current.maxDrawdownUsdt),
+      previousCombinedPortfolio: numeric(previous.maxDrawdownUsdt),
+    },
+    fees: {
+      v17ActiveOpportunity: numeric(current.feesPaidUsdt),
+      previousCombinedPortfolio: numeric(previous.feesPaidUsdt),
+    },
+    tradeCount: {
+      v17ActiveOpportunity: numeric(current.trades),
+      previousCombinedPortfolio: numeric(previous.trades),
+    },
+    averageHoldingTimeSeconds: {
+      v17ActiveOpportunity: numeric(current.averageHoldSeconds),
+      previousCombinedPortfolio: numeric(previous.averageHoldSeconds),
+    },
+  };
+}
+
 function strategyContributionPercentages(trades) {
   const counts = {};
   let total = 0;
@@ -176,7 +208,7 @@ function runV15Backtest(config, candlesBySymbol, options = {}) {
   const notionalUsdt = numeric(options.notionalUsdt, 50);
   const symbols = Object.keys(candlesBySymbol || {});
   const grouped = {};
-  for (const mode of ["PORTFOLIO_COMBINED", ...Object.keys(STRATEGY_EVALUATORS)]) grouped[mode] = [];
+  for (const mode of ["PORTFOLIO_COMBINED", "V17_ACTIVE_OPPORTUNITY", ...Object.keys(STRATEGY_EVALUATORS)]) grouped[mode] = [];
   for (const symbol of symbols) {
     const candles = parseCandles(candlesBySymbol[symbol] || []);
     for (let index = 60; index < candles.length - 5; index += 1) {
@@ -213,6 +245,27 @@ function runV15Backtest(config, candlesBySymbol, options = {}) {
           }, candles, index, config, notionalUsdt),
         });
       }
+      const v17 = portfolio.evaluateOpportunities(context);
+      for (const opportunity of v17.opportunities) {
+        grouped.V17_ACTIVE_OPPORTUNITY.push({
+          symbol,
+          side: opportunity.side,
+          strategyId: opportunity.strategyCombination,
+          strategyCombination: opportunity.strategyCombination,
+          strategyContributions: [{
+            strategyId: opportunity.strategyCombination,
+            contributionPct: 100,
+            selectedSideConfidence: opportunity.confidence,
+            independentOpportunity: true,
+          }],
+          ...simulateExit({
+            side: opportunity.side,
+            expectedMovePct: opportunity.expectedMovePct,
+            stopDistancePct: opportunity.stopDistancePct,
+            preferredHoldingTimeSeconds: opportunity.preferredHoldingTimeSeconds,
+          }, candles, index, config, notionalUsdt),
+        });
+      }
       for (const strategyId of Object.keys(STRATEGY_EVALUATORS)) {
         const signal = evaluateIndependentStrategy(strategyId, config, symbol, item, analyses, item.spreadPct);
         if (!signal) continue;
@@ -225,6 +278,7 @@ function runV15Backtest(config, candlesBySymbol, options = {}) {
       }
     }
   }
+  const results = Object.fromEntries(Object.entries(grouped).map(([key, trades]) => [key, summarizeTrades(trades)]));
   return {
     generatedAt: new Date().toISOString(),
     symbols,
@@ -234,7 +288,8 @@ function runV15Backtest(config, candlesBySymbol, options = {}) {
       estimatedSlippagePct: config.estimatedSlippagePct,
       noLiveOrders: true,
     },
-    results: Object.fromEntries(Object.entries(grouped).map(([key, trades]) => [key, summarizeTrades(trades)])),
+    results,
+    comparison: compareSummaries(results.V17_ACTIVE_OPPORTUNITY, results.PORTFOLIO_COMBINED),
     trades: grouped,
   };
 }

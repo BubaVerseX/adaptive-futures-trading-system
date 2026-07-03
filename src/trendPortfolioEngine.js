@@ -122,6 +122,7 @@ class TrendPortfolioEngine {
     this.cachedDirections = Object.fromEntries(TREND_SYMBOLS.map((symbol) => [symbol, "CHOPPY"]));
     this.portfolioDecision = new PortfolioDecisionEngine(config, log);
     this.multiStrategyEnabled = Boolean(config.multiStrategyPortfolioEngineEnabled || config.trendPortfolioMode);
+    this.activeOpportunityMode = Boolean((config.activeOpportunityMode || config.trendPortfolioMode) && this.multiStrategyEnabled);
   }
 
   async universe() {
@@ -148,6 +149,14 @@ class TrendPortfolioEngine {
         fixedScalpTakeProfitUsed: false,
         publicConceptsOnly: true,
       });
+      if (this.activeOpportunityMode) {
+        this.log("WARN", "V17_ACTIVE_OPPORTUNITY_MODE_ACTIVE", {
+          objective: "allow any qualified strategy module to express an independent several-hour trend thesis",
+          unanimousStrategyAgreementRequired: false,
+          portfolioRiskControlsPreserved: true,
+          symbols: TREND_SYMBOLS,
+        });
+      }
       this.log("INFO", "V14_TRADING_UNIVERSE_LOCKED", {
         allowedSymbols: TREND_SYMBOLS,
         removedSymbols: "all symbols outside BTCUSDT, ETHUSDT, SOLUSDT",
@@ -568,7 +577,7 @@ class TrendPortfolioEngine {
   }
 
   buildV15PortfolioSignal(item, analyses, marketProfile, options = {}) {
-    const decision = this.portfolioDecision.evaluate({
+    const decision = options.decision || this.portfolioDecision.evaluate({
       symbol: item.info.symbol,
       price: item.price,
       spreadPct: item.spreadPct,
@@ -615,7 +624,9 @@ class TrendPortfolioEngine {
     const adaptive = this.applyAdaptiveGuidance(baseSignal);
     const adaptiveConfidenceAdjustment = Math.max(0, adaptive.scoreAdjustment);
     const finalScore = clampScore(decision.confidence + adaptiveConfidenceAdjustment);
-    const finalTier = decision.eligible ? qualityTier(this.config, finalScore) : "REJECT";
+    const finalTier = decision.eligible
+      ? (decision.qualityTier && decision.qualityTier !== "REJECT" ? decision.qualityTier : qualityTier(this.config, finalScore))
+      : "REJECT";
     const eligible = decision.eligible && finalTier !== "REJECT" && finalScore >= this.config.trendPortfolioMinScore;
     const confidenceClass = finalTier === "ELITE" ? "ELITE" : finalTier === "STRONG" ? "HIGH" : finalTier === "NORMAL" ? "STANDARD" : "REJECT";
     const signal = {
@@ -645,7 +656,9 @@ class TrendPortfolioEngine {
       tradeQualification: {
         tier: finalTier,
         category: eligible ? "ACCEPTED" : "V15_PORTFOLIO_REJECTED",
-        reason: eligible ? "V16 weighted portfolio strategy decision accepted" : decision.rejectionReasons[0] || "V16 weighted strategy confidence below threshold",
+        reason: eligible
+          ? (decision.portfolioDecisionEngine === "V17_ACTIVE_OPPORTUNITY_ENGINE" ? "V17 independent strategy opportunity accepted" : "V16 weighted portfolio strategy decision accepted")
+          : decision.rejectionReasons[0] || "portfolio strategy confidence below threshold",
         assignedBy: "portfolioDecisionEngine.js",
         scalpDecisionLogicReused: false,
       },
@@ -653,7 +666,7 @@ class TrendPortfolioEngine {
       rejectionCategory: eligible ? "ACCEPTED" : "V15_PORTFOLIO_DECISION",
       rejectionReason: eligible ? null : decision.rejectionReasons[0] || "V15 no trade",
       setupType: decision.setupType,
-      tradeCategory: finalTier === "ELITE" ? "ELITE_SETUP" : "V16_MULTI_STRATEGY_PORTFOLIO",
+      tradeCategory: finalTier === "ELITE" ? "ELITE_SETUP" : decision.portfolioDecisionEngine === "V17_ACTIVE_OPPORTUNITY_ENGINE" ? "V17_ACTIVE_OPPORTUNITY" : "V16_MULTI_STRATEGY_PORTFOLIO",
       explorationTrade: false,
       forcedMarketSampling: false,
       eliteSetup: finalTier === "ELITE",
@@ -687,7 +700,9 @@ class TrendPortfolioEngine {
         expected,
         directions,
         mtfScore: decision.confidence,
-        thesis: eligible ? `V15 ${decision.strategyCombination} trend thesis` : "No qualified V15 portfolio thesis",
+        thesis: eligible
+          ? `${decision.portfolioDecisionEngine === "V17_ACTIVE_OPPORTUNITY_ENGINE" ? "V17" : "V15"} ${decision.strategyCombination} trend thesis`
+          : "No qualified portfolio trend thesis",
         holdingIntent: "2h to 24h preferred; multiple days while V15 trend thesis remains valid",
         strategyCombination: decision.strategyCombination,
       },
@@ -751,7 +766,7 @@ class TrendPortfolioEngine {
       marketRegimeConfidence: marketProfile && marketProfile.confidence,
       marketRegimeReasons: marketProfile && marketProfile.reasons,
       marketRegimeV2: decision.marketRegime.regime,
-      marketPersonality: "V15_MULTI_STRATEGY_PORTFOLIO",
+      marketPersonality: decision.portfolioDecisionEngine === "V17_ACTIVE_OPPORTUNITY_ENGINE" ? "V17_ACTIVE_OPPORTUNITY" : "V15_MULTI_STRATEGY_PORTFOLIO",
       regime: marketProfile && marketProfile.direction,
       regimeAggressionMultiplier: 1,
       regimeRiskMultiplier: 1,
@@ -765,6 +780,8 @@ class TrendPortfolioEngine {
       reasons: decision.scoreBreakdown,
       trendPortfolioMode: true,
       v15MultiStrategyPortfolioMode: true,
+      activeOpportunityMode: decision.portfolioDecisionEngine === "V17_ACTIVE_OPPORTUNITY_ENGINE",
+      portfolioDecisionEngine: decision.portfolioDecisionEngine,
       strategyId: decision.dominantStrategy && decision.dominantStrategy.strategyId,
       strategyConfidence: decision.dominantStrategy && decision.dominantStrategy.confidence,
       strategyCombination: decision.strategyCombination,
@@ -798,6 +815,20 @@ class TrendPortfolioEngine {
     return signal;
   }
 
+  buildV17OpportunitySignals(item, analyses, marketProfile) {
+    const evaluation = this.portfolioDecision.evaluateOpportunities({
+      symbol: item.info.symbol,
+      price: item.price,
+      spreadPct: item.spreadPct,
+      volume: item.volume,
+      analyses,
+      marketProfile,
+    });
+    const accepted = evaluation.opportunities.map((decision) => this.buildV15PortfolioSignal(item, analyses, marketProfile, { decision }));
+    const rejected = evaluation.skipped.map((decision) => this.buildV15PortfolioSignal(item, analyses, marketProfile, { decision }));
+    return [...accepted, ...rejected];
+  }
+
   async analyzeSymbol(item, marketProfile) {
     try {
       const analyses = await this.candleSet(item.info.symbol);
@@ -806,6 +837,9 @@ class TrendPortfolioEngine {
         return null;
       }
       this.cachedDirections[item.info.symbol] = emaDirection(analyses.confirmation);
+      if (this.activeOpportunityMode) {
+        return this.buildV17OpportunitySignals(item, analyses, marketProfile);
+      }
       if (this.multiStrategyEnabled) {
         return this.buildV15PortfolioSignal(item, analyses, marketProfile);
       }
@@ -826,7 +860,8 @@ class TrendPortfolioEngine {
     this.scanErrors = 0;
     const market = marketProfile || { direction: "CHOPPY", tags: [], primary: "UNKNOWN", confidence: 0 };
     const universe = await this.universe();
-    const analyses = await mapLimited(universe, this.config.scanConcurrency, (item) => this.analyzeSymbol(item, market));
+    const rawAnalyses = await mapLimited(universe, this.config.scanConcurrency, (item) => this.analyzeSymbol(item, market));
+    const analyses = rawAnalyses.flatMap((item) => (Array.isArray(item) ? item : [item])).filter(Boolean);
     analyses.sort((left, right) => right.score - left.score || right.continuationStrength - left.continuationStrength);
     const candidates = analyses.filter((item) => item.eligible);
     for (const item of analyses) {
@@ -859,6 +894,7 @@ class TrendPortfolioEngine {
       marketRegimeTags: market.tags,
       maxDeployableCapitalUsdt: this.config.maxDeployableCapitalUsdt,
       objective: "maximize net profit after fees, not trade count",
+      activeOpportunityMode: this.activeOpportunityMode,
       apiErrors: this.scanErrors,
     });
     return {

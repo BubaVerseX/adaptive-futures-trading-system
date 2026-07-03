@@ -146,6 +146,19 @@ function capitalTargetForConfidence(config, confidence, regime) {
   return Number(Math.max(0, Math.min(regimeAdjusted, budget || regimeAdjusted)).toFixed(4));
 }
 
+function strategyThreshold(config, strategyId) {
+  if (strategyId === "TREND_BREAKOUT") return numeric(config.v17TrendBreakoutMinConfidence, numeric(config.v15StrategyMinConfidence, 52));
+  if (strategyId === "MULTI_TIMEFRAME_TREND") return numeric(config.v17MultiTimeframeTrendMinConfidence, numeric(config.v15StrategyMinConfidence, 52));
+  if (strategyId === "TREND_PULLBACK") return numeric(config.v17TrendPullbackMinConfidence, numeric(config.v15StrategyMinConfidence, 52));
+  return numeric(config.v15StrategyMinConfidence, 52);
+}
+
+function capitalTargetForOpportunity(config, confidence, regime, positionSizeMultiplier) {
+  const base = capitalTargetForConfidence(config, confidence, regime);
+  const budget = numeric(config.maxDeployableCapitalUsdt, base);
+  return Number(bounded(base * numeric(positionSizeMultiplier, 1), 0, budget || base).toFixed(4));
+}
+
 function sideContribution(outputs, side, weights) {
   let confidence = 0;
   let rewardRiskNumerator = 0;
@@ -189,17 +202,14 @@ class PortfolioDecisionEngine {
     this.log = log;
   }
 
-  evaluate(context) {
-    const weights = normalizeWeights(this.config);
-    const regime = classifyMarketRegime(this.config, context.marketProfile, context.analyses);
-    const estimatedRoundTripCostPct = estimateRoundTripCostPct(this.config, context.spreadPct);
+  strategyOutputs(context, regime, estimatedRoundTripCostPct, weights) {
     const baseContext = {
       ...context,
       config: this.config,
       estimatedRoundTripCostPct,
       marketRegime: regime,
     };
-    const strategyOutputs = STRATEGIES.map((strategy) => {
+    return STRATEGIES.map((strategy) => {
       const sideEvaluations = {};
       for (const side of ["LONG", "SHORT"]) {
         const sideOutput = strategy.evaluate({ ...baseContext, onlySide: side });
@@ -227,6 +237,13 @@ class PortfolioDecisionEngine {
         ],
       };
     });
+  }
+
+  evaluate(context) {
+    const weights = normalizeWeights(this.config);
+    const regime = classifyMarketRegime(this.config, context.marketProfile, context.analyses);
+    const estimatedRoundTripCostPct = estimateRoundTripCostPct(this.config, context.spreadPct);
+    const strategyOutputs = this.strategyOutputs(context, regime, estimatedRoundTripCostPct, weights);
     const longContribution = sideContribution(strategyOutputs, "LONG", weights);
     const shortContribution = sideContribution(strategyOutputs, "SHORT", weights);
     const side = longContribution.confidence >= shortContribution.confidence ? "LONG" : "SHORT";
@@ -338,6 +355,121 @@ class PortfolioDecisionEngine {
     });
     return decision;
   }
+
+  evaluateOpportunities(context) {
+    const weights = normalizeWeights(this.config);
+    const regime = classifyMarketRegime(this.config, context.marketProfile, context.analyses);
+    const estimatedRoundTripCostPct = estimateRoundTripCostPct(this.config, context.spreadPct);
+    const strategyOutputs = this.strategyOutputs(context, regime, estimatedRoundTripCostPct, weights);
+    const opportunities = [];
+    const skipped = [];
+
+    for (const output of strategyOutputs) {
+      const side = output.direction;
+      const opposite = side === "LONG" ? "SHORT" : "LONG";
+      const sideOutput = output.sideEvaluations[side];
+      const oppositeOutput = output.sideEvaluations[opposite];
+      const confidence = clampScore(sideOutput.confidence);
+      const threshold = strategyThreshold(this.config, output.strategyId);
+      const expectedRewardRisk = numeric(sideOutput.expectedRewardRisk);
+      const stopDistancePct = numeric(sideOutput.stopDistancePct) || Math.max(numeric(this.config.stopLossPct), numeric(regime.atrPct) * numeric(this.config.trendPortfolioStopAtrMultiplier));
+      const expectedMovePct = numeric(sideOutput.expectedMovePct) || stopDistancePct * numeric(this.config.v17OpportunityMinRewardRisk, 1.3);
+      const projectedNetEdgePct = Number((expectedMovePct - estimatedRoundTripCostPct).toFixed(4));
+      const feeEdgeRatio = estimatedRoundTripCostPct > 0 ? Number((expectedMovePct / estimatedRoundTripCostPct).toFixed(4)) : 999;
+      const minRewardRisk = numeric(this.config.v17OpportunityMinRewardRisk, numeric(this.config.v15MinRewardRisk, 1.3));
+      const rejectionReasons = [];
+      if (!regime.tradable) rejectionReasons.push(`market regime ${regime.regime} rejects new entries`);
+      if (confidence < threshold) rejectionReasons.push(`${output.strategyId} confidence ${confidence} below own threshold ${threshold}`);
+      if (projectedNetEdgePct < this.config.trendPortfolioMinNetEdgePct) rejectionReasons.push(`projected net edge ${projectedNetEdgePct}% below V17 minimum`);
+      if (feeEdgeRatio < this.config.trendPortfolioMinRewardCostRatio) rejectionReasons.push(`reward/cost ${feeEdgeRatio.toFixed(2)} below V17 minimum`);
+      if (expectedRewardRisk < minRewardRisk) rejectionReasons.push(`expected reward/risk ${expectedRewardRisk.toFixed(2)} below V17 minimum ${minRewardRisk}`);
+      const eligible = rejectionReasons.length === 0;
+      const confidenceClass =
+        confidence >= this.config.trendPortfolioEliteScore
+          ? "ELITE"
+          : confidence >= this.config.trendPortfolioStrongScore
+            ? "HIGH"
+            : confidence >= this.config.trendPortfolioNormalScore
+              ? "STANDARD"
+              : "OPPORTUNITY";
+      const qualityTier =
+        confidenceClass === "ELITE"
+          ? "ELITE"
+          : confidenceClass === "HIGH"
+            ? "STRONG"
+            : confidenceClass === "STANDARD"
+              ? "NORMAL"
+              : eligible
+                ? "NORMAL"
+                : "REJECT";
+      const capitalTargetUsdt = capitalTargetForOpportunity(this.config, confidence, regime, numeric(sideOutput.positionSizeMultiplier, 1));
+      const opportunity = {
+        eligible,
+        side,
+        confidence,
+        confidenceClass,
+        qualityTier: eligible ? qualityTier : "REJECT",
+        dominantStrategy: sideOutput,
+        strategyOutputs,
+        supportingStrategies: [output.strategyId],
+        opposingStrategies: numeric(oppositeOutput && oppositeOutput.confidence) >= confidence * 0.8 ? [output.strategyId] : [],
+        strategyCombination: output.strategyId,
+        marketRegime: regime,
+        votes: {
+          long: round(output.sideEvaluations.LONG.confidence, 4),
+          short: round(output.sideEvaluations.SHORT.confidence, 4),
+          selectedStrategyWeight: round(output.weight, 4),
+          independentStrategyOpportunity: true,
+        },
+        expectedRewardRisk: round(expectedRewardRisk, 4),
+        stopDistancePct: round(stopDistancePct, 4),
+        expectedMovePct: round(expectedMovePct, 4),
+        projectedNetEdgePct,
+        estimatedRoundTripCostPct,
+        feeEdgeRatio,
+        preferredHoldingTimeSeconds: Math.round(numeric(sideOutput.preferredHoldingTimeSeconds)),
+        positionSizeMultiplier: Number(bounded(numeric(sideOutput.positionSizeMultiplier, 1) * numeric(regime.sizeMultiplier, 1), 0.5, 1.8).toFixed(3)),
+        capitalTargetUsdt,
+        regimeSizeMultiplier: numeric(regime.sizeMultiplier, 1),
+        setupType: sideOutput.setupType || `${output.strategyId}_OPPORTUNITY`,
+        continuationSetupType: sideOutput.continuationSetupType || `${output.strategyId}_CONTINUATION`,
+        dynamicExit: sideOutput.dynamicExit || "trend invalidation, ATR trail, structural breakdown",
+        rejectionReasons,
+        scoreBreakdown: [
+          `V17 independent ${output.strategyId} ${side} confidence ${confidence} threshold ${threshold}`,
+          `market regime ${regime.regime} size multiplier ${regime.sizeMultiplier}: ${regime.reason}`,
+          ...(sideOutput.scoreBreakdown || sideOutput.reasons || []),
+        ],
+        portfolioDecisionEngine: "V17_ACTIVE_OPPORTUNITY_ENGINE",
+        expectedDirection: directionForSide(side),
+      };
+      this.log(eligible ? "INFO" : "DEBUG", "V17_ACTIVE_OPPORTUNITY_DECISION", {
+        symbol: context.symbol,
+        strategyId: output.strategyId,
+        side,
+        confidence,
+        threshold,
+        expectedRewardRisk: round(expectedRewardRisk, 4),
+        marketRegime: regime.regime,
+        marketRegimeSizeMultiplier: regime.sizeMultiplier,
+        positionSizeUsdt: capitalTargetUsdt,
+        decision: eligible ? `ENTER ${side}` : "SKIP",
+        reasons: rejectionReasons,
+      });
+      if (eligible) opportunities.push(opportunity);
+      else skipped.push(opportunity);
+    }
+
+    opportunities.sort((left, right) => right.confidence - left.confidence || right.expectedRewardRisk - left.expectedRewardRisk);
+    this.log("INFO", "V17_ACTIVE_OPPORTUNITY_SUMMARY", {
+      symbol: context.symbol,
+      opportunities: opportunities.length,
+      skipped: skipped.length,
+      acceptedStrategies: opportunities.map((item) => item.strategyCombination),
+      rejectedStrategies: skipped.map((item) => ({ strategyId: item.strategyCombination, reason: item.rejectionReasons[0] || "unknown" })),
+    });
+    return { opportunities, skipped, strategyOutputs, marketRegime: regime };
+  }
 }
 
 module.exports = {
@@ -346,4 +478,5 @@ module.exports = {
   classifyMarketRegime,
   estimateRoundTripCostPct,
   normalizeWeights,
+  strategyThreshold,
 };
