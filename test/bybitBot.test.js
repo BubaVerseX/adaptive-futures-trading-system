@@ -13,6 +13,8 @@ const { LadderBot } = require("../src/bot");
 const { loadConfig } = require("../src/config");
 const { Scanner, marketBreadthScore, multiTimeframeTrendConfirmation, portfolioAlphaScore } = require("../src/scanner");
 const { TrendPortfolioEngine } = require("../src/trendPortfolioEngine");
+const { PortfolioDecisionEngine } = require("../src/portfolioDecisionEngine");
+const { runV15Backtest } = require("../src/backtestEngine");
 const { AdaptiveEngine } = require("../src/adaptiveEngine");
 const { marketProfileFromBenchmarks, marketRegimeV2, sessionProfile } = require("../src/marketRegime");
 const { classifyBybitError } = require("../src/bybitErrors");
@@ -4809,6 +4811,10 @@ async function testV14TrendPortfolioConfigAndLaunchPath() {
   assert.equal(loaded.trendPortfolioStrongScore, 66);
   assert.equal(loaded.trendPortfolioEliteScore, 76);
   assert.equal(loaded.trendPortfolioMinRewardCostRatio, 1.8);
+  assert.equal(loaded.multiStrategyPortfolioEngineEnabled, true);
+  assert.equal(loaded.v15TrendBreakoutWeight, 0.38);
+  assert.equal(loaded.v15MultiTimeframeTrendWeight, 0.34);
+  assert.equal(loaded.v15TrendPullbackWeight, 0.28);
   assert.equal(loaded.candleIntervalFast, "15M");
   assert.equal(loaded.candleIntervalMain, "60M");
   assert.equal(loaded.candleIntervalTrend, "240M");
@@ -4826,6 +4832,8 @@ async function testV14TrendPortfolioConfigAndLaunchPath() {
   assert.ok(packageJson.scripts["trend:live"].includes("TREND_PORTFOLIO_MODE=true"));
   assert.ok(packageJson.scripts["trend:live"].includes("DRY_RUN=false"));
   assert.ok(packageJson.scripts.check.includes("src/trendPortfolioEngine.js"));
+  assert.ok(packageJson.scripts.check.includes("src/portfolioDecisionEngine.js"));
+  assert.ok(packageJson.scripts["backtest:v15"].includes("backtestV15.js"));
   assert.throws(
     () => withEnv({ TREND_PORTFOLIO_MODE: "true", SWING_MOMENTUM_MODE: "true" }, () => loadConfig()),
     /independent V14 trend profile/
@@ -4880,17 +4888,83 @@ async function testV14TrendPortfolioEngineBuildsIndependentThesis() {
   assert.ok(scan.analyses.length >= 3);
   assert.ok(scan.candidates.length >= 1);
   const best = scan.candidates[0];
-  assert.equal(best.tradeQualification.assignedBy, "trendPortfolioEngine.js");
+  assert.equal(best.tradeQualification.assignedBy, "portfolioDecisionEngine.js");
   assert.equal(best.tradeQualification.scalpDecisionLogicReused, false);
   assert.equal(best.trendPortfolioMode, true);
+  assert.equal(best.v15MultiStrategyPortfolioMode, true);
   assert.equal(best.explorationTrade, false);
   assert.equal(best.forcedMarketSampling, false);
+  assert.ok(["TREND_BREAKOUT", "MULTI_TIMEFRAME_TREND", "TREND_PULLBACK"].includes(best.strategyId));
+  assert.ok(best.strategyCombination.includes(best.strategyId));
+  assert.ok(Array.isArray(best.strategyContributions));
+  assert.ok(best.strategyContributions.length >= 3);
   assert.ok(["BTCUSDT", "ETHUSDT", "SOLUSDT"].includes(best.symbol));
   assert.ok(best.multiTimeframeTrendScore >= 60);
   assert.ok(best.trendThesis && best.trendThesis.holdingIntent.includes("multiple days"));
   assert.ok(events.some((event) => event.message === "V14_TREND_PORTFOLIO_ENGINE_ACTIVE"));
   assert.ok(events.some((event) => event.message === "V14_1_AGGRESSIVE_MOMENTUM_UPGRADE_ACTIVE"));
+  assert.ok(events.some((event) => event.message === "V15_MULTI_STRATEGY_PORTFOLIO_ENGINE_ACTIVE"));
   assert.ok(events.some((event) => event.message === "V14_TREND_PORTFOLIO_SCAN_COMPLETED"));
+}
+
+async function testV15PortfolioBacktestAndLearningBuckets() {
+  const { log } = logCollector();
+  const cfg = config({
+    trendPortfolioMode: true,
+    adaptiveLearningEnabled: true,
+    min24hVolumeUsdt: 1000,
+    maxSpreadPct: 0.2,
+    minVolumeSpike: 1.05,
+    minRangeExpansion: 1.05,
+    trendPortfolioMinNetEdgePct: 0.01,
+    trendPortfolioMinRewardCostRatio: 1.05,
+    v15StrategyMinConfidence: 45,
+    v15MinRewardRisk: 0.9,
+  });
+  const report = runV15Backtest(cfg, {
+    BTCUSDT: trendCandles("UP", 100, 130),
+    ETHUSDT: trendCandles("UP", 200, 130),
+    SOLUSDT: trendCandles("DOWN", 50, 130),
+  }, { notionalUsdt: 25, spreadPct: 0.02 });
+  assert.ok(report.results.PORTFOLIO_COMBINED);
+  assert.ok(report.results.TREND_BREAKOUT);
+  assert.ok(report.results.MULTI_TIMEFRAME_TREND);
+  assert.ok(report.results.TREND_PULLBACK);
+  assert.ok(Object.hasOwn(report.results.PORTFOLIO_COMBINED, "profitFactor"));
+  assert.ok(Object.hasOwn(report.results.PORTFOLIO_COMBINED, "sharpeRatio"));
+  assert.ok(Object.hasOwn(report.results.PORTFOLIO_COMBINED, "sortinoRatio"));
+  assert.ok(Object.hasOwn(report.results.PORTFOLIO_COMBINED, "feesPaidUsdt"));
+
+  const adaptive = new AdaptiveEngine(cfg, log);
+  adaptive.recordClosedTrade({
+    id: "v15-learning",
+    status: "CLOSED",
+    symbol: "ETHUSDT",
+    side: "LONG",
+    setupType: "V15_TREND_BREAKOUT",
+    continuationSetupType: "DONCHIAN_BREAKOUT_CONTINUATION",
+    tradeCategory: "V15_MULTI_STRATEGY_PORTFOLIO",
+    strategyId: "TREND_BREAKOUT",
+    strategyCombination: "TREND_BREAKOUT+MULTI_TIMEFRAME_TREND",
+    strategyConfidence: 84,
+    strategyExpectedRewardRisk: 2.1,
+    strategyDynamicExit: "ATR trail",
+    marketRegimeV15: { regime: "TRENDING" },
+    openedAt: "2026-07-03T00:00:00.000Z",
+    exitedAt: "2026-07-03T04:00:00.000Z",
+    holdSeconds: 14400,
+    pnlUsdt: 1.2,
+    grossPnlUsdt: 1.4,
+    feesUsdt: 0.2,
+    signalScore: 84,
+  });
+  assert.equal(adaptive.memory.stats.byStrategy.TREND_BREAKOUT.count, 1);
+  assert.equal(adaptive.memory.stats.byStrategyCombination["TREND_BREAKOUT+MULTI_TIMEFRAME_TREND"].count, 1);
+  assert.equal(adaptive.memory.stats.byHoldingDuration.TWO_TO_6H.count, 1);
+  assert.equal(adaptive.memory.stats.byExitStyle["ATR trail"].count, 1);
+
+  const decision = new PortfolioDecisionEngine(cfg, () => {});
+  assert.equal(typeof decision.evaluate, "function");
 }
 
 async function testV141TrendSizingExpandsHighAndEliteConfidence() {
@@ -5265,6 +5339,7 @@ async function run() {
   await testV13SwingHardStopStillExitsImmediately();
   await testV14TrendPortfolioConfigAndLaunchPath();
   await testV14TrendPortfolioEngineBuildsIndependentThesis();
+  await testV15PortfolioBacktestAndLearningBuckets();
   await testV141TrendSizingExpandsHighAndEliteConfidence();
   await testV14TrendUsesStopOnlyNativeProtection();
   await testV14TrendAdoptsExchangePositionWithoutOrders();

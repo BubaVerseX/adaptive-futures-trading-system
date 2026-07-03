@@ -3,6 +3,7 @@
 const { analyzeCandles, emaDirection, parseCandles } = require("./indicators");
 const { marketRegimeV2, sessionProfile } = require("./marketRegime");
 const { setupTypeFromSignal } = require("./adaptiveEngine");
+const { PortfolioDecisionEngine } = require("./portfolioDecisionEngine");
 
 const TREND_SYMBOLS = Object.freeze(["BTCUSDT", "ETHUSDT", "SOLUSDT"]);
 
@@ -119,6 +120,8 @@ class TrendPortfolioEngine {
     this.focusUniverseLogged = false;
     this.scanErrors = 0;
     this.cachedDirections = Object.fromEntries(TREND_SYMBOLS.map((symbol) => [symbol, "CHOPPY"]));
+    this.portfolioDecision = new PortfolioDecisionEngine(config, log);
+    this.multiStrategyEnabled = Boolean(config.multiStrategyPortfolioEngineEnabled || config.trendPortfolioMode);
   }
 
   async universe() {
@@ -138,6 +141,12 @@ class TrendPortfolioEngine {
         minNetEdgePct: this.config.trendPortfolioMinNetEdgePct,
         minRewardCostRatio: this.config.trendPortfolioMinRewardCostRatio,
         objective: "increase emerging-trend participation without returning to scalping",
+      });
+      this.log("WARN", "V15_MULTI_STRATEGY_PORTFOLIO_ENGINE_ACTIVE", {
+        objective: "replace the single trend decision with modular strategy voting",
+        strategies: ["TREND_BREAKOUT", "MULTI_TIMEFRAME_TREND", "TREND_PULLBACK"],
+        fixedScalpTakeProfitUsed: false,
+        publicConceptsOnly: true,
       });
       this.log("INFO", "V14_TRADING_UNIVERSE_LOCKED", {
         allowedSymbols: TREND_SYMBOLS,
@@ -202,12 +211,22 @@ class TrendPortfolioEngine {
       this.client.getKlines(symbol, this.config.candleIntervalMacro, 90),
       this.client.getKlines(symbol, this.config.candleIntervalMacroLong, 90),
     ]);
+    const entryCandles = parseCandles(entryRaw);
+    const confirmationCandles = parseCandles(confirmationRaw);
+    const trendCandles = parseCandles(trendRaw);
+    const macroCandles = parseCandles(macroRaw);
+    const macroLongCandles = parseCandles(macroLongRaw);
     return {
-      entry: analyzeCandles(parseCandles(entryRaw), 55),
-      confirmation: analyzeCandles(parseCandles(confirmationRaw), 55),
-      trend: analyzeCandles(parseCandles(trendRaw), 55),
-      macro: analyzeCandles(parseCandles(macroRaw), 55),
-      macroLong: analyzeCandles(parseCandles(macroLongRaw), 55),
+      entry: analyzeCandles(entryCandles, 55),
+      confirmation: analyzeCandles(confirmationCandles, 55),
+      trend: analyzeCandles(trendCandles, 55),
+      macro: analyzeCandles(macroCandles, 55),
+      macroLong: analyzeCandles(macroLongCandles, 55),
+      entryCandles,
+      confirmationCandles,
+      trendCandles,
+      macroCandles,
+      macroLongCandles,
     };
   }
 
@@ -548,6 +567,233 @@ class TrendPortfolioEngine {
     }
   }
 
+  buildV15PortfolioSignal(item, analyses, marketProfile, options = {}) {
+    const decision = this.portfolioDecision.evaluate({
+      symbol: item.info.symbol,
+      price: item.price,
+      spreadPct: item.spreadPct,
+      volume: item.volume,
+      analyses,
+      marketProfile,
+      onlySide: options.onlySide,
+    });
+    const side = decision.side || options.onlySide || "LONG";
+    const expected = directionForSide(side);
+    const opposite = oppositeForSide(side);
+    const directions = {
+      entry15m: decision.marketRegime.directions.entry,
+      confirmation1h: decision.marketRegime.directions.confirmation,
+      trend4h: decision.marketRegime.directions.trend,
+      macro1d: decision.marketRegime.directions.macro,
+      macroLong: decision.marketRegime.directions.macroLong,
+    };
+    const volumeSpike = Math.max(analyses.entry.volumeSpike, analyses.confirmation.volumeSpike, analyses.trend.volumeSpike);
+    const rangeExpansion = Math.max(analyses.entry.rangeExpansion, analyses.confirmation.rangeExpansion, analyses.trend.rangeExpansion);
+    const volatilityExpansion = Math.max(analyses.entry.atrPct, analyses.confirmation.atrPct, analyses.trend.atrPct);
+    const momentum15m = directedMomentum(side, analyses.entry);
+    const momentum1h = directedMomentum(side, analyses.confirmation);
+    const momentum4h = directedMomentum(side, analyses.trend);
+    const momentumPersistenceCandles = Math.max(
+      side === "LONG" ? analyses.entry.upMomentumCandles : analyses.entry.downMomentumCandles,
+      side === "LONG" ? analyses.confirmation.upMomentumCandles : analyses.confirmation.downMomentumCandles,
+      side === "LONG" ? analyses.trend.upMomentumCandles : analyses.trend.downMomentumCandles
+    );
+    const breadth = portfolioBreadth(side, {
+      ...this.cachedDirections,
+      [item.info.symbol]: directions.confirmation1h,
+    });
+    const baseSignal = {
+      symbol: item.info.symbol,
+      side,
+      score: decision.confidence,
+      rejected: decision.rejectionReasons,
+      setupType: decision.setupType,
+      continuationSetupType: decision.continuationSetupType,
+      tradeCategory: decision.qualityTier === "ELITE" ? "ELITE_SETUP" : "V15_MULTI_STRATEGY_PORTFOLIO",
+      explorationTrade: false,
+    };
+    const adaptive = this.applyAdaptiveGuidance(baseSignal);
+    const finalScore = clampScore(decision.confidence + adaptive.scoreAdjustment);
+    const finalTier = decision.eligible ? qualityTier(this.config, finalScore) : "REJECT";
+    const eligible = decision.eligible && finalTier !== "REJECT" && finalScore >= this.config.trendPortfolioMinScore;
+    const confidenceClass = finalTier === "ELITE" ? "ELITE" : finalTier === "STRONG" ? "HIGH" : finalTier === "NORMAL" ? "STANDARD" : "REJECT";
+    const signal = {
+      symbol: item.info.symbol,
+      info: item.info,
+      side,
+      price: item.price,
+      score: finalScore,
+      baseScore: decision.confidence,
+      requiredScore: this.config.trendPortfolioMinScore,
+      requiredConvictionScore: this.config.trendPortfolioMinScore,
+      convictionScore: finalScore,
+      technicalConvictionScore: decision.confidence,
+      adaptiveConfidence: adaptive.confidence,
+      adaptiveScoreAdjustment: adaptive.scoreAdjustment,
+      adaptiveRiskMultiplier: adaptive.riskMultiplier,
+      adaptiveLeverageMultiplier: adaptive.leverageMultiplier,
+      adaptivePolicyMode: adaptive.policyMode,
+      adaptiveReasons: adaptive.reasons,
+      rejected: eligible ? [] : decision.rejectionReasons,
+      eligible,
+      tradeQualityTier: finalTier,
+      confidenceClass,
+      scannerQualityTier: finalTier,
+      qualityTier: finalTier,
+      profitQualityTier: finalTier,
+      tradeQualification: {
+        tier: finalTier,
+        category: eligible ? "ACCEPTED" : "V15_PORTFOLIO_REJECTED",
+        reason: eligible ? "V15 weighted portfolio strategy decision accepted" : decision.rejectionReasons[0] || "V15 weighted strategy confidence below threshold",
+        assignedBy: "portfolioDecisionEngine.js",
+        scalpDecisionLogicReused: false,
+      },
+      tradeQualityAssignedBy: "portfolioDecisionEngine.js",
+      rejectionCategory: eligible ? "ACCEPTED" : "V15_PORTFOLIO_DECISION",
+      rejectionReason: eligible ? null : decision.rejectionReasons[0] || "V15 no trade",
+      setupType: decision.setupType,
+      tradeCategory: finalTier === "ELITE" ? "ELITE_SETUP" : "V15_MULTI_STRATEGY_PORTFOLIO",
+      explorationTrade: false,
+      forcedMarketSampling: false,
+      eliteSetup: finalTier === "ELITE",
+      highQualityContinuation: finalTier === "STRONG" || finalTier === "ELITE",
+      eliteContinuationCandidate: finalTier === "ELITE",
+      continuationStrength: Number(bounded(
+        decision.confidence * 0.55 +
+          Math.max(0, momentum1h) * 5 +
+          Math.max(0, momentum4h) * 2.5 +
+          (decision.supportingStrategies.includes("TREND_BREAKOUT") ? 10 : 0) +
+          (decision.supportingStrategies.length >= 2 ? 8 : 0),
+        0,
+        100
+      ).toFixed(2)),
+      continuationSetupType: decision.continuationSetupType,
+      continuationComponents: {
+        strategyCombination: decision.strategyCombination,
+        supportingStrategies: decision.supportingStrategies,
+        opposingStrategies: decision.opposingStrategies,
+        volumeSpike: Number(volumeSpike.toFixed(3)),
+        rangeExpansion: Number(rangeExpansion.toFixed(3)),
+        expectedRewardRisk: decision.expectedRewardRisk,
+      },
+      continuationBreakout: decision.supportingStrategies.includes("TREND_BREAKOUT"),
+      pullbackContinuation: decision.supportingStrategies.includes("TREND_PULLBACK"),
+      breakoutRetest: decision.supportingStrategies.includes("TREND_BREAKOUT") && decision.supportingStrategies.includes("MULTI_TIMEFRAME_TREND"),
+      momentumResumption: decision.supportingStrategies.includes("MULTI_TIMEFRAME_TREND") || decision.supportingStrategies.includes("TREND_PULLBACK"),
+      trendAcceleration: momentum15m > momentum1h && momentum1h >= 0,
+      trendThesis: {
+        key: null,
+        expected,
+        directions,
+        mtfScore: decision.confidence,
+        thesis: eligible ? `V15 ${decision.strategyCombination} trend thesis` : "No qualified V15 portfolio thesis",
+        holdingIntent: "2h to 24h preferred; multiple days while V15 trend thesis remains valid",
+        strategyCombination: decision.strategyCombination,
+      },
+      trendThesisKey: null,
+      swingSignalFingerprint: null,
+      trend15m: directions.entry15m,
+      trend5m: directions.entry15m,
+      trend1h: directions.confirmation1h,
+      trend4h: directions.trend4h,
+      macroTrend: directions.macro1d,
+      macroAligned: directions.macro1d === expected || directions.macroLong === expected,
+      macroContradicts: directions.macro1d === opposite || directions.macroLong === opposite,
+      multiTimeframeAligned: decision.marketRegime.directions.confirmation === expected && decision.marketRegime.directions.trend === expected,
+      earlyTrendParticipation: false,
+      multiTimeframeTrendScore: decision.confidence,
+      multiTimeframeDirections: directions,
+      multiTimeframeAllAligned: Object.values(directions).every((direction) => direction === expected),
+      multiTimeframeTrendAndMacroOpposite: directions.trend4h === opposite && directions.macro1d === opposite,
+      multiTimeframeMacroOpposite: directions.macro1d === opposite || directions.macroLong === opposite,
+      marketBreadthScore: breadth.score,
+      marketBreadthDirections: breadth.directions,
+      marketBreadthAlignedCount: breadth.alignedCount,
+      marketBreadthConflictCount: breadth.conflictCount,
+      portfolioAlphaScore: breadth.score,
+      portfolioAlphaAlignedCount: breadth.alignedCount,
+      portfolioAlphaConflictCount: breadth.conflictCount,
+      btcTrendScore: breadth.directions.BTCUSDT === expected ? 100 : breadth.directions.BTCUSDT === opposite ? 0 : 50,
+      ethTrendScore: breadth.directions.ETHUSDT === expected ? 100 : breadth.directions.ETHUSDT === opposite ? 0 : 50,
+      solTrendScore: breadth.directions.SOLUSDT === expected ? 100 : breadth.directions.SOLUSDT === opposite ? 0 : 50,
+      btcTrendAligned: breadth.directions.BTCUSDT === expected,
+      btcTrend: breadth.directions.BTCUSDT,
+      ethTrend: breadth.directions.ETHUSDT,
+      rsi: analyses.confirmation.rsi14,
+      atrPct: volatilityExpansion,
+      entryMomentumPct: momentum15m,
+      momentum1mPct: momentum15m,
+      momentum5mPct: momentum1h,
+      momentum4hPct: momentum4h,
+      momentumPersistenceCandles,
+      volumeSpike,
+      volumeCondition: volumeSpike >= this.config.minVolumeSpike + 0.35 ? "STRONG_VOLUME_SPIKE" : volumeSpike >= this.config.minVolumeSpike ? "CONFIRMED_VOLUME" : "LOW_VOLUME",
+      volatilityRegime: decision.marketRegime.regime === "HIGH_VOLATILITY" ? "HIGH_VOLATILITY" : volatilityExpansion < 0.12 ? "LOW_VOLATILITY" : "NORMAL",
+      spreadPct: item.spreadPct,
+      liquidityScore: Number(bounded(80 - item.spreadPct * 80 + Math.min(18, Math.log10(Math.max(1, item.volume / this.config.min24hVolumeUsdt)) * 8), 0, 100).toFixed(2)),
+      trendQualityScore: Number(bounded(decision.confidence * 0.72 + (decision.supportingStrategies.length >= 2 ? 12 : 0), 0, 100).toFixed(2)),
+      antiChopScore: decision.marketRegime.regime === "RANGE" || decision.marketRegime.regime === "LOW_VOLATILITY" ? 1 : 0,
+      expectedMovePct: decision.expectedMovePct,
+      takeProfitDistancePct: decision.expectedMovePct,
+      stopDistancePct: Math.max(this.config.stopLossPct, decision.stopDistancePct),
+      estimatedRoundTripCostPct: decision.estimatedRoundTripCostPct,
+      projectedNetEdgePct: decision.projectedNetEdgePct,
+      smartProjectedNetEdgePct: decision.projectedNetEdgePct,
+      feeEdgeRatio: decision.feeEdgeRatio,
+      roundTripFeePct: this.config.estimatedFeePctPerSide * 2,
+      estimatedSlippagePct: this.config.estimatedSlippagePct,
+      estimatedTpProbability: Number(bounded(0.34 + finalScore / 210 + decision.supportingStrategies.length * 0.03, 0.2, 0.84).toFixed(3)),
+      executionType: decision.dominantStrategy && decision.dominantStrategy.strategyId === "TREND_BREAKOUT" && finalTier === "ELITE" ? "MARKET_TAKER" : "POST_ONLY_LIMIT",
+      intendedExecutionType: decision.dominantStrategy && decision.dominantStrategy.strategyId === "TREND_BREAKOUT" && finalTier === "ELITE" ? "MARKET_TAKER" : "POST_ONLY_LIMIT",
+      marketRegimeType: marketProfile && marketProfile.primary,
+      marketRegimeTags: marketProfile && marketProfile.tags,
+      marketRegimeConfidence: marketProfile && marketProfile.confidence,
+      marketRegimeReasons: marketProfile && marketProfile.reasons,
+      marketRegimeV2: decision.marketRegime.regime,
+      marketPersonality: "V15_MULTI_STRATEGY_PORTFOLIO",
+      regime: marketProfile && marketProfile.direction,
+      regimeAggressionMultiplier: 1,
+      regimeRiskMultiplier: decision.marketRegime.regime === "HIGH_VOLATILITY" ? 0.92 : 1,
+      regimeLeverageMultiplier: 1,
+      regimeHoldMultiplier: 1.55,
+      regimeTrailingDistanceMultiplier: decision.marketRegime.regime === "HIGH_VOLATILITY" ? 1.25 : 1.45,
+      sessionType: sessionProfile().session,
+      sessionRegime: sessionProfile().sessionRegime,
+      sessionHourUtc: sessionProfile().hourUtc,
+      scoreBreakdown: decision.scoreBreakdown,
+      reasons: decision.scoreBreakdown,
+      trendPortfolioMode: true,
+      v15MultiStrategyPortfolioMode: true,
+      strategyId: decision.dominantStrategy && decision.dominantStrategy.strategyId,
+      strategyConfidence: decision.dominantStrategy && decision.dominantStrategy.confidence,
+      strategyCombination: decision.strategyCombination,
+      strategyOutputs: decision.strategyOutputs,
+      strategyContributions: decision.strategyOutputs.map((output) => ({
+        strategyId: output.strategyId,
+        direction: output.direction,
+        confidence: output.confidence,
+        weight: output.portfolioWeight,
+        enabled: output.enabled,
+        reason: output.reason,
+      })),
+      strategyVotes: decision.votes,
+      strategyPreferredHoldingTimeSeconds: decision.preferredHoldingTimeSeconds,
+      strategyPositionSizeMultiplier: decision.positionSizeMultiplier,
+      strategyExpectedRewardRisk: decision.expectedRewardRisk,
+      strategyDynamicExit: decision.dynamicExit,
+      marketRegimeV15: decision.marketRegime,
+      microBreakoutTriggered: false,
+      fomoTrigger: false,
+      fastMode: false,
+    };
+    signal.trendThesis.key = trendThesisKey(signal);
+    signal.trendThesisKey = signal.trendThesis.key;
+    signal.swingSignalFingerprint = `${signal.trendThesis.key}:${signal.strategyCombination}`;
+    signal.eliteConditionKey = signal.swingSignalFingerprint;
+    if (!signal.setupType) signal.setupType = setupTypeFromSignal(signal);
+    return signal;
+  }
+
   async analyzeSymbol(item, marketProfile) {
     try {
       const analyses = await this.candleSet(item.info.symbol);
@@ -556,6 +802,9 @@ class TrendPortfolioEngine {
         return null;
       }
       this.cachedDirections[item.info.symbol] = emaDirection(analyses.confirmation);
+      if (this.multiStrategyEnabled) {
+        return this.buildV15PortfolioSignal(item, analyses, marketProfile);
+      }
       const longSignal = this.config.allowLongs ? this.scoreSide("LONG", item, analyses, marketProfile) : null;
       const shortSignal = this.config.allowShorts ? this.scoreSide("SHORT", item, analyses, marketProfile) : null;
       return [longSignal, shortSignal].filter(Boolean).sort((left, right) => right.score - left.score)[0] || null;
@@ -653,6 +902,9 @@ class TrendPortfolioEngine {
     };
     const analyses = await this.candleSet(position.symbol);
     if (!analyses.entry || !analyses.confirmation || !analyses.trend || !analyses.macro || !analyses.macroLong) return null;
+    if (this.multiStrategyEnabled) {
+      return this.buildV15PortfolioSignal(item, analyses, marketProfile || { direction: "CHOPPY", tags: [] }, { onlySide: position.side });
+    }
     return this.scoreSide(position.side, item, analyses, marketProfile || { direction: "CHOPPY", tags: [] });
   }
 }

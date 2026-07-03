@@ -112,6 +112,16 @@ function costBucket(value) {
   ]);
 }
 
+function holdingDurationBucket(seconds) {
+  return bucketNumber(seconds, [
+    { max: 2 * 60 * 60, name: "UNDER_2H" },
+    { max: 6 * 60 * 60, name: "TWO_TO_6H" },
+    { max: 24 * 60 * 60, name: "SIX_TO_24H" },
+    { max: 3 * 24 * 60 * 60, name: "ONE_TO_3D" },
+    { max: Number.POSITIVE_INFINITY, name: "MULTI_DAY" },
+  ]);
+}
+
 function summarize(records) {
   const summary = {
     count: records.length,
@@ -329,6 +339,16 @@ class AdaptiveEngine {
       trendQualityScore: numeric(trade.trendQualityScore),
       antiChopScore: numeric(trade.antiChopScore),
       tradeCategory: trade.tradeCategory || (trade.explorationTrade ? "EXPLORATION" : "HIGH_CONVICTION"),
+      strategyId: trade.strategyId || "UNKNOWN_STRATEGY",
+      strategyCombination: trade.strategyCombination || trade.strategyId || "UNKNOWN_COMBINATION",
+      strategyConfidence: numeric(trade.strategyConfidence),
+      strategyExpectedRewardRisk: numeric(trade.strategyExpectedRewardRisk),
+      strategyPreferredHoldingTimeSeconds: numeric(trade.strategyPreferredHoldingTimeSeconds),
+      strategyDynamicExit: trade.strategyDynamicExit || resultType(trade.exitReason),
+      strategyContributions: Array.isArray(trade.strategyContributions) ? trade.strategyContributions : [],
+      holdingDurationBucket: holdingDurationBucket(numeric(trade.holdSeconds)),
+      exitStyle: trade.strategyDynamicExit || resultType(trade.exitReason),
+      marketRegimeV15: trade.marketRegimeV15 && trade.marketRegimeV15.regime ? trade.marketRegimeV15.regime : trade.marketRegimeV15 || "UNKNOWN",
       explorationTrade: Boolean(trade.explorationTrade),
       isReentry: Boolean(trade.isReentry || trade.intelligentReentryTriggered),
       isFlip: Boolean(trade.isFlip),
@@ -472,6 +492,13 @@ class AdaptiveEngine {
     const bySizeTier = groupBy(records, (record) => record.sizingTier || record.convictionTier || record.edgeTier || "UNKNOWN");
     const byContinuationFlip = groupBy(records, (record) => record.continuationVsFlip || (record.isFlip ? "FLIP" : "OTHER"));
     const byExecutionType = groupBy(records, (record) => record.executionType || "UNKNOWN");
+    const byStrategy = groupBy(records, (record) => record.strategyId || "UNKNOWN_STRATEGY");
+    const byStrategyCombination = groupBy(records, (record) => record.strategyCombination || record.strategyId || "UNKNOWN_COMBINATION");
+    const byStrategyRegime = groupBy(records, (record) =>
+      `${record.strategyCombination || record.strategyId || "UNKNOWN"}:${record.marketRegimeV15 || record.marketRegimeType || record.marketRegime || "UNKNOWN"}`
+    );
+    const byHoldingDuration = groupBy(records, (record) => record.holdingDurationBucket || holdingDurationBucket(record.holdingTimeSeconds));
+    const byExitStyle = groupBy(records, (record) => record.exitStyle || record.result || "UNKNOWN_EXIT");
 
     this.memory.stats = {
       all: summarize(records),
@@ -500,6 +527,11 @@ class AdaptiveEngine {
       bySizeTier,
       byContinuationFlip,
       byExecutionType,
+      byStrategy,
+      byStrategyCombination,
+      byStrategyRegime,
+      byHoldingDuration,
+      byExitStyle,
       bestSymbols: leaderboard(bySymbol, "best"),
       worstSymbols: leaderboard(bySymbol, "worst"),
       bestSetups: leaderboard(bySetupType, "best"),
@@ -511,6 +543,12 @@ class AdaptiveEngine {
       bestEliteConditions: leaderboard(byEliteCondition, "best"),
       bestContinuationSetups: leaderboard(byContinuationSetup, "best"),
       worstContinuationSetups: leaderboard(byContinuationSetup, "worst"),
+      bestStrategies: leaderboard(byStrategy, "best"),
+      worstStrategies: leaderboard(byStrategy, "worst"),
+      bestStrategyCombinations: leaderboard(byStrategyCombination, "best"),
+      worstStrategyCombinations: leaderboard(byStrategyCombination, "worst"),
+      bestHoldingDurations: leaderboard(byHoldingDuration, "best"),
+      bestExitStyles: leaderboard(byExitStyle, "best"),
       bestSymbolSpecializations: leaderboard(bySymbolPersonality, "best"),
       drawdown: drawdown(records),
     };
