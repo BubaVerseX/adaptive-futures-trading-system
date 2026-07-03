@@ -513,6 +513,17 @@ class RiskManager {
         effectiveFloor,
         effectiveCeiling
       );
+      const strategyCapitalTargetUsdt = Number(signal.strategyCapitalTargetUsdt || 0);
+      if (this.config.trendPortfolioMode && strategyCapitalTargetUsdt > 0) {
+        targetMarginUsdt = bounded(
+          strategyCapitalTargetUsdt,
+          Math.min(effectiveFloor, strategyCapitalTargetUsdt),
+          effectiveCeiling
+        );
+        reasonsForSizingTier.push(
+          `V16 portfolio confidence selected ${Number(targetMarginUsdt.toFixed(4))} USDT target margin before exchange/risk caps`
+        );
+      }
       reasonsForSizingTier.push(
         `${this.config.trendPortfolioMode ? "V14 trend portfolio" : "V13 swing"} margin target ${Number(targetMarginUsdt.toFixed(4))} USDT within earned ${convictionTier} budget`
       );

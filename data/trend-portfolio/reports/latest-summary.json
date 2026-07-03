@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-07-03T12:10:48.683Z",
+  "generatedAt": "2026-07-03T12:44:44.834Z",
   "objective": "MAXIMIZE_DAILY_REALIZED_NET_PNL_WITH_QUALIFIED_HIGH_ACTIVITY",
   "account": {
     "equity": {
       "startingUsdt": 100,
-      "realizedPnlUsdt": -0.16941751999999252,
-      "currentUsdt": 63.366646
+      "realizedPnlUsdt": -0.169418,
+      "currentUsdt": 63.349348
     },
     "openPositions": 1,
     "totalCostsUsdt": 0.317217,

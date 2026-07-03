@@ -2,14 +2,14 @@
   "version": 1,
   "exchange": "BYBIT_V5_LINEAR",
   "strategyProfile": "BYBIT_ADAPTIVE_STAT_SCALP_V2",
-  "updatedAt": "2026-07-03T12:12:14.209Z",
+  "updatedAt": "2026-07-03T12:45:52.026Z",
   "mode": "LIVE",
   "paused": false,
   "pauseReason": null,
   "equity": {
     "startingUsdt": 100,
-    "realizedPnlUsdt": -0.16941751999999252,
-    "currentUsdt": 63.373171
+    "realizedPnlUsdt": -0.169418,
+    "currentUsdt": 63.355437
   },
   "daily": {
     "date": "2026-07-03",
@@ -22,11 +22,11 @@
     "closedTrades": 7,
     "explorationTrades": 0,
     "recoveryModeActive": true,
-    "recoveryPnlPct": -0.2229,
+    "recoveryPnlPct": -0.2386,
     "recoveryLosingStreak": 0,
     "recoveryNoticeKey": "2026-07-03:0:0:5",
     "profitProtectionActive": false,
-    "profitProtectionPnlPct": -0.2229
+    "profitProtectionPnlPct": -0.2386
   },
   "ladder": {
     "activeLevel": 1,
@@ -64,9 +64,9 @@
       "runnerStopMovedToBreakeven": false,
       "runnerExtensionCount": 0,
       "peakPrice": 81.71,
-      "adversePrice": 81.41,
+      "adversePrice": 81.2,
       "maximumFavorableExcursionPct": 0.2946,
-      "maximumAdverseExcursionPct": 0.0736,
+      "maximumAdverseExcursionPct": 0.3314,
       "trailingStopPrice": null,
       "openedAt": "2026-07-03T11:48:42.253Z",
       "plannedEntryPrice": 81.41,
@@ -298,7 +298,7 @@
   ],
   "lastPrices": {
     "BTCUSDT": 61777.4,
-    "SOLUSDT": 81.53,
+    "SOLUSDT": 81.37,
     "ETHUSDT": 1702.44
   },
   "symbolCooldowns": {
@@ -395,6 +395,12 @@
   "trendPortfolio": {
     "namespace": "data/trend-portfolio",
     "aggressiveMomentumMode": true,
+    "multiStrategyPortfolioEngineEnabled": true,
+    "strategies": [
+      "TREND_BREAKOUT",
+      "MULTI_TIMEFRAME_TREND",
+      "TREND_PULLBACK"
+    ],
     "priorScalpingMemoryIsolated": true
   },
   "telegramUpdateOffset": 0

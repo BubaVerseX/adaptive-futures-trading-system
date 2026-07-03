@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-07-03T11:08:44.884Z",
+  "updatedAt": "2026-07-03T12:34:25.794Z",
   "trades": [
     {
       "id": "x10-adopted-1783003701896-92095",
@@ -2922,6 +2922,121 @@
         "profitFactor": 0.689
       }
     },
+    "byStrategy": {
+      "UNKNOWN_STRATEGY": {
+        "count": 13,
+        "wins": 4,
+        "losses": 9,
+        "winRatePct": 30.77,
+        "totalPnlUsdt": -0.169418,
+        "totalPnlPct": -1.6738,
+        "feeAdjustedPnlUsdt": -0.169418,
+        "totalFeesUsdt": 0.317217,
+        "averagePnlUsdt": -0.013032,
+        "averagePnlPct": -0.1288,
+        "averageHoldSeconds": 7724.57,
+        "averageSlippagePct": 0.0159,
+        "profitFactor": 0.689
+      }
+    },
+    "byStrategyCombination": {
+      "UNKNOWN_COMBINATION": {
+        "count": 13,
+        "wins": 4,
+        "losses": 9,
+        "winRatePct": 30.77,
+        "totalPnlUsdt": -0.169418,
+        "totalPnlPct": -1.6738,
+        "feeAdjustedPnlUsdt": -0.169418,
+        "totalFeesUsdt": 0.317217,
+        "averagePnlUsdt": -0.013032,
+        "averagePnlPct": -0.1288,
+        "averageHoldSeconds": 7724.57,
+        "averageSlippagePct": 0.0159,
+        "profitFactor": 0.689
+      }
+    },
+    "byStrategyRegime": {
+      "UNKNOWN:UNKNOWN": {
+        "count": 2,
+        "wins": 1,
+        "losses": 1,
+        "winRatePct": 50,
+        "totalPnlUsdt": 0.11197,
+        "totalPnlPct": -0.9139,
+        "feeAdjustedPnlUsdt": 0.11197,
+        "totalFeesUsdt": 0.144629,
+        "averagePnlUsdt": 0.055985,
+        "averagePnlPct": -0.4569,
+        "averageHoldSeconds": 6764.3,
+        "averageSlippagePct": 0,
+        "profitFactor": 2.047
+      },
+      "UNKNOWN:SIDEWAYS_CHOP_MARKET": {
+        "count": 11,
+        "wins": 3,
+        "losses": 8,
+        "winRatePct": 27.27,
+        "totalPnlUsdt": -0.281388,
+        "totalPnlPct": -0.7599,
+        "feeAdjustedPnlUsdt": -0.281388,
+        "totalFeesUsdt": 0.172588,
+        "averagePnlUsdt": -0.025581,
+        "averagePnlPct": -0.0691,
+        "averageHoldSeconds": 7899.16,
+        "averageSlippagePct": 0.0188,
+        "profitFactor": 0.358
+      }
+    },
+    "byHoldingDuration": {
+      "UNDER_2H": {
+        "count": 1,
+        "wins": 0,
+        "losses": 1,
+        "winRatePct": 0,
+        "totalPnlUsdt": -0.106916,
+        "totalPnlPct": -1.2017,
+        "feeAdjustedPnlUsdt": -0.106916,
+        "totalFeesUsdt": 0.008915,
+        "averagePnlUsdt": -0.106916,
+        "averagePnlPct": -1.2017,
+        "averageHoldSeconds": 3720.3,
+        "averageSlippagePct": 0,
+        "profitFactor": 0
+      },
+      "TWO_TO_6H": {
+        "count": 12,
+        "wins": 4,
+        "losses": 8,
+        "winRatePct": 33.33,
+        "totalPnlUsdt": -0.062502,
+        "totalPnlPct": -0.4721,
+        "feeAdjustedPnlUsdt": -0.062502,
+        "totalFeesUsdt": 0.308302,
+        "averagePnlUsdt": -0.005209,
+        "averagePnlPct": -0.0393,
+        "averageHoldSeconds": 8058.26,
+        "averageSlippagePct": 0.0172,
+        "profitFactor": 0.857
+      }
+    },
+    "byExitStyle": {
+      "OTHER_EXIT": {
+        "count": 13,
+        "wins": 4,
+        "losses": 9,
+        "winRatePct": 30.77,
+        "totalPnlUsdt": -0.169418,
+        "totalPnlPct": -1.6738,
+        "feeAdjustedPnlUsdt": -0.169418,
+        "totalFeesUsdt": 0.317217,
+        "averagePnlUsdt": -0.013032,
+        "averagePnlPct": -0.1288,
+        "averageHoldSeconds": 7724.57,
+        "averageSlippagePct": 0.0159,
+        "profitFactor": 0.689
+      }
+    },
     "bestSymbols": [
       {
         "key": "BTCUSDT",
@@ -3566,6 +3681,130 @@
         "averageHoldSeconds": 6764.3,
         "averageSlippagePct": 0,
         "profitFactor": 2.047
+      }
+    ],
+    "bestStrategies": [
+      {
+        "key": "UNKNOWN_STRATEGY",
+        "count": 13,
+        "wins": 4,
+        "losses": 9,
+        "winRatePct": 30.77,
+        "totalPnlUsdt": -0.169418,
+        "totalPnlPct": -1.6738,
+        "feeAdjustedPnlUsdt": -0.169418,
+        "totalFeesUsdt": 0.317217,
+        "averagePnlUsdt": -0.013032,
+        "averagePnlPct": -0.1288,
+        "averageHoldSeconds": 7724.57,
+        "averageSlippagePct": 0.0159,
+        "profitFactor": 0.689
+      }
+    ],
+    "worstStrategies": [
+      {
+        "key": "UNKNOWN_STRATEGY",
+        "count": 13,
+        "wins": 4,
+        "losses": 9,
+        "winRatePct": 30.77,
+        "totalPnlUsdt": -0.169418,
+        "totalPnlPct": -1.6738,
+        "feeAdjustedPnlUsdt": -0.169418,
+        "totalFeesUsdt": 0.317217,
+        "averagePnlUsdt": -0.013032,
+        "averagePnlPct": -0.1288,
+        "averageHoldSeconds": 7724.57,
+        "averageSlippagePct": 0.0159,
+        "profitFactor": 0.689
+      }
+    ],
+    "bestStrategyCombinations": [
+      {
+        "key": "UNKNOWN_COMBINATION",
+        "count": 13,
+        "wins": 4,
+        "losses": 9,
+        "winRatePct": 30.77,
+        "totalPnlUsdt": -0.169418,
+        "totalPnlPct": -1.6738,
+        "feeAdjustedPnlUsdt": -0.169418,
+        "totalFeesUsdt": 0.317217,
+        "averagePnlUsdt": -0.013032,
+        "averagePnlPct": -0.1288,
+        "averageHoldSeconds": 7724.57,
+        "averageSlippagePct": 0.0159,
+        "profitFactor": 0.689
+      }
+    ],
+    "worstStrategyCombinations": [
+      {
+        "key": "UNKNOWN_COMBINATION",
+        "count": 13,
+        "wins": 4,
+        "losses": 9,
+        "winRatePct": 30.77,
+        "totalPnlUsdt": -0.169418,
+        "totalPnlPct": -1.6738,
+        "feeAdjustedPnlUsdt": -0.169418,
+        "totalFeesUsdt": 0.317217,
+        "averagePnlUsdt": -0.013032,
+        "averagePnlPct": -0.1288,
+        "averageHoldSeconds": 7724.57,
+        "averageSlippagePct": 0.0159,
+        "profitFactor": 0.689
+      }
+    ],
+    "bestHoldingDurations": [
+      {
+        "key": "TWO_TO_6H",
+        "count": 12,
+        "wins": 4,
+        "losses": 8,
+        "winRatePct": 33.33,
+        "totalPnlUsdt": -0.062502,
+        "totalPnlPct": -0.4721,
+        "feeAdjustedPnlUsdt": -0.062502,
+        "totalFeesUsdt": 0.308302,
+        "averagePnlUsdt": -0.005209,
+        "averagePnlPct": -0.0393,
+        "averageHoldSeconds": 8058.26,
+        "averageSlippagePct": 0.0172,
+        "profitFactor": 0.857
+      },
+      {
+        "key": "UNDER_2H",
+        "count": 1,
+        "wins": 0,
+        "losses": 1,
+        "winRatePct": 0,
+        "totalPnlUsdt": -0.106916,
+        "totalPnlPct": -1.2017,
+        "feeAdjustedPnlUsdt": -0.106916,
+        "totalFeesUsdt": 0.008915,
+        "averagePnlUsdt": -0.106916,
+        "averagePnlPct": -1.2017,
+        "averageHoldSeconds": 3720.3,
+        "averageSlippagePct": 0,
+        "profitFactor": 0
+      }
+    ],
+    "bestExitStyles": [
+      {
+        "key": "OTHER_EXIT",
+        "count": 13,
+        "wins": 4,
+        "losses": 9,
+        "winRatePct": 30.77,
+        "totalPnlUsdt": -0.169418,
+        "totalPnlPct": -1.6738,
+        "feeAdjustedPnlUsdt": -0.169418,
+        "totalFeesUsdt": 0.317217,
+        "averagePnlUsdt": -0.013032,
+        "averagePnlPct": -0.1288,
+        "averageHoldSeconds": 7724.57,
+        "averageSlippagePct": 0.0159,
+        "profitFactor": 0.689
       }
     ],
     "bestSymbolSpecializations": [
