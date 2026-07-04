@@ -16,6 +16,14 @@ const { TrendPortfolioEngine } = require("../src/trendPortfolioEngine");
 const { PortfolioDecisionEngine } = require("../src/portfolioDecisionEngine");
 const { runV15Backtest } = require("../src/backtestEngine");
 const { StrategyManager } = require("../src/strategyManager");
+const { QuantIntelligenceEngine, capitalTargetForQuantConfidence, summarizeFactorTrades } = require("../src/quantIntelligenceEngine");
+const {
+  InstitutionalQuantEngine,
+  capitalTargetForInstitutionalConfidence,
+  gradeTradeQuality,
+  summarizeInstitutionalTrades,
+  walkForwardValidation: institutionalWalkForwardValidation,
+} = require("../src/institutionalQuantEngine");
 const { createDefaultStrategies } = require("../src/strategies/quantStrategies");
 const { validateStrategyInterface } = require("../src/strategies/interface");
 const { AdaptiveEngine } = require("../src/adaptiveEngine");
@@ -81,6 +89,8 @@ const ISOLATED_ENV_DEFAULTS = Object.freeze({
   PROFIT_EXPANSION_MODE: "false",
   ACTIVE_OPPORTUNITY_MODE: "false",
   QUANT_RESEARCH_PLATFORM_MODE: "false",
+  QUANT_INTELLIGENCE_ENGINE_MODE: "false",
+  INSTITUTIONAL_QUANT_ENGINE_MODE: "false",
   EXPLORATION_MODE_ENABLED: "true",
   EXPLORATION_TRADE_RATIO: "0.55",
   FORCED_MARKET_SAMPLING_ENABLED: "true",
@@ -569,6 +579,25 @@ async function testClientContracts() {
   });
   assert.equal(calls[2].endpoint, "/v5/position/trading-stop");
   assert.equal(calls[2].body.trailingStop, "0.5");
+
+  const marketClient = new BybitClient(config(), log);
+  const publicCalls = [];
+  marketClient.publicGet = async (endpoint, params) => {
+    publicCalls.push({ endpoint, params });
+    if (endpoint === "/v5/market/tickers") {
+      return { list: [{ symbol: params.symbol, fundingRate: "0.0002", nextFundingTime: "1700000000000" }] };
+    }
+    if (endpoint === "/v5/market/open-interest") {
+      return { list: [{ openInterest: "1000", timestamp: "1" }, { openInterest: "1030", timestamp: "2" }] };
+    }
+    return { list: [] };
+  };
+  const funding = await marketClient.getFundingRate("BTCUSDT");
+  assert.equal(funding.ratePct, 0.02);
+  const openInterest = await marketClient.getOpenInterestHistory("BTCUSDT", "5min", 2);
+  assert.equal(openInterest.length, 2);
+  assert.equal(openInterest[1].openInterest, 1030);
+  assert.ok(publicCalls.some((call) => call.endpoint === "/v5/market/open-interest"));
 }
 
 async function testSignedRestHeaders() {
@@ -4818,6 +4847,15 @@ async function testV14TrendPortfolioConfigAndLaunchPath() {
   assert.equal(loaded.trendPortfolioMinRewardCostRatio, 1.8);
   assert.equal(loaded.multiStrategyPortfolioEngineEnabled, true);
   assert.equal(loaded.quantResearchPlatformMode, true);
+  assert.equal(loaded.quantIntelligenceEngineMode, true);
+  assert.equal(loaded.institutionalQuantEngineMode, true);
+  assert.equal(loaded.v19MinConfidence, 45);
+  assert.equal(loaded.v19CapitalTierEliteUsdt, 64);
+  assert.equal(loaded.v20MinConfidence, 45);
+  assert.equal(loaded.v20CapitalTierExplorationUsdt, 20);
+  assert.equal(loaded.v20CapitalTierNormalUsdt, 32);
+  assert.equal(loaded.v20CapitalTierStrongUsdt, 48);
+  assert.equal(loaded.v20CapitalTierEliteUsdt, 64);
   assert.equal(loaded.v15TrendBreakoutWeight, 0.25);
   assert.equal(loaded.v15MultiTimeframeTrendWeight, 0.45);
   assert.equal(loaded.v15TrendPullbackWeight, 0.3);
@@ -4847,6 +4885,8 @@ async function testV14TrendPortfolioConfigAndLaunchPath() {
   assert.ok(packageJson.scripts["trend:live"].includes("DRY_RUN=false"));
   assert.ok(packageJson.scripts.check.includes("src/trendPortfolioEngine.js"));
   assert.ok(packageJson.scripts.check.includes("src/portfolioDecisionEngine.js"));
+  assert.ok(packageJson.scripts.check.includes("src/quantIntelligenceEngine.js"));
+  assert.ok(packageJson.scripts.check.includes("src/institutionalQuantEngine.js"));
   assert.ok(packageJson.scripts["backtest:v15"].includes("backtestV15.js"));
   assert.throws(
     () => withEnv({ TREND_PORTFOLIO_MODE: "true", SWING_MOMENTUM_MODE: "true" }, () => loadConfig()),
@@ -4858,6 +4898,8 @@ async function testV14TrendPortfolioEngineBuildsIndependentThesis() {
   const { events, log } = logCollector();
   const cfg = config({
     trendPortfolioMode: true,
+    quantIntelligenceEngineMode: true,
+    institutionalQuantEngineMode: true,
     adaptiveLearningEnabled: false,
     min24hVolumeUsdt: 1000,
     maxSpreadPct: 0.2,
@@ -4915,6 +4957,14 @@ async function testV14TrendPortfolioEngineBuildsIndependentThesis() {
   assert.ok(Array.isArray(best.strategyContributions));
   assert.ok(best.strategyContributions.length >= 3);
   assert.ok(best.strategyCapitalTargetUsdt > 0);
+  assert.equal(best.quantIntelligenceEngineMode, true);
+  assert.ok(best.quantConfidenceScore >= 45);
+  assert.ok(best.quantFactorScores && Object.hasOwn(best.quantFactorScores, "trend"));
+  assert.equal(best.institutionalQuantEngineMode, true);
+  assert.ok(best.institutionalPortfolioHealth);
+  assert.ok(best.institutionalExecutionPlan);
+  assert.equal(best.institutionalExecutionPlan.placesOrders, false);
+  assert.ok(best.institutionalExpectedHoldSeconds >= 7200);
   assert.equal(best.adaptiveDefensiveThresholdFreezeAvoided, false);
   assert.ok(["BTCUSDT", "ETHUSDT", "SOLUSDT"].includes(best.symbol));
   assert.ok(best.multiTimeframeTrendScore >= 60);
@@ -4923,6 +4973,9 @@ async function testV14TrendPortfolioEngineBuildsIndependentThesis() {
   assert.ok(events.some((event) => event.message === "V14_1_AGGRESSIVE_MOMENTUM_UPGRADE_ACTIVE"));
   assert.ok(events.some((event) => event.message === "V15_MULTI_STRATEGY_PORTFOLIO_ENGINE_ACTIVE"));
   assert.ok(events.some((event) => event.message === "V18_QUANT_RESEARCH_PLATFORM_ACTIVE"));
+  assert.ok(events.some((event) => event.message === "V19_QUANT_INTELLIGENCE_ENGINE_ACTIVE"));
+  assert.ok(events.some((event) => event.message === "V20_INSTITUTIONAL_QUANT_ENGINE_ACTIVE"));
+  assert.ok(events.some((event) => event.message === "V20_INSTITUTIONAL_QUANT_EVALUATED"));
   assert.ok(events.some((event) => event.message === "V17_ACTIVE_OPPORTUNITY_MODE_ACTIVE"));
   assert.ok(events.some((event) => event.message === "V17_ACTIVE_OPPORTUNITY_DECISION"));
   assert.ok(events.some((event) => event.message === "V14_TREND_PORTFOLIO_SCAN_COMPLETED"));
@@ -5069,6 +5122,176 @@ async function testV18StrategyInterfaceManagerAndRanking() {
   assert.equal(outputs.outputs.length, 3);
   assert.ok(outputs.outputs.every((output) => output.sideEvaluations.LONG.strategyAllocationMultiplier > 0));
   assert.ok(events.some((event) => event.message === "V18_STRATEGY_MANAGER_SIGNAL"));
+}
+
+async function testV19QuantIntelligenceEngineAndFactorReporting() {
+  const { events, log } = logCollector();
+  const cfg = config({
+    trendPortfolioMode: true,
+    quantIntelligenceEngineMode: true,
+    maxDeployableCapitalUsdt: 64,
+    v19MinConfidence: 45,
+    v19SingleFactorConfidenceFloor: 18,
+    trendPortfolioMinNetEdgePct: 0.01,
+    trendPortfolioMinRewardCostRatio: 1.05,
+    v15MinRewardRisk: 0.9,
+  });
+  assert.equal(cfg.quantIntelligenceEngineMode, true);
+  assert.equal(capitalTargetForQuantConfidence(cfg, 44), 0);
+  assert.equal(capitalTargetForQuantConfidence(cfg, 49), 20);
+  assert.equal(capitalTargetForQuantConfidence(cfg, 60), 28);
+  assert.equal(capitalTargetForQuantConfidence(cfg, 70), 40);
+  assert.equal(capitalTargetForQuantConfidence(cfg, 80), 64);
+
+  const bullish = scannerAnalysis({ momentumPct: 0.42, volumeSpike: 2.4, rangeExpansion: 1.8, atrPct: 0.85 });
+  const engine = new QuantIntelligenceEngine(cfg, log);
+  const evaluated = engine.evaluate({
+    side: "LONG",
+    strategySignal: { confidence: 74, preferredHoldingTimeSeconds: 14400 },
+    analyses: {
+      entry: bullish,
+      confirmation: bullish,
+      trend: bullish,
+      macro: bullish,
+    },
+    marketProfile: { direction: "UP", tags: ["STRONG_TRENDING_MARKET"], primary: "TRENDING" },
+    marketData: {
+      fundingRate: 0.0008,
+      fundingRatePct: 0.08,
+      priceChangePct: 0.42,
+      openInterest: { current: 1030, previous: 1000, changePct: 3 },
+    },
+  });
+  assert.ok(evaluated.confidence > 45);
+  assert.ok(evaluated.factorScores.funding < 50);
+  assert.ok(evaluated.factorScores.openInterest > 70);
+  assert.ok(evaluated.factorScores.trend > 60);
+  assert.equal(evaluated.openInterest.pattern, "PRICE_UP_OI_UP");
+  assert.ok(evaluated.capitalTargetUsdt >= 20);
+  assert.ok(events.some((event) => event.message === "V19_QUANT_INTELLIGENCE_EVALUATED"));
+
+  const attribution = summarizeFactorTrades([
+    { netPnlUsdt: 0.4, quantFactorScores: evaluated.factorScores },
+    { netPnlUsdt: -0.1, quantFactorScores: { ...evaluated.factorScores, funding: 42 } },
+  ]);
+  assert.ok(Object.hasOwn(attribution, "funding"));
+  assert.ok(Object.hasOwn(attribution.funding, "profitFactor"));
+
+  const report = runV15Backtest(cfg, {
+    BTCUSDT: trendCandles("UP", 100, 130),
+    ETHUSDT: trendCandles("UP", 200, 130),
+    SOLUSDT: trendCandles("DOWN", 50, 130),
+  }, { notionalUsdt: 25, spreadPct: 0.02 });
+  assert.ok(report.quantIntelligence);
+  assert.ok(report.quantIntelligence.factorPerformanceByMode.PORTFOLIO_COMBINED);
+  assert.ok(report.quantIntelligence.factorPerformanceByMode.V17_ACTIVE_OPPORTUNITY);
+  assert.ok(Array.isArray(report.quantIntelligence.rollingWalkForwardByMode.V17_ACTIVE_OPPORTUNITY));
+}
+
+async function testV20InstitutionalQuantEngineAndValidationReports() {
+  const { events, log } = logCollector();
+  const cfg = config({
+    trendPortfolioMode: true,
+    quantResearchPlatformMode: true,
+    quantIntelligenceEngineMode: true,
+    institutionalQuantEngineMode: true,
+    maxDeployableCapitalUsdt: 64,
+    maxPositionsPerSymbol: 3,
+    maxLeverage: 10,
+    v20MinConfidence: 45,
+    v20ShadowModeEnabled: true,
+    trendPortfolioMinNetEdgePct: 0.01,
+    trendPortfolioMinRewardCostRatio: 1.05,
+    v15MinRewardRisk: 0.9,
+    v17TrendBreakoutMinConfidence: 42,
+    v17MultiTimeframeTrendMinConfidence: 42,
+    v17TrendPullbackMinConfidence: 42,
+  });
+  assert.equal(cfg.institutionalQuantEngineMode, true);
+  assert.equal(capitalTargetForInstitutionalConfidence(cfg, 44), 0);
+  assert.equal(capitalTargetForInstitutionalConfidence(cfg, 49), 20);
+  assert.equal(capitalTargetForInstitutionalConfidence(cfg, 60), 32);
+  assert.equal(capitalTargetForInstitutionalConfidence(cfg, 70), 48);
+  assert.equal(capitalTargetForInstitutionalConfidence(cfg, 80), 64);
+
+  const bullish = scannerAnalysis({ momentumPct: 0.48, volumeSpike: 2.6, rangeExpansion: 1.9, atrPct: 0.9 });
+  const engine = new InstitutionalQuantEngine(cfg, log);
+  const evaluated = engine.evaluate({
+    side: "LONG",
+    strategyId: "TREND_BREAKOUT",
+    strategySignal: {
+      confidence: 78,
+      expectedRewardRisk: 2.2,
+      preferredHoldingTimeSeconds: 21600,
+      positionSizeMultiplier: 1.15,
+    },
+    analyses: {
+      entry: bullish,
+      confirmation: bullish,
+      trend: bullish,
+      macro: bullish,
+    },
+    marketProfile: { direction: "UP", tags: ["STRONG_TRENDING_MARKET"], primary: "TRENDING" },
+    marketData: {
+      fundingRate: -0.0003,
+      fundingRatePct: -0.03,
+      priceChangePct: 0.48,
+      openInterest: { current: 1060, previous: 1000, changePct: 6 },
+    },
+    openPositions: [
+      { symbol: "ETHUSDT", marginUsedUsdt: 18, maxLossAtStopUsdt: 0.4 },
+    ],
+  });
+  assert.equal(evaluated.engine, "V20_INSTITUTIONAL_QUANT_ENGINE");
+  assert.ok(evaluated.confidence > 45);
+  assert.equal(evaluated.regime.regime, "TRENDING");
+  assert.equal(evaluated.strategyCompatible, true);
+  assert.ok(evaluated.factorScores.trend > 60);
+  assert.ok(evaluated.factorScores.openInterest > 70);
+  assert.ok(evaluated.portfolioHealth.currentExposureUsdt > 0);
+  assert.ok(evaluated.portfolioHealth.maximumAdditionalRiskUsdt >= 0);
+  assert.equal(evaluated.executionPlan.placesOrders, false);
+  assert.ok(evaluated.executionPlan.explanation.includes("existing order manager"));
+  assert.ok(events.some((event) => event.message === "V20_INSTITUTIONAL_QUANT_EVALUATED"));
+
+  const quality = gradeTradeQuality({
+    netPnlUsdt: 0.42,
+    grossPnlUsdt: 0.5,
+    feesUsdt: 0.08,
+    quantConfidenceScore: evaluated.confidence,
+    maximumFavorableExcursionPct: 1.3,
+    maximumAdverseExcursionPct: 0.2,
+    maxLossAtStopUsdt: 0.35,
+    runnerPartialTaken: true,
+  });
+  assert.ok(["A+", "A", "B", "C", "D", "F"].includes(quality.overallGrade));
+  assert.ok(quality.entryScore > 45);
+  assert.ok(quality.feeEfficiency > 0);
+
+  const institutionalTrades = [
+    { id: "v20-win-1", symbol: "BTCUSDT", strategyId: "TREND_BREAKOUT", netPnlUsdt: 0.5, feesUsdt: 0.05, exitedAt: new Date().toISOString(), holdSeconds: 14400 },
+    { id: "v20-loss-2", symbol: "ETHUSDT", strategyId: "TREND_PULLBACK", netPnlUsdt: -0.2, feesUsdt: 0.04, exitedAt: new Date().toISOString(), holdSeconds: 7200 },
+  ];
+  const summary = summarizeInstitutionalTrades(institutionalTrades);
+  assert.equal(summary.tradeCount, 2);
+  assert.equal(summary.bestStrategy, "TREND_BREAKOUT");
+  assert.equal(summary.mostProfitableSymbol, "BTCUSDT");
+  const walkForward = institutionalWalkForwardValidation(institutionalTrades, [30]);
+  assert.ok(Object.hasOwn(walkForward, "30d"));
+  assert.equal(walkForward["30d"].winRatePct, 50);
+
+  const report = runV15Backtest(cfg, {
+    BTCUSDT: trendCandles("UP", 100, 130),
+    ETHUSDT: trendCandles("UP", 200, 130),
+    SOLUSDT: trendCandles("DOWN", 50, 130),
+  }, { notionalUsdt: 25, spreadPct: 0.02 });
+  assert.ok(report.institutionalQuant);
+  assert.ok(Object.hasOwn(report.institutionalQuant.walkForwardValidation, "30d"));
+  assert.ok(report.institutionalQuant.dailyReport);
+  assert.ok(report.institutionalQuant.shadowMode);
+  assert.ok(Array.isArray(report.shadowOpportunities));
+  assert.ok(report.trades.V17_ACTIVE_OPPORTUNITY.length > 0);
+  assert.ok(report.trades.V17_ACTIVE_OPPORTUNITY[0].institutionalTradeQuality);
 }
 
 async function testV141TrendSizingExpandsHighAndEliteConfidence() {
@@ -5445,13 +5668,15 @@ async function run() {
   await testV14TrendPortfolioEngineBuildsIndependentThesis();
   await testV15PortfolioBacktestAndLearningBuckets();
   await testV18StrategyInterfaceManagerAndRanking();
+  await testV19QuantIntelligenceEngineAndFactorReporting();
+  await testV20InstitutionalQuantEngineAndValidationReports();
   await testV141TrendSizingExpandsHighAndEliteConfidence();
   await testV14TrendUsesStopOnlyNativeProtection();
   await testV14TrendAdoptsExchangePositionWithoutOrders();
   await testV14TrendAdoptsExistingTenXPosition();
   await testV14TrendBlocksEarlyTakeProfitExit();
   await testV14TrendPyramidingDuplicateAndBudgetGuards();
-  console.log("Bybit client and bot tests passed: REST signing, centralized 34040 no-change handling, duplicate TP/SL skip, execution ledger fill dedupe, net edge gate, portfolio risk-at-stop checks, UTA balance parsing, live safety balance use, native protection payloads, WebSocket reconnect, API auto-recovery without shutdown, reconciliation, hedge exposure detection, native TP events, regime intelligence, V11 active market universe restriction, survivability scoring, next-generation continuation scoring, V11 mean reversion and activity reporting, active adaptive paper scalper mode, exploration path, exploration memory relaxation, fee-aware stats, advisory symbol cooldowns, adaptive learning, continuation market memory, cautious active recovery, activity floor, daily shutdown removal, forced market sampling, profit protection sizing, fee-aware entries, dynamic sizing, live-validation guards, allocation ladder, risk degradation, promotion checks, execution-cost logging, V6 profit-controlled config guards, setup preservation, deferred leverage mutation, exchange-minimum feasibility, risk degradation, maker/taker routing, V7 profit mode, quality score gate, fee killer, symbol memory V2/V3, expectancy report, winner amplifier continuation holds, V7.1 trade frequency recovery tuning, V8 professional trend/expectancy optimization, V9 edge maximization, V9.5 adaptive edge reinforcement, V10 aggressive adaptive trend dominance, V11 active market engine, and V18 quantitative strategy platform.");
+  console.log("Bybit client and bot tests passed: REST signing, centralized 34040 no-change handling, duplicate TP/SL skip, execution ledger fill dedupe, net edge gate, portfolio risk-at-stop checks, UTA balance parsing, live safety balance use, native protection payloads, WebSocket reconnect, API auto-recovery without shutdown, reconciliation, hedge exposure detection, native TP events, regime intelligence, V11 active market universe restriction, survivability scoring, next-generation continuation scoring, V11 mean reversion and activity reporting, active adaptive paper scalper mode, exploration path, exploration memory relaxation, fee-aware stats, advisory symbol cooldowns, adaptive learning, continuation market memory, cautious active recovery, activity floor, daily shutdown removal, forced market sampling, profit protection sizing, fee-aware entries, dynamic sizing, live-validation guards, allocation ladder, risk degradation, promotion checks, execution-cost logging, V6 profit-controlled config guards, setup preservation, deferred leverage mutation, exchange-minimum feasibility, risk degradation, maker/taker routing, V7 profit mode, quality score gate, fee killer, symbol memory V2/V3, expectancy report, winner amplifier continuation holds, V7.1 trade frequency recovery tuning, V8 professional trend/expectancy optimization, V9 edge maximization, V9.5 adaptive edge reinforcement, V10 aggressive adaptive trend dominance, V11 active market engine, V18 quantitative strategy platform, and V20 institutional quant engine.");
 }
 
 run().catch((error) => {

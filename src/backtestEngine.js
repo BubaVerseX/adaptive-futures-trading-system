@@ -6,6 +6,12 @@ const { StrategyManager } = require("./strategyManager");
 const { evaluateTrendBreakout } = require("./strategies/trendBreakout");
 const { evaluateMultiTimeframeTrend } = require("./strategies/multiTimeframeTrend");
 const { evaluateTrendPullback } = require("./strategies/trendPullback");
+const { rollingWalkForwardFactorValidation, summarizeFactorTrades } = require("./quantIntelligenceEngine");
+const {
+  gradeTradeQuality,
+  summarizeInstitutionalTrades,
+  walkForwardValidation: institutionalWalkForwardValidation,
+} = require("./institutionalQuantEngine");
 const { numeric } = require("./strategyUtils");
 
 const STRATEGY_EVALUATORS = Object.freeze({
@@ -130,6 +136,35 @@ function makeAnalyses(candles, index, window = 90) {
   };
 }
 
+function syntheticMarketData(symbol, candles, index, analyses) {
+  const latest = candles[index] || {};
+  const previous = candles[Math.max(0, index - 4)] || latest;
+  const priceChangePct = numeric(previous.close) > 0 ? ((numeric(latest.close) - numeric(previous.close)) / numeric(previous.close)) * 100 : 0;
+  const relativeVolume = numeric(analyses.entry && analyses.entry.volumeSpike, 1);
+  const oiDirection = Math.sign(priceChangePct || numeric(analyses.entry && analyses.entry.momentumPct));
+  const oiChangePct = oiDirection * Math.min(6, Math.abs(priceChangePct) * 1.5 + Math.max(0, relativeVolume - 1) * 2);
+  const syntheticOi = 1000000 + index * 1000 + (symbol === "BTCUSDT" ? 500000 : symbol === "ETHUSDT" ? 250000 : 125000);
+  const fundingRate = Math.max(-0.0009, Math.min(0.0009, numeric(analyses.trend && analyses.trend.momentumPct) / 10000));
+  return {
+    symbol,
+    price: numeric(latest.close),
+    priceChangePct,
+    fundingRate,
+    fundingRatePct: fundingRate * 100,
+    funding: {
+      rate: fundingRate,
+      ratePct: fundingRate * 100,
+      source: "synthetic-backtest",
+    },
+    openInterest: {
+      current: syntheticOi,
+      previous: syntheticOi / (1 + oiChangePct / 100),
+      changePct: oiChangePct,
+      source: "synthetic-backtest",
+    },
+  };
+}
+
 function simulateExit(signal, candles, index, config, notionalUsdt) {
   const side = signal.side || signal.direction;
   const entry = Number(candles[index].close);
@@ -140,8 +175,14 @@ function simulateExit(signal, candles, index, config, notionalUsdt) {
   const target = side === "LONG" ? entry * (1 + targetPct / 100) : entry * (1 - targetPct / 100);
   let exit = Number(candles[Math.min(candles.length - 1, index + holdingBars)].close);
   let reason = "TIME_EXIT";
+  let maxFavorablePct = 0;
+  let maxAdversePct = 0;
   for (let cursor = index + 1; cursor < Math.min(candles.length, index + holdingBars + 1); cursor += 1) {
     const candle = candles[cursor];
+    const favorablePct = side === "LONG" ? ((Number(candle.high) - entry) / entry) * 100 : ((entry - Number(candle.low)) / entry) * 100;
+    const adversePct = side === "LONG" ? ((entry - Number(candle.low)) / entry) * 100 : ((Number(candle.high) - entry) / entry) * 100;
+    maxFavorablePct = Math.max(maxFavorablePct, favorablePct);
+    maxAdversePct = Math.max(maxAdversePct, adversePct);
     if (side === "LONG" && Number(candle.low) <= stop) {
       exit = stop;
       reason = "ATR_STOP";
@@ -170,9 +211,13 @@ function simulateExit(signal, candles, index, config, notionalUsdt) {
     entry,
     exit,
     reason,
+    enteredAt: new Date(Number(candles[index].time || Date.now())).toISOString(),
+    exitedAt: new Date(Number(candles[Math.min(candles.length - 1, index + holdingBars)].time || Date.now())).toISOString(),
     holdSeconds: Math.max(0, (Math.min(candles.length - 1, index + holdingBars) - index) * 15 * 60),
     grossPct: round(grossPct, 4),
     netReturnPct: round(netPct, 4),
+    maximumFavorableExcursionPct: round(maxFavorablePct, 4),
+    maximumAdverseExcursionPct: round(maxAdversePct, 4),
     grossPnlUsdt: round(notionalUsdt * (grossPct / 100)),
     feesUsdt: round(notionalUsdt * (feesPct / 100)),
     netPnlUsdt: round(notionalUsdt * (netPct / 100)),
@@ -211,6 +256,7 @@ function runV15Backtest(config, candlesBySymbol, options = {}) {
   const symbols = Object.keys(candlesBySymbol || {});
   const grouped = {};
   for (const mode of ["PORTFOLIO_COMBINED", "V17_ACTIVE_OPPORTUNITY", ...Object.keys(STRATEGY_EVALUATORS)]) grouped[mode] = [];
+  const shadowOpportunities = [];
   for (const symbol of symbols) {
     const candles = parseCandles(candlesBySymbol[symbol] || []);
     for (let index = 60; index < candles.length - 5; index += 1) {
@@ -225,6 +271,7 @@ function runV15Backtest(config, candlesBySymbol, options = {}) {
         analyses,
         marketProfile: { direction: "CHOPPY", tags: [] },
       };
+      context.marketData = syntheticMarketData(symbol, candles, index, analyses);
       const decision = portfolio.evaluate(context);
       if (decision.eligible) {
         const selectedContributions = decision.strategyOutputs.map((output) => ({
@@ -233,54 +280,95 @@ function runV15Backtest(config, candlesBySymbol, options = {}) {
           selectedSideConfidence: output.sideEvaluations[decision.side].confidence,
           oppositeSideConfidence: output.sideEvaluations[decision.side === "LONG" ? "SHORT" : "LONG"].confidence,
         }));
-        grouped.PORTFOLIO_COMBINED.push({
+        const simulated = simulateExit({
+          side: decision.side,
+          expectedMovePct: decision.expectedMovePct,
+          stopDistancePct: decision.stopDistancePct,
+          preferredHoldingTimeSeconds: decision.preferredHoldingTimeSeconds,
+        }, candles, index, config, notionalUsdt);
+        const trade = {
           symbol,
           side: decision.side,
           strategyId: "PORTFOLIO_COMBINED",
           strategyCombination: decision.strategyCombination,
           strategyContributions: selectedContributions,
-          ...simulateExit({
-            side: decision.side,
-            expectedMovePct: decision.expectedMovePct,
-            stopDistancePct: decision.stopDistancePct,
-            preferredHoldingTimeSeconds: decision.preferredHoldingTimeSeconds,
-          }, candles, index, config, notionalUsdt),
-        });
+          quantFactorScores: decision.quantFactorScores,
+          quantFactorWeights: decision.quantFactorWeights,
+          quantRegime: decision.quantIntelligence && decision.quantIntelligence.regime.regime,
+          institutionalPortfolioHealth: decision.institutionalQuant && decision.institutionalQuant.portfolioHealth,
+          institutionalExecutionPlan: decision.institutionalQuant && decision.institutionalQuant.executionPlan,
+          ...simulated,
+        };
+        trade.institutionalTradeQuality = gradeTradeQuality(trade);
+        grouped.PORTFOLIO_COMBINED.push(trade);
       }
       const v17 = portfolio.evaluateOpportunities(context);
       for (const opportunity of v17.opportunities) {
-        grouped.V17_ACTIVE_OPPORTUNITY.push({
+        const simulated = simulateExit({
+          side: opportunity.side,
+          expectedMovePct: opportunity.expectedMovePct,
+          stopDistancePct: opportunity.stopDistancePct,
+          preferredHoldingTimeSeconds: opportunity.preferredHoldingTimeSeconds,
+        }, candles, index, config, notionalUsdt);
+        const trade = {
           symbol,
           side: opportunity.side,
           strategyId: opportunity.strategyCombination,
           strategyCombination: opportunity.strategyCombination,
+          quantFactorScores: opportunity.quantFactorScores,
+          quantFactorWeights: opportunity.quantFactorWeights,
+          quantRegime: opportunity.quantIntelligence && opportunity.quantIntelligence.regime.regime,
+          institutionalPortfolioHealth: opportunity.institutionalQuant && opportunity.institutionalQuant.portfolioHealth,
+          institutionalExecutionPlan: opportunity.institutionalQuant && opportunity.institutionalQuant.executionPlan,
           strategyContributions: [{
             strategyId: opportunity.strategyCombination,
             contributionPct: 100,
             selectedSideConfidence: opportunity.confidence,
             independentOpportunity: true,
           }],
-          ...simulateExit({
-            side: opportunity.side,
-            expectedMovePct: opportunity.expectedMovePct,
-            stopDistancePct: opportunity.stopDistancePct,
-            preferredHoldingTimeSeconds: opportunity.preferredHoldingTimeSeconds,
-          }, candles, index, config, notionalUsdt),
+          ...simulated,
+        };
+        trade.institutionalTradeQuality = gradeTradeQuality(trade);
+        grouped.V17_ACTIVE_OPPORTUNITY.push(trade);
+      }
+      for (const skipped of v17.skipped) {
+        if (!skipped.shadowOpportunity) continue;
+        const simulated = simulateExit({
+          side: skipped.side,
+          expectedMovePct: skipped.expectedMovePct,
+          stopDistancePct: skipped.stopDistancePct,
+          preferredHoldingTimeSeconds: skipped.preferredHoldingTimeSeconds,
+        }, candles, index, config, notionalUsdt);
+        shadowOpportunities.push({
+          ...skipped.shadowOpportunity,
+          ...simulated,
+          wouldHaveWon: simulated.netPnlUsdt > 0,
+          wouldHaveLost: simulated.netPnlUsdt < 0,
+          maximumFavorableExcursionPct: simulated.maximumFavorableExcursionPct,
+          maximumAdverseExcursionPct: simulated.maximumAdverseExcursionPct,
         });
       }
       for (const strategyId of Object.keys(STRATEGY_EVALUATORS)) {
         const signal = evaluateIndependentStrategy(strategyId, config, symbol, item, analyses, item.spreadPct);
         if (!signal) continue;
-        grouped[strategyId].push({
+        const trade = {
           symbol,
           side: signal.side,
           strategyId,
           ...simulateExit(signal, candles, index, config, notionalUsdt),
-        });
+        };
+        trade.institutionalTradeQuality = gradeTradeQuality(trade);
+        grouped[strategyId].push(trade);
       }
     }
   }
   const results = Object.fromEntries(Object.entries(grouped).map(([key, trades]) => [key, summarizeTrades(trades)]));
+  const quantFactorPerformance = Object.fromEntries(
+    Object.entries(grouped).map(([key, trades]) => [key, summarizeFactorTrades(trades)])
+  );
+  const quantWalkForward = Object.fromEntries(
+    Object.entries(grouped).map(([key, trades]) => [key, rollingWalkForwardFactorValidation(trades, numeric(config.v19WalkForwardWindowTrades, 50))])
+  );
   const dashboard = strategyManager.dashboard({
     TREND_BREAKOUT: grouped.TREND_BREAKOUT,
     MULTI_TIMEFRAME_TREND: grouped.MULTI_TIMEFRAME_TREND,
@@ -297,9 +385,27 @@ function runV15Backtest(config, candlesBySymbol, options = {}) {
     },
     results,
     comparison: compareSummaries(results.V17_ACTIVE_OPPORTUNITY, results.PORTFOLIO_COMBINED),
+    quantIntelligence: {
+      factorPerformanceByMode: quantFactorPerformance,
+      rollingWalkForwardByMode: quantWalkForward,
+      objective: "attribute post-cost results to V19 factor scores without changing execution safety",
+    },
+    institutionalQuant: {
+      walkForwardValidation: institutionalWalkForwardValidation(grouped.V17_ACTIVE_OPPORTUNITY, [30, 90, 180]),
+      dailyReport: summarizeInstitutionalTrades(grouped.V17_ACTIVE_OPPORTUNITY),
+      shadowMode: {
+        opportunities: shadowOpportunities.length,
+        wouldHaveWon: shadowOpportunities.filter((item) => item.wouldHaveWon).length,
+        wouldHaveLost: shadowOpportunities.filter((item) => item.wouldHaveLost).length,
+        averageMissedOpportunityScore: shadowOpportunities.length
+          ? round(shadowOpportunities.reduce((sum, item) => sum + numeric(item.missedOpportunityScore), 0) / shadowOpportunities.length, 4)
+          : 0,
+      },
+    },
     dashboard,
     recommendedHighestCapitalAllocation: dashboard.recommendedHighestAllocation,
     trades: grouped,
+    shadowOpportunities,
   };
 }
 

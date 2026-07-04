@@ -333,6 +333,55 @@ class BybitClient extends EventEmitter {
     return ticker;
   }
 
+  async getFundingRate(symbol) {
+    const ticker = await this.getTicker(symbol);
+    const tickerFunding = numberOrNull(ticker && ticker.fundingRate);
+    if (tickerFunding !== null) {
+      return {
+        symbol,
+        rate: tickerFunding,
+        ratePct: tickerFunding * 100,
+        source: "ticker",
+        nextFundingTime: ticker && ticker.nextFundingTime,
+      };
+    }
+    const history = await this.getFundingRateHistory(symbol, 1);
+    return history[0] || { symbol, rate: 0, ratePct: 0, source: "unavailable" };
+  }
+
+  async getFundingRateHistory(symbol, limit = 2) {
+    const result = await this.publicGet("/v5/market/funding/history", {
+      category: this.config.category,
+      symbol,
+      limit,
+    });
+    return (Array.isArray(result.list) ? result.list : []).map((item) => {
+      const rate = numberOrNull(item.fundingRate) || 0;
+      return {
+        symbol: item.symbol || symbol,
+        rate,
+        ratePct: rate * 100,
+        fundingRateTimestamp: item.fundingRateTimestamp,
+        source: "funding-history",
+      };
+    });
+  }
+
+  async getOpenInterestHistory(symbol, intervalTime = "5min", limit = 2) {
+    const result = await this.publicGet("/v5/market/open-interest", {
+      category: this.config.category,
+      symbol,
+      intervalTime,
+      limit,
+    });
+    const list = (Array.isArray(result.list) ? result.list : []).map((item) => ({
+      symbol,
+      openInterest: numberOrNull(item.openInterest) || 0,
+      timestamp: item.timestamp,
+    }));
+    return list;
+  }
+
   async getKlines(symbol, interval, limit = 100) {
     const result = await this.publicGet("/v5/market/kline", {
       category: this.config.category,

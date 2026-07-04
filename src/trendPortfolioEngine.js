@@ -157,6 +157,22 @@ class TrendPortfolioEngine {
           executionInfrastructurePreserved: true,
         });
       }
+      if (this.config.quantIntelligenceEngineMode) {
+        this.log("WARN", "V19_QUANT_INTELLIGENCE_ENGINE_ACTIVE", {
+          objective: "weighted quantitative decision layer using price, volume, open interest, funding, volatility, trend, and regime",
+          confidenceCollapseAvoided: true,
+          executionInfrastructurePreserved: true,
+          orderPlacementChanged: false,
+        });
+      }
+      if (this.config.institutionalQuantEngineMode) {
+        this.log("WARN", "V20_INSTITUTIONAL_QUANT_ENGINE_ACTIVE", {
+          objective: "institutional multi-factor strategy and decision architecture for BTCUSDT, ETHUSDT, SOLUSDT",
+          modules: ["MarketRegime", "Trend", "Volume", "Volatility", "FundingRate", "OpenInterest", "StrategyManager", "PortfolioAllocator", "ExecutionLayer"],
+          exchangeInfrastructurePreserved: true,
+          shadowModeEnabled: this.config.v20ShadowModeEnabled,
+        });
+      }
       if (this.activeOpportunityMode) {
         this.log("WARN", "V17_ACTIVE_OPPORTUNITY_MODE_ACTIVE", {
           objective: "allow any qualified strategy module to express an independent several-hour trend thesis",
@@ -204,7 +220,7 @@ class TrendPortfolioEngine {
         rejected.spread += 1;
         continue;
       }
-      accepted.push({ info, price, volume, spreadPct });
+      accepted.push({ info, price, volume, spreadPct, ticker });
     }
     accepted.sort((left, right) => TREND_SYMBOLS.indexOf(left.info.symbol) - TREND_SYMBOLS.indexOf(right.info.symbol));
     if (typeof this.client.subscribeTickers === "function") {
@@ -592,6 +608,7 @@ class TrendPortfolioEngine {
       volume: item.volume,
       analyses,
       marketProfile,
+      marketData: options.marketData,
       strategyPerformanceStats: this.strategyPerformanceStats(),
       onlySide: options.onlySide,
     });
@@ -807,6 +824,23 @@ class TrendPortfolioEngine {
       strategyPreferredHoldingTimeSeconds: decision.preferredHoldingTimeSeconds,
       strategyPositionSizeMultiplier: decision.positionSizeMultiplier,
       strategyCapitalTargetUsdt: decision.capitalTargetUsdt,
+      quantIntelligenceEngineMode: Boolean(decision.quantIntelligence),
+      quantConfidenceScore: decision.quantIntelligence ? decision.quantIntelligence.confidence : null,
+      quantFactorScores: decision.quantFactorScores,
+      quantFactorWeights: decision.quantFactorWeights,
+      institutionalQuantEngineMode: Boolean(decision.institutionalQuant),
+      institutionalPortfolioHealth: decision.institutionalQuant ? decision.institutionalQuant.portfolioHealth : null,
+      institutionalExecutionPlan: decision.institutionalQuant ? decision.institutionalQuant.executionPlan : null,
+      institutionalStrategyCompatible: decision.institutionalQuant ? decision.institutionalQuant.strategyCompatible : null,
+      institutionalExpectedHoldSeconds: decision.institutionalQuant ? decision.institutionalQuant.expectedHoldingTimeSeconds : null,
+      shadowOpportunity: decision.shadowOpportunity || null,
+      shadowModeCandidate: Boolean(decision.shadowOpportunity),
+      fundingIntelligence: decision.quantIntelligence ? decision.quantIntelligence.funding : null,
+      openInterestIntelligence: decision.quantIntelligence ? decision.quantIntelligence.openInterest : null,
+      volumeIntelligence: decision.quantIntelligence ? decision.quantIntelligence.volume : null,
+      volatilityIntelligence: decision.quantIntelligence ? decision.quantIntelligence.volatility : null,
+      trendIntelligence: decision.quantIntelligence ? decision.quantIntelligence.trend : null,
+      quantMarketRegime: decision.quantIntelligence ? decision.quantIntelligence.regime : null,
       strategyRegimeSizeMultiplier: decision.regimeSizeMultiplier,
       strategyExpectedRewardRisk: decision.expectedRewardRisk,
       strategyDynamicExit: decision.dynamicExit,
@@ -824,7 +858,7 @@ class TrendPortfolioEngine {
     return signal;
   }
 
-  buildV17OpportunitySignals(item, analyses, marketProfile) {
+  buildV17OpportunitySignals(item, analyses, marketProfile, marketData = null) {
     const evaluation = this.portfolioDecision.evaluateOpportunities({
       symbol: item.info.symbol,
       price: item.price,
@@ -832,10 +866,11 @@ class TrendPortfolioEngine {
       volume: item.volume,
       analyses,
       marketProfile,
+      marketData,
       strategyPerformanceStats: this.strategyPerformanceStats(),
     });
-    const accepted = evaluation.opportunities.map((decision) => this.buildV15PortfolioSignal(item, analyses, marketProfile, { decision }));
-    const rejected = evaluation.skipped.map((decision) => this.buildV15PortfolioSignal(item, analyses, marketProfile, { decision }));
+    const accepted = evaluation.opportunities.map((decision) => this.buildV15PortfolioSignal(item, analyses, marketProfile, { decision, marketData }));
+    const rejected = evaluation.skipped.map((decision) => this.buildV15PortfolioSignal(item, analyses, marketProfile, { decision, marketData }));
     return [...accepted, ...rejected];
   }
 
@@ -845,6 +880,75 @@ class TrendPortfolioEngine {
       : {};
   }
 
+  async marketIntelligenceSet(item, analyses) {
+    const symbol = item.info.symbol;
+    const fallbackTickerFunding = Number(item.ticker && item.ticker.fundingRate);
+    const fallbackTickerOpenInterest = Number(item.ticker && item.ticker.openInterest);
+    const marketData = {
+      symbol,
+      price: item.price,
+      spreadPct: item.spreadPct,
+      priceChangePct: numeric(analyses.entry && analyses.entry.momentumPct),
+      fundingRate: Number.isFinite(fallbackTickerFunding) ? fallbackTickerFunding : 0,
+      fundingRatePct: Number.isFinite(fallbackTickerFunding) ? fallbackTickerFunding * 100 : 0,
+      funding: {
+        rate: Number.isFinite(fallbackTickerFunding) ? fallbackTickerFunding : 0,
+        ratePct: Number.isFinite(fallbackTickerFunding) ? fallbackTickerFunding * 100 : 0,
+        source: Number.isFinite(fallbackTickerFunding) ? "ticker" : "neutral-fallback",
+      },
+      openInterest: {
+        current: Number.isFinite(fallbackTickerOpenInterest) ? fallbackTickerOpenInterest : 0,
+        previous: Number.isFinite(fallbackTickerOpenInterest) ? fallbackTickerOpenInterest : 0,
+        changePct: 0,
+        source: Number.isFinite(fallbackTickerOpenInterest) ? "ticker" : "neutral-fallback",
+      },
+    };
+    const reads = [];
+    if (typeof this.client.getFundingRate === "function") {
+      reads.push(
+        this.client.getFundingRate(symbol)
+          .then((funding) => {
+            if (!funding) return;
+            marketData.funding = funding;
+            marketData.fundingRate = numeric(funding.rate);
+            marketData.fundingRatePct = numeric(funding.ratePct, numeric(funding.rate) * 100);
+          })
+          .catch((error) => {
+            this.log("DEBUG", "V19 funding intelligence unavailable; neutral funding factor used.", {
+              symbol,
+              error: error.message,
+            });
+          })
+      );
+    }
+    if (typeof this.client.getOpenInterestHistory === "function") {
+      reads.push(
+        this.client.getOpenInterestHistory(symbol, "5min", 2)
+          .then((history) => {
+            const ordered = Array.isArray(history) ? history.slice().sort((left, right) => Number(left.timestamp || 0) - Number(right.timestamp || 0)) : [];
+            const previous = ordered.length >= 2 ? ordered[ordered.length - 2] : null;
+            const current = ordered.length ? ordered[ordered.length - 1] : null;
+            const currentOi = numeric(current && current.openInterest, marketData.openInterest.current);
+            const previousOi = numeric(previous && previous.openInterest, marketData.openInterest.previous || currentOi);
+            marketData.openInterest = {
+              current: currentOi,
+              previous: previousOi,
+              changePct: previousOi > 0 ? ((currentOi - previousOi) / previousOi) * 100 : 0,
+              source: "open-interest-history",
+            };
+          })
+          .catch((error) => {
+            this.log("DEBUG", "V19 open interest intelligence unavailable; neutral OI factor used.", {
+              symbol,
+              error: error.message,
+            });
+          })
+      );
+    }
+    if (reads.length) await Promise.all(reads);
+    return marketData;
+  }
+
   async analyzeSymbol(item, marketProfile) {
     try {
       const analyses = await this.candleSet(item.info.symbol);
@@ -852,12 +956,13 @@ class TrendPortfolioEngine {
         this.log("DEBUG", "V14 symbol rejected: insufficient HTF candle history.", { symbol: item.info.symbol });
         return null;
       }
+      const marketData = await this.marketIntelligenceSet(item, analyses);
       this.cachedDirections[item.info.symbol] = emaDirection(analyses.confirmation);
       if (this.activeOpportunityMode) {
-        return this.buildV17OpportunitySignals(item, analyses, marketProfile);
+        return this.buildV17OpportunitySignals(item, analyses, marketProfile, marketData);
       }
       if (this.multiStrategyEnabled) {
-        return this.buildV15PortfolioSignal(item, analyses, marketProfile);
+        return this.buildV15PortfolioSignal(item, analyses, marketProfile, { marketData });
       }
       const longSignal = this.config.allowLongs ? this.scoreSide("LONG", item, analyses, marketProfile) : null;
       const shortSignal = this.config.allowShorts ? this.scoreSide("SHORT", item, analyses, marketProfile) : null;
@@ -895,6 +1000,15 @@ class TrendPortfolioEngine {
         smartProjectedNetEdgePct: item.smartProjectedNetEdgePct,
         feeEdgeRatio: item.feeEdgeRatio,
         estimatedTpProbability: item.estimatedTpProbability,
+        quantConfidenceScore: item.quantConfidenceScore,
+        quantFactorScores: item.quantFactorScores,
+        funding: item.fundingIntelligence && item.fundingIntelligence.state,
+        openInterest: item.openInterestIntelligence && item.openInterestIntelligence.pattern,
+        volumeIntelligence: item.volumeIntelligence && item.volumeIntelligence.state,
+        volatilityIntelligence: item.volatilityIntelligence && item.volatilityIntelligence.state,
+        quantRegime: item.quantMarketRegime && item.quantMarketRegime.regime,
+        institutionalPortfolioHealth: item.institutionalPortfolioHealth,
+        shadowModeCandidate: item.shadowModeCandidate,
         confidenceClass: item.confidenceClass,
         earlyTrendParticipation: item.earlyTrendParticipation,
         rejected: item.rejected,
@@ -955,11 +1069,13 @@ class TrendPortfolioEngine {
       price,
       volume: Number(ticker.turnover24h || 0),
       spreadPct,
+      ticker,
     };
     const analyses = await this.candleSet(position.symbol);
     if (!analyses.entry || !analyses.confirmation || !analyses.trend || !analyses.macro || !analyses.macroLong) return null;
+    const marketData = await this.marketIntelligenceSet(item, analyses);
     if (this.multiStrategyEnabled) {
-      return this.buildV15PortfolioSignal(item, analyses, marketProfile || { direction: "CHOPPY", tags: [] }, { onlySide: position.side });
+      return this.buildV15PortfolioSignal(item, analyses, marketProfile || { direction: "CHOPPY", tags: [] }, { onlySide: position.side, marketData });
     }
     return this.scoreSide(position.side, item, analyses, marketProfile || { direction: "CHOPPY", tags: [] });
   }
