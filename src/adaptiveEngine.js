@@ -2,6 +2,7 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+const { gradeTradeQuality } = require("./institutionalQuantEngine");
 
 const MEMORY_VERSION = 1;
 
@@ -270,6 +271,7 @@ class AdaptiveEngine {
   }
 
   memoryRecordFromTrade(trade) {
+    const institutionalTradeQuality = trade.institutionalTradeQuality || gradeTradeQuality(trade);
     const timestamp = trade.exitedAt || trade.openedAt || new Date().toISOString();
     const setupType = trade.setupType || setupTypeFromSignal(trade);
     const pnlUsdt = numeric(trade.pnlUsdt);
@@ -382,6 +384,13 @@ class AdaptiveEngine {
       nearMissSuccessful: Boolean(trade.nearMissSuccessful),
       runnerPartialTaken: Boolean(trade.runnerPartialTaken),
       runnerNetContributionUsdt: numeric(trade.runnerNetContributionUsdt || trade.partialRealizedPnlUsdt),
+      institutionalTradeQuality,
+      entryScore: institutionalTradeQuality.entryScore,
+      exitScore: institutionalTradeQuality.exitScore,
+      executionScore: institutionalTradeQuality.executionScore,
+      feeEfficiency: institutionalTradeQuality.feeEfficiency,
+      riskEfficiency: institutionalTradeQuality.riskEfficiency,
+      overallGrade: institutionalTradeQuality.overallGrade,
       adaptiveConfidenceAtEntry: numeric(trade.adaptiveConfidence, 50),
       adaptiveModeAtEntry: trade.adaptiveMode || "BASELINE",
     };

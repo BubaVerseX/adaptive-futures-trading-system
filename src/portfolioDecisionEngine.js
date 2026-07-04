@@ -4,6 +4,12 @@ const { evaluateTrendBreakout } = require("./strategies/trendBreakout");
 const { evaluateMultiTimeframeTrend } = require("./strategies/multiTimeframeTrend");
 const { evaluateTrendPullback } = require("./strategies/trendPullback");
 const { StrategyManager } = require("./strategyManager");
+const { QuantIntelligenceEngine, capitalTargetForQuantConfidence } = require("./quantIntelligenceEngine");
+const {
+  InstitutionalQuantEngine,
+  buildShadowOpportunity,
+  capitalTargetForInstitutionalConfidence,
+} = require("./institutionalQuantEngine");
 const {
   bounded,
   clampScore,
@@ -202,6 +208,41 @@ class PortfolioDecisionEngine {
     this.config = config;
     this.log = log;
     this.strategyManager = new StrategyManager(config, log);
+    this.quantIntelligence = new QuantIntelligenceEngine(config, log);
+    this.institutionalQuant = new InstitutionalQuantEngine(config, log);
+  }
+
+  decisionIntelligence({ side, strategySignal, strategyId, context }) {
+    if (this.config.institutionalQuantEngineMode) {
+      return this.institutionalQuant.evaluate({
+        side,
+        strategySignal,
+        strategyId,
+        analyses: context.analyses,
+        marketProfile: context.marketProfile,
+        marketData: context.marketData,
+        openPositions: context.openPositions || [],
+      });
+    }
+    if (this.config.quantIntelligenceEngineMode) {
+      return this.quantIntelligence.evaluate({
+        side,
+        strategySignal,
+        analyses: context.analyses,
+        marketProfile: context.marketProfile,
+        marketData: context.marketData,
+        factorStats: context.factorPerformanceStats || {},
+      });
+    }
+    return null;
+  }
+
+  intelligenceCapitalTarget(intelligence, confidence) {
+    if (!intelligence) return null;
+    if (intelligence.engine === "V20_INSTITUTIONAL_QUANT_ENGINE") {
+      return capitalTargetForInstitutionalConfidence(this.config, confidence);
+    }
+    return capitalTargetForQuantConfidence(this.config, confidence);
   }
 
   strategyOutputs(context, regime, estimatedRoundTripCostPct, weights) {
@@ -261,7 +302,7 @@ class PortfolioDecisionEngine {
     const opposite = side === "LONG" ? "SHORT" : "LONG";
     const selectedContribution = side === "LONG" ? longContribution : shortContribution;
     const oppositeContribution = side === "LONG" ? shortContribution : longContribution;
-    const confidence = clampScore(Math.max(0, selectedContribution.confidence - Math.max(0, oppositeContribution.confidence - selectedContribution.confidence) * 0.18));
+    let confidence = clampScore(Math.max(0, selectedContribution.confidence - Math.max(0, oppositeContribution.confidence - selectedContribution.confidence) * 0.18));
     const sideOutputs = selectedContribution.selected;
     const supporting = sideOutputs.filter((output) => output.confidence >= numeric(this.config.v15StrategyMinConfidence, 52) * 0.72);
     const opposing = oppositeContribution.selected.filter((output) => output.confidence >= selectedContribution.confidence / STRATEGIES.length);
@@ -271,7 +312,25 @@ class PortfolioDecisionEngine {
     const expectedMovePct = selectedContribution.expectedMovePct || stopDistancePct * this.config.v15MinRewardRisk;
     const projectedNetEdgePct = Number((expectedMovePct - estimatedRoundTripCostPct).toFixed(4));
     const feeEdgeRatio = estimatedRoundTripCostPct > 0 ? Number((expectedMovePct / estimatedRoundTripCostPct).toFixed(4)) : 999;
-    const requiredConfidence = numeric(this.config.v16PortfolioMinConfidence, numeric(this.config.trendPortfolioMinScore, 46));
+    const quantIntelligence = this.decisionIntelligence({
+      side,
+      strategySignal: dominantStrategy || { confidence },
+      strategyId: dominantStrategy && dominantStrategy.strategyId,
+      context,
+    });
+    if (quantIntelligence) confidence = quantIntelligence.confidence;
+    if (quantIntelligence && dominantStrategy && quantIntelligence.regime && quantIntelligence.regime.strategyWeights) {
+      const strategyRegimeMultiplier = bounded(numeric(quantIntelligence.regime.strategyWeights[dominantStrategy.strategyId], 1), 0.75, 1.2);
+      confidence = clampScore(confidence * strategyRegimeMultiplier);
+      quantIntelligence.strategyRegimeMultiplier = strategyRegimeMultiplier;
+      quantIntelligence.confidence = confidence;
+      quantIntelligence.capitalTargetUsdt = this.intelligenceCapitalTarget(quantIntelligence, confidence);
+    }
+    const requiredConfidence = this.config.institutionalQuantEngineMode
+      ? numeric(this.config.v20MinConfidence, numeric(this.config.v16PortfolioMinConfidence, numeric(this.config.trendPortfolioMinScore, 46)))
+      : this.config.quantIntelligenceEngineMode
+        ? numeric(this.config.v19MinConfidence, numeric(this.config.v16PortfolioMinConfidence, numeric(this.config.trendPortfolioMinScore, 46)))
+      : numeric(this.config.v16PortfolioMinConfidence, numeric(this.config.trendPortfolioMinScore, 46));
     const eligible =
       regime.tradable &&
       confidence >= requiredConfidence &&
@@ -301,7 +360,9 @@ class PortfolioDecisionEngine {
     if (feeEdgeRatio < this.config.trendPortfolioMinRewardCostRatio) rejectionReasons.push(`reward/cost ${feeEdgeRatio.toFixed(2)} below V15 minimum`);
     if (expectedRewardRisk < this.config.v15MinRewardRisk) rejectionReasons.push(`expected reward/risk ${expectedRewardRisk.toFixed(2)} below V15 minimum`);
     const combination = supporting.map((output) => output.strategyId).join("+") || (dominantStrategy && dominantStrategy.strategyId) || "NONE";
-    const capitalTargetUsdt = capitalTargetForConfidence(this.config, confidence, regime);
+    const capitalTargetUsdt = quantIntelligence
+      ? quantIntelligence.capitalTargetUsdt
+      : capitalTargetForConfidence(this.config, confidence, regime);
     const decision = {
       eligible,
       side: side || null,
@@ -334,6 +395,10 @@ class PortfolioDecisionEngine {
         1.6
       ).toFixed(3)),
       capitalTargetUsdt,
+      quantIntelligence,
+      institutionalQuant: quantIntelligence && quantIntelligence.engine === "V20_INSTITUTIONAL_QUANT_ENGINE" ? quantIntelligence : null,
+      quantFactorScores: quantIntelligence ? quantIntelligence.factorScores : null,
+      quantFactorWeights: quantIntelligence ? quantIntelligence.factorWeights : null,
       regimeSizeMultiplier: numeric(regime.sizeMultiplier, 1),
       setupType: dominantStrategy ? dominantStrategy.setupType : "V15_NO_TRADE",
       continuationSetupType: dominantStrategy ? dominantStrategy.continuationSetupType : "NONE",
@@ -341,6 +406,15 @@ class PortfolioDecisionEngine {
       rejectionReasons,
       scoreBreakdown: [
         `V16 weighted confidence ${side || "NONE"} ${confidence}`,
+        ...(quantIntelligence ? [
+          `${quantIntelligence.engine} confidence ${quantIntelligence.confidence}`,
+          `${quantIntelligence.engine} funding ${quantIntelligence.funding.state} ${quantIntelligence.funding.score}`,
+          `${quantIntelligence.engine} open interest ${quantIntelligence.openInterest.pattern} ${quantIntelligence.openInterest.score}`,
+          `${quantIntelligence.engine} trend ${quantIntelligence.trend.state} ${quantIntelligence.trend.score}`,
+          `${quantIntelligence.engine} volume ${quantIntelligence.volume.state} ${quantIntelligence.volume.score}`,
+          `${quantIntelligence.engine} volatility ${quantIntelligence.volatility.state} ${quantIntelligence.volatility.score}`,
+          `${quantIntelligence.engine} regime ${quantIntelligence.regime.regime} ${quantIntelligence.regime.score}`,
+        ] : []),
         `strategy combination ${combination}`,
         `market regime ${regime.regime} size multiplier ${regime.sizeMultiplier}: ${regime.reason}`,
         ...strategyOutputs.flatMap((output) => [
@@ -361,6 +435,16 @@ class PortfolioDecisionEngine {
       marketRegimeSizeMultiplier: regime.sizeMultiplier,
       expectedRewardRisk: round(expectedRewardRisk, 4),
       positionSizeUsdt: capitalTargetUsdt,
+      quantIntelligence: quantIntelligence ? {
+        confidence: quantIntelligence.confidence,
+        factorScores: quantIntelligence.factorScores,
+        funding: quantIntelligence.funding.state,
+        openInterest: quantIntelligence.openInterest.pattern,
+        volume: quantIntelligence.volume.state,
+        volatility: quantIntelligence.volatility.state,
+        trend: quantIntelligence.trend.state,
+        regime: quantIntelligence.regime.regime,
+      } : null,
       decision: eligible ? `ENTER ${side}` : "SKIP",
       reasons: rejectionReasons,
     });
@@ -380,8 +464,26 @@ class PortfolioDecisionEngine {
       const opposite = side === "LONG" ? "SHORT" : "LONG";
       const sideOutput = output.sideEvaluations[side];
       const oppositeOutput = output.sideEvaluations[opposite];
-      const confidence = clampScore(sideOutput.confidence);
-      const threshold = strategyThreshold(this.config, output.strategyId);
+      let confidence = clampScore(sideOutput.confidence);
+      const quantIntelligence = this.decisionIntelligence({
+        side,
+        strategySignal: sideOutput,
+        strategyId: output.strategyId,
+        context,
+      });
+      if (quantIntelligence) confidence = quantIntelligence.confidence;
+      if (quantIntelligence && quantIntelligence.regime && quantIntelligence.regime.strategyWeights) {
+        const strategyRegimeMultiplier = bounded(numeric(quantIntelligence.regime.strategyWeights[output.strategyId], 1), 0.75, 1.2);
+        confidence = clampScore(confidence * strategyRegimeMultiplier);
+        quantIntelligence.strategyRegimeMultiplier = strategyRegimeMultiplier;
+        quantIntelligence.confidence = confidence;
+        quantIntelligence.capitalTargetUsdt = this.intelligenceCapitalTarget(quantIntelligence, confidence);
+      }
+      const threshold = this.config.institutionalQuantEngineMode
+        ? numeric(this.config.v20MinConfidence, strategyThreshold(this.config, output.strategyId))
+        : this.config.quantIntelligenceEngineMode
+        ? numeric(this.config.v19MinConfidence, strategyThreshold(this.config, output.strategyId))
+        : strategyThreshold(this.config, output.strategyId);
       const expectedRewardRisk = numeric(sideOutput.expectedRewardRisk);
       const stopDistancePct = numeric(sideOutput.stopDistancePct) || Math.max(numeric(this.config.stopLossPct), numeric(regime.atrPct) * numeric(this.config.trendPortfolioStopAtrMultiplier));
       const expectedMovePct = numeric(sideOutput.expectedMovePct) || stopDistancePct * numeric(this.config.v17OpportunityMinRewardRisk, 1.3);
@@ -413,7 +515,9 @@ class PortfolioDecisionEngine {
               : eligible
                 ? "NORMAL"
                 : "REJECT";
-      const capitalTargetUsdt = capitalTargetForOpportunity(this.config, confidence, regime, numeric(sideOutput.positionSizeMultiplier, 1));
+      const capitalTargetUsdt = quantIntelligence
+        ? quantIntelligence.capitalTargetUsdt
+        : capitalTargetForOpportunity(this.config, confidence, regime, numeric(sideOutput.positionSizeMultiplier, 1));
       const opportunity = {
         eligible,
         side,
@@ -441,6 +545,10 @@ class PortfolioDecisionEngine {
         preferredHoldingTimeSeconds: Math.round(numeric(sideOutput.preferredHoldingTimeSeconds)),
         positionSizeMultiplier: Number(bounded(numeric(sideOutput.positionSizeMultiplier, 1) * numeric(regime.sizeMultiplier, 1), 0.5, 1.8).toFixed(3)),
         capitalTargetUsdt,
+        quantIntelligence,
+        institutionalQuant: quantIntelligence && quantIntelligence.engine === "V20_INSTITUTIONAL_QUANT_ENGINE" ? quantIntelligence : null,
+        quantFactorScores: quantIntelligence ? quantIntelligence.factorScores : null,
+        quantFactorWeights: quantIntelligence ? quantIntelligence.factorWeights : null,
         regimeSizeMultiplier: numeric(regime.sizeMultiplier, 1),
         setupType: sideOutput.setupType || `${output.strategyId}_OPPORTUNITY`,
         continuationSetupType: sideOutput.continuationSetupType || `${output.strategyId}_CONTINUATION`,
@@ -448,6 +556,15 @@ class PortfolioDecisionEngine {
         rejectionReasons,
         scoreBreakdown: [
           `V17 independent ${output.strategyId} ${side} confidence ${confidence} threshold ${threshold}`,
+          ...(quantIntelligence ? [
+            `${quantIntelligence.engine} confidence ${quantIntelligence.confidence}`,
+            `${quantIntelligence.engine} funding ${quantIntelligence.funding.state} ${quantIntelligence.funding.score}`,
+            `${quantIntelligence.engine} open interest ${quantIntelligence.openInterest.pattern} ${quantIntelligence.openInterest.score}`,
+            `${quantIntelligence.engine} trend ${quantIntelligence.trend.state} ${quantIntelligence.trend.score}`,
+            `${quantIntelligence.engine} volume ${quantIntelligence.volume.state} ${quantIntelligence.volume.score}`,
+            `${quantIntelligence.engine} volatility ${quantIntelligence.volatility.state} ${quantIntelligence.volatility.score}`,
+            `${quantIntelligence.engine} regime ${quantIntelligence.regime.regime} ${quantIntelligence.regime.score}`,
+          ] : []),
           `market regime ${regime.regime} size multiplier ${regime.sizeMultiplier}: ${regime.reason}`,
           ...(sideOutput.scoreBreakdown || sideOutput.reasons || []),
         ],
@@ -464,9 +581,27 @@ class PortfolioDecisionEngine {
         marketRegime: regime.regime,
         marketRegimeSizeMultiplier: regime.sizeMultiplier,
         positionSizeUsdt: capitalTargetUsdt,
+        quantIntelligence: quantIntelligence ? {
+          confidence: quantIntelligence.confidence,
+          factorScores: quantIntelligence.factorScores,
+          funding: quantIntelligence.funding.state,
+          openInterest: quantIntelligence.openInterest.pattern,
+          volume: quantIntelligence.volume.state,
+          volatility: quantIntelligence.volatility.state,
+          trend: quantIntelligence.trend.state,
+          regime: quantIntelligence.regime.regime,
+        } : null,
         decision: eligible ? `ENTER ${side}` : "SKIP",
         reasons: rejectionReasons,
       });
+      if (!eligible && this.config.v20ShadowModeEnabled && confidence >= numeric(this.config.v20ShadowMinConfidence, 40)) {
+        opportunity.shadowOpportunity = buildShadowOpportunity({
+          decision: opportunity,
+          context,
+          reason: rejectionReasons[0] || "institutional quant opportunity skipped before execution",
+        });
+        this.log("DEBUG", "V20_SHADOW_OPPORTUNITY_RECORDED", opportunity.shadowOpportunity);
+      }
       if (eligible) opportunities.push(opportunity);
       else skipped.push(opportunity);
     }

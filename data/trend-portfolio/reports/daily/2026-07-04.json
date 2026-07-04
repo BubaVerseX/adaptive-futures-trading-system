@@ -1,38 +1,80 @@
 {
-  "generatedAt": "2026-07-04T15:10:51.630Z",
+  "generatedAt": "2026-07-04T17:44:49.614Z",
   "date": "2026-07-04",
   "account": {
     "equity": {
       "startingUsdt": 100,
-      "realizedPnlUsdt": -0.25349039999999956,
-      "currentUsdt": 63.308854
+      "realizedPnlUsdt": -0.2625199,
+      "currentUsdt": 63.297254
     },
-    "openPositions": 1,
-    "totalCostsUsdt": 0.335288,
+    "openPositions": 0,
+    "totalCostsUsdt": 0.344318,
     "currentRiskLevel": 0
   },
   "activity": {
-    "completedTradesToday": 0,
-    "completedTradesAllTime": 15,
-    "continuationTradesToday": 0,
+    "completedTradesToday": 1,
+    "completedTradesAllTime": 16,
+    "continuationTradesToday": 1,
     "reentriesToday": 0
   },
   "quality": {
-    "trades": 0,
-    "netPnlUsdt": 0,
+    "trades": 1,
+    "netPnlUsdt": -0.00903,
     "grossPnlUsdt": 0,
-    "feesUsdt": 0,
+    "feesUsdt": 0.00903,
     "postCostWinRatePct": 0,
     "profitFactor": 0,
-    "expectancyUsdt": 0,
+    "expectancyUsdt": -0.00903,
     "averageWinnerUsdt": 0,
-    "averageLoserUsdt": 0,
-    "feeBleedRatio": 0,
+    "averageLoserUsdt": -0.00903,
+    "feeBleedRatio": 1,
     "grossPositiveButNetNegativeTrades": 0
   },
   "breakdown": {
-    "bySymbol": {},
-    "bySetup": {},
-    "byMarketMode": {}
+    "bySymbol": {
+      "SOLUSDT": {
+        "trades": 1,
+        "netPnlUsdt": -0.00903,
+        "grossPnlUsdt": 0,
+        "feesUsdt": 0.00903,
+        "postCostWinRatePct": 0,
+        "profitFactor": 0,
+        "expectancyUsdt": -0.00903,
+        "averageWinnerUsdt": 0,
+        "averageLoserUsdt": -0.00903,
+        "feeBleedRatio": 1,
+        "grossPositiveButNetNegativeTrades": 0
+      }
+    },
+    "bySetup": {
+      "DONCHIAN_BREAKOUT_CONTINUATION": {
+        "trades": 1,
+        "netPnlUsdt": -0.00903,
+        "grossPnlUsdt": 0,
+        "feesUsdt": 0.00903,
+        "postCostWinRatePct": 0,
+        "profitFactor": 0,
+        "expectancyUsdt": -0.00903,
+        "averageWinnerUsdt": 0,
+        "averageLoserUsdt": -0.00903,
+        "feeBleedRatio": 1,
+        "grossPositiveButNetNegativeTrades": 0
+      }
+    },
+    "byMarketMode": {
+      "V17_ACTIVE_OPPORTUNITY": {
+        "trades": 1,
+        "netPnlUsdt": -0.00903,
+        "grossPnlUsdt": 0,
+        "feesUsdt": 0.00903,
+        "postCostWinRatePct": 0,
+        "profitFactor": 0,
+        "expectancyUsdt": -0.00903,
+        "averageWinnerUsdt": 0,
+        "averageLoserUsdt": -0.00903,
+        "feeBleedRatio": 1,
+        "grossPositiveButNetNegativeTrades": 0
+      }
+    }
   }
 }

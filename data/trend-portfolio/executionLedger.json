@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-07-04T15:09:44.539Z",
+  "updatedAt": "2026-07-04T17:12:03.415Z",
   "logicalTrades": {
     "x10-adopted-1783003701894-38564": {
       "logicalTradeId": "x10-adopted-1783003701894-38564",
@@ -832,21 +832,24 @@
       "side": "LONG",
       "mode": "LIVE",
       "orderLinkIds": [
-        "x10-trade-1783177781126-74501"
+        "x10-trade-1783177781126-74501",
+        "x10-close-1783185122669-40552"
       ],
       "exchangeOrderIds": [
-        "d9a21888-525e-485b-9978-003cfc6a97ac"
+        "d9a21888-525e-485b-9978-003cfc6a97ac",
+        "418424c6-998c-47b6-a7c9-5e14810f878f"
       ],
       "fillIds": [
-        "1f2e0363-51a9-5969-bdf1-d72f93493699"
+        "1f2e0363-51a9-5969-bdf1-d72f93493699",
+        "63324295-03b3-5a91-93d2-129cad06cbed"
       ],
-      "totalFilledQty": 0.1,
-      "weightedAverageFillPrice": 82.08,
-      "totalActualFeeUsdt": 0.0045144,
-      "lifecycleState": "ENTRY_SUBMITTED",
+      "totalFilledQty": 0.2,
+      "weightedAverageFillPrice": 82.08999999999999,
+      "totalActualFeeUsdt": 0.0090299,
+      "lifecycleState": "CLOSED",
       "tpSlConfirmationState": "CONFIRMED",
       "createdAt": "2026-07-04T15:09:41.129Z",
-      "updatedAt": "2026-07-04T15:09:44.539Z",
+      "updatedAt": "2026-07-04T17:12:03.415Z",
       "edgeModel": {
         "tier": "STRONG_CONTINUATION",
         "expectedGrossMovePct": 5.58,
@@ -875,7 +878,11 @@
         "positionIdx": 0,
         "stopLoss": "80.11",
         "updatedAt": "2026-07-04T15:09:44.539Z"
-      }
+      },
+      "finalNetResultUsdt": -0.0090299,
+      "finalGrossPnlUsdt": 0,
+      "finalFeesUsdt": 0.0090299,
+      "closedAt": "2026-07-04T17:12:03.407Z"
     }
   },
   "orderLinkIndex": {
@@ -907,7 +914,8 @@
     "x10-close-1783086558467-79815": "x10-trade-1783079322253-19352",
     "x10-trade-1783107518207-35796": "x10-trade-1783107518207-35796",
     "x10-close-1783116096631-75488": "x10-trade-1783107518207-35796",
-    "x10-trade-1783177781126-74501": "x10-trade-1783177781126-74501"
+    "x10-trade-1783177781126-74501": "x10-trade-1783177781126-74501",
+    "x10-close-1783185122669-40552": "x10-trade-1783177781126-74501"
   },
   "exchangeOrderIndex": {
     "45e60a71-b3b3-40fc-a5d4-557bbdb3ae80": "x10-adopted-1783003701896-92095",
@@ -938,7 +946,8 @@
     "dfb52045-da1e-4541-af02-7a4675cffee0": "x10-trade-1783079322253-19352",
     "f2a74d82-b8fb-448a-ba66-174872412367": "x10-trade-1783107518207-35796",
     "76122661-df73-4123-8619-1360515ee7c4": "x10-trade-1783107518207-35796",
-    "d9a21888-525e-485b-9978-003cfc6a97ac": "x10-trade-1783177781126-74501"
+    "d9a21888-525e-485b-9978-003cfc6a97ac": "x10-trade-1783177781126-74501",
+    "418424c6-998c-47b6-a7c9-5e14810f878f": "x10-trade-1783177781126-74501"
   },
   "processedFillIds": {
     "46cb7462-0473-5e4f-910f-2a84e159a7a5": {
@@ -1114,6 +1123,12 @@
       "orderId": "d9a21888-525e-485b-9978-003cfc6a97ac",
       "orderLinkId": "x10-trade-1783177781126-74501",
       "processedAt": "2026-07-04T15:09:41.436Z"
+    },
+    "63324295-03b3-5a91-93d2-129cad06cbed": {
+      "logicalTradeId": "x10-trade-1783177781126-74501",
+      "orderId": "418424c6-998c-47b6-a7c9-5e14810f878f",
+      "orderLinkId": "x10-close-1783185122669-40552",
+      "processedAt": "2026-07-04T17:12:02.942Z"
     }
   }
 }

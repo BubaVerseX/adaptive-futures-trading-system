@@ -117,6 +117,8 @@ function initialState(config) {
           multiStrategyPortfolioEngineEnabled: config.multiStrategyPortfolioEngineEnabled,
           activeOpportunityMode: config.activeOpportunityMode,
           quantResearchPlatformMode: config.quantResearchPlatformMode,
+          quantIntelligenceEngineMode: config.quantIntelligenceEngineMode,
+          institutionalQuantEngineMode: config.institutionalQuantEngineMode,
           strategies: ["TREND_BREAKOUT", "MULTI_TIMEFRAME_TREND", "TREND_PULLBACK"],
           priorScalpingMemoryIsolated: true,
         }
