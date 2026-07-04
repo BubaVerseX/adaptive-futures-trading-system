@@ -2,14 +2,14 @@
   "version": 1,
   "exchange": "BYBIT_V5_LINEAR",
   "strategyProfile": "BYBIT_ADAPTIVE_STAT_SCALP_V2",
-  "updatedAt": "2026-07-04T17:54:40.939Z",
+  "updatedAt": "2026-07-04T19:11:53.392Z",
   "mode": "LIVE",
   "paused": false,
   "pauseReason": null,
   "equity": {
     "startingUsdt": 100,
-    "realizedPnlUsdt": -0.2625199,
-    "currentUsdt": 63.298267
+    "realizedPnlUsdt": -0.26252,
+    "currentUsdt": 63.295353
   },
   "daily": {
     "date": "2026-07-04",
@@ -22,11 +22,11 @@
     "closedTrades": 1,
     "explorationTrades": 0,
     "recoveryModeActive": true,
-    "recoveryPnlPct": 0.0015,
+    "recoveryPnlPct": -0.0031,
     "recoveryLosingStreak": 3,
     "recoveryNoticeKey": "2026-07-04:0:3:1",
     "profitProtectionActive": false,
-    "profitProtectionPnlPct": 0.0014
+    "profitProtectionPnlPct": -0.0031
   },
   "ladder": {
     "activeLevel": 1,
@@ -137,6 +137,8 @@
     "multiStrategyPortfolioEngineEnabled": true,
     "activeOpportunityMode": true,
     "quantResearchPlatformMode": true,
+    "quantIntelligenceEngineMode": true,
+    "institutionalQuantEngineMode": true,
     "strategies": [
       "TREND_BREAKOUT",
       "MULTI_TIMEFRAME_TREND",
