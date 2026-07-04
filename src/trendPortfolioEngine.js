@@ -123,6 +123,7 @@ class TrendPortfolioEngine {
     this.portfolioDecision = new PortfolioDecisionEngine(config, log);
     this.multiStrategyEnabled = Boolean(config.multiStrategyPortfolioEngineEnabled || config.trendPortfolioMode);
     this.activeOpportunityMode = Boolean((config.activeOpportunityMode || config.trendPortfolioMode) && this.multiStrategyEnabled);
+    this.quantResearchPlatformMode = Boolean(config.quantResearchPlatformMode || config.trendPortfolioMode);
   }
 
   async universe() {
@@ -149,6 +150,13 @@ class TrendPortfolioEngine {
         fixedScalpTakeProfitUsed: false,
         publicConceptsOnly: true,
       });
+      if (this.quantResearchPlatformMode) {
+        this.log("WARN", "V18_QUANT_RESEARCH_PLATFORM_ACTIVE", {
+          objective: "modular strategy research layer with independent signals, ranking, allocation, and walk-forward reporting",
+          strategyLayerOnly: true,
+          executionInfrastructurePreserved: true,
+        });
+      }
       if (this.activeOpportunityMode) {
         this.log("WARN", "V17_ACTIVE_OPPORTUNITY_MODE_ACTIVE", {
           objective: "allow any qualified strategy module to express an independent several-hour trend thesis",
@@ -584,6 +592,7 @@ class TrendPortfolioEngine {
       volume: item.volume,
       analyses,
       marketProfile,
+      strategyPerformanceStats: this.strategyPerformanceStats(),
       onlySide: options.onlySide,
     });
     const side = decision.side || options.onlySide || "LONG";
@@ -823,10 +832,17 @@ class TrendPortfolioEngine {
       volume: item.volume,
       analyses,
       marketProfile,
+      strategyPerformanceStats: this.strategyPerformanceStats(),
     });
     const accepted = evaluation.opportunities.map((decision) => this.buildV15PortfolioSignal(item, analyses, marketProfile, { decision }));
     const rejected = evaluation.skipped.map((decision) => this.buildV15PortfolioSignal(item, analyses, marketProfile, { decision }));
     return [...accepted, ...rejected];
+  }
+
+  strategyPerformanceStats() {
+    return this.adaptive && this.adaptive.memory && this.adaptive.memory.stats
+      ? this.adaptive.memory.stats.byStrategy || {}
+      : {};
   }
 
   async analyzeSymbol(item, marketProfile) {

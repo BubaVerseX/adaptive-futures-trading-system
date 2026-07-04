@@ -3,6 +3,7 @@
 const { evaluateTrendBreakout } = require("./strategies/trendBreakout");
 const { evaluateMultiTimeframeTrend } = require("./strategies/multiTimeframeTrend");
 const { evaluateTrendPullback } = require("./strategies/trendPullback");
+const { StrategyManager } = require("./strategyManager");
 const {
   bounded,
   clampScore,
@@ -200,9 +201,19 @@ class PortfolioDecisionEngine {
   constructor(config, log = () => {}) {
     this.config = config;
     this.log = log;
+    this.strategyManager = new StrategyManager(config, log);
   }
 
   strategyOutputs(context, regime, estimatedRoundTripCostPct, weights) {
+    if (this.config.quantResearchPlatformMode || this.config.trendPortfolioMode) {
+      const managed = this.strategyManager.portfolioOutputs({
+        ...context,
+        config: this.config,
+        estimatedRoundTripCostPct,
+        marketRegime: regime,
+      });
+      return managed.outputs;
+    }
     const baseContext = {
       ...context,
       config: this.config,

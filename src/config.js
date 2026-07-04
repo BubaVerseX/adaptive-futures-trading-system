@@ -379,6 +379,13 @@ function loadConfig() {
     trendPortfolioTargetAtrMultiplier: numberValue("TREND_PORTFOLIO_TARGET_ATR_MULTIPLIER", 4.8, { positive: true, maximum: 16 }),
     trendPortfolioPyramidWindowMinutes: numberValue("TREND_PORTFOLIO_PYRAMID_WINDOW_MINUTES", 360, { minimum: 0 }),
     multiStrategyPortfolioEngineEnabled: booleanValue("MULTI_STRATEGY_PORTFOLIO_ENGINE_ENABLED", trendPortfolioMode ? true : false),
+    quantResearchPlatformMode: booleanValue("QUANT_RESEARCH_PLATFORM_MODE", trendPortfolioMode ? true : false),
+    v18MinStrategyAllocationWeight: numberValue("V18_MIN_STRATEGY_ALLOCATION_WEIGHT", 0.15, { minimum: 0, maximum: 1 }),
+    v18MaxStrategyAllocationWeight: numberValue("V18_MAX_STRATEGY_ALLOCATION_WEIGHT", 0.55, { minimum: 0, maximum: 1 }),
+    v18WalkForwardMinTrades: numberValue("V18_WALK_FORWARD_MIN_TRADES", 20, { minimum: 0, integer: true }),
+    v18WalkForwardMinProfitFactor: numberValue("V18_WALK_FORWARD_MIN_PROFIT_FACTOR", 1, { minimum: 0 }),
+    v18WalkForwardMinExpectancyUsdt: numberValue("V18_WALK_FORWARD_MIN_EXPECTANCY_USDT", 0, { minimum: -100 }),
+    v18RequireWalkForwardValidation: booleanValue("V18_REQUIRE_WALK_FORWARD_VALIDATION", false),
     v15TrendBreakoutWeight: numberValue("V15_TREND_BREAKOUT_WEIGHT", 0.25, { minimum: 0 }),
     v15MultiTimeframeTrendWeight: numberValue("V15_MULTI_TIMEFRAME_TREND_WEIGHT", 0.45, { minimum: 0 }),
     v15TrendPullbackWeight: numberValue("V15_TREND_PULLBACK_WEIGHT", 0.3, { minimum: 0 }),
@@ -728,6 +735,7 @@ function loadConfig() {
     config.aggressiveLearningPhase = false;
     config.multiStrategyPortfolioEngineEnabled = true;
     config.activeOpportunityMode = true;
+    config.quantResearchPlatformMode = true;
     config.explorationModeEnabled = false;
     config.explorationTradeRatio = 0;
     config.allowChoppyMarket = false;
@@ -863,6 +871,9 @@ function loadConfig() {
   }
   if (config.maxCorrelatedClusterStopRiskPct > config.maxTotalOpenStopRiskPct) {
     throw new Error("MAX_CORRELATED_CLUSTER_STOP_RISK_PCT cannot exceed MAX_TOTAL_OPEN_STOP_RISK_PCT.");
+  }
+  if (config.v18MinStrategyAllocationWeight > config.v18MaxStrategyAllocationWeight) {
+    throw new Error("V18_MIN_STRATEGY_ALLOCATION_WEIGHT cannot exceed V18_MAX_STRATEGY_ALLOCATION_WEIGHT.");
   }
   if (config.profitControlledStrongOnlyDrawdownPct < config.profitControlledReducedDrawdownPct) {
     throw new Error("PROFIT_CONTROLLED_STRONG_ONLY_DRAWDOWN_PCT cannot be below PROFIT_CONTROLLED_REDUCED_DRAWDOWN_PCT.");
