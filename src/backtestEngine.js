@@ -2,6 +2,7 @@
 
 const { analyzeCandles, parseCandles } = require("./indicators");
 const { PortfolioDecisionEngine } = require("./portfolioDecisionEngine");
+const { StrategyManager } = require("./strategyManager");
 const { evaluateTrendBreakout } = require("./strategies/trendBreakout");
 const { evaluateMultiTimeframeTrend } = require("./strategies/multiTimeframeTrend");
 const { evaluateTrendPullback } = require("./strategies/trendPullback");
@@ -205,6 +206,7 @@ function evaluateIndependentStrategy(strategyId, config, symbol, item, analyses,
 
 function runV15Backtest(config, candlesBySymbol, options = {}) {
   const portfolio = new PortfolioDecisionEngine(config, () => {});
+  const strategyManager = new StrategyManager(config, () => {});
   const notionalUsdt = numeric(options.notionalUsdt, 50);
   const symbols = Object.keys(candlesBySymbol || {});
   const grouped = {};
@@ -279,6 +281,11 @@ function runV15Backtest(config, candlesBySymbol, options = {}) {
     }
   }
   const results = Object.fromEntries(Object.entries(grouped).map(([key, trades]) => [key, summarizeTrades(trades)]));
+  const dashboard = strategyManager.dashboard({
+    TREND_BREAKOUT: grouped.TREND_BREAKOUT,
+    MULTI_TIMEFRAME_TREND: grouped.MULTI_TIMEFRAME_TREND,
+    TREND_PULLBACK: grouped.TREND_PULLBACK,
+  });
   return {
     generatedAt: new Date().toISOString(),
     symbols,
@@ -290,6 +297,8 @@ function runV15Backtest(config, candlesBySymbol, options = {}) {
     },
     results,
     comparison: compareSummaries(results.V17_ACTIVE_OPPORTUNITY, results.PORTFOLIO_COMBINED),
+    dashboard,
+    recommendedHighestCapitalAllocation: dashboard.recommendedHighestAllocation,
     trades: grouped,
   };
 }

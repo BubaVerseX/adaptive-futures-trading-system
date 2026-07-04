@@ -116,6 +116,7 @@ function initialState(config) {
           aggressiveMomentumMode: config.trendPortfolioAggressiveMomentumMode,
           multiStrategyPortfolioEngineEnabled: config.multiStrategyPortfolioEngineEnabled,
           activeOpportunityMode: config.activeOpportunityMode,
+          quantResearchPlatformMode: config.quantResearchPlatformMode,
           strategies: ["TREND_BREAKOUT", "MULTI_TIMEFRAME_TREND", "TREND_PULLBACK"],
           priorScalpingMemoryIsolated: true,
         }

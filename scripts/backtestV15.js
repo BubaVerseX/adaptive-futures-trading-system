@@ -48,6 +48,10 @@ function main() {
   writeJson(output, report);
   console.log(`V15 backtest completed. Wrote ${output}`);
   console.log(JSON.stringify(report.results, null, 2));
+  if (report.recommendedHighestCapitalAllocation) {
+    console.log("V18 recommended highest allocation:");
+    console.log(JSON.stringify(report.recommendedHighestCapitalAllocation, null, 2));
+  }
 }
 
 main();
