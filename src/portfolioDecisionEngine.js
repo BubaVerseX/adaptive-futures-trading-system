@@ -10,6 +10,7 @@ const {
   buildShadowOpportunity,
   capitalTargetForInstitutionalConfidence,
 } = require("./institutionalQuantEngine");
+const { StrategyLaboratory } = require("./strategyLaboratory");
 const {
   bounded,
   clampScore,
@@ -210,6 +211,7 @@ class PortfolioDecisionEngine {
     this.strategyManager = new StrategyManager(config, log);
     this.quantIntelligence = new QuantIntelligenceEngine(config, log);
     this.institutionalQuant = new InstitutionalQuantEngine(config, log);
+    this.strategyLaboratory = new StrategyLaboratory(config, log);
   }
 
   decisionIntelligence({ side, strategySignal, strategyId, context }) {
@@ -601,6 +603,15 @@ class PortfolioDecisionEngine {
           reason: rejectionReasons[0] || "institutional quant opportunity skipped before execution",
         });
         this.log("DEBUG", "V20_SHADOW_OPPORTUNITY_RECORDED", opportunity.shadowOpportunity);
+      }
+      if (!eligible && this.config.strategyLaboratoryShadowMode) {
+        opportunity.strategyLaboratoryShadow = this.strategyLaboratory.shadowEvaluate(context);
+        this.log("DEBUG", "V21_STRATEGY_LAB_SHADOW_EVALUATED", {
+          symbol: context.symbol,
+          skippedStrategy: output.strategyId,
+          shadowStrategies: opportunity.strategyLaboratoryShadow.filter((item) => item.wouldHaveEntered).map((item) => item.strategyId),
+          liveOrderGenerated: false,
+        });
       }
       if (eligible) opportunities.push(opportunity);
       else skipped.push(opportunity);
