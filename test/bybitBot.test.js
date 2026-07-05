@@ -24,6 +24,11 @@ const {
   summarizeInstitutionalTrades,
   walkForwardValidation: institutionalWalkForwardValidation,
 } = require("../src/institutionalQuantEngine");
+const {
+  NO_POSITIVE_EXPECTANCY_MESSAGE,
+  StrategyLaboratory,
+  createLaboratoryStrategies,
+} = require("../src/strategyLaboratory");
 const { createDefaultStrategies } = require("../src/strategies/quantStrategies");
 const { validateStrategyInterface } = require("../src/strategies/interface");
 const { AdaptiveEngine } = require("../src/adaptiveEngine");
@@ -91,6 +96,8 @@ const ISOLATED_ENV_DEFAULTS = Object.freeze({
   QUANT_RESEARCH_PLATFORM_MODE: "false",
   QUANT_INTELLIGENCE_ENGINE_MODE: "false",
   INSTITUTIONAL_QUANT_ENGINE_MODE: "false",
+  STRATEGY_LABORATORY_MODE: "false",
+  STRATEGY_LABORATORY_SHADOW_MODE: "true",
   EXPLORATION_MODE_ENABLED: "true",
   EXPLORATION_TRADE_RATIO: "0.55",
   FORCED_MARKET_SAMPLING_ENABLED: "true",
@@ -4856,6 +4863,9 @@ async function testV14TrendPortfolioConfigAndLaunchPath() {
   assert.equal(loaded.v20CapitalTierNormalUsdt, 32);
   assert.equal(loaded.v20CapitalTierStrongUsdt, 48);
   assert.equal(loaded.v20CapitalTierEliteUsdt, 64);
+  assert.equal(loaded.strategyLaboratoryShadowMode, true);
+  assert.equal(loaded.v21MinProfitFactor, 1.2);
+  assert.equal(loaded.v21MinTradeCount, 12);
   assert.equal(loaded.v15TrendBreakoutWeight, 0.25);
   assert.equal(loaded.v15MultiTimeframeTrendWeight, 0.45);
   assert.equal(loaded.v15TrendPullbackWeight, 0.3);
@@ -4887,7 +4897,10 @@ async function testV14TrendPortfolioConfigAndLaunchPath() {
   assert.ok(packageJson.scripts.check.includes("src/portfolioDecisionEngine.js"));
   assert.ok(packageJson.scripts.check.includes("src/quantIntelligenceEngine.js"));
   assert.ok(packageJson.scripts.check.includes("src/institutionalQuantEngine.js"));
+  assert.ok(packageJson.scripts.check.includes("src/strategyLaboratory.js"));
   assert.ok(packageJson.scripts["backtest:v15"].includes("backtestV15.js"));
+  assert.ok(packageJson.scripts["lab:v21"].includes("STRATEGY_LABORATORY_MODE=true"));
+  assert.ok(packageJson.scripts["lab:v21"].includes("DRY_RUN=true"));
   assert.throws(
     () => withEnv({ TREND_PORTFOLIO_MODE: "true", SWING_MOMENTUM_MODE: "true" }, () => loadConfig()),
     /independent V14 trend profile/
@@ -5294,6 +5307,104 @@ async function testV20InstitutionalQuantEngineAndValidationReports() {
   assert.ok(report.trades.V17_ACTIVE_OPPORTUNITY[0].institutionalTradeQuality);
 }
 
+async function testV21StrategyLaboratoryRanksGatesAndShadows() {
+  const { events, log } = logCollector();
+  const cfg = config({
+    strategyLaboratoryMode: true,
+    strategyLaboratoryShadowMode: true,
+    maxDeployableCapitalUsdt: 64,
+    v21LabMinEntryConfidence: 40,
+    v21MinProfitFactor: 0.8,
+    v21MaxDrawdownUsdt: 999,
+    v21MinTradeCount: 1,
+    v21LabPositionNotionalUsdt: 24,
+  });
+  const strategies = createLaboratoryStrategies();
+  assert.equal(strategies.length, 5);
+  for (const strategy of strategies) {
+    assert.equal(typeof strategy.generateEntry, "function");
+    assert.equal(typeof strategy.generateExit, "function");
+    assert.equal(typeof strategy.positionSizing, "function");
+    assert.equal(typeof strategy.expectedHoldingTime, "function");
+  }
+
+  const laboratory = new StrategyLaboratory(cfg, log, strategies);
+  const report = laboratory.run({
+    BTCUSDT: trendCandles("UP", 100, 170),
+    ETHUSDT: trendCandles("DOWN", 200, 170),
+    SOLUSDT: trendCandles("UP", 50, 170),
+  });
+  assert.equal(report.noLiveOrders, true);
+  assert.equal(report.rankings.length, 5);
+  assert.ok(report.rankings[0].rank === 1);
+  assert.ok(report.strategies.LAB_TREND_BREAKOUT);
+  assert.ok(Object.hasOwn(report.strategies.LAB_TREND_BREAKOUT.windows, "30d"));
+  assert.ok(Object.hasOwn(report.strategies.LAB_TREND_BREAKOUT.windows, "365d"));
+  assert.ok(Array.isArray(report.strategies.LAB_TREND_BREAKOUT.strengths));
+  assert.ok(Array.isArray(report.strategies.LAB_TREND_BREAKOUT.weaknesses));
+  assert.ok(report.promotedStrategies.length >= 1);
+  assert.ok(report.recommendedLiveStrategy);
+  assert.ok(events.some((event) => event.message === "V21_STRATEGY_LABORATORY_COMPLETED"));
+
+  const labReportFile = path.join(os.tmpdir(), `v21-lab-gate-${Date.now()}.json`);
+  fs.writeFileSync(labReportFile, JSON.stringify({
+    promotedStrategies: [{ strategyId: "LAB_TREND_BREAKOUT" }],
+  }), "utf8");
+  const gatedManager = new StrategyManager(config({
+    v21RequireLabPromotionForLive: true,
+    strategyLaboratoryReportFile: labReportFile,
+  }), () => {}, createDefaultStrategies());
+  assert.equal(gatedManager.laboratoryAllows("TREND_BREAKOUT"), true);
+  assert.equal(gatedManager.laboratoryAllows("TREND_PULLBACK"), false);
+
+  const strictLab = new StrategyLaboratory(config({
+    strategyLaboratoryMode: true,
+    v21MinProfitFactor: 9999,
+    v21MaxDrawdownUsdt: 0,
+    v21MinTradeCount: 9999,
+  }), () => {}, strategies);
+  const strictReport = strictLab.run({
+    BTCUSDT: trendCandles("UP", 100, 120),
+    ETHUSDT: trendCandles("DOWN", 200, 120),
+    SOLUSDT: trendCandles("UP", 50, 120),
+  });
+  assert.equal(strictReport.promotedStrategies.length, 0);
+  assert.equal(strictReport.message, NO_POSITIVE_EXPECTANCY_MESSAGE);
+
+  const shadow = laboratory.shadowEvaluate({
+    symbol: "BTCUSDT",
+    price: 130,
+    analyses: {
+      entry: scannerAnalysis({ momentumPct: 0.4, volumeSpike: 2.2, rangeExpansion: 1.7 }),
+      entryCandles: trendCandles("UP", 100, 90),
+    },
+  });
+  assert.equal(shadow.length, 5);
+  assert.ok(shadow.every((item) => item.liveOrderGenerated === false));
+
+  const backtest = runV15Backtest({
+    ...cfg,
+    trendPortfolioMode: true,
+    quantResearchPlatformMode: true,
+    quantIntelligenceEngineMode: true,
+    institutionalQuantEngineMode: true,
+    v20ShadowModeEnabled: true,
+    trendPortfolioMinNetEdgePct: 0.01,
+    trendPortfolioMinRewardCostRatio: 1.05,
+    v15MinRewardRisk: 0.9,
+    v17TrendBreakoutMinConfidence: 42,
+    v17MultiTimeframeTrendMinConfidence: 42,
+    v17TrendPullbackMinConfidence: 42,
+  }, {
+    BTCUSDT: trendCandles("UP", 100, 130),
+    ETHUSDT: trendCandles("UP", 200, 130),
+    SOLUSDT: trendCandles("DOWN", 50, 130),
+  }, { notionalUsdt: 25, spreadPct: 0.02 });
+  assert.ok(backtest.strategyLaboratoryShadow);
+  assert.ok(Object.hasOwn(backtest.strategyLaboratoryShadow, "summary"));
+  assert.ok(Object.hasOwn(backtest.strategyLaboratoryShadow, "byStrategy"));
+}
+
 async function testV141TrendSizingExpandsHighAndEliteConfidence() {
   const cfg = config({
     trendPortfolioMode: true,
@@ -5670,13 +5781,14 @@ async function run() {
   await testV18StrategyInterfaceManagerAndRanking();
   await testV19QuantIntelligenceEngineAndFactorReporting();
   await testV20InstitutionalQuantEngineAndValidationReports();
+  await testV21StrategyLaboratoryRanksGatesAndShadows();
   await testV141TrendSizingExpandsHighAndEliteConfidence();
   await testV14TrendUsesStopOnlyNativeProtection();
   await testV14TrendAdoptsExchangePositionWithoutOrders();
   await testV14TrendAdoptsExistingTenXPosition();
   await testV14TrendBlocksEarlyTakeProfitExit();
   await testV14TrendPyramidingDuplicateAndBudgetGuards();
-  console.log("Bybit client and bot tests passed: REST signing, centralized 34040 no-change handling, duplicate TP/SL skip, execution ledger fill dedupe, net edge gate, portfolio risk-at-stop checks, UTA balance parsing, live safety balance use, native protection payloads, WebSocket reconnect, API auto-recovery without shutdown, reconciliation, hedge exposure detection, native TP events, regime intelligence, V11 active market universe restriction, survivability scoring, next-generation continuation scoring, V11 mean reversion and activity reporting, active adaptive paper scalper mode, exploration path, exploration memory relaxation, fee-aware stats, advisory symbol cooldowns, adaptive learning, continuation market memory, cautious active recovery, activity floor, daily shutdown removal, forced market sampling, profit protection sizing, fee-aware entries, dynamic sizing, live-validation guards, allocation ladder, risk degradation, promotion checks, execution-cost logging, V6 profit-controlled config guards, setup preservation, deferred leverage mutation, exchange-minimum feasibility, risk degradation, maker/taker routing, V7 profit mode, quality score gate, fee killer, symbol memory V2/V3, expectancy report, winner amplifier continuation holds, V7.1 trade frequency recovery tuning, V8 professional trend/expectancy optimization, V9 edge maximization, V9.5 adaptive edge reinforcement, V10 aggressive adaptive trend dominance, V11 active market engine, V18 quantitative strategy platform, and V20 institutional quant engine.");
+  console.log("Bybit client and bot tests passed: REST signing, centralized 34040 no-change handling, duplicate TP/SL skip, execution ledger fill dedupe, net edge gate, portfolio risk-at-stop checks, UTA balance parsing, live safety balance use, native protection payloads, WebSocket reconnect, API auto-recovery without shutdown, reconciliation, hedge exposure detection, native TP events, regime intelligence, V11 active market universe restriction, survivability scoring, next-generation continuation scoring, V11 mean reversion and activity reporting, active adaptive paper scalper mode, exploration path, exploration memory relaxation, fee-aware stats, advisory symbol cooldowns, adaptive learning, continuation market memory, cautious active recovery, activity floor, daily shutdown removal, forced market sampling, profit protection sizing, fee-aware entries, dynamic sizing, live-validation guards, allocation ladder, risk degradation, promotion checks, execution-cost logging, V6 profit-controlled config guards, setup preservation, deferred leverage mutation, exchange-minimum feasibility, risk degradation, maker/taker routing, V7 profit mode, quality score gate, fee killer, symbol memory V2/V3, expectancy report, winner amplifier continuation holds, V7.1 trade frequency recovery tuning, V8 professional trend/expectancy optimization, V9 edge maximization, V9.5 adaptive edge reinforcement, V10 aggressive adaptive trend dominance, V11 active market engine, V18 quantitative strategy platform, V20 institutional quant engine, and V21 strategy laboratory.");
 }
 
 run().catch((error) => {

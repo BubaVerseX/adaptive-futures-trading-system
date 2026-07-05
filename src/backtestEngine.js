@@ -12,6 +12,7 @@ const {
   summarizeInstitutionalTrades,
   walkForwardValidation: institutionalWalkForwardValidation,
 } = require("./institutionalQuantEngine");
+const { summarizeLabTrades } = require("./strategyLaboratory");
 const { numeric } = require("./strategyUtils");
 
 const STRATEGY_EVALUATORS = Object.freeze({
@@ -257,6 +258,7 @@ function runV15Backtest(config, candlesBySymbol, options = {}) {
   const grouped = {};
   for (const mode of ["PORTFOLIO_COMBINED", "V17_ACTIVE_OPPORTUNITY", ...Object.keys(STRATEGY_EVALUATORS)]) grouped[mode] = [];
   const shadowOpportunities = [];
+  const strategyLaboratoryShadowTrades = [];
   for (const symbol of symbols) {
     const candles = parseCandles(candlesBySymbol[symbol] || []);
     for (let index = 60; index < candles.length - 5; index += 1) {
@@ -332,21 +334,39 @@ function runV15Backtest(config, candlesBySymbol, options = {}) {
         grouped.V17_ACTIVE_OPPORTUNITY.push(trade);
       }
       for (const skipped of v17.skipped) {
-        if (!skipped.shadowOpportunity) continue;
-        const simulated = simulateExit({
-          side: skipped.side,
-          expectedMovePct: skipped.expectedMovePct,
-          stopDistancePct: skipped.stopDistancePct,
-          preferredHoldingTimeSeconds: skipped.preferredHoldingTimeSeconds,
-        }, candles, index, config, notionalUsdt);
-        shadowOpportunities.push({
-          ...skipped.shadowOpportunity,
-          ...simulated,
-          wouldHaveWon: simulated.netPnlUsdt > 0,
-          wouldHaveLost: simulated.netPnlUsdt < 0,
-          maximumFavorableExcursionPct: simulated.maximumFavorableExcursionPct,
-          maximumAdverseExcursionPct: simulated.maximumAdverseExcursionPct,
-        });
+        if (skipped.shadowOpportunity) {
+          const simulated = simulateExit({
+            side: skipped.side,
+            expectedMovePct: skipped.expectedMovePct,
+            stopDistancePct: skipped.stopDistancePct,
+            preferredHoldingTimeSeconds: skipped.preferredHoldingTimeSeconds,
+          }, candles, index, config, notionalUsdt);
+          shadowOpportunities.push({
+            ...skipped.shadowOpportunity,
+            ...simulated,
+            wouldHaveWon: simulated.netPnlUsdt > 0,
+            wouldHaveLost: simulated.netPnlUsdt < 0,
+            maximumFavorableExcursionPct: simulated.maximumFavorableExcursionPct,
+            maximumAdverseExcursionPct: simulated.maximumAdverseExcursionPct,
+          });
+        }
+        for (const labShadow of skipped.strategyLaboratoryShadow || []) {
+          if (!labShadow.wouldHaveEntered) continue;
+          strategyLaboratoryShadowTrades.push({
+            symbol,
+            side: labShadow.direction,
+            strategyId: labShadow.strategyId,
+            strategyName: labShadow.strategyName,
+            shadowOnly: true,
+            liveOrderGenerated: false,
+            ...simulateExit({
+              side: labShadow.direction,
+              expectedMovePct: labShadow.expectedMovePct,
+              stopDistancePct: labShadow.stopDistancePct,
+              preferredHoldingTimeSeconds: labShadow.expectedHoldingTimeSeconds,
+            }, candles, index, config, notionalUsdt),
+          });
+        }
       }
       for (const strategyId of Object.keys(STRATEGY_EVALUATORS)) {
         const signal = evaluateIndependentStrategy(strategyId, config, symbol, item, analyses, item.spreadPct);
@@ -402,10 +422,20 @@ function runV15Backtest(config, candlesBySymbol, options = {}) {
           : 0,
       },
     },
+    strategyLaboratoryShadow: {
+      summary: summarizeLabTrades(strategyLaboratoryShadowTrades),
+      byStrategy: Object.fromEntries(Object.entries(strategyLaboratoryShadowTrades.reduce((acc, trade) => {
+        const key = trade.strategyId || "UNKNOWN";
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(trade);
+        return acc;
+      }, {})).map(([key, trades]) => [key, summarizeLabTrades(trades)])),
+    },
     dashboard,
     recommendedHighestCapitalAllocation: dashboard.recommendedHighestAllocation,
     trades: grouped,
     shadowOpportunities,
+    strategyLaboratoryShadowTrades,
   };
 }
 

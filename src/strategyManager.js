@@ -1,5 +1,6 @@
 "use strict";
 
+const fs = require("node:fs");
 const { createDefaultStrategies, regimeName } = require("./strategies/quantStrategies");
 const { validateStrategyInterface } = require("./strategies/interface");
 const { bounded, clampScore, numeric, round } = require("./strategyUtils");
@@ -118,12 +119,46 @@ function walkForwardValidation(rankings = [], config = {}) {
   });
 }
 
+function liveStrategyIdFromLaboratory(strategyId) {
+  if (strategyId === "LAB_TREND_BREAKOUT") return "TREND_BREAKOUT";
+  if (strategyId === "LAB_TREND_PULLBACK") return "TREND_PULLBACK";
+  if (strategyId === "LAB_MOMENTUM_CONTINUATION") return "MOMENTUM_CONTINUATION";
+  if (strategyId === "LAB_MEAN_REVERSION") return "MEAN_REVERSION";
+  if (strategyId === "LAB_VOLATILITY_EXPANSION") return "VOLATILITY_EXPANSION";
+  return strategyId;
+}
+
 class StrategyManager {
   constructor(config, log = () => {}, strategies = createDefaultStrategies()) {
     this.config = config;
     this.log = log;
     this.strategies = strategies;
     for (const strategy of this.strategies) validateStrategyInterface(strategy);
+    this.labEligibility = this.loadLaboratoryEligibility();
+  }
+
+  loadLaboratoryEligibility() {
+    if (!this.config.v21RequireLabPromotionForLive) {
+      return { required: false, promoted: null, reason: "V21 lab promotion gate disabled" };
+    }
+    try {
+      const report = JSON.parse(fs.readFileSync(this.config.strategyLaboratoryReportFile, "utf8"));
+      const promoted = new Set((report.promotedStrategies || []).flatMap((item) => [
+        item.strategyId,
+        liveStrategyIdFromLaboratory(item.strategyId),
+      ]));
+      if (!promoted.size) {
+        return { required: true, promoted, reason: "No promoted V21 laboratory strategies; live strategy output disabled." };
+      }
+      return { required: true, promoted, reason: `V21 laboratory promoted ${promoted.size} strategy module(s).` };
+    } catch (error) {
+      return { required: true, promoted: new Set(), reason: `V21 laboratory report unavailable: ${error.message}` };
+    }
+  }
+
+  laboratoryAllows(strategyId) {
+    if (!this.labEligibility.required) return true;
+    return this.labEligibility.promoted && this.labEligibility.promoted.has(strategyId);
   }
 
   rankingsFromAdaptiveStats(stats = {}) {
@@ -152,6 +187,7 @@ class StrategyManager {
     const validationByStrategy = Object.fromEntries(validation.map((item) => [item.strategyId, item]));
     const regime = context.marketRegime || {};
     const outputs = this.strategies.map((strategy) => {
+      const laboratoryAllowed = this.laboratoryAllows(strategy.strategyId);
       const sideEvaluations = {};
       for (const side of ["LONG", "SHORT"]) {
         const signal = strategy.generateSignal({ ...context, config: this.config, onlySide: side });
@@ -164,12 +200,18 @@ class StrategyManager {
           direction: side,
           rawDirection: signal.direction,
           rawConfidence: numeric(signal.confidence),
-          confidence: validationStatus.active ? clampScore(numeric(signal.confidence) * bounded(0.78 + compatibility * 0.22, 0, 1.05)) : 0,
+          confidence: validationStatus.active && laboratoryAllowed ? clampScore(numeric(signal.confidence) * bounded(0.78 + compatibility * 0.22, 0, 1.05)) : 0,
           strategyAllocationWeight: allocations[strategy.strategyId] || 0,
           strategyAllocationMultiplier: sizing.performanceMultiplier,
           positionSizeMultiplier: sizing.positionSizeMultiplier,
           marketCompatibilityScore: round(compatibility, 4),
-          walkForwardValidation: validationStatus,
+          walkForwardValidation: laboratoryAllowed ? validationStatus : {
+            ...validationStatus,
+            active: false,
+            status: "V21_LAB_NOT_PROMOTED",
+            reason: this.labEligibility.reason,
+          },
+          v21LaboratoryAllowed: laboratoryAllowed,
           portfolioWeight: allocations[strategy.strategyId] || 0,
         };
       }
@@ -182,6 +224,7 @@ class StrategyManager {
         allocationWeight: allocations[strategy.strategyId] || 0,
         marketCompatibility: sideEvaluations[selectedSide].marketCompatibilityScore,
         validation: sideEvaluations[selectedSide].walkForwardValidation.status,
+        v21LaboratoryAllowed: laboratoryAllowed,
       });
       return {
         strategyId: strategy.strategyId,
