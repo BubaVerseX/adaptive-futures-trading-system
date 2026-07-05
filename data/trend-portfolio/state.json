@@ -2,14 +2,14 @@
   "version": 1,
   "exchange": "BYBIT_V5_LINEAR",
   "strategyProfile": "BYBIT_ADAPTIVE_STAT_SCALP_V2",
-  "updatedAt": "2026-07-05T09:42:25.251Z",
+  "updatedAt": "2026-07-05T18:58:26.609Z",
   "mode": "LIVE",
   "paused": false,
   "pauseReason": null,
   "equity": {
     "startingUsdt": 100,
     "realizedPnlUsdt": -0.26252,
-    "currentUsdt": 63.29472
+    "currentUsdt": 63.295226
   },
   "daily": {
     "date": "2026-07-05",
@@ -22,11 +22,11 @@
     "closedTrades": 0,
     "explorationTrades": 0,
     "recoveryModeActive": true,
-    "recoveryPnlPct": 0.0063,
+    "recoveryPnlPct": -0.0064,
     "recoveryLosingStreak": 3,
     "recoveryNoticeKey": "2026-07-05:0:3:0",
     "profitProtectionActive": false,
-    "profitProtectionPnlPct": 0.0063
+    "profitProtectionPnlPct": -0.0064
   },
   "ladder": {
     "activeLevel": 1,
@@ -123,8 +123,8 @@
     "active": false,
     "stage": 1,
     "source": "POSITION_MONITOR",
-    "lastError": "Bybit request failed (HTTP 200, code 10002): invalid request, please check your server timestamp or recv_window param: req_timestamp[1783231221746],server_timestamp[1783231229747],recv_window[5000].",
-    "recoveredAt": "2026-07-05T06:00:29.651Z",
+    "lastError": "Bybit request failed (HTTP 200, code 10002): invalid request, please check your server timestamp or recv_window param: req_timestamp[1783274421535],server_timestamp[1783274431328],recv_window[5000].",
+    "recoveredAt": "2026-07-05T18:00:31.337Z",
     "consecutiveApiErrors": 1,
     "shutdownSuppressed": true
   },
