@@ -13,6 +13,7 @@ function run() {
     "--output-dir", config.microModelDir,
     "--horizons", config.microPredictionHorizonsSeconds.join(","),
     "--min-snapshots-per-symbol", String(config.microTrainingMinSnapshotsPerSymbol),
+    "--label-tolerance-ms", String(config.microLabelToleranceMs),
   ];
   console.log(JSON.stringify({
     message: "MICRO_TRAINING_START",
@@ -21,6 +22,7 @@ function run() {
     outputDir: config.microModelDir,
     horizonsSeconds: config.microPredictionHorizonsSeconds,
     minimumSnapshotsPerSymbol: config.microTrainingMinSnapshotsPerSymbol,
+    labelToleranceMs: config.microLabelToleranceMs,
   }, null, 2));
   const result = spawnSync(config.microPythonBin, args, {
     cwd: config.projectRoot,

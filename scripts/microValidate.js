@@ -20,6 +20,7 @@ function run() {
     "--slippage-bps", String(config.microEstimatedSlippageBps),
     "--safety-buffer-bps", String(config.microSafetyBufferBps),
     "--min-profit-factor", "1.2",
+    "--label-tolerance-ms", String(config.microLabelToleranceMs),
   ];
   console.log(JSON.stringify({
     message: "MICRO_VALIDATION_START",
