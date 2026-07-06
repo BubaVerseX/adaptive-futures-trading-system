@@ -13,3 +13,4 @@ data/profit-controlled-live/
 micro-env/
 __pycache__/
 *.pyc
+catboost_info/

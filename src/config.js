@@ -363,10 +363,18 @@ function loadConfig() {
     microTrainingReportFile: path.join(PROJECT_ROOT, "models", "microstructure", "training-report.json"),
     microValidationReportFile: path.join(PROJECT_ROOT, "models", "microstructure", "validation-report.json"),
     microLiveProfileFile: path.join(PROJECT_ROOT, "models", "microstructure", "live-profile.json"),
+    microLiveProfileV25File: path.join(PROJECT_ROOT, "models", "microstructure", "live-profile-v25.json"),
     microPythonBin: process.env.MICRO_PYTHON_BIN || process.env.PYTHON || "python3",
     microTrainingMinSnapshotsPerSymbol: numberValue("MICRO_TRAINING_MIN_SNAPSHOTS_PER_SYMBOL", 10000, { positive: true, integer: true }),
     microLabelToleranceMs: numberValue("MICRO_LABEL_TOLERANCE_MS", 1500, { positive: true, integer: true }),
     microPredictionTimeoutMs: numberValue("MICRO_PREDICTION_TIMEOUT_MS", 5000, { positive: true, integer: true }),
+    microTakerFeeBps: numberValue("MICRO_TAKER_FEE_BPS", 11, { minimum: 0 }),
+    microSlippageBps: numberValue("MICRO_SLIPPAGE_BPS", 0.6, { minimum: 0 }),
+    microThresholdSweepBps: String(process.env.MICRO_THRESHOLD_SWEEP_BPS || "0.5,1,2,3,5,8,10,15,20")
+      .split(",")
+      .map((value) => Number(value.trim()))
+      .filter((value) => Number.isFinite(value) && value >= 0),
+    microValidationMaxDrawdown: numberValue("MICRO_VALIDATION_MAX_DRAWDOWN", 5, { minimum: 0 }),
     microMaxDeployableCapitalUsdt: numberValue("MICRO_MAX_DEPLOYABLE_CAPITAL_USDT", 64, { positive: true }),
     microBaseTradeMarginUsdt: numberValue("MICRO_BASE_TRADE_MARGIN_USDT", 10, { positive: true }),
     microStrongTradeMarginUsdt: numberValue("MICRO_STRONG_TRADE_MARGIN_USDT", 20, { positive: true }),

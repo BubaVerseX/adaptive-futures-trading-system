@@ -14,13 +14,16 @@ function run() {
     "--manifest", config.microModelManifestFile,
     "--output-report", config.microValidationReportFile,
     "--output-profile", config.microLiveProfileFile,
+    "--output-v25-profile", config.microLiveProfileV25File,
     "--min-shadow-signals", String(config.microShadowMinSignals),
     "--min-net-edge-bps", String(config.microMinNetEdgeBps),
-    "--fee-bps", String(feeBps),
-    "--slippage-bps", String(config.microEstimatedSlippageBps),
+    "--fee-bps", String(config.microTakerFeeBps ?? feeBps),
+    "--slippage-bps", String(config.microSlippageBps ?? config.microEstimatedSlippageBps),
     "--safety-buffer-bps", String(config.microSafetyBufferBps),
     "--min-profit-factor", "1.2",
     "--label-tolerance-ms", String(config.microLabelToleranceMs),
+    "--thresholds-bps", config.microThresholdSweepBps.join(","),
+    "--max-drawdown", String(config.microValidationMaxDrawdown),
   ];
   console.log(JSON.stringify({
     message: "MICRO_VALIDATION_START",
@@ -28,6 +31,8 @@ function run() {
     snapshotDir: config.microSnapshotDir,
     manifest: config.microModelManifestFile,
     outputReport: config.microValidationReportFile,
+    outputV25Profile: config.microLiveProfileV25File,
+    thresholdsBps: config.microThresholdSweepBps,
   }, null, 2));
   const result = spawnSync(config.microPythonBin, args, {
     cwd: config.projectRoot,

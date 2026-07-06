@@ -5684,6 +5684,8 @@ async function testV24MicrostructureFeatureEngineAndSafetyGates() {
   const cfg = config({
     microstructureTakerMode: false,
     microEstimatedSlippagePct: 0.001,
+    microTakerFeeBps: 1,
+    microSlippageBps: 0.1,
     estimatedTakerFeePctPerSide: 0.01,
     microMinPredictedReturnPct: 0.01,
     microMinExpectedNetEdgePct: 0.001,

@@ -14,12 +14,50 @@ function loadMicroModelManifest(config = {}) {
   return readJson(config.microModelManifestFile, null);
 }
 
+function loadMicroLiveProfileV25(config = {}) {
+  return readJson(config.microLiveProfileV25File, null);
+}
+
 function modelForHorizon(manifest = {}, horizonSeconds) {
   const models = Array.isArray(manifest.models) ? manifest.models : [];
   return models.find((model) => Number(model.horizonSeconds) === Number(horizonSeconds)) || models[0] || null;
 }
 
 function microModelStatus(config = {}) {
+  const profile = loadMicroLiveProfileV25(config);
+  if (!profile || profile.status !== "VALIDATED" || !profile.validationPassed) {
+    return {
+      ready: false,
+      status: "MICRO_MODEL_NOT_READY",
+      reason: "V25_LIVE_PROFILE_MISSING_OR_REJECTED",
+      profileFile: config.microLiveProfileV25File,
+    };
+  }
+  const profileModelPath = path.resolve(config.projectRoot || process.cwd(), profile.modelFile || "");
+  if (!profileModelPath || !fs.existsSync(profileModelPath)) {
+    return {
+      ready: false,
+      status: "MICRO_MODEL_NOT_READY",
+      reason: "V25_PROFILE_MODEL_FILE_MISSING",
+      profileFile: config.microLiveProfileV25File,
+      modelFile: profile.modelFile,
+    };
+  }
+  return {
+    ready: true,
+    status: "MICRO_MODEL_READY",
+    profile,
+    model: {
+      horizonSeconds: profile.horizonSeconds,
+      modelFile: profile.modelFile,
+      signalMode: profile.signalMode,
+      bestThresholdBps: profile.bestThresholdBps,
+    },
+    modelPath: profileModelPath,
+  };
+}
+
+function microTrainingManifestStatus(config = {}) {
   const manifest = loadMicroModelManifest(config);
   if (!manifest) {
     return { ready: false, status: "MICRO_MODEL_NOT_READY", reason: "MODEL_MANIFEST_MISSING" };
@@ -65,9 +103,20 @@ function predictWithTrainedMicroModel(snapshot = {}, config = {}) {
     };
   }
   try {
+    const parsed = JSON.parse(result.stdout);
+    const profile = status.profile || {};
+    if (String(profile.signalMode || "").toUpperCase() === "INVERTED") {
+      parsed.predictedReturn = -Number(parsed.predictedReturn || 0);
+      parsed.predictedReturnPct = -Number(parsed.predictedReturnPct || 0);
+      parsed.predictedReturnBps = -Number(parsed.predictedReturnBps || 0);
+      parsed.signalMode = "INVERTED";
+    } else {
+      parsed.signalMode = "NORMAL";
+    }
+    parsed.minimumPredictionThresholdBps = Number(profile.bestThresholdBps || 0);
     return {
       ready: true,
-      prediction: JSON.parse(result.stdout),
+      prediction: parsed,
       status,
     };
   } catch (error) {
@@ -76,7 +125,9 @@ function predictWithTrainedMicroModel(snapshot = {}, config = {}) {
 }
 
 module.exports = {
+  loadMicroLiveProfileV25,
   loadMicroModelManifest,
   microModelStatus,
+  microTrainingManifestStatus,
   predictWithTrainedMicroModel,
 };
