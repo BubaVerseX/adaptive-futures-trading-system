@@ -15,6 +15,7 @@ function run() {
     "--output-report", config.microValidationReportFile,
     "--output-profile", config.microLiveProfileFile,
     "--output-v25-profile", config.microLiveProfileV25File,
+    "--output-v26-profile", config.microLiveProfileV26File,
     "--min-shadow-signals", String(config.microShadowMinSignals),
     "--min-net-edge-bps", String(config.microMinNetEdgeBps),
     "--fee-bps", String(config.microTakerFeeBps ?? feeBps),
@@ -31,7 +32,7 @@ function run() {
     snapshotDir: config.microSnapshotDir,
     manifest: config.microModelManifestFile,
     outputReport: config.microValidationReportFile,
-    outputV25Profile: config.microLiveProfileV25File,
+    outputV26Profile: config.microLiveProfileV26File,
     thresholdsBps: config.microThresholdSweepBps,
   }, null, 2));
   const result = spawnSync(config.microPythonBin, args, {

@@ -2,7 +2,7 @@
 
 const fs = require("node:fs");
 const { loadConfig } = require("../src/config");
-const { loadMicroLiveProfileV25, microModelStatus } = require("../src/microstructure");
+const { loadMicroLiveProfileV26, microModelStatus } = require("../src/microstructure");
 
 function fail(message, details = {}) {
   console.error(`[${new Date().toISOString()}] [ERROR] ${message} ${JSON.stringify(details)}`);
@@ -35,10 +35,10 @@ async function main() {
     });
     return;
   }
-  if (!fs.existsSync(config.microLiveProfileV25File)) {
-    fail("MICRO LIVE NOT STARTED — validated microstructure live profile is missing.", {
-      requiredProfile: config.microLiveProfileV25File,
-      runFirst: "npm run micro:train && npm run micro:validate",
+  if (!fs.existsSync(config.microLiveProfileV26File)) {
+    fail("MICRO LIVE NOT STARTED — V26 validated microstructure live profile is missing.", {
+      requiredProfile: config.microLiveProfileV26File,
+      runFirst: "npm run micro:finalize",
     });
     return;
   }
@@ -47,27 +47,44 @@ async function main() {
     fail("MICRO LIVE NOT STARTED — trained model is missing.", {
       reason: model.reason,
       manifest: config.microModelManifestFile,
-      runFirst: "npm run micro:train && npm run micro:validate",
+      runFirst: "npm run micro:finalize",
     });
     return;
   }
-  if (!fs.existsSync(config.microLatestSummaryFile)) {
-    fail("MICRO LIVE NOT STARTED — latest shadow summary is missing.", {
-      requiredSummary: config.microLatestSummaryFile,
-      runFirst: "npm run micro:shadow -- --duration-minutes 240 --min-signals 500",
+  if (!fs.existsSync(config.microFinalReadinessFile)) {
+    fail("MICRO LIVE NOT STARTED — V26 final readiness report is missing.", {
+      requiredReadiness: config.microFinalReadinessFile,
+      runFirst: "npm run micro:finalize",
     });
     return;
   }
-  const latest = JSON.parse(fs.readFileSync(config.microLatestSummaryFile, "utf8"));
-  const blockers = evaluateShadowPerformanceLock(latest, config);
+  const readiness = JSON.parse(fs.readFileSync(config.microFinalReadinessFile, "utf8"));
+  if (!readiness.eligible) {
+    fail("MICRO LIVE NOT STARTED — V26 final readiness lock failed.", {
+      status: readiness.status,
+      blockers: readiness.blockers || readiness.reason || [],
+      finalReadiness: config.microFinalReadinessFile,
+      runFirst: "npm run micro:finalize",
+    });
+    return;
+  }
+  if (!fs.existsSync(config.microShadowV26ReportFile)) {
+    fail("MICRO LIVE NOT STARTED — V26 shadow report is missing.", {
+      requiredShadowReport: config.microShadowV26ReportFile,
+      runFirst: "npm run micro:finalize",
+    });
+    return;
+  }
+  const latest = JSON.parse(fs.readFileSync(config.microShadowV26ReportFile, "utf8"));
+  const blockers = evaluateShadowPerformanceLock(latest, { ...config, microShadowMinSignals: readiness.shadowMinimumSignalsRequired || config.microShadowQuickMinSignals || config.microShadowMinSignals });
   if (blockers.length) {
-    fail("MICRO LIVE NOT STARTED — shadow performance lock failed.", {
+    fail("MICRO LIVE NOT STARTED — V26 shadow performance lock failed.", {
       blockers,
-      latestSummary: config.microLatestSummaryFile,
+      shadowReport: config.microShadowV26ReportFile,
     });
     return;
   }
-  const profile = loadMicroLiveProfileV25(config);
+  const profile = loadMicroLiveProfileV26(config);
   if (
     !profile ||
     profile.status !== "VALIDATED" ||
@@ -81,14 +98,15 @@ async function main() {
       validationPassed: profile && profile.validationPassed,
       tradeCount: profile && profile.tradeCount,
       netPnlAfterFees: profile && profile.netPnlAfterFees,
-      profile: config.microLiveProfileV25File,
+      profile: config.microLiveProfileV26File,
     });
     return;
   }
   console.log(JSON.stringify({
     status: "READY_BUT_NOT_STARTED_BY_SCRIPT",
     message: "Profile passed guards. Wire this profile into the existing order/risk manager before enabling live taker orders.",
-    profile: config.microLiveProfileV25File,
+    profile: config.microLiveProfileV26File,
+    finalReadiness: config.microFinalReadinessFile,
     takerOnly: true,
   }, null, 2));
 }

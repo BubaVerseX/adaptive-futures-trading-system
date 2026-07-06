@@ -18,19 +18,23 @@ function loadMicroLiveProfileV25(config = {}) {
   return readJson(config.microLiveProfileV25File, null);
 }
 
+function loadMicroLiveProfileV26(config = {}) {
+  return readJson(config.microLiveProfileV26File, null);
+}
+
 function modelForHorizon(manifest = {}, horizonSeconds) {
   const models = Array.isArray(manifest.models) ? manifest.models : [];
   return models.find((model) => Number(model.horizonSeconds) === Number(horizonSeconds)) || models[0] || null;
 }
 
 function microModelStatus(config = {}) {
-  const profile = loadMicroLiveProfileV25(config);
+  const profile = loadMicroLiveProfileV26(config);
   if (!profile || profile.status !== "VALIDATED" || !profile.validationPassed) {
     return {
       ready: false,
       status: "MICRO_MODEL_NOT_READY",
-      reason: "V25_LIVE_PROFILE_MISSING_OR_REJECTED",
-      profileFile: config.microLiveProfileV25File,
+      reason: "V26_LIVE_PROFILE_MISSING_OR_REJECTED",
+      profileFile: config.microLiveProfileV26File,
     };
   }
   const profileModelPath = path.resolve(config.projectRoot || process.cwd(), profile.modelFile || "");
@@ -38,8 +42,8 @@ function microModelStatus(config = {}) {
     return {
       ready: false,
       status: "MICRO_MODEL_NOT_READY",
-      reason: "V25_PROFILE_MODEL_FILE_MISSING",
-      profileFile: config.microLiveProfileV25File,
+      reason: "V26_PROFILE_MODEL_FILE_MISSING",
+      profileFile: config.microLiveProfileV26File,
       modelFile: profile.modelFile,
     };
   }
@@ -51,6 +55,7 @@ function microModelStatus(config = {}) {
       horizonSeconds: profile.horizonSeconds,
       modelFile: profile.modelFile,
       signalMode: profile.signalMode,
+      sideMode: profile.sideMode || "LONG_SHORT",
       bestThresholdBps: profile.bestThresholdBps,
     },
     modelPath: profileModelPath,
@@ -114,6 +119,7 @@ function predictWithTrainedMicroModel(snapshot = {}, config = {}) {
       parsed.signalMode = "NORMAL";
     }
     parsed.minimumPredictionThresholdBps = Number(profile.bestThresholdBps || 0);
+    parsed.allowedSideMode = String(profile.sideMode || "LONG_SHORT").toUpperCase();
     return {
       ready: true,
       prediction: parsed,
@@ -126,6 +132,7 @@ function predictWithTrainedMicroModel(snapshot = {}, config = {}) {
 
 module.exports = {
   loadMicroLiveProfileV25,
+  loadMicroLiveProfileV26,
   loadMicroModelManifest,
   microModelStatus,
   microTrainingManifestStatus,

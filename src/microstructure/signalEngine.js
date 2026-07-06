@@ -213,6 +213,8 @@ function microCostGate(snapshot = {}, prediction = {}, config = {}) {
   const weakNetEdge = expectedNetEdgeBps <= numeric(config.microMinNetEdgeBps, 3);
   const abnormalBook = numeric(features.bestBidSize) <= 0 || numeric(features.bestAskSize) <= 0 || numeric(features.midPrice) <= 0;
   const blockedReasons = [];
+  const side = predictedReturnBps > 0 ? "LONG" : predictedReturnBps < 0 ? "SHORT" : "NONE";
+  const allowedSideMode = String(prediction.allowedSideMode || prediction.sideMode || "LONG_SHORT").toUpperCase();
   if (!validation.valid) blockedReasons.push("BAD_FEATURE_VALUES");
   if (!predictionValidation.valid) blockedReasons.push(predictionValidation.warning);
   if (stale) blockedReasons.push("STALE_ORDERBOOK_DATA");
@@ -222,7 +224,8 @@ function microCostGate(snapshot = {}, prediction = {}, config = {}) {
   if (expectedGrossEdgeBps <= totalCostBps) blockedReasons.push("PREDICTED_RETURN_DOES_NOT_COVER_COSTS");
   if (weakNetEdge) blockedReasons.push("EXPECTED_NET_EDGE_BELOW_MINIMUM_BPS");
   if (abnormalBook) blockedReasons.push("ABNORMAL_ORDERBOOK");
-  const side = predictedReturnBps > 0 ? "LONG" : predictedReturnBps < 0 ? "SHORT" : "NONE";
+  if (allowedSideMode === "LONG_ONLY" && side === "SHORT") blockedReasons.push("SIDE_MODE_BLOCKED_SHORT");
+  if (allowedSideMode === "SHORT_ONLY" && side === "LONG") blockedReasons.push("SIDE_MODE_BLOCKED_LONG");
   const featureAgreement = agreementScore(predictedReturnBps, features);
   const liquidityQuality = Math.min(1, topLiquidityUsdt / Math.max(1, numeric(config.microMinTopLiquidityUsdt, 200) * 5));
   const spreadQuality = Math.max(0, 1 - (bpsToPct(spreadCostBps) / Math.max(0.0001, numeric(config.microMaxRelativeSpreadPct, 0.04))));
@@ -271,6 +274,7 @@ function microCostGate(snapshot = {}, prediction = {}, config = {}) {
     ],
     topLiquidityUsdt: round(topLiquidityUsdt, 4),
     blockedReasons,
+    allowedSideMode,
     takerOnly: true,
     topContributingFeatures: prediction.topContributingFeatures || featureContributionEstimate(features, config),
   };

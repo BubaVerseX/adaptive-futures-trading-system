@@ -5678,8 +5678,10 @@ async function testV24MicrostructureFeatureEngineAndSafetyGates() {
   assert.match(packageJson.scripts["micro:research"], /MICROSTRUCTURE_TAKER_MODE=true/);
   assert.match(packageJson.scripts["micro:shadow"], /MICRO_SHADOW_MODE=true/);
   assert.match(packageJson.scripts["micro:live"], /MICRO_LIVE_MODE=true/);
+  assert.match(packageJson.scripts["micro:finalize"], /MICRO_FINALIZE_MODE=true/);
   assert.match(packageJson.scripts.check, /src\/microstructure\/featureEngine\.js/);
   assert.match(packageJson.scripts.check, /scripts\/microLive\.js/);
+  assert.match(packageJson.scripts.check, /scripts\/microFinalize\.js/);
 
   const cfg = config({
     microstructureTakerMode: false,

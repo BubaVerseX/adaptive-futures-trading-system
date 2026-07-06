@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate trained V25 microstructure models and select a live-ready profile.
+"""Validate trained V26 microstructure models and select a live-ready profile.
 
 Research-only. This script never connects to Bybit and cannot place orders.
 """
@@ -14,9 +14,21 @@ from pathlib import Path
 from train_micro_model import FEATURE_COLUMNS, add_targets, list_snapshot_files, load_rows
 
 
+SIDE_MODES = ("LONG_SHORT", "LONG_ONLY", "SHORT_ONLY")
+SIGNAL_MODES = (("NORMAL", 1.0), ("INVERTED", -1.0))
+
+
+def finite_float(value, fallback=0.0):
+    try:
+        parsed = float(value)
+        return parsed if math.isfinite(parsed) else fallback
+    except (TypeError, ValueError):
+        return fallback
+
+
 def profit_factor(values):
-    wins = sum(max(0.0, float(value)) for value in values)
-    losses = abs(sum(min(0.0, float(value)) for value in values))
+    wins = sum(max(0.0, finite_float(value)) for value in values)
+    losses = abs(sum(min(0.0, finite_float(value)) for value in values))
     if losses > 0:
         return wins / losses
     return 999.0 if wins > 0 else 0.0
@@ -27,14 +39,14 @@ def max_drawdown(values):
     peak = 0.0
     drawdown = 0.0
     for value in values:
-        equity += float(value)
+        equity += finite_float(value)
         peak = max(peak, equity)
         drawdown = max(drawdown, peak - equity)
     return drawdown
 
 
 def summary(values):
-    usable = [float(value) for value in values if math.isfinite(float(value))]
+    usable = [finite_float(value) for value in values if math.isfinite(finite_float(value))]
     if not usable:
         return {"min": 0, "max": 0, "mean": 0}
     return {
@@ -50,25 +62,38 @@ def write_json(path: Path, payload: dict) -> None:
 
 
 def cost_bps(row, fee_bps, slippage_bps):
-    spread_bps = float(row.get("relativeSpread") or 0) * 10000
+    spread_bps = max(0.0, finite_float(row.get("relativeSpread")) * 10000)
     return spread_bps, spread_bps + fee_bps + slippage_bps
 
 
 def directional_accuracy(predicted_bps, actual_bps):
-    hits = [
-        1 for predicted, actual in zip(predicted_bps, actual_bps)
-        if predicted != 0 and actual != 0 and math.copysign(1, predicted) == math.copysign(1, actual)
-    ]
-    return len(hits) / len(actual_bps) if actual_bps else 0
+    comparable = 0
+    hits = 0
+    for predicted, actual in zip(predicted_bps, actual_bps):
+        if predicted == 0 or actual == 0:
+            continue
+        comparable += 1
+        if math.copysign(1, predicted) == math.copysign(1, actual):
+            hits += 1
+    return hits / comparable if comparable else 0
 
 
-def evaluate_threshold(rows, adjusted_predictions_bps, actual_bps, threshold_bps, args):
+def side_allowed(predicted_bps, side_mode):
+    if side_mode == "LONG_ONLY":
+        return predicted_bps > 0
+    if side_mode == "SHORT_ONLY":
+        return predicted_bps < 0
+    return predicted_bps != 0
+
+
+def evaluate_threshold(rows, adjusted_predictions_bps, actual_bps, threshold_bps, side_mode, args):
     trades = []
     above_threshold = 0
     threshold_direction_hits = 0
     rejected_by_threshold = 0
     rejected_by_fee = 0
     rejected_by_spread = 0
+    rejected_by_side_mode = 0
     expected_net_edges = []
     for row, predicted, actual in zip(rows, adjusted_predictions_bps, actual_bps):
         abs_prediction = abs(predicted)
@@ -81,6 +106,9 @@ def evaluate_threshold(rows, adjusted_predictions_bps, actual_bps, threshold_bps
         above_threshold += 1
         if predicted != 0 and actual != 0 and math.copysign(1, predicted) == math.copysign(1, actual):
             threshold_direction_hits += 1
+        if not side_allowed(predicted, side_mode):
+            rejected_by_side_mode += 1
+            continue
         if spread_bps >= abs_prediction:
             rejected_by_spread += 1
             continue
@@ -94,6 +122,7 @@ def evaluate_threshold(rows, adjusted_predictions_bps, actual_bps, threshold_bps
     dd = max_drawdown(trades)
     return {
         "thresholdBps": threshold_bps,
+        "sideMode": side_mode,
         "numberAboveThreshold": above_threshold,
         "precisionAboveThreshold": threshold_direction_hits / above_threshold if above_threshold else 0,
         "tradeCount": len(trades),
@@ -105,6 +134,7 @@ def evaluate_threshold(rows, adjusted_predictions_bps, actual_bps, threshold_bps
         "rejectedByThreshold": rejected_by_threshold,
         "rejectedByFee": rejected_by_fee,
         "rejectedBySpread": rejected_by_spread,
+        "rejectedBySideMode": rejected_by_side_mode,
     }
 
 
@@ -115,7 +145,9 @@ def better_result(left, right):
         return left if left["netPnl"] > right["netPnl"] else right
     if left["profitFactor"] != right["profitFactor"]:
         return left if left["profitFactor"] > right["profitFactor"] else right
-    return left if left["tradeCount"] > right["tradeCount"] else right
+    if left["tradeCount"] != right["tradeCount"]:
+        return left if left["tradeCount"] > right["tradeCount"] else right
+    return left if left["precisionAboveThreshold"] > right["precisionAboveThreshold"] else right
 
 
 def validate_model(model_info, rows, args):
@@ -129,45 +161,43 @@ def validate_model(model_info, rows, args):
     split = int(len(target_rows) * 0.7)
     validation_rows = target_rows[split:]
     if not validation_rows:
-        return {"horizonSeconds": horizon, "status": "NO_VALIDATION_ROWS"}
+        return {"horizonSeconds": horizon, "status": "NO_VALIDATION_ROWS", "targetRows": len(target_rows)}
 
     model = CatBoostRegressor()
     model.load_model(str(model_info["modelFile"]))
     pool = Pool([[row[column] for column in FEATURE_COLUMNS] for row in validation_rows], feature_names=FEATURE_COLUMNS)
-    raw_predictions_bps = [float(value) * 10000 for value in model.predict(pool)]
-    actual_bps = [float(row["targetReturn"]) * 10000 for row in validation_rows]
+    raw_predictions_bps = [finite_float(value) * 10000 for value in model.predict(pool)]
+    actual_bps = [finite_float(row["targetReturn"]) * 10000 for row in validation_rows]
     threshold_results = []
     best = None
-    for signal_mode, multiplier in [("NORMAL", 1.0), ("INVERTED", -1.0)]:
+    for signal_mode, multiplier in SIGNAL_MODES:
         adjusted = [value * multiplier for value in raw_predictions_bps]
         mode_accuracy = directional_accuracy(adjusted, actual_bps)
-        for threshold in args.thresholds_bps:
-            result = evaluate_threshold(validation_rows, adjusted, actual_bps, threshold, args)
-            enriched = {
-                **result,
-                "signalMode": signal_mode,
-                "directionalAccuracy": mode_accuracy,
-            }
-            threshold_results.append(enriched)
-            best = better_result(enriched, best)
+        for side_mode in SIDE_MODES:
+            for threshold in args.thresholds_bps:
+                result = evaluate_threshold(validation_rows, adjusted, actual_bps, threshold, side_mode, args)
+                enriched = {
+                    **result,
+                    "signalMode": signal_mode,
+                    "directionalAccuracy": mode_accuracy,
+                }
+                threshold_results.append(enriched)
+                best = better_result(enriched, best)
 
-    normal_best = None
-    inverted_best = None
+    best_by_mode = {}
     for result in threshold_results:
-        if result["signalMode"] == "NORMAL":
-            normal_best = better_result(result, normal_best)
-        else:
-            inverted_best = better_result(result, inverted_best)
+        key = f"{result['signalMode']}_{result['sideMode']}"
+        best_by_mode[key] = better_result(result, best_by_mode.get(key))
     return {
         "horizonSeconds": horizon,
         "status": "VALIDATED",
         "modelFile": model_info["modelFile"],
         "targetField": model_info.get("targetField", f"futureReturn{horizon}sBps"),
+        "targetRows": len(target_rows),
         "validationRows": len(validation_rows),
         "predictionDistributionBps": summary(raw_predictions_bps),
         "realizedReturnDistributionBps": summary(actual_bps),
-        "bestNormal": normal_best,
-        "bestInverted": inverted_best,
+        "bestByMode": best_by_mode,
         "bestResult": best,
         "thresholdResults": threshold_results,
         "feesAndSlippageIncluded": True,
@@ -175,6 +205,7 @@ def validate_model(model_info, rows, args):
         "slippageBps": args.slippage_bps,
         "safetyBufferBps": args.safety_buffer_bps,
         "minNetEdgeBps": args.min_net_edge_bps,
+        "unitWarnings": 0,
     }
 
 
@@ -189,7 +220,40 @@ def pass_reasons(candidate, args):
         reasons.append(f"tradeCount < {args.minimum_validation_trades}")
     if result.get("maxDrawdown", 0) > args.max_drawdown:
         reasons.append(f"maxDrawdown > {args.max_drawdown}")
+    if candidate.get("unitWarnings", 0) != 0:
+        reasons.append("unitWarnings != 0")
+    statistically_acceptable = (
+        result.get("tradeCount", 0) >= args.minimum_validation_trades
+        and result.get("precisionAboveThreshold", 0) >= args.min_precision
+        and result.get("netPnl", 0) > 0
+    )
+    if result.get("directionalAccuracy", 0) <= 0.50 and not statistically_acceptable:
+        reasons.append("directionalAccuracy <= 0.50 and statistical profile is not acceptable")
     return reasons
+
+
+def blocked_reason_summary(validated, args):
+    output = []
+    for item in validated:
+        result = item.get("bestResult") or {}
+        output.append({
+            "horizonSeconds": item.get("horizonSeconds"),
+            "bestSignalMode": result.get("signalMode"),
+            "bestSideMode": result.get("sideMode"),
+            "bestThresholdBps": result.get("thresholdBps"),
+            "bestNetPnl": result.get("netPnl"),
+            "bestProfitFactor": result.get("profitFactor"),
+            "bestTradeCount": result.get("tradeCount"),
+            "predictionDistributionBps": item.get("predictionDistributionBps"),
+            "realizedReturnDistributionBps": item.get("realizedReturnDistributionBps"),
+            "expectedNetEdgeDistribution": result.get("expectedNetEdgeDistribution"),
+            "rejectedByFee": result.get("rejectedByFee"),
+            "rejectedByThreshold": result.get("rejectedByThreshold"),
+            "rejectedBySpread": result.get("rejectedBySpread"),
+            "rejectedBySideMode": result.get("rejectedBySideMode"),
+            "blockedReasons": pass_reasons(item, args),
+        })
+    return output
 
 
 def main() -> None:
@@ -199,6 +263,7 @@ def main() -> None:
     parser.add_argument("--output-report", default="models/microstructure/validation-report.json")
     parser.add_argument("--output-profile", default="models/microstructure/live-profile.json")
     parser.add_argument("--output-v25-profile", default="models/microstructure/live-profile-v25.json")
+    parser.add_argument("--output-v26-profile", default="models/microstructure/live-profile-v26.json")
     parser.add_argument("--min-shadow-signals", type=int, default=500)
     parser.add_argument("--minimum-validation-trades", type=int, default=50)
     parser.add_argument("--min-net-edge-bps", type=float, default=3.0)
@@ -206,8 +271,9 @@ def main() -> None:
     parser.add_argument("--slippage-bps", type=float, default=0.6)
     parser.add_argument("--safety-buffer-bps", type=float, default=1.0)
     parser.add_argument("--min-profit-factor", type=float, default=1.2)
+    parser.add_argument("--min-precision", type=float, default=0.50)
     parser.add_argument("--max-drawdown", type=float, default=5.0)
-    parser.add_argument("--thresholds-bps", default="0.5,1,2,3,5,8,10,15,20")
+    parser.add_argument("--thresholds-bps", default="0.1,0.25,0.5,1,1.5,2,3,5,8,10,15,20")
     parser.add_argument("--label-tolerance-ms", type=int, default=1500)
     args = parser.parse_args()
     args.thresholds_bps = [float(item.strip()) for item in args.thresholds_bps.split(",") if item.strip()]
@@ -223,6 +289,7 @@ def main() -> None:
         write_json(Path(args.output_report), report)
         write_json(Path(args.output_profile), { **report, "liveOrdersAllowed": False })
         Path(args.output_v25_profile).unlink(missing_ok=True)
+        Path(args.output_v26_profile).unlink(missing_ok=True)
         print(json.dumps(report, indent=2))
         return
 
@@ -239,6 +306,7 @@ def main() -> None:
         write_json(Path(args.output_report), report)
         write_json(Path(args.output_profile), { **report, "liveOrdersAllowed": False })
         Path(args.output_v25_profile).unlink(missing_ok=True)
+        Path(args.output_v26_profile).unlink(missing_ok=True)
         print(json.dumps(report, indent=2))
         return
 
@@ -253,24 +321,16 @@ def main() -> None:
         key=lambda item: (item["bestResult"]["netPnl"], item["bestResult"]["profitFactor"], item["bestResult"]["tradeCount"]),
         reverse=True,
     )[0] if passing else None
-    rejected_reasons = [
-        {
-            "horizonSeconds": item.get("horizonSeconds"),
-            "bestSignalMode": (item.get("bestResult") or {}).get("signalMode"),
-            "bestThresholdBps": (item.get("bestResult") or {}).get("thresholdBps"),
-            "bestNetPnl": (item.get("bestResult") or {}).get("netPnl"),
-            "bestProfitFactor": (item.get("bestResult") or {}).get("profitFactor"),
-            "bestTradeCount": (item.get("bestResult") or {}).get("tradeCount"),
-            "blockedReasons": pass_reasons(item, args),
-        }
-        for item in validated
-    ]
+    rejected_reasons = blocked_reason_summary(validated, args)
+    best_result = best.get("bestResult") if best else None
     report = {
         "status": "VALIDATED" if best else "REJECTED",
+        "version": "V26",
         "message": "MICROSTRUCTURE_EDGE_VALIDATED" if best else "NO_VALID_MICROSTRUCTURE_EDGE_FOUND",
         "bestHorizonSeconds": best.get("horizonSeconds") if best else None,
-        "bestSignalMode": (best.get("bestResult") or {}).get("signalMode") if best else None,
-        "bestThresholdBps": (best.get("bestResult") or {}).get("thresholdBps") if best else None,
+        "bestSignalMode": best_result.get("signalMode") if best_result else None,
+        "bestSideMode": best_result.get("sideMode") if best_result else None,
+        "bestThresholdBps": best_result.get("thresholdBps") if best_result else None,
         "validatedModels": validated,
         "rejectedReasons": rejected_reasons,
         "promotionCriteria": {
@@ -281,14 +341,17 @@ def main() -> None:
             "maxDrawdown": args.max_drawdown,
             "unitWarningsRequired": 0,
             "feesAndSlippageIncluded": True,
+            "testedSignalModes": [item[0] for item in SIGNAL_MODES],
+            "testedSideModes": list(SIDE_MODES),
+            "thresholdsBps": args.thresholds_bps,
         },
     }
     profile = {
         **report,
-        "shadowSignals": (best.get("bestResult") or {}).get("tradeCount") if best else 0,
-        "netPnlAfterFees": (best.get("bestResult") or {}).get("netPnl") if best else 0,
-        "profitFactor": (best.get("bestResult") or {}).get("profitFactor") if best else 0,
-        "maxDrawdown": (best.get("bestResult") or {}).get("maxDrawdown") if best else None,
+        "shadowSignals": best_result.get("tradeCount") if best_result else 0,
+        "netPnlAfterFees": best_result.get("netPnl") if best_result else 0,
+        "profitFactor": best_result.get("profitFactor") if best_result else 0,
+        "maxDrawdown": best_result.get("maxDrawdown") if best_result else None,
         "trainedModelExists": True,
         "validationPassed": bool(best),
         "liveOrdersAllowed": False,
@@ -297,13 +360,14 @@ def main() -> None:
     write_json(Path(args.output_profile), profile)
     if best:
         selected = best["bestResult"]
-        v25_profile = {
+        selected_profile = {
             "status": "VALIDATED",
-            "version": "V25",
+            "version": "V26",
             "modelFile": best["modelFile"],
             "horizonSeconds": best["horizonSeconds"],
             "targetField": best["targetField"],
             "signalMode": selected["signalMode"],
+            "sideMode": selected["sideMode"],
             "bestThresholdBps": selected["thresholdBps"],
             "netPnlAfterFees": selected["netPnl"],
             "profitFactor": selected["profitFactor"],
@@ -315,13 +379,16 @@ def main() -> None:
             "slippageBps": args.slippage_bps,
             "safetyBufferBps": args.safety_buffer_bps,
             "minNetEdgeBps": args.min_net_edge_bps,
+            "unitWarnings": 0,
             "validationPassed": True,
             "shadowValidationRequired": True,
             "liveOrdersAllowed": False,
         }
-        write_json(Path(args.output_v25_profile), v25_profile)
+        write_json(Path(args.output_v26_profile), selected_profile)
+        write_json(Path(args.output_v25_profile), { **selected_profile, "version": "V25_COMPAT" })
     else:
         Path(args.output_v25_profile).unlink(missing_ok=True)
+        Path(args.output_v26_profile).unlink(missing_ok=True)
     print(json.dumps(report, indent=2))
 
 

@@ -348,8 +348,8 @@ function loadConfig() {
     focusedTradingSymbols: new Set(FOCUSED_TRADING_SYMBOLS),
     microSymbols: [...FOCUSED_TRADING_SYMBOLS],
     microSnapshotIntervalMs: numberValue("MICRO_SNAPSHOT_INTERVAL_MS", 1000, { positive: true, integer: true }),
-    microPredictionHorizonSeconds: numberValue("MICRO_PREDICTION_HORIZON_SECONDS", 3, { positive: true, integer: true, maximum: 30 }),
-    microPredictionHorizonsSeconds: String(process.env.MICRO_PREDICTION_HORIZONS_SECONDS || "3,5,10,30")
+    microPredictionHorizonSeconds: numberValue("MICRO_PREDICTION_HORIZON_SECONDS", 3, { positive: true, integer: true, maximum: 120 }),
+    microPredictionHorizonsSeconds: String(process.env.MICRO_PREDICTION_HORIZONS_SECONDS || "3,5,10,30,60,120")
       .split(",")
       .map((value) => Number(value.trim()))
       .filter((value) => Number.isFinite(value) && value > 0),
@@ -364,13 +364,16 @@ function loadConfig() {
     microValidationReportFile: path.join(PROJECT_ROOT, "models", "microstructure", "validation-report.json"),
     microLiveProfileFile: path.join(PROJECT_ROOT, "models", "microstructure", "live-profile.json"),
     microLiveProfileV25File: path.join(PROJECT_ROOT, "models", "microstructure", "live-profile-v25.json"),
+    microLiveProfileV26File: path.join(PROJECT_ROOT, "models", "microstructure", "live-profile-v26.json"),
+    microFinalReadinessFile: path.join(PROJECT_ROOT, "data", "microstructure", "reports", "final-readiness.json"),
+    microShadowV26ReportFile: path.join(PROJECT_ROOT, "data", "microstructure", "reports", "shadow-v26.json"),
     microPythonBin: process.env.MICRO_PYTHON_BIN || process.env.PYTHON || "python3",
     microTrainingMinSnapshotsPerSymbol: numberValue("MICRO_TRAINING_MIN_SNAPSHOTS_PER_SYMBOL", 10000, { positive: true, integer: true }),
     microLabelToleranceMs: numberValue("MICRO_LABEL_TOLERANCE_MS", 1500, { positive: true, integer: true }),
     microPredictionTimeoutMs: numberValue("MICRO_PREDICTION_TIMEOUT_MS", 5000, { positive: true, integer: true }),
     microTakerFeeBps: numberValue("MICRO_TAKER_FEE_BPS", 11, { minimum: 0 }),
     microSlippageBps: numberValue("MICRO_SLIPPAGE_BPS", 0.6, { minimum: 0 }),
-    microThresholdSweepBps: String(process.env.MICRO_THRESHOLD_SWEEP_BPS || "0.5,1,2,3,5,8,10,15,20")
+    microThresholdSweepBps: String(process.env.MICRO_THRESHOLD_SWEEP_BPS || "0.1,0.25,0.5,1,1.5,2,3,5,8,10,15,20")
       .split(",")
       .map((value) => Number(value.trim()))
       .filter((value) => Number.isFinite(value) && value >= 0),
@@ -400,6 +403,7 @@ function loadConfig() {
     microMinHoldSeconds: numberValue("MICRO_MIN_HOLD_SECONDS", 3, { positive: true, integer: true, maximum: 60 }),
     microStaleDataMs: numberValue("MICRO_STALE_DATA_MS", 2000, { positive: true, integer: true }),
     microShadowMinSignals: numberValue("MICRO_SHADOW_MIN_SIGNALS", 500, { positive: true, integer: true }),
+    microShadowQuickMinSignals: numberValue("MICRO_SHADOW_QUICK_MIN_SIGNALS", 50, { positive: true, integer: true }),
     microShadowMinimumNetPnlUsdt: numberValue("MICRO_SHADOW_MIN_NET_PNL_USDT", 0, { minimum: 0 }),
     takeProfitPct: numberValue("TAKE_PROFIT_PCT", 2.1, { positive: true }),
     stopLossPct: numberValue("STOP_LOSS_PCT", 0.8, { positive: true }),
