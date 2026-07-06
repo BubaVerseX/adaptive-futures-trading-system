@@ -1,0 +1,23 @@
+{
+  "generatedAt": "2026-07-06T07:38:53.691Z",
+  "status": "NO_INPUT_DATA",
+  "noLiveOrders": true,
+  "liveExecutionEngineTouched": false,
+  "message": "Provide --input path/to/candles.json or pass --download to use cached/downloaded public OHLCV. No live or demo orders are placed.",
+  "expectedFormat": {
+    "BTCUSDT": [
+      {
+        "time": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "turnover": 0
+      }
+    ],
+    "ETHUSDT": [],
+    "SOLUSDT": []
+  },
+  "output": "/Users/alinavanempel/Documents/Pionex/data/research/reports/research-v22.json"
+}

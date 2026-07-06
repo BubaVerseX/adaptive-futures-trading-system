@@ -1,0 +1,7 @@
+{
+  "generatedAt": "2026-07-06T08:30:00.000Z",
+  "status": "NOT_GENERATED",
+  "noLiveOrders": true,
+  "liveExecutionEngineTouched": false,
+  "message": "No LIVE_PROFILE_V23_REAL was generated because no strategy satisfied V23.1 real-data promotion constraints."
+}

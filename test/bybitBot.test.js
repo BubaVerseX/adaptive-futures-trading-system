@@ -32,6 +32,9 @@ const {
 const {
   EventDrivenBacktester,
   HistoricalDataEngine,
+  coverageReportForCandles,
+  expectedCandlesForDays,
+  metricRealismReasons,
   NO_RESEARCH_EDGE_MESSAGE,
   PromotionOptimizer,
   ResearchPlatform,
@@ -112,6 +115,13 @@ const ISOLATED_ENV_DEFAULTS = Object.freeze({
   V22_RESEARCH_PLATFORM_MODE: "false",
   V22_RESEARCH_PRIMARY_INTERVAL: "1m",
   V23_PROMOTION_OPTIMIZATION_MODE: "false",
+  V23_REJECT_IMPOSSIBLE_METRICS: "true",
+  V231_RESEARCH_VALIDATION_MODE: "false",
+  V231_MINIMUM_HISTORY_DAYS: "365",
+  V231_REQUIRED_INTERVALS: "15m,1h,4h",
+  V231_MAX_REALISTIC_PROFIT_FACTOR: "10",
+  V231_REJECT_ZERO_DRAWDOWN: "true",
+  V231_REJECT_ZERO_LOSING_TRADES: "true",
   EXPLORATION_MODE_ENABLED: "true",
   EXPLORATION_TRADE_RATIO: "0.55",
   FORCED_MARKET_SAMPLING_ENABLED: "true",
@@ -5455,6 +5465,35 @@ async function testV22QuantResearchPlatformBacktestsOptimizesAndShadows() {
   assert.ok(fs.existsSync(cachedFile));
   assert.equal(engine.loadCached("BTCUSDT", "1m").length, 80);
   assert.equal((await engine.ensureHistoricalData({ symbols: ["BTCUSDT"], intervals: ["1m"], download: false })).BTCUSDT["1m"].length, 80);
+  assert.equal(expectedCandlesForDays("1h", 365), 8760);
+  const hourlyEnd = 1731536000000;
+  let pageCalls = 0;
+  const pagedEngine = new HistoricalDataEngine({
+    cacheDir: fs.mkdtempSync(path.join(os.tmpdir(), "v231-research-cache-")),
+    fetchImpl: async (url) => {
+      pageCalls += 1;
+      const parsed = new URL(url);
+      const end = Number(parsed.searchParams.get("end") || hourlyEnd);
+      const list = [];
+      for (let item = 0; item < 10; item += 1) {
+        const time = end - item * 60 * 60 * 1000;
+        list.push([String(time), "100", "101", "99", "100.5", "1000", "100500"]);
+      }
+      return { ok: true, json: async () => ({ retCode: 0, result: { list } }) };
+    },
+  });
+  const downloaded = await pagedEngine.ensureHistoricalData({
+    symbols: ["BTCUSDT"],
+    intervals: ["1h"],
+    download: true,
+    minimumDays: 1,
+    endTime: hourlyEnd,
+    maxPages: 4,
+  });
+  assert.ok(pageCalls >= 3);
+  const coverage = coverageReportForCandles(downloaded.BTCUSDT["1h"], "1h", 1);
+  assert.equal(coverage.hasRequiredCoverage, true);
+  assert.ok(coverage.candleCount >= 24);
 
   const cfg = config({
     v22ResearchPlatformMode: true,
@@ -5561,7 +5600,10 @@ async function testV23PromotionOptimizerGeneratesSingleStrategyRiskProfile() {
   };
 
   assert.match(packageJson.scripts["research:v22"], /V23_PROMOTION_OPTIMIZATION_MODE=true/);
+  assert.match(packageJson.scripts["research:v23:validate"], /V231_RESEARCH_VALIDATION_MODE=true/);
+  assert.match(packageJson.scripts["research:v23:validate"], /researchV23Validate/);
   assert.match(packageJson.scripts.check, /src\/research\/promotionOptimizer\.js/);
+  assert.match(packageJson.scripts.check, /scripts\/researchV23Validate\.js/);
   assert.deepEqual(V23_CANDIDATE_STRATEGIES, ["MOMENTUM_CONTINUATION", "PULLBACK", "TREND_BREAKOUT"]);
   assert.deepEqual(V23_DISABLED_STRATEGIES, ["MEAN_REVERSION", "VOLATILITY_EXPANSION"]);
 
@@ -5579,6 +5621,10 @@ async function testV23PromotionOptimizerGeneratesSingleStrategyRiskProfile() {
     v23MaxNetProfitReductionPct: 15,
     v23MaxOptimizationCandidates: 432,
     v23RequireOutOfSampleValidation: false,
+    v23RejectImpossibleMetrics: true,
+    v231MaxRealisticProfitFactor: 10,
+    v231RejectZeroDrawdown: true,
+    v231RejectZeroLosingTrades: true,
   });
   const strategies = createResearchStrategies();
   const candles = {
@@ -5593,22 +5639,22 @@ async function testV23PromotionOptimizerGeneratesSingleStrategyRiskProfile() {
   assert.deepEqual(report.v23PromotionOptimization.disabledStrategies, V23_DISABLED_STRATEGIES);
   assert.equal(Object.hasOwn(report.v23PromotionOptimization.strategyResults, "MEAN_REVERSION"), false);
   assert.equal(Object.hasOwn(report.v23PromotionOptimization.strategyResults, "VOLATILITY_EXPANSION"), false);
-  assert.ok(report.v23PromotionOptimization.liveProfile);
-  assert.equal(report.v23PromotionOptimization.liveProfile.profileName, "LIVE_PROFILE_V23");
-  assert.equal(report.v23PromotionOptimization.liveProfile.doNotCombineStrategies, true);
-  assert.equal(report.v23PromotionOptimization.liveProfile.allowedStrategies.length, 1);
-  assert.ok(V23_CANDIDATE_STRATEGIES.includes(report.v23PromotionOptimization.liveProfile.allowedStrategies[0]));
-  assert.equal(report.v23PromotionOptimization.liveProfile.entryLogicUnchanged, true);
-  assert.ok(report.v23PromotionOptimization.liveProfile.optimizedRiskManagement.riskParameters.capitalAllocationMultiplier <= 1);
-  assert.ok(Object.hasOwn(report.v23PromotionOptimization.liveProfile.optimizedRiskManagement.riskParameters, "maxConcurrentPositions"));
-  assert.ok(report.v23PromotionOptimization.liveProfile.promotionEvidence.profitFactor > 1.5);
-  assert.ok(report.v23PromotionOptimization.liveProfile.promotionEvidence.maximumDrawdownUsdt <= cfg.v23MaxDrawdownUsdt);
+  assert.equal(report.v23PromotionOptimization.liveProfile, null);
+  assert.ok(Object.values(report.v23PromotionOptimization.strategyResults).every((item) => item.promotionEligible === false));
+  assert.ok(Object.values(report.v23PromotionOptimization.strategyResults).some((item) => item.promotionBlockedReasons.some((reason) => /unrealistic profit factor|zero drawdown|zero losing trades/i.test(reason))));
+  assert.deepEqual(metricRealismReasons(cfg, {
+    tradeCount: 12,
+    profitFactor: 999,
+    maximumDrawdownUsdt: 0,
+    losingTrades: 0,
+  }).length >= 3, true);
 
   const optimizer = new PromotionOptimizer(cfg, () => {}, strategies);
   const direct = optimizer.run(candles, report.strategies);
   assert.ok(direct.strategyResults.PULLBACK || direct.strategyResults.MOMENTUM_CONTINUATION || direct.strategyResults.TREND_BREAKOUT);
   assert.ok(Object.values(direct.strategyResults).every((item) => Array.isArray(item.paretoFrontier)));
   assert.ok(Object.values(direct.strategyResults).every((item) => item.rejectedByNetProfitProtection >= 0));
+  assert.equal(direct.liveProfile, null);
 }
 
 async function testV141TrendSizingExpandsHighAndEliteConfidence() {

@@ -142,7 +142,10 @@ function riskParameterGrid(config = {}) {
       }
     }
   }
-  return output.slice(0, maxCandidates);
+  if (output.length <= maxCandidates) return output;
+  if (maxCandidates <= 1) return [output[0]];
+  const step = (output.length - 1) / (maxCandidates - 1);
+  return Array.from({ length: maxCandidates }, (_value, index) => output[Math.round(index * step)]);
 }
 
 function riskAdjustedParams(baseParams = {}, riskParameters = {}) {
@@ -166,10 +169,36 @@ function promotionEvaluation(config = {}, metrics = {}, original = {}, context =
   if (numeric(metrics.maximumDrawdownUsdt) > numeric(config.v23MaxDrawdownUsdt, 85)) reasons.push(`drawdown ${metrics.maximumDrawdownUsdt} > ${numeric(config.v23MaxDrawdownUsdt, 85)}`);
   if (numeric(metrics.tradeCount) < numeric(config.v23MinTradeCount, 12)) reasons.push(`trade count ${metrics.tradeCount} < ${numeric(config.v23MinTradeCount, 12)}`);
   if (config.v23RequireOutOfSampleValidation !== false && !context.outOfSampleValidated) reasons.push("out-of-sample validation did not pass");
+  reasons.push(...metricRealismReasons(config, metrics, context));
   return {
     eligible: reasons.length === 0,
     reasons,
   };
+}
+
+function metricRealismReasons(config = {}, metrics = {}, context = {}) {
+  const reasons = [];
+  const tradeCount = numeric(metrics.tradeCount);
+  if (tradeCount <= 0) return reasons;
+  const mathematicallyJustified = Boolean(context.mathematicalJustification);
+  const maxProfitFactor = numeric(config.v231MaxRealisticProfitFactor, numeric(config.v23MaxRealisticProfitFactor, 10));
+  const requireRealism = config.v231ResearchValidationMode || config.v23RejectImpossibleMetrics !== false;
+  if (!requireRealism || mathematicallyJustified) return reasons;
+  if (numeric(metrics.profitFactor) > maxProfitFactor) {
+    reasons.push(`unrealistic profit factor ${metrics.profitFactor} > ${maxProfitFactor} without mathematical justification`);
+  }
+  if (config.v231RejectZeroDrawdown !== false && numeric(metrics.maximumDrawdownUsdt) <= 0) {
+    reasons.push("zero drawdown rejected without mathematical justification");
+  }
+  const losingTrades = Number.isFinite(Number(metrics.losingTrades))
+    ? numeric(metrics.losingTrades)
+    : numeric(metrics.averageLoserUsdt) > 0 || numeric(metrics.winRatePct) < 100
+      ? 1
+      : 0;
+  if (config.v231RejectZeroLosingTrades !== false && losingTrades <= 0) {
+    reasons.push("zero losing trades rejected without mathematical justification");
+  }
+  return reasons;
 }
 
 function liveProfileFor(strategyResult = {}, config = {}) {
@@ -241,6 +270,9 @@ class PromotionOptimizer {
       const evaluation = promotionEvaluation(this.config, result.metrics, original, {
         outOfSampleValidated: Boolean(strategyReport.optimization && strategyReport.optimization.keptOutOfSample),
       });
+      const realismReasons = metricRealismReasons(this.config, result.metrics, {
+        outOfSampleValidated: Boolean(strategyReport.optimization && strategyReport.optimization.keptOutOfSample),
+      });
       return {
         strategyId: strategy.strategyId,
         strategyName: strategy.name,
@@ -253,6 +285,12 @@ class PromotionOptimizer {
         outOfSampleValidated: Boolean(strategyReport.optimization && strategyReport.optimization.keptOutOfSample),
         promotionEligible: evaluation.eligible,
         promotionBlockedReasons: evaluation.reasons,
+        metricRealism: {
+          mathematicallyJustified: false,
+          realistic: realismReasons.length === 0,
+          blockedReasons: realismReasons,
+          maxAllowedProfitFactor: numeric(this.config.v231MaxRealisticProfitFactor, numeric(this.config.v23MaxRealisticProfitFactor, 10)),
+        },
         netProfitPreserved: !evaluation.reasons.some((reason) => /net profit reduction/i.test(reason)),
         score: optimizerScore(result.metrics, original, this.config),
       };
@@ -281,6 +319,7 @@ class PromotionOptimizer {
       outOfSampleValidated: Boolean(strategyReport.optimization && strategyReport.optimization.keptOutOfSample),
       optimizedParams: best ? best.optimizedParams : baseParams,
       optimizedRiskParameters: best ? best.riskParameters : null,
+      metricRealism: best ? best.metricRealism : null,
       promotionEligible: Boolean(best && best.promotionEligible),
       promotionBlockedReasons: best ? best.promotionBlockedReasons : ["no optimization candidates"],
       recommendation,
@@ -295,6 +334,7 @@ class PromotionOptimizer {
         riskParameters: candidate.riskParameters,
         params: candidate.optimizedParams,
         promotionEligible: candidate.promotionEligible,
+        metricRealism: candidate.metricRealism,
       })),
     };
   }
@@ -324,7 +364,9 @@ class PromotionOptimizer {
         maxDrawdownUsdt: numeric(this.config.v23MaxDrawdownUsdt, 85),
         minTradeCount: numeric(this.config.v23MinTradeCount, 12),
         maxNetProfitReductionPct: numeric(this.config.v23MaxNetProfitReductionPct, 15),
+        maxRealisticProfitFactor: numeric(this.config.v231MaxRealisticProfitFactor, numeric(this.config.v23MaxRealisticProfitFactor, 10)),
         requireOutOfSampleValidation: this.config.v23RequireOutOfSampleValidation !== false,
+        rejectImpossibleMetrics: this.config.v23RejectImpossibleMetrics !== false,
       },
       strategyResults,
       promotedStrategy: promoted ? {
@@ -356,6 +398,7 @@ module.exports = {
   applyPortfolioOverlay,
   liveProfileFor,
   paretoFrontier,
+  metricRealismReasons,
   promotionEvaluation,
   riskAdjustedParams,
   riskParameterGrid,
