@@ -1,7 +1,78 @@
 {
-  "status": "MICRO_MODEL_NOT_READY",
-  "reason": "NO_TRAINED_MODELS",
-  "manifestStatus": "NOT_READY",
-  "validatedModels": [],
+  "status": "REJECTED",
+  "bestHorizonSeconds": null,
+  "validatedModels": [
+    {
+      "horizonSeconds": 3,
+      "status": "VALIDATED",
+      "validationRows": 10478,
+      "directionalAccuracy": 0.42393586562321056,
+      "precisionAboveThreshold": 0,
+      "tradeCount": 0,
+      "netPnl": 0,
+      "profitFactor": 0.0,
+      "maxDrawdown": 0.0,
+      "averageTradeNetReturn": 0,
+      "feesAndSlippageIncluded": true,
+      "feeBps": 11.0,
+      "slippageBps": 0.6
+    },
+    {
+      "horizonSeconds": 5,
+      "status": "VALIDATED",
+      "validationRows": 10461,
+      "directionalAccuracy": 0.4397285154382946,
+      "precisionAboveThreshold": 0,
+      "tradeCount": 0,
+      "netPnl": 0,
+      "profitFactor": 0.0,
+      "maxDrawdown": 0.0,
+      "averageTradeNetReturn": 0,
+      "feesAndSlippageIncluded": true,
+      "feeBps": 11.0,
+      "slippageBps": 0.6
+    },
+    {
+      "horizonSeconds": 10,
+      "status": "VALIDATED",
+      "validationRows": 10407,
+      "directionalAccuracy": 0.4503699433073893,
+      "precisionAboveThreshold": 0,
+      "tradeCount": 0,
+      "netPnl": 0,
+      "profitFactor": 0.0,
+      "maxDrawdown": 0.0,
+      "averageTradeNetReturn": 0,
+      "feesAndSlippageIncluded": true,
+      "feeBps": 11.0,
+      "slippageBps": 0.6
+    },
+    {
+      "horizonSeconds": 30,
+      "status": "VALIDATED",
+      "validationRows": 10269,
+      "directionalAccuracy": 0.4722952575713312,
+      "precisionAboveThreshold": 0,
+      "tradeCount": 0,
+      "netPnl": 0,
+      "profitFactor": 0.0,
+      "maxDrawdown": 0.0,
+      "averageTradeNetReturn": 0,
+      "feesAndSlippageIncluded": true,
+      "feeBps": 11.0,
+      "slippageBps": 0.6
+    }
+  ],
+  "promotionCriteria": {
+    "netPnlPositive": true,
+    "profitFactorGreaterThan": 1.2,
+    "minimumAcceptedShadowTrades": 500,
+    "feesAndSlippageIncluded": true
+  },
+  "shadowSignals": 0,
+  "netPnlAfterFees": 0,
+  "profitFactor": 0,
+  "maxDrawdown": null,
+  "trainedModelExists": true,
   "liveOrdersAllowed": false
 }

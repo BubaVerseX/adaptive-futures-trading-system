@@ -1,28 +1,394 @@
 {
-  "status": "NOT_READY",
+  "status": "TRAINED",
   "snapshotFiles": [
     "/Users/alinavanempel/Documents/Pionex/data/microstructure/snapshots/2026-07-06/BTCUSDT.jsonl",
     "/Users/alinavanempel/Documents/Pionex/data/microstructure/snapshots/2026-07-06/ETHUSDT.jsonl",
     "/Users/alinavanempel/Documents/Pionex/data/microstructure/snapshots/2026-07-06/SOLUSDT.jsonl"
   ],
-  "rows": 927,
+  "rows": 35903,
   "skippedBadRows": 0,
   "snapshotsBySymbol": {
-    "BTCUSDT": 310,
-    "ETHUSDT": 310,
-    "SOLUSDT": 307
+    "BTCUSDT": 12906,
+    "ETHUSDT": 12823,
+    "SOLUSDT": 10174
   },
   "minimumSnapshotsPerSymbol": 10000,
-  "notReadySymbols": [
-    "BTCUSDT",
-    "ETHUSDT",
-    "SOLUSDT"
-  ],
+  "labelToleranceMs": 1500,
+  "notReadySymbols": [],
   "horizonsSeconds": [
     3,
     5,
     10,
     30
   ],
-  "models": []
+  "models": [
+    {
+      "horizonSeconds": 3,
+      "status": "TRAINED",
+      "targetField": "futureReturn3sBps",
+      "modelFile": "/Users/alinavanempel/Documents/Pionex/models/microstructure/microstructure_3s.cbm",
+      "targetRows": 34924,
+      "trainRows": 24416,
+      "validationRows": 10478,
+      "directionWeightedScore": 0.19030230823417343,
+      "featureImportance": [
+        {
+          "feature": "spreadZScore",
+          "importance": 30.199824908883144
+        },
+        {
+          "feature": "imbalanceZScore",
+          "importance": 11.37001887291482
+        },
+        {
+          "feature": "shortRealizedVolatility",
+          "importance": 9.519719535006418
+        },
+        {
+          "feature": "micropriceDeviationFromMid",
+          "importance": 9.151822168888351
+        },
+        {
+          "feature": "l1OrderBookImbalance",
+          "importance": 7.938988842495195
+        },
+        {
+          "feature": "buyVolume",
+          "importance": 7.422524465320003
+        },
+        {
+          "feature": "sellVolume",
+          "importance": 3.9432874675044003
+        },
+        {
+          "feature": "netOrderFlow",
+          "importance": 3.7948074221708628
+        },
+        {
+          "feature": "vwapSellToMidDeviation",
+          "importance": 3.213267530591369
+        },
+        {
+          "feature": "vwapBuyToMidDeviation",
+          "importance": 2.88215397638351
+        },
+        {
+          "feature": "relativeSpread",
+          "importance": 2.1880337928390556
+        },
+        {
+          "feature": "orderFlowPressureScore",
+          "importance": 2.179824199685629
+        },
+        {
+          "feature": "volumeConcentration",
+          "importance": 1.608900007568605
+        },
+        {
+          "feature": "tradeImbalance",
+          "importance": 1.4135833523648949
+        },
+        {
+          "feature": "numberOfTrades",
+          "importance": 1.1884335064155245
+        },
+        {
+          "feature": "signedTradeVolume",
+          "importance": 1.1236056399774448
+        },
+        {
+          "feature": "bestBidSize",
+          "importance": 0.4998929167690514
+        },
+        {
+          "feature": "bestAskSize",
+          "importance": 0.18130512005128108
+        },
+        {
+          "feature": "totalTradedVolume",
+          "importance": 0.15831314405026883
+        },
+        {
+          "feature": "tradePriceVariance",
+          "importance": 0.02169313012014672
+        }
+      ]
+    },
+    {
+      "horizonSeconds": 5,
+      "status": "TRAINED",
+      "targetField": "futureReturn5sBps",
+      "modelFile": "/Users/alinavanempel/Documents/Pionex/models/microstructure/microstructure_5s.cbm",
+      "targetRows": 34868,
+      "trainRows": 24377,
+      "validationRows": 10461,
+      "directionWeightedScore": 0.11620408881919653,
+      "featureImportance": [
+        {
+          "feature": "spreadZScore",
+          "importance": 30.11286564056377
+        },
+        {
+          "feature": "shortRealizedVolatility",
+          "importance": 9.461997590318477
+        },
+        {
+          "feature": "sellVolume",
+          "importance": 8.957618320805265
+        },
+        {
+          "feature": "micropriceDeviationFromMid",
+          "importance": 8.631237682982087
+        },
+        {
+          "feature": "imbalanceZScore",
+          "importance": 7.1341620315293355
+        },
+        {
+          "feature": "l1OrderBookImbalance",
+          "importance": 6.492093000795037
+        },
+        {
+          "feature": "volumeConcentration",
+          "importance": 6.142482085906293
+        },
+        {
+          "feature": "buyVolume",
+          "importance": 4.8230927095358
+        },
+        {
+          "feature": "orderFlowPressureScore",
+          "importance": 3.997371909609657
+        },
+        {
+          "feature": "vwapBuyToMidDeviation",
+          "importance": 3.362807962276831
+        },
+        {
+          "feature": "signedTradeVolume",
+          "importance": 2.8923397491605516
+        },
+        {
+          "feature": "vwapSellToMidDeviation",
+          "importance": 2.3364269473166246
+        },
+        {
+          "feature": "relativeSpread",
+          "importance": 1.7044038864446482
+        },
+        {
+          "feature": "netOrderFlow",
+          "importance": 1.6239827563638645
+        },
+        {
+          "feature": "tradeImbalance",
+          "importance": 0.8008094083462216
+        },
+        {
+          "feature": "numberOfTrades",
+          "importance": 0.6306483564476147
+        },
+        {
+          "feature": "bestBidSize",
+          "importance": 0.47150719722391404
+        },
+        {
+          "feature": "bestAskSize",
+          "importance": 0.4224895664761654
+        },
+        {
+          "feature": "tradePriceVariance",
+          "importance": 0.0016631978978399555
+        },
+        {
+          "feature": "totalTradedVolume",
+          "importance": 0.0
+        }
+      ]
+    },
+    {
+      "horizonSeconds": 10,
+      "status": "TRAINED",
+      "targetField": "futureReturn10sBps",
+      "modelFile": "/Users/alinavanempel/Documents/Pionex/models/microstructure/microstructure_10s.cbm",
+      "targetRows": 34689,
+      "trainRows": 24232,
+      "validationRows": 10407,
+      "directionWeightedScore": 0.05915073259415567,
+      "featureImportance": [
+        {
+          "feature": "spreadZScore",
+          "importance": 26.834906695597397
+        },
+        {
+          "feature": "shortRealizedVolatility",
+          "importance": 13.258354157765714
+        },
+        {
+          "feature": "micropriceDeviationFromMid",
+          "importance": 11.362914815511328
+        },
+        {
+          "feature": "l1OrderBookImbalance",
+          "importance": 8.758636104646271
+        },
+        {
+          "feature": "imbalanceZScore",
+          "importance": 8.244743396982306
+        },
+        {
+          "feature": "volumeConcentration",
+          "importance": 6.528019131360685
+        },
+        {
+          "feature": "totalTradedVolume",
+          "importance": 6.157290622542772
+        },
+        {
+          "feature": "tradeImbalance",
+          "importance": 5.731491069813663
+        },
+        {
+          "feature": "vwapSellToMidDeviation",
+          "importance": 4.119655647755766
+        },
+        {
+          "feature": "vwapBuyToMidDeviation",
+          "importance": 3.328428365436583
+        },
+        {
+          "feature": "netOrderFlow",
+          "importance": 1.8857254515482733
+        },
+        {
+          "feature": "numberOfTrades",
+          "importance": 0.6932037168442192
+        },
+        {
+          "feature": "relativeSpread",
+          "importance": 0.5232607293840651
+        },
+        {
+          "feature": "sellVolume",
+          "importance": 0.497553123303919
+        },
+        {
+          "feature": "signedTradeVolume",
+          "importance": 0.47899833971969275
+        },
+        {
+          "feature": "bestAskSize",
+          "importance": 0.4710497573046478
+        },
+        {
+          "feature": "buyVolume",
+          "importance": 0.43596515638755623
+        },
+        {
+          "feature": "orderFlowPressureScore",
+          "importance": 0.4314679719615838
+        },
+        {
+          "feature": "bestBidSize",
+          "importance": 0.2512329614515045
+        },
+        {
+          "feature": "tradePriceVariance",
+          "importance": 0.007102784682080213
+        }
+      ]
+    },
+    {
+      "horizonSeconds": 30,
+      "status": "TRAINED",
+      "targetField": "futureReturn30sBps",
+      "modelFile": "/Users/alinavanempel/Documents/Pionex/models/microstructure/microstructure_30s.cbm",
+      "targetRows": 34229,
+      "trainRows": 23810,
+      "validationRows": 10269,
+      "directionWeightedScore": 0.0838159460832809,
+      "featureImportance": [
+        {
+          "feature": "signedTradeVolume",
+          "importance": 52.25877892985762
+        },
+        {
+          "feature": "imbalanceZScore",
+          "importance": 26.170855983866577
+        },
+        {
+          "feature": "relativeSpread",
+          "importance": 10.774463008419998
+        },
+        {
+          "feature": "micropriceDeviationFromMid",
+          "importance": 5.739453028253289
+        },
+        {
+          "feature": "spreadZScore",
+          "importance": 4.89158001363083
+        },
+        {
+          "feature": "tradePriceVariance",
+          "importance": 0.1648690359716869
+        },
+        {
+          "feature": "bestBidSize",
+          "importance": 0.0
+        },
+        {
+          "feature": "bestAskSize",
+          "importance": 0.0
+        },
+        {
+          "feature": "l1OrderBookImbalance",
+          "importance": 0.0
+        },
+        {
+          "feature": "netOrderFlow",
+          "importance": 0.0
+        },
+        {
+          "feature": "buyVolume",
+          "importance": 0.0
+        },
+        {
+          "feature": "sellVolume",
+          "importance": 0.0
+        },
+        {
+          "feature": "tradeImbalance",
+          "importance": 0.0
+        },
+        {
+          "feature": "vwapBuyToMidDeviation",
+          "importance": 0.0
+        },
+        {
+          "feature": "vwapSellToMidDeviation",
+          "importance": 0.0
+        },
+        {
+          "feature": "totalTradedVolume",
+          "importance": 0.0
+        },
+        {
+          "feature": "numberOfTrades",
+          "importance": 0.0
+        },
+        {
+          "feature": "shortRealizedVolatility",
+          "importance": 0.0
+        },
+        {
+          "feature": "volumeConcentration",
+          "importance": 0.0
+        },
+        {
+          "feature": "orderFlowPressureScore",
+          "importance": 0.0
+        }
+      ]
+    }
+  ]
 }

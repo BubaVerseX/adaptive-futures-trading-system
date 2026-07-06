@@ -46,7 +46,7 @@ def validate_model(model_info, rows, args):
         return {"horizonSeconds": model_info.get("horizonSeconds"), "status": "CATBOOST_MISSING", "error": str(exc)}
 
     horizon = int(model_info["horizonSeconds"])
-    target_rows = add_targets(rows, horizon)
+    target_rows = add_targets(rows, horizon, args.label_tolerance_ms)
     split = int(len(target_rows) * 0.7)
     validation_rows = target_rows[split:]
     if not validation_rows:
@@ -105,6 +105,7 @@ def main() -> None:
     parser.add_argument("--slippage-bps", type=float, default=0.6)
     parser.add_argument("--safety-buffer-bps", type=float, default=1.0)
     parser.add_argument("--min-profit-factor", type=float, default=1.2)
+    parser.add_argument("--label-tolerance-ms", type=int, default=1500)
     args = parser.parse_args()
 
     manifest_path = Path(args.manifest)

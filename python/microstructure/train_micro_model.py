@@ -7,6 +7,7 @@ Research-only. This script never connects to Bybit and cannot place orders.
 from __future__ import annotations
 
 import argparse
+from bisect import bisect_left
 import json
 import math
 from pathlib import Path
@@ -86,16 +87,28 @@ def counts_by_symbol(rows: list[dict]) -> dict[str, int]:
     return counts
 
 
-def add_targets(rows: list[dict], horizon_seconds: int) -> list[dict]:
+def find_future_row(symbol_rows: list[dict], timestamps: list[int], index: int, horizon_ms: int, tolerance_ms: int):
+    target_timestamp = int(symbol_rows[index]["timestamp"]) + horizon_ms
+    future_index = bisect_left(timestamps, target_timestamp, lo=index + 1)
+    if future_index >= len(symbol_rows):
+        return None
+    future = symbol_rows[future_index]
+    if int(future["timestamp"]) - target_timestamp > tolerance_ms:
+        return None
+    return future
+
+
+def add_targets(rows: list[dict], horizon_seconds: int, tolerance_ms: int = 1500) -> list[dict]:
     by_symbol: dict[str, list[dict]] = {}
     for row in rows:
         by_symbol.setdefault(row["symbol"], []).append(row)
     output: list[dict] = []
     horizon_ms = horizon_seconds * 1000
     for symbol_rows in by_symbol.values():
-        by_time = {int(row["timestamp"]): row for row in symbol_rows if row.get("timestamp") is not None}
-        for row in symbol_rows:
-            future = by_time.get(int(row["timestamp"]) + horizon_ms)
+        symbol_rows = sorted(symbol_rows, key=lambda item: int(item["timestamp"]))
+        timestamps = [int(row["timestamp"]) for row in symbol_rows]
+        for index, row in enumerate(symbol_rows):
+            future = find_future_row(symbol_rows, timestamps, index, horizon_ms, tolerance_ms)
             if not future:
                 continue
             mid = float(row.get("midPrice") or 0)
@@ -105,6 +118,9 @@ def add_targets(rows: list[dict], horizon_seconds: int) -> list[dict]:
             enriched = dict(row)
             target = math.log(future_mid / mid)
             enriched[f"targetReturn_{horizon_seconds}s"] = target
+            enriched[f"futureReturn{horizon_seconds}sBps"] = target * 10000
+            enriched[f"futureTimestamp{horizon_seconds}s"] = int(future["timestamp"])
+            enriched[f"futureLagMs{horizon_seconds}s"] = int(future["timestamp"]) - (int(row["timestamp"]) + horizon_ms)
             enriched["targetReturn"] = target
             enriched["targetReturnBps"] = target * 10000
             enriched["targetDirection"] = 1 if target > 0 else 0
@@ -136,6 +152,7 @@ def main() -> None:
     parser.add_argument("--output-dir", default="models/microstructure")
     parser.add_argument("--horizons", default="3,5,10,30")
     parser.add_argument("--min-snapshots-per-symbol", type=int, default=10000)
+    parser.add_argument("--label-tolerance-ms", type=int, default=1500)
     args = parser.parse_args()
 
     snapshot_paths = [Path(item) for item in args.snapshots] if args.snapshots else list_snapshot_files(Path(args.snapshot_dir))
@@ -151,6 +168,7 @@ def main() -> None:
         "skippedBadRows": rows[0].get("_skippedBadRows", 0) if rows else 0,
         "snapshotsBySymbol": symbol_counts,
         "minimumSnapshotsPerSymbol": args.min_snapshots_per_symbol,
+        "labelToleranceMs": args.label_tolerance_ms,
         "notReadySymbols": not_ready,
         "horizonsSeconds": [int(item.strip()) for item in args.horizons.split(",") if item.strip()],
     }
@@ -171,7 +189,7 @@ def main() -> None:
 
     models = []
     for horizon in base_report["horizonsSeconds"]:
-        target_rows = add_targets(rows, horizon)
+        target_rows = add_targets(rows, horizon, args.label_tolerance_ms)
         split = int(len(target_rows) * 0.7)
         purge = max(30, horizon * 5)
         train_rows = target_rows[: max(0, split - purge)]
@@ -180,6 +198,7 @@ def main() -> None:
             models.append({
                 "horizonSeconds": horizon,
                 "status": "NOT_ENOUGH_TARGET_ROWS",
+                "targetField": f"futureReturn{horizon}sBps",
                 "targetRows": len(target_rows),
                 "trainRows": len(train_rows),
                 "validationRows": len(validation_rows),
@@ -205,6 +224,7 @@ def main() -> None:
         models.append({
             "horizonSeconds": horizon,
             "status": "TRAINED",
+            "targetField": f"futureReturn{horizon}sBps",
             "modelFile": str(model_path),
             "targetRows": len(target_rows),
             "trainRows": len(train_rows),
