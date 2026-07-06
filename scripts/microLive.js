@@ -2,7 +2,7 @@
 
 const fs = require("node:fs");
 const { loadConfig } = require("../src/config");
-const { loadMicroProfile, microModelStatus } = require("../src/microstructure");
+const { loadMicroLiveProfileV25, microModelStatus } = require("../src/microstructure");
 
 function fail(message, details = {}) {
   console.error(`[${new Date().toISOString()}] [ERROR] ${message} ${JSON.stringify(details)}`);
@@ -35,10 +35,10 @@ async function main() {
     });
     return;
   }
-  if (!fs.existsSync(config.microLiveProfileFile)) {
+  if (!fs.existsSync(config.microLiveProfileV25File)) {
     fail("MICRO LIVE NOT STARTED — validated microstructure live profile is missing.", {
-      requiredProfile: config.microLiveProfileFile,
-      runFirst: "npm run micro:shadow, then python/microstructure/validate_micro_model.py",
+      requiredProfile: config.microLiveProfileV25File,
+      runFirst: "npm run micro:train && npm run micro:validate",
     });
     return;
   }
@@ -67,27 +67,28 @@ async function main() {
     });
     return;
   }
-  const profile = loadMicroProfile(config.microLiveProfileFile);
+  const profile = loadMicroLiveProfileV25(config);
   if (
     !profile ||
     profile.status !== "VALIDATED" ||
-    !profile.trainedModelExists ||
-    profile.shadowSignals < config.microShadowMinSignals ||
+    !profile.validationPassed ||
+    profile.tradeCount < 50 ||
     Number(profile.netPnlAfterFees || 0) <= 0 ||
     Number(profile.profitFactor || 0) <= 1.2
   ) {
     fail("MICRO LIVE NOT STARTED — profile has not proven positive shadow/model performance after fees.", {
       profileStatus: profile && profile.status,
-      shadowSignals: profile && profile.shadowSignals,
+      validationPassed: profile && profile.validationPassed,
+      tradeCount: profile && profile.tradeCount,
       netPnlAfterFees: profile && profile.netPnlAfterFees,
-      minimumShadowSignals: config.microShadowMinSignals,
+      profile: config.microLiveProfileV25File,
     });
     return;
   }
   console.log(JSON.stringify({
     status: "READY_BUT_NOT_STARTED_BY_SCRIPT",
     message: "Profile passed guards. Wire this profile into the existing order/risk manager before enabling live taker orders.",
-    profile: config.microLiveProfileFile,
+    profile: config.microLiveProfileV25File,
     takerOnly: true,
   }, null, 2));
 }

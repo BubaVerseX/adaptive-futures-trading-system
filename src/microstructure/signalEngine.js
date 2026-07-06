@@ -189,10 +189,12 @@ function microCostGate(snapshot = {}, prediction = {}, config = {}) {
   const predictionValidation = predictionBpsFromInput(prediction, features, config);
   const predictedReturnBps = predictionValidation.valid ? predictionValidation.value : 0;
   const spreadCostBps = decimalToBps(numeric(features.relativeSpread));
-  const feeCostBps = pctToBps(numeric(config.estimatedTakerFeePctPerSide, numeric(config.estimatedFeePctPerSide, 0.055)) * 2);
+  const feeCostBps = config.microTakerFeeBps !== undefined
+    ? numeric(config.microTakerFeeBps)
+    : pctToBps(numeric(config.estimatedTakerFeePctPerSide, numeric(config.estimatedFeePctPerSide, 0.055)) * 2);
   const slippageCostBps = prediction.slippageCostBps !== undefined
     ? numeric(prediction.slippageCostBps)
-    : numeric(config.microEstimatedSlippageBps, pctToBps(config.microEstimatedSlippagePct, 0.006));
+    : numeric(config.microSlippageBps, numeric(config.microEstimatedSlippageBps, pctToBps(config.microEstimatedSlippagePct, 0.006)));
   const safetyBufferBps = numeric(config.microSafetyBufferBps, 1);
   const expectedGrossEdgeBps = Math.abs(predictedReturnBps);
   const totalCostBps = spreadCostBps + feeCostBps + slippageCostBps + safetyBufferBps;
@@ -204,7 +206,10 @@ function microCostGate(snapshot = {}, prediction = {}, config = {}) {
   const stale = numeric(snapshot.dataAgeMs) > numeric(config.microStaleDataMs, 2000);
   const wideSpread = bpsToPct(spreadCostBps) > numeric(config.microMaxRelativeSpreadPct, 0.04);
   const lowLiquidity = topLiquidityUsdt < numeric(config.microMinTopLiquidityUsdt, 200);
-  const weakPrediction = expectedGrossEdgeBps < pctToBps(numeric(config.microMinPredictedReturnPct, 0.012));
+  const weakPrediction = expectedGrossEdgeBps < numeric(
+    prediction.minimumPredictionThresholdBps,
+    pctToBps(numeric(config.microMinPredictedReturnPct, 0.012))
+  );
   const weakNetEdge = expectedNetEdgeBps <= numeric(config.microMinNetEdgeBps, 3);
   const abnormalBook = numeric(features.bestBidSize) <= 0 || numeric(features.bestAskSize) <= 0 || numeric(features.midPrice) <= 0;
   const blockedReasons = [];

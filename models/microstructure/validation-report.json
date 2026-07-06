@@ -1,72 +1,1848 @@
 {
   "status": "REJECTED",
+  "message": "NO_VALID_MICROSTRUCTURE_EDGE_FOUND",
   "bestHorizonSeconds": null,
+  "bestSignalMode": null,
+  "bestThresholdBps": null,
   "validatedModels": [
     {
       "horizonSeconds": 3,
       "status": "VALIDATED",
+      "modelFile": "/Users/alinavanempel/Documents/Pionex/models/microstructure/microstructure_3s.cbm",
+      "targetField": "futureReturn3sBps",
       "validationRows": 10478,
-      "directionalAccuracy": 0.42393586562321056,
-      "precisionAboveThreshold": 0,
-      "tradeCount": 0,
-      "netPnl": 0,
-      "profitFactor": 0.0,
-      "maxDrawdown": 0.0,
-      "averageTradeNetReturn": 0,
+      "predictionDistributionBps": {
+        "min": -0.8255108278274181,
+        "max": 3.6976668432233164,
+        "mean": 0.13572795302857965
+      },
+      "realizedReturnDistributionBps": {
+        "min": -13.793105635055984,
+        "max": 27.347894476515933,
+        "mean": 0.06467305200582014
+      },
+      "bestNormal": {
+        "thresholdBps": 0.5,
+        "numberAboveThreshold": 701,
+        "precisionAboveThreshold": 0.4764621968616263,
+        "tradeCount": 0,
+        "netPnl": 0,
+        "profitFactor": 0.0,
+        "maxDrawdown": 0.0,
+        "averageTradeNetReturn": 0,
+        "expectedNetEdgeDistribution": {
+          "min": -19.926725805279343,
+          "max": -10.143721156776683,
+          "mean": -13.470351111879225
+        },
+        "rejectedByThreshold": 9777,
+        "rejectedByFee": 76,
+        "rejectedBySpread": 625,
+        "signalMode": "NORMAL",
+        "directionalAccuracy": 0.42393586562321056
+      },
+      "bestInverted": {
+        "thresholdBps": 0.5,
+        "numberAboveThreshold": 701,
+        "precisionAboveThreshold": 0.2796005706134094,
+        "tradeCount": 0,
+        "netPnl": 0,
+        "profitFactor": 0.0,
+        "maxDrawdown": 0.0,
+        "averageTradeNetReturn": 0,
+        "expectedNetEdgeDistribution": {
+          "min": -19.926725805279343,
+          "max": -10.143721156776683,
+          "mean": -13.470351111879225
+        },
+        "rejectedByThreshold": 9777,
+        "rejectedByFee": 76,
+        "rejectedBySpread": 625,
+        "signalMode": "INVERTED",
+        "directionalAccuracy": 0.30816949799580073
+      },
+      "bestResult": {
+        "thresholdBps": 0.5,
+        "numberAboveThreshold": 701,
+        "precisionAboveThreshold": 0.4764621968616263,
+        "tradeCount": 0,
+        "netPnl": 0,
+        "profitFactor": 0.0,
+        "maxDrawdown": 0.0,
+        "averageTradeNetReturn": 0,
+        "expectedNetEdgeDistribution": {
+          "min": -19.926725805279343,
+          "max": -10.143721156776683,
+          "mean": -13.470351111879225
+        },
+        "rejectedByThreshold": 9777,
+        "rejectedByFee": 76,
+        "rejectedBySpread": 625,
+        "signalMode": "NORMAL",
+        "directionalAccuracy": 0.42393586562321056
+      },
+      "thresholdResults": [
+        {
+          "thresholdBps": 0.5,
+          "numberAboveThreshold": 701,
+          "precisionAboveThreshold": 0.4764621968616263,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -19.926725805279343,
+            "max": -10.143721156776683,
+            "mean": -13.470351111879225
+          },
+          "rejectedByThreshold": 9777,
+          "rejectedByFee": 76,
+          "rejectedBySpread": 625,
+          "signalMode": "NORMAL",
+          "directionalAccuracy": 0.42393586562321056
+        },
+        {
+          "thresholdBps": 1.0,
+          "numberAboveThreshold": 66,
+          "precisionAboveThreshold": 0.4696969696969697,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -19.926725805279343,
+            "max": -10.143721156776683,
+            "mean": -13.470351111879225
+          },
+          "rejectedByThreshold": 10412,
+          "rejectedByFee": 40,
+          "rejectedBySpread": 26,
+          "signalMode": "NORMAL",
+          "directionalAccuracy": 0.42393586562321056
+        },
+        {
+          "thresholdBps": 2.0,
+          "numberAboveThreshold": 9,
+          "precisionAboveThreshold": 0.3333333333333333,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -19.926725805279343,
+            "max": -10.143721156776683,
+            "mean": -13.470351111879225
+          },
+          "rejectedByThreshold": 10469,
+          "rejectedByFee": 9,
+          "rejectedBySpread": 0,
+          "signalMode": "NORMAL",
+          "directionalAccuracy": 0.42393586562321056
+        },
+        {
+          "thresholdBps": 3.0,
+          "numberAboveThreshold": 2,
+          "precisionAboveThreshold": 0.5,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -19.926725805279343,
+            "max": -10.143721156776683,
+            "mean": -13.470351111879225
+          },
+          "rejectedByThreshold": 10476,
+          "rejectedByFee": 2,
+          "rejectedBySpread": 0,
+          "signalMode": "NORMAL",
+          "directionalAccuracy": 0.42393586562321056
+        },
+        {
+          "thresholdBps": 5.0,
+          "numberAboveThreshold": 0,
+          "precisionAboveThreshold": 0,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -19.926725805279343,
+            "max": -10.143721156776683,
+            "mean": -13.470351111879225
+          },
+          "rejectedByThreshold": 10478,
+          "rejectedByFee": 0,
+          "rejectedBySpread": 0,
+          "signalMode": "NORMAL",
+          "directionalAccuracy": 0.42393586562321056
+        },
+        {
+          "thresholdBps": 8.0,
+          "numberAboveThreshold": 0,
+          "precisionAboveThreshold": 0,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -19.926725805279343,
+            "max": -10.143721156776683,
+            "mean": -13.470351111879225
+          },
+          "rejectedByThreshold": 10478,
+          "rejectedByFee": 0,
+          "rejectedBySpread": 0,
+          "signalMode": "NORMAL",
+          "directionalAccuracy": 0.42393586562321056
+        },
+        {
+          "thresholdBps": 10.0,
+          "numberAboveThreshold": 0,
+          "precisionAboveThreshold": 0,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -19.926725805279343,
+            "max": -10.143721156776683,
+            "mean": -13.470351111879225
+          },
+          "rejectedByThreshold": 10478,
+          "rejectedByFee": 0,
+          "rejectedBySpread": 0,
+          "signalMode": "NORMAL",
+          "directionalAccuracy": 0.42393586562321056
+        },
+        {
+          "thresholdBps": 15.0,
+          "numberAboveThreshold": 0,
+          "precisionAboveThreshold": 0,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -19.926725805279343,
+            "max": -10.143721156776683,
+            "mean": -13.470351111879225
+          },
+          "rejectedByThreshold": 10478,
+          "rejectedByFee": 0,
+          "rejectedBySpread": 0,
+          "signalMode": "NORMAL",
+          "directionalAccuracy": 0.42393586562321056
+        },
+        {
+          "thresholdBps": 20.0,
+          "numberAboveThreshold": 0,
+          "precisionAboveThreshold": 0,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -19.926725805279343,
+            "max": -10.143721156776683,
+            "mean": -13.470351111879225
+          },
+          "rejectedByThreshold": 10478,
+          "rejectedByFee": 0,
+          "rejectedBySpread": 0,
+          "signalMode": "NORMAL",
+          "directionalAccuracy": 0.42393586562321056
+        },
+        {
+          "thresholdBps": 0.5,
+          "numberAboveThreshold": 701,
+          "precisionAboveThreshold": 0.2796005706134094,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -19.926725805279343,
+            "max": -10.143721156776683,
+            "mean": -13.470351111879225
+          },
+          "rejectedByThreshold": 9777,
+          "rejectedByFee": 76,
+          "rejectedBySpread": 625,
+          "signalMode": "INVERTED",
+          "directionalAccuracy": 0.30816949799580073
+        },
+        {
+          "thresholdBps": 1.0,
+          "numberAboveThreshold": 66,
+          "precisionAboveThreshold": 0.4090909090909091,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -19.926725805279343,
+            "max": -10.143721156776683,
+            "mean": -13.470351111879225
+          },
+          "rejectedByThreshold": 10412,
+          "rejectedByFee": 40,
+          "rejectedBySpread": 26,
+          "signalMode": "INVERTED",
+          "directionalAccuracy": 0.30816949799580073
+        },
+        {
+          "thresholdBps": 2.0,
+          "numberAboveThreshold": 9,
+          "precisionAboveThreshold": 0.5555555555555556,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -19.926725805279343,
+            "max": -10.143721156776683,
+            "mean": -13.470351111879225
+          },
+          "rejectedByThreshold": 10469,
+          "rejectedByFee": 9,
+          "rejectedBySpread": 0,
+          "signalMode": "INVERTED",
+          "directionalAccuracy": 0.30816949799580073
+        },
+        {
+          "thresholdBps": 3.0,
+          "numberAboveThreshold": 2,
+          "precisionAboveThreshold": 0.5,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -19.926725805279343,
+            "max": -10.143721156776683,
+            "mean": -13.470351111879225
+          },
+          "rejectedByThreshold": 10476,
+          "rejectedByFee": 2,
+          "rejectedBySpread": 0,
+          "signalMode": "INVERTED",
+          "directionalAccuracy": 0.30816949799580073
+        },
+        {
+          "thresholdBps": 5.0,
+          "numberAboveThreshold": 0,
+          "precisionAboveThreshold": 0,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -19.926725805279343,
+            "max": -10.143721156776683,
+            "mean": -13.470351111879225
+          },
+          "rejectedByThreshold": 10478,
+          "rejectedByFee": 0,
+          "rejectedBySpread": 0,
+          "signalMode": "INVERTED",
+          "directionalAccuracy": 0.30816949799580073
+        },
+        {
+          "thresholdBps": 8.0,
+          "numberAboveThreshold": 0,
+          "precisionAboveThreshold": 0,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -19.926725805279343,
+            "max": -10.143721156776683,
+            "mean": -13.470351111879225
+          },
+          "rejectedByThreshold": 10478,
+          "rejectedByFee": 0,
+          "rejectedBySpread": 0,
+          "signalMode": "INVERTED",
+          "directionalAccuracy": 0.30816949799580073
+        },
+        {
+          "thresholdBps": 10.0,
+          "numberAboveThreshold": 0,
+          "precisionAboveThreshold": 0,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -19.926725805279343,
+            "max": -10.143721156776683,
+            "mean": -13.470351111879225
+          },
+          "rejectedByThreshold": 10478,
+          "rejectedByFee": 0,
+          "rejectedBySpread": 0,
+          "signalMode": "INVERTED",
+          "directionalAccuracy": 0.30816949799580073
+        },
+        {
+          "thresholdBps": 15.0,
+          "numberAboveThreshold": 0,
+          "precisionAboveThreshold": 0,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -19.926725805279343,
+            "max": -10.143721156776683,
+            "mean": -13.470351111879225
+          },
+          "rejectedByThreshold": 10478,
+          "rejectedByFee": 0,
+          "rejectedBySpread": 0,
+          "signalMode": "INVERTED",
+          "directionalAccuracy": 0.30816949799580073
+        },
+        {
+          "thresholdBps": 20.0,
+          "numberAboveThreshold": 0,
+          "precisionAboveThreshold": 0,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -19.926725805279343,
+            "max": -10.143721156776683,
+            "mean": -13.470351111879225
+          },
+          "rejectedByThreshold": 10478,
+          "rejectedByFee": 0,
+          "rejectedBySpread": 0,
+          "signalMode": "INVERTED",
+          "directionalAccuracy": 0.30816949799580073
+        }
+      ],
       "feesAndSlippageIncluded": true,
       "feeBps": 11.0,
-      "slippageBps": 0.6
+      "slippageBps": 0.6,
+      "safetyBufferBps": 1.0,
+      "minNetEdgeBps": 3.0
     },
     {
       "horizonSeconds": 5,
       "status": "VALIDATED",
+      "modelFile": "/Users/alinavanempel/Documents/Pionex/models/microstructure/microstructure_5s.cbm",
+      "targetField": "futureReturn5sBps",
       "validationRows": 10461,
-      "directionalAccuracy": 0.4397285154382946,
-      "precisionAboveThreshold": 0,
-      "tradeCount": 0,
-      "netPnl": 0,
-      "profitFactor": 0.0,
-      "maxDrawdown": 0.0,
-      "averageTradeNetReturn": 0,
+      "predictionDistributionBps": {
+        "min": -0.6936483157129256,
+        "max": 3.6462124583224007,
+        "mean": 0.2125799647401325
+      },
+      "realizedReturnDistributionBps": {
+        "min": -17.37943457743755,
+        "max": 33.573769413020266,
+        "mean": 0.10217281352054905
+      },
+      "bestNormal": {
+        "thresholdBps": 0.5,
+        "numberAboveThreshold": 864,
+        "precisionAboveThreshold": 0.5127314814814815,
+        "tradeCount": 0,
+        "netPnl": 0,
+        "profitFactor": 0.0,
+        "maxDrawdown": 0.0,
+        "averageTradeNetReturn": 0,
+        "expectedNetEdgeDistribution": {
+          "min": -19.931308233378548,
+          "max": -10.1817605416776,
+          "mean": -13.467544334806046
+        },
+        "rejectedByThreshold": 9597,
+        "rejectedByFee": 131,
+        "rejectedBySpread": 733,
+        "signalMode": "NORMAL",
+        "directionalAccuracy": 0.4397285154382946
+      },
+      "bestInverted": {
+        "thresholdBps": 0.5,
+        "numberAboveThreshold": 864,
+        "precisionAboveThreshold": 0.33449074074074076,
+        "tradeCount": 0,
+        "netPnl": 0,
+        "profitFactor": 0.0,
+        "maxDrawdown": 0.0,
+        "averageTradeNetReturn": 0,
+        "expectedNetEdgeDistribution": {
+          "min": -19.931308233378548,
+          "max": -10.1817605416776,
+          "mean": -13.467544334806046
+        },
+        "rejectedByThreshold": 9597,
+        "rejectedByFee": 131,
+        "rejectedBySpread": 733,
+        "signalMode": "INVERTED",
+        "directionalAccuracy": 0.3698499187458178
+      },
+      "bestResult": {
+        "thresholdBps": 0.5,
+        "numberAboveThreshold": 864,
+        "precisionAboveThreshold": 0.5127314814814815,
+        "tradeCount": 0,
+        "netPnl": 0,
+        "profitFactor": 0.0,
+        "maxDrawdown": 0.0,
+        "averageTradeNetReturn": 0,
+        "expectedNetEdgeDistribution": {
+          "min": -19.931308233378548,
+          "max": -10.1817605416776,
+          "mean": -13.467544334806046
+        },
+        "rejectedByThreshold": 9597,
+        "rejectedByFee": 131,
+        "rejectedBySpread": 733,
+        "signalMode": "NORMAL",
+        "directionalAccuracy": 0.4397285154382946
+      },
+      "thresholdResults": [
+        {
+          "thresholdBps": 0.5,
+          "numberAboveThreshold": 864,
+          "precisionAboveThreshold": 0.5127314814814815,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -19.931308233378548,
+            "max": -10.1817605416776,
+            "mean": -13.467544334806046
+          },
+          "rejectedByThreshold": 9597,
+          "rejectedByFee": 131,
+          "rejectedBySpread": 733,
+          "signalMode": "NORMAL",
+          "directionalAccuracy": 0.4397285154382946
+        },
+        {
+          "thresholdBps": 1.0,
+          "numberAboveThreshold": 107,
+          "precisionAboveThreshold": 0.4392523364485981,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -19.931308233378548,
+            "max": -10.1817605416776,
+            "mean": -13.467544334806046
+          },
+          "rejectedByThreshold": 10354,
+          "rejectedByFee": 70,
+          "rejectedBySpread": 37,
+          "signalMode": "NORMAL",
+          "directionalAccuracy": 0.4397285154382946
+        },
+        {
+          "thresholdBps": 2.0,
+          "numberAboveThreshold": 26,
+          "precisionAboveThreshold": 0.5384615384615384,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -19.931308233378548,
+            "max": -10.1817605416776,
+            "mean": -13.467544334806046
+          },
+          "rejectedByThreshold": 10435,
+          "rejectedByFee": 26,
+          "rejectedBySpread": 0,
+          "signalMode": "NORMAL",
+          "directionalAccuracy": 0.4397285154382946
+        },
+        {
+          "thresholdBps": 3.0,
+          "numberAboveThreshold": 5,
+          "precisionAboveThreshold": 0.4,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -19.931308233378548,
+            "max": -10.1817605416776,
+            "mean": -13.467544334806046
+          },
+          "rejectedByThreshold": 10456,
+          "rejectedByFee": 5,
+          "rejectedBySpread": 0,
+          "signalMode": "NORMAL",
+          "directionalAccuracy": 0.4397285154382946
+        },
+        {
+          "thresholdBps": 5.0,
+          "numberAboveThreshold": 0,
+          "precisionAboveThreshold": 0,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -19.931308233378548,
+            "max": -10.1817605416776,
+            "mean": -13.467544334806046
+          },
+          "rejectedByThreshold": 10461,
+          "rejectedByFee": 0,
+          "rejectedBySpread": 0,
+          "signalMode": "NORMAL",
+          "directionalAccuracy": 0.4397285154382946
+        },
+        {
+          "thresholdBps": 8.0,
+          "numberAboveThreshold": 0,
+          "precisionAboveThreshold": 0,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -19.931308233378548,
+            "max": -10.1817605416776,
+            "mean": -13.467544334806046
+          },
+          "rejectedByThreshold": 10461,
+          "rejectedByFee": 0,
+          "rejectedBySpread": 0,
+          "signalMode": "NORMAL",
+          "directionalAccuracy": 0.4397285154382946
+        },
+        {
+          "thresholdBps": 10.0,
+          "numberAboveThreshold": 0,
+          "precisionAboveThreshold": 0,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -19.931308233378548,
+            "max": -10.1817605416776,
+            "mean": -13.467544334806046
+          },
+          "rejectedByThreshold": 10461,
+          "rejectedByFee": 0,
+          "rejectedBySpread": 0,
+          "signalMode": "NORMAL",
+          "directionalAccuracy": 0.4397285154382946
+        },
+        {
+          "thresholdBps": 15.0,
+          "numberAboveThreshold": 0,
+          "precisionAboveThreshold": 0,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -19.931308233378548,
+            "max": -10.1817605416776,
+            "mean": -13.467544334806046
+          },
+          "rejectedByThreshold": 10461,
+          "rejectedByFee": 0,
+          "rejectedBySpread": 0,
+          "signalMode": "NORMAL",
+          "directionalAccuracy": 0.4397285154382946
+        },
+        {
+          "thresholdBps": 20.0,
+          "numberAboveThreshold": 0,
+          "precisionAboveThreshold": 0,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -19.931308233378548,
+            "max": -10.1817605416776,
+            "mean": -13.467544334806046
+          },
+          "rejectedByThreshold": 10461,
+          "rejectedByFee": 0,
+          "rejectedBySpread": 0,
+          "signalMode": "NORMAL",
+          "directionalAccuracy": 0.4397285154382946
+        },
+        {
+          "thresholdBps": 0.5,
+          "numberAboveThreshold": 864,
+          "precisionAboveThreshold": 0.33449074074074076,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -19.931308233378548,
+            "max": -10.1817605416776,
+            "mean": -13.467544334806046
+          },
+          "rejectedByThreshold": 9597,
+          "rejectedByFee": 131,
+          "rejectedBySpread": 733,
+          "signalMode": "INVERTED",
+          "directionalAccuracy": 0.3698499187458178
+        },
+        {
+          "thresholdBps": 1.0,
+          "numberAboveThreshold": 107,
+          "precisionAboveThreshold": 0.4392523364485981,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -19.931308233378548,
+            "max": -10.1817605416776,
+            "mean": -13.467544334806046
+          },
+          "rejectedByThreshold": 10354,
+          "rejectedByFee": 70,
+          "rejectedBySpread": 37,
+          "signalMode": "INVERTED",
+          "directionalAccuracy": 0.3698499187458178
+        },
+        {
+          "thresholdBps": 2.0,
+          "numberAboveThreshold": 26,
+          "precisionAboveThreshold": 0.3076923076923077,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -19.931308233378548,
+            "max": -10.1817605416776,
+            "mean": -13.467544334806046
+          },
+          "rejectedByThreshold": 10435,
+          "rejectedByFee": 26,
+          "rejectedBySpread": 0,
+          "signalMode": "INVERTED",
+          "directionalAccuracy": 0.3698499187458178
+        },
+        {
+          "thresholdBps": 3.0,
+          "numberAboveThreshold": 5,
+          "precisionAboveThreshold": 0.6,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -19.931308233378548,
+            "max": -10.1817605416776,
+            "mean": -13.467544334806046
+          },
+          "rejectedByThreshold": 10456,
+          "rejectedByFee": 5,
+          "rejectedBySpread": 0,
+          "signalMode": "INVERTED",
+          "directionalAccuracy": 0.3698499187458178
+        },
+        {
+          "thresholdBps": 5.0,
+          "numberAboveThreshold": 0,
+          "precisionAboveThreshold": 0,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -19.931308233378548,
+            "max": -10.1817605416776,
+            "mean": -13.467544334806046
+          },
+          "rejectedByThreshold": 10461,
+          "rejectedByFee": 0,
+          "rejectedBySpread": 0,
+          "signalMode": "INVERTED",
+          "directionalAccuracy": 0.3698499187458178
+        },
+        {
+          "thresholdBps": 8.0,
+          "numberAboveThreshold": 0,
+          "precisionAboveThreshold": 0,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -19.931308233378548,
+            "max": -10.1817605416776,
+            "mean": -13.467544334806046
+          },
+          "rejectedByThreshold": 10461,
+          "rejectedByFee": 0,
+          "rejectedBySpread": 0,
+          "signalMode": "INVERTED",
+          "directionalAccuracy": 0.3698499187458178
+        },
+        {
+          "thresholdBps": 10.0,
+          "numberAboveThreshold": 0,
+          "precisionAboveThreshold": 0,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -19.931308233378548,
+            "max": -10.1817605416776,
+            "mean": -13.467544334806046
+          },
+          "rejectedByThreshold": 10461,
+          "rejectedByFee": 0,
+          "rejectedBySpread": 0,
+          "signalMode": "INVERTED",
+          "directionalAccuracy": 0.3698499187458178
+        },
+        {
+          "thresholdBps": 15.0,
+          "numberAboveThreshold": 0,
+          "precisionAboveThreshold": 0,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -19.931308233378548,
+            "max": -10.1817605416776,
+            "mean": -13.467544334806046
+          },
+          "rejectedByThreshold": 10461,
+          "rejectedByFee": 0,
+          "rejectedBySpread": 0,
+          "signalMode": "INVERTED",
+          "directionalAccuracy": 0.3698499187458178
+        },
+        {
+          "thresholdBps": 20.0,
+          "numberAboveThreshold": 0,
+          "precisionAboveThreshold": 0,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -19.931308233378548,
+            "max": -10.1817605416776,
+            "mean": -13.467544334806046
+          },
+          "rejectedByThreshold": 10461,
+          "rejectedByFee": 0,
+          "rejectedBySpread": 0,
+          "signalMode": "INVERTED",
+          "directionalAccuracy": 0.3698499187458178
+        }
+      ],
       "feesAndSlippageIncluded": true,
       "feeBps": 11.0,
-      "slippageBps": 0.6
+      "slippageBps": 0.6,
+      "safetyBufferBps": 1.0,
+      "minNetEdgeBps": 3.0
     },
     {
       "horizonSeconds": 10,
       "status": "VALIDATED",
+      "modelFile": "/Users/alinavanempel/Documents/Pionex/models/microstructure/microstructure_10s.cbm",
+      "targetField": "futureReturn10sBps",
       "validationRows": 10407,
-      "directionalAccuracy": 0.4503699433073893,
-      "precisionAboveThreshold": 0,
-      "tradeCount": 0,
-      "netPnl": 0,
-      "profitFactor": 0.0,
-      "maxDrawdown": 0.0,
-      "averageTradeNetReturn": 0,
+      "predictionDistributionBps": {
+        "min": -0.4780155968278353,
+        "max": 4.615247371685366,
+        "mean": 0.298226990977503
+      },
+      "realizedReturnDistributionBps": {
+        "min": -27.37171226815148,
+        "max": 43.199277252728685,
+        "mean": 0.18002501187027403
+      },
+      "bestNormal": {
+        "thresholdBps": 0.5,
+        "numberAboveThreshold": 1496,
+        "precisionAboveThreshold": 0.5200534759358288,
+        "tradeCount": 0,
+        "netPnl": 0,
+        "profitFactor": 0.0,
+        "maxDrawdown": 0.0,
+        "averageTradeNetReturn": 0,
+        "expectedNetEdgeDistribution": {
+          "min": -20.00734895294842,
+          "max": -9.213933628314635,
+          "mean": -13.404609259273824
+        },
+        "rejectedByThreshold": 8911,
+        "rejectedByFee": 184,
+        "rejectedBySpread": 1312,
+        "signalMode": "NORMAL",
+        "directionalAccuracy": 0.4503699433073893
+      },
+      "bestInverted": {
+        "thresholdBps": 0.5,
+        "numberAboveThreshold": 1496,
+        "precisionAboveThreshold": 0.36764705882352944,
+        "tradeCount": 0,
+        "netPnl": 0,
+        "profitFactor": 0.0,
+        "maxDrawdown": 0.0,
+        "averageTradeNetReturn": 0,
+        "expectedNetEdgeDistribution": {
+          "min": -20.00734895294842,
+          "max": -9.213933628314635,
+          "mean": -13.404609259273824
+        },
+        "rejectedByThreshold": 8911,
+        "rejectedByFee": 184,
+        "rejectedBySpread": 1312,
+        "signalMode": "INVERTED",
+        "directionalAccuracy": 0.4242336888632651
+      },
+      "bestResult": {
+        "thresholdBps": 0.5,
+        "numberAboveThreshold": 1496,
+        "precisionAboveThreshold": 0.5200534759358288,
+        "tradeCount": 0,
+        "netPnl": 0,
+        "profitFactor": 0.0,
+        "maxDrawdown": 0.0,
+        "averageTradeNetReturn": 0,
+        "expectedNetEdgeDistribution": {
+          "min": -20.00734895294842,
+          "max": -9.213933628314635,
+          "mean": -13.404609259273824
+        },
+        "rejectedByThreshold": 8911,
+        "rejectedByFee": 184,
+        "rejectedBySpread": 1312,
+        "signalMode": "NORMAL",
+        "directionalAccuracy": 0.4503699433073893
+      },
+      "thresholdResults": [
+        {
+          "thresholdBps": 0.5,
+          "numberAboveThreshold": 1496,
+          "precisionAboveThreshold": 0.5200534759358288,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -20.00734895294842,
+            "max": -9.213933628314635,
+            "mean": -13.404609259273824
+          },
+          "rejectedByThreshold": 8911,
+          "rejectedByFee": 184,
+          "rejectedBySpread": 1312,
+          "signalMode": "NORMAL",
+          "directionalAccuracy": 0.4503699433073893
+        },
+        {
+          "thresholdBps": 1.0,
+          "numberAboveThreshold": 124,
+          "precisionAboveThreshold": 0.5241935483870968,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -20.00734895294842,
+            "max": -9.213933628314635,
+            "mean": -13.404609259273824
+          },
+          "rejectedByThreshold": 10283,
+          "rejectedByFee": 85,
+          "rejectedBySpread": 39,
+          "signalMode": "NORMAL",
+          "directionalAccuracy": 0.4503699433073893
+        },
+        {
+          "thresholdBps": 2.0,
+          "numberAboveThreshold": 30,
+          "precisionAboveThreshold": 0.5333333333333333,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -20.00734895294842,
+            "max": -9.213933628314635,
+            "mean": -13.404609259273824
+          },
+          "rejectedByThreshold": 10377,
+          "rejectedByFee": 30,
+          "rejectedBySpread": 0,
+          "signalMode": "NORMAL",
+          "directionalAccuracy": 0.4503699433073893
+        },
+        {
+          "thresholdBps": 3.0,
+          "numberAboveThreshold": 5,
+          "precisionAboveThreshold": 0.6,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -20.00734895294842,
+            "max": -9.213933628314635,
+            "mean": -13.404609259273824
+          },
+          "rejectedByThreshold": 10402,
+          "rejectedByFee": 5,
+          "rejectedBySpread": 0,
+          "signalMode": "NORMAL",
+          "directionalAccuracy": 0.4503699433073893
+        },
+        {
+          "thresholdBps": 5.0,
+          "numberAboveThreshold": 0,
+          "precisionAboveThreshold": 0,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -20.00734895294842,
+            "max": -9.213933628314635,
+            "mean": -13.404609259273824
+          },
+          "rejectedByThreshold": 10407,
+          "rejectedByFee": 0,
+          "rejectedBySpread": 0,
+          "signalMode": "NORMAL",
+          "directionalAccuracy": 0.4503699433073893
+        },
+        {
+          "thresholdBps": 8.0,
+          "numberAboveThreshold": 0,
+          "precisionAboveThreshold": 0,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -20.00734895294842,
+            "max": -9.213933628314635,
+            "mean": -13.404609259273824
+          },
+          "rejectedByThreshold": 10407,
+          "rejectedByFee": 0,
+          "rejectedBySpread": 0,
+          "signalMode": "NORMAL",
+          "directionalAccuracy": 0.4503699433073893
+        },
+        {
+          "thresholdBps": 10.0,
+          "numberAboveThreshold": 0,
+          "precisionAboveThreshold": 0,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -20.00734895294842,
+            "max": -9.213933628314635,
+            "mean": -13.404609259273824
+          },
+          "rejectedByThreshold": 10407,
+          "rejectedByFee": 0,
+          "rejectedBySpread": 0,
+          "signalMode": "NORMAL",
+          "directionalAccuracy": 0.4503699433073893
+        },
+        {
+          "thresholdBps": 15.0,
+          "numberAboveThreshold": 0,
+          "precisionAboveThreshold": 0,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -20.00734895294842,
+            "max": -9.213933628314635,
+            "mean": -13.404609259273824
+          },
+          "rejectedByThreshold": 10407,
+          "rejectedByFee": 0,
+          "rejectedBySpread": 0,
+          "signalMode": "NORMAL",
+          "directionalAccuracy": 0.4503699433073893
+        },
+        {
+          "thresholdBps": 20.0,
+          "numberAboveThreshold": 0,
+          "precisionAboveThreshold": 0,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -20.00734895294842,
+            "max": -9.213933628314635,
+            "mean": -13.404609259273824
+          },
+          "rejectedByThreshold": 10407,
+          "rejectedByFee": 0,
+          "rejectedBySpread": 0,
+          "signalMode": "NORMAL",
+          "directionalAccuracy": 0.4503699433073893
+        },
+        {
+          "thresholdBps": 0.5,
+          "numberAboveThreshold": 1496,
+          "precisionAboveThreshold": 0.36764705882352944,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -20.00734895294842,
+            "max": -9.213933628314635,
+            "mean": -13.404609259273824
+          },
+          "rejectedByThreshold": 8911,
+          "rejectedByFee": 184,
+          "rejectedBySpread": 1312,
+          "signalMode": "INVERTED",
+          "directionalAccuracy": 0.4242336888632651
+        },
+        {
+          "thresholdBps": 1.0,
+          "numberAboveThreshold": 124,
+          "precisionAboveThreshold": 0.3870967741935484,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -20.00734895294842,
+            "max": -9.213933628314635,
+            "mean": -13.404609259273824
+          },
+          "rejectedByThreshold": 10283,
+          "rejectedByFee": 85,
+          "rejectedBySpread": 39,
+          "signalMode": "INVERTED",
+          "directionalAccuracy": 0.4242336888632651
+        },
+        {
+          "thresholdBps": 2.0,
+          "numberAboveThreshold": 30,
+          "precisionAboveThreshold": 0.4,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -20.00734895294842,
+            "max": -9.213933628314635,
+            "mean": -13.404609259273824
+          },
+          "rejectedByThreshold": 10377,
+          "rejectedByFee": 30,
+          "rejectedBySpread": 0,
+          "signalMode": "INVERTED",
+          "directionalAccuracy": 0.4242336888632651
+        },
+        {
+          "thresholdBps": 3.0,
+          "numberAboveThreshold": 5,
+          "precisionAboveThreshold": 0.4,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -20.00734895294842,
+            "max": -9.213933628314635,
+            "mean": -13.404609259273824
+          },
+          "rejectedByThreshold": 10402,
+          "rejectedByFee": 5,
+          "rejectedBySpread": 0,
+          "signalMode": "INVERTED",
+          "directionalAccuracy": 0.4242336888632651
+        },
+        {
+          "thresholdBps": 5.0,
+          "numberAboveThreshold": 0,
+          "precisionAboveThreshold": 0,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -20.00734895294842,
+            "max": -9.213933628314635,
+            "mean": -13.404609259273824
+          },
+          "rejectedByThreshold": 10407,
+          "rejectedByFee": 0,
+          "rejectedBySpread": 0,
+          "signalMode": "INVERTED",
+          "directionalAccuracy": 0.4242336888632651
+        },
+        {
+          "thresholdBps": 8.0,
+          "numberAboveThreshold": 0,
+          "precisionAboveThreshold": 0,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -20.00734895294842,
+            "max": -9.213933628314635,
+            "mean": -13.404609259273824
+          },
+          "rejectedByThreshold": 10407,
+          "rejectedByFee": 0,
+          "rejectedBySpread": 0,
+          "signalMode": "INVERTED",
+          "directionalAccuracy": 0.4242336888632651
+        },
+        {
+          "thresholdBps": 10.0,
+          "numberAboveThreshold": 0,
+          "precisionAboveThreshold": 0,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -20.00734895294842,
+            "max": -9.213933628314635,
+            "mean": -13.404609259273824
+          },
+          "rejectedByThreshold": 10407,
+          "rejectedByFee": 0,
+          "rejectedBySpread": 0,
+          "signalMode": "INVERTED",
+          "directionalAccuracy": 0.4242336888632651
+        },
+        {
+          "thresholdBps": 15.0,
+          "numberAboveThreshold": 0,
+          "precisionAboveThreshold": 0,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -20.00734895294842,
+            "max": -9.213933628314635,
+            "mean": -13.404609259273824
+          },
+          "rejectedByThreshold": 10407,
+          "rejectedByFee": 0,
+          "rejectedBySpread": 0,
+          "signalMode": "INVERTED",
+          "directionalAccuracy": 0.4242336888632651
+        },
+        {
+          "thresholdBps": 20.0,
+          "numberAboveThreshold": 0,
+          "precisionAboveThreshold": 0,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -20.00734895294842,
+            "max": -9.213933628314635,
+            "mean": -13.404609259273824
+          },
+          "rejectedByThreshold": 10407,
+          "rejectedByFee": 0,
+          "rejectedBySpread": 0,
+          "signalMode": "INVERTED",
+          "directionalAccuracy": 0.4242336888632651
+        }
+      ],
       "feesAndSlippageIncluded": true,
       "feeBps": 11.0,
-      "slippageBps": 0.6
+      "slippageBps": 0.6,
+      "safetyBufferBps": 1.0,
+      "minNetEdgeBps": 3.0
     },
     {
       "horizonSeconds": 30,
       "status": "VALIDATED",
+      "modelFile": "/Users/alinavanempel/Documents/Pionex/models/microstructure/microstructure_30s.cbm",
+      "targetField": "futureReturn30sBps",
       "validationRows": 10269,
-      "directionalAccuracy": 0.4722952575713312,
-      "precisionAboveThreshold": 0,
-      "tradeCount": 0,
-      "netPnl": 0,
-      "profitFactor": 0.0,
-      "maxDrawdown": 0.0,
-      "averageTradeNetReturn": 0,
+      "predictionDistributionBps": {
+        "min": 0.6191684109447472,
+        "max": 0.9010473783828957,
+        "mean": 0.777015750672059
+      },
+      "realizedReturnDistributionBps": {
+        "min": -38.93185767793506,
+        "max": 62.12357682261293,
+        "mean": 0.5205296965225588
+      },
+      "bestNormal": {
+        "thresholdBps": 0.5,
+        "numberAboveThreshold": 10269,
+        "precisionAboveThreshold": 0.4722952575713312,
+        "tradeCount": 0,
+        "netPnl": 0,
+        "profitFactor": 0.0,
+        "maxDrawdown": 0.0,
+        "averageTradeNetReturn": 0,
+        "expectedNetEdgeDistribution": {
+          "min": -19.375415457684255,
+          "max": -11.837226469518955,
+          "mean": -12.93742054215087
+        },
+        "rejectedByThreshold": 0,
+        "rejectedByFee": 1048,
+        "rejectedBySpread": 9221,
+        "signalMode": "NORMAL",
+        "directionalAccuracy": 0.4722952575713312
+      },
+      "bestInverted": {
+        "thresholdBps": 0.5,
+        "numberAboveThreshold": 10269,
+        "precisionAboveThreshold": 0.45720128542214433,
+        "tradeCount": 0,
+        "netPnl": 0,
+        "profitFactor": 0.0,
+        "maxDrawdown": 0.0,
+        "averageTradeNetReturn": 0,
+        "expectedNetEdgeDistribution": {
+          "min": -19.375415457684255,
+          "max": -11.837226469518955,
+          "mean": -12.93742054215087
+        },
+        "rejectedByThreshold": 0,
+        "rejectedByFee": 1048,
+        "rejectedBySpread": 9221,
+        "signalMode": "INVERTED",
+        "directionalAccuracy": 0.45720128542214433
+      },
+      "bestResult": {
+        "thresholdBps": 0.5,
+        "numberAboveThreshold": 10269,
+        "precisionAboveThreshold": 0.4722952575713312,
+        "tradeCount": 0,
+        "netPnl": 0,
+        "profitFactor": 0.0,
+        "maxDrawdown": 0.0,
+        "averageTradeNetReturn": 0,
+        "expectedNetEdgeDistribution": {
+          "min": -19.375415457684255,
+          "max": -11.837226469518955,
+          "mean": -12.93742054215087
+        },
+        "rejectedByThreshold": 0,
+        "rejectedByFee": 1048,
+        "rejectedBySpread": 9221,
+        "signalMode": "NORMAL",
+        "directionalAccuracy": 0.4722952575713312
+      },
+      "thresholdResults": [
+        {
+          "thresholdBps": 0.5,
+          "numberAboveThreshold": 10269,
+          "precisionAboveThreshold": 0.4722952575713312,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -19.375415457684255,
+            "max": -11.837226469518955,
+            "mean": -12.93742054215087
+          },
+          "rejectedByThreshold": 0,
+          "rejectedByFee": 1048,
+          "rejectedBySpread": 9221,
+          "signalMode": "NORMAL",
+          "directionalAccuracy": 0.4722952575713312
+        },
+        {
+          "thresholdBps": 1.0,
+          "numberAboveThreshold": 0,
+          "precisionAboveThreshold": 0,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -19.375415457684255,
+            "max": -11.837226469518955,
+            "mean": -12.93742054215087
+          },
+          "rejectedByThreshold": 10269,
+          "rejectedByFee": 0,
+          "rejectedBySpread": 0,
+          "signalMode": "NORMAL",
+          "directionalAccuracy": 0.4722952575713312
+        },
+        {
+          "thresholdBps": 2.0,
+          "numberAboveThreshold": 0,
+          "precisionAboveThreshold": 0,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -19.375415457684255,
+            "max": -11.837226469518955,
+            "mean": -12.93742054215087
+          },
+          "rejectedByThreshold": 10269,
+          "rejectedByFee": 0,
+          "rejectedBySpread": 0,
+          "signalMode": "NORMAL",
+          "directionalAccuracy": 0.4722952575713312
+        },
+        {
+          "thresholdBps": 3.0,
+          "numberAboveThreshold": 0,
+          "precisionAboveThreshold": 0,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -19.375415457684255,
+            "max": -11.837226469518955,
+            "mean": -12.93742054215087
+          },
+          "rejectedByThreshold": 10269,
+          "rejectedByFee": 0,
+          "rejectedBySpread": 0,
+          "signalMode": "NORMAL",
+          "directionalAccuracy": 0.4722952575713312
+        },
+        {
+          "thresholdBps": 5.0,
+          "numberAboveThreshold": 0,
+          "precisionAboveThreshold": 0,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -19.375415457684255,
+            "max": -11.837226469518955,
+            "mean": -12.93742054215087
+          },
+          "rejectedByThreshold": 10269,
+          "rejectedByFee": 0,
+          "rejectedBySpread": 0,
+          "signalMode": "NORMAL",
+          "directionalAccuracy": 0.4722952575713312
+        },
+        {
+          "thresholdBps": 8.0,
+          "numberAboveThreshold": 0,
+          "precisionAboveThreshold": 0,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -19.375415457684255,
+            "max": -11.837226469518955,
+            "mean": -12.93742054215087
+          },
+          "rejectedByThreshold": 10269,
+          "rejectedByFee": 0,
+          "rejectedBySpread": 0,
+          "signalMode": "NORMAL",
+          "directionalAccuracy": 0.4722952575713312
+        },
+        {
+          "thresholdBps": 10.0,
+          "numberAboveThreshold": 0,
+          "precisionAboveThreshold": 0,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -19.375415457684255,
+            "max": -11.837226469518955,
+            "mean": -12.93742054215087
+          },
+          "rejectedByThreshold": 10269,
+          "rejectedByFee": 0,
+          "rejectedBySpread": 0,
+          "signalMode": "NORMAL",
+          "directionalAccuracy": 0.4722952575713312
+        },
+        {
+          "thresholdBps": 15.0,
+          "numberAboveThreshold": 0,
+          "precisionAboveThreshold": 0,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -19.375415457684255,
+            "max": -11.837226469518955,
+            "mean": -12.93742054215087
+          },
+          "rejectedByThreshold": 10269,
+          "rejectedByFee": 0,
+          "rejectedBySpread": 0,
+          "signalMode": "NORMAL",
+          "directionalAccuracy": 0.4722952575713312
+        },
+        {
+          "thresholdBps": 20.0,
+          "numberAboveThreshold": 0,
+          "precisionAboveThreshold": 0,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -19.375415457684255,
+            "max": -11.837226469518955,
+            "mean": -12.93742054215087
+          },
+          "rejectedByThreshold": 10269,
+          "rejectedByFee": 0,
+          "rejectedBySpread": 0,
+          "signalMode": "NORMAL",
+          "directionalAccuracy": 0.4722952575713312
+        },
+        {
+          "thresholdBps": 0.5,
+          "numberAboveThreshold": 10269,
+          "precisionAboveThreshold": 0.45720128542214433,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -19.375415457684255,
+            "max": -11.837226469518955,
+            "mean": -12.93742054215087
+          },
+          "rejectedByThreshold": 0,
+          "rejectedByFee": 1048,
+          "rejectedBySpread": 9221,
+          "signalMode": "INVERTED",
+          "directionalAccuracy": 0.45720128542214433
+        },
+        {
+          "thresholdBps": 1.0,
+          "numberAboveThreshold": 0,
+          "precisionAboveThreshold": 0,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -19.375415457684255,
+            "max": -11.837226469518955,
+            "mean": -12.93742054215087
+          },
+          "rejectedByThreshold": 10269,
+          "rejectedByFee": 0,
+          "rejectedBySpread": 0,
+          "signalMode": "INVERTED",
+          "directionalAccuracy": 0.45720128542214433
+        },
+        {
+          "thresholdBps": 2.0,
+          "numberAboveThreshold": 0,
+          "precisionAboveThreshold": 0,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -19.375415457684255,
+            "max": -11.837226469518955,
+            "mean": -12.93742054215087
+          },
+          "rejectedByThreshold": 10269,
+          "rejectedByFee": 0,
+          "rejectedBySpread": 0,
+          "signalMode": "INVERTED",
+          "directionalAccuracy": 0.45720128542214433
+        },
+        {
+          "thresholdBps": 3.0,
+          "numberAboveThreshold": 0,
+          "precisionAboveThreshold": 0,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -19.375415457684255,
+            "max": -11.837226469518955,
+            "mean": -12.93742054215087
+          },
+          "rejectedByThreshold": 10269,
+          "rejectedByFee": 0,
+          "rejectedBySpread": 0,
+          "signalMode": "INVERTED",
+          "directionalAccuracy": 0.45720128542214433
+        },
+        {
+          "thresholdBps": 5.0,
+          "numberAboveThreshold": 0,
+          "precisionAboveThreshold": 0,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -19.375415457684255,
+            "max": -11.837226469518955,
+            "mean": -12.93742054215087
+          },
+          "rejectedByThreshold": 10269,
+          "rejectedByFee": 0,
+          "rejectedBySpread": 0,
+          "signalMode": "INVERTED",
+          "directionalAccuracy": 0.45720128542214433
+        },
+        {
+          "thresholdBps": 8.0,
+          "numberAboveThreshold": 0,
+          "precisionAboveThreshold": 0,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -19.375415457684255,
+            "max": -11.837226469518955,
+            "mean": -12.93742054215087
+          },
+          "rejectedByThreshold": 10269,
+          "rejectedByFee": 0,
+          "rejectedBySpread": 0,
+          "signalMode": "INVERTED",
+          "directionalAccuracy": 0.45720128542214433
+        },
+        {
+          "thresholdBps": 10.0,
+          "numberAboveThreshold": 0,
+          "precisionAboveThreshold": 0,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -19.375415457684255,
+            "max": -11.837226469518955,
+            "mean": -12.93742054215087
+          },
+          "rejectedByThreshold": 10269,
+          "rejectedByFee": 0,
+          "rejectedBySpread": 0,
+          "signalMode": "INVERTED",
+          "directionalAccuracy": 0.45720128542214433
+        },
+        {
+          "thresholdBps": 15.0,
+          "numberAboveThreshold": 0,
+          "precisionAboveThreshold": 0,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -19.375415457684255,
+            "max": -11.837226469518955,
+            "mean": -12.93742054215087
+          },
+          "rejectedByThreshold": 10269,
+          "rejectedByFee": 0,
+          "rejectedBySpread": 0,
+          "signalMode": "INVERTED",
+          "directionalAccuracy": 0.45720128542214433
+        },
+        {
+          "thresholdBps": 20.0,
+          "numberAboveThreshold": 0,
+          "precisionAboveThreshold": 0,
+          "tradeCount": 0,
+          "netPnl": 0,
+          "profitFactor": 0.0,
+          "maxDrawdown": 0.0,
+          "averageTradeNetReturn": 0,
+          "expectedNetEdgeDistribution": {
+            "min": -19.375415457684255,
+            "max": -11.837226469518955,
+            "mean": -12.93742054215087
+          },
+          "rejectedByThreshold": 10269,
+          "rejectedByFee": 0,
+          "rejectedBySpread": 0,
+          "signalMode": "INVERTED",
+          "directionalAccuracy": 0.45720128542214433
+        }
+      ],
       "feesAndSlippageIncluded": true,
       "feeBps": 11.0,
-      "slippageBps": 0.6
+      "slippageBps": 0.6,
+      "safetyBufferBps": 1.0,
+      "minNetEdgeBps": 3.0
+    }
+  ],
+  "rejectedReasons": [
+    {
+      "horizonSeconds": 3,
+      "bestSignalMode": "NORMAL",
+      "bestThresholdBps": 0.5,
+      "bestNetPnl": 0,
+      "bestProfitFactor": 0.0,
+      "bestTradeCount": 0,
+      "blockedReasons": [
+        "netPnl <= 0",
+        "profitFactor <= 1.2",
+        "tradeCount < 50"
+      ]
+    },
+    {
+      "horizonSeconds": 5,
+      "bestSignalMode": "NORMAL",
+      "bestThresholdBps": 0.5,
+      "bestNetPnl": 0,
+      "bestProfitFactor": 0.0,
+      "bestTradeCount": 0,
+      "blockedReasons": [
+        "netPnl <= 0",
+        "profitFactor <= 1.2",
+        "tradeCount < 50"
+      ]
+    },
+    {
+      "horizonSeconds": 10,
+      "bestSignalMode": "NORMAL",
+      "bestThresholdBps": 0.5,
+      "bestNetPnl": 0,
+      "bestProfitFactor": 0.0,
+      "bestTradeCount": 0,
+      "blockedReasons": [
+        "netPnl <= 0",
+        "profitFactor <= 1.2",
+        "tradeCount < 50"
+      ]
+    },
+    {
+      "horizonSeconds": 30,
+      "bestSignalMode": "NORMAL",
+      "bestThresholdBps": 0.5,
+      "bestNetPnl": 0,
+      "bestProfitFactor": 0.0,
+      "bestTradeCount": 0,
+      "blockedReasons": [
+        "netPnl <= 0",
+        "profitFactor <= 1.2",
+        "tradeCount < 50"
+      ]
     }
   ],
   "promotionCriteria": {
     "netPnlPositive": true,
     "profitFactorGreaterThan": 1.2,
+    "minimumValidationTrades": 50,
     "minimumAcceptedShadowTrades": 500,
+    "maxDrawdown": 5.0,
+    "unitWarningsRequired": 0,
     "feesAndSlippageIncluded": true
   }
 }
