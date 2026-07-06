@@ -2,31 +2,31 @@
   "version": 1,
   "exchange": "BYBIT_V5_LINEAR",
   "strategyProfile": "BYBIT_ADAPTIVE_STAT_SCALP_V2",
-  "updatedAt": "2026-07-05T18:58:26.609Z",
+  "updatedAt": "2026-07-06T07:08:24.757Z",
   "mode": "LIVE",
   "paused": false,
   "pauseReason": null,
   "equity": {
     "startingUsdt": 100,
-    "realizedPnlUsdt": -0.26252,
-    "currentUsdt": 63.295226
+    "realizedPnlUsdt": -0.27153505,
+    "currentUsdt": 63.272316
   },
   "daily": {
-    "date": "2026-07-05",
-    "startingEquity": 63.296557,
+    "date": "2026-07-06",
+    "startingEquity": 63.239698,
     "tradesOpened": 0,
-    "losingTrades": 0,
-    "realizedPnlUsdt": 0,
-    "feesUsdt": 0,
+    "losingTrades": 1,
+    "realizedPnlUsdt": -0.00901505,
+    "feesUsdt": 0.00901505,
     "wins": 0,
-    "closedTrades": 0,
+    "closedTrades": 1,
     "explorationTrades": 0,
     "recoveryModeActive": true,
-    "recoveryPnlPct": -0.0064,
-    "recoveryLosingStreak": 3,
-    "recoveryNoticeKey": "2026-07-05:0:3:0",
+    "recoveryPnlPct": 0.0516,
+    "recoveryLosingStreak": 4,
+    "recoveryNoticeKey": "2026-07-06:0:4:1",
     "profitProtectionActive": false,
-    "profitProtectionPnlPct": -0.0064
+    "profitProtectionPnlPct": 0.0516
   },
   "ladder": {
     "activeLevel": 1,
@@ -37,15 +37,15 @@
   "openPositions": [],
   "lastPrices": {
     "BTCUSDT": 61777.4,
-    "SOLUSDT": 82.08,
+    "SOLUSDT": 81.96,
     "ETHUSDT": 1702.44
   },
   "symbolCooldowns": {
     "SOLUSDT": {
-      "lastClosedAt": "2026-07-04T17:12:03.409Z",
-      "lastPnlUsdt": -0.00903,
-      "reentryUntil": "2026-07-04T17:15:03.409Z",
-      "lossCooldownUntil": "2026-07-04T17:42:03.409Z"
+      "lastClosedAt": "2026-07-06T01:15:35.072Z",
+      "lastPnlUsdt": -0.009015,
+      "reentryUntil": "2026-07-06T01:18:35.072Z",
+      "lossCooldownUntil": "2026-07-06T01:45:35.072Z"
     },
     "BTCUSDT": {
       "lastClosedAt": "2026-07-02T17:31:50.186Z",
@@ -61,14 +61,14 @@
     }
   },
   "performance": {
-    "closedTrades": 16,
+    "closedTrades": 17,
     "wins": 4,
-    "losses": 12,
-    "winRatePct": 25,
+    "losses": 13,
+    "winRatePct": 23.53,
     "grossPnlUsdt": 0.0818,
-    "realizedPnlUsdt": -0.26252,
-    "totalFeesUsdt": 0.344318,
-    "averageHoldSeconds": 7723.64,
+    "realizedPnlUsdt": -0.271535,
+    "totalFeesUsdt": 0.353333,
+    "averageHoldSeconds": 7970.06,
     "bestSymbol": {
       "symbol": "BTCUSDT",
       "realizedPnlUsdt": 0.218886,
@@ -76,8 +76,8 @@
     },
     "worstSymbol": {
       "symbol": "SOLUSDT",
-      "realizedPnlUsdt": -0.341718,
-      "winRatePct": 18.18
+      "realizedPnlUsdt": -0.350733,
+      "winRatePct": 16.67
     },
     "symbols": {
       "BTCUSDT": {
@@ -93,14 +93,14 @@
         "worstTradePnlUsdt": 0.218886
       },
       "SOLUSDT": {
-        "closedTrades": 11,
+        "closedTrades": 12,
         "wins": 2,
-        "losses": 9,
-        "winRatePct": 18.18,
+        "losses": 10,
+        "winRatePct": 16.67,
         "grossPnlUsdt": -0.208,
-        "realizedPnlUsdt": -0.341718,
-        "totalFeesUsdt": 0.133716,
-        "averageHoldSeconds": 7650.97,
+        "realizedPnlUsdt": -0.350733,
+        "totalFeesUsdt": 0.142731,
+        "averageHoldSeconds": 8006.12,
         "bestTradePnlUsdt": 0.036279,
         "worstTradePnlUsdt": -0.106916
       },

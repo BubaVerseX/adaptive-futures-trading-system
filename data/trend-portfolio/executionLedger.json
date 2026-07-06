@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-07-05T16:22:54.363Z",
+  "updatedAt": "2026-07-06T01:15:35.074Z",
   "logicalTrades": {
     "x10-adopted-1783003701894-38564": {
       "logicalTradeId": "x10-adopted-1783003701894-38564",
@@ -883,6 +883,63 @@
       "finalGrossPnlUsdt": 0,
       "finalFeesUsdt": 0.0090299,
       "closedAt": "2026-07-04T17:12:03.407Z"
+    },
+    "x10-trade-1783288622270-17123": {
+      "logicalTradeId": "x10-trade-1783288622270-17123",
+      "symbol": "SOLUSDT",
+      "side": "LONG",
+      "mode": "LIVE",
+      "orderLinkIds": [
+        "x10-trade-1783288622270-17123",
+        "x10-close-1783300534370-18554"
+      ],
+      "exchangeOrderIds": [
+        "78fa7e08-4a35-4616-8728-0d60f00f942f",
+        "0c157c54-43fc-437c-83f9-074ead45166f"
+      ],
+      "fillIds": [
+        "e8c5818b-ba8b-5275-9c4a-7192799dbd26"
+      ],
+      "totalFilledQty": 0.1,
+      "weightedAverageFillPrice": 81.95,
+      "totalActualFeeUsdt": 0.00450725,
+      "lifecycleState": "CLOSED",
+      "tpSlConfirmationState": "CONFIRMED",
+      "finalNetResultUsdt": -0.00901505,
+      "createdAt": "2026-07-05T21:57:02.271Z",
+      "updatedAt": "2026-07-06T01:15:35.074Z",
+      "edgeModel": {
+        "tier": "ELITE_CONTINUATION",
+        "expectedGrossMovePct": 4.623,
+        "estimatedEntryFeePct": 0.055,
+        "estimatedExitFeePct": 0.055,
+        "estimatedFundingPct": 0,
+        "liveSpreadPct": 0.0122,
+        "conservativeSlippagePct": 0.08,
+        "expectedTotalCostPct": 0.2022,
+        "probabilityAdjustedMovePct": 3.6244,
+        "expectedNetEdgePct": 3.3717,
+        "stopDistancePct": 2.4,
+        "takeProfitDistancePct": 4.623,
+        "expectedRewardRiskRatio": 1.9263,
+        "expectedRewardCostRatio": 22.863,
+        "projectedGrossProfitUsdt": 0.378762,
+        "projectedTotalCostUsdt": 0.016567,
+        "projectedNetProfitUsdt": 0.276241,
+        "projectedMaxLossAtStopUsdt": 0.196632,
+        "riskPctOfEquity": 0.3107
+      },
+      "riskPctOfEquity": 0.3107,
+      "executionType": "MARKET_TAKER",
+      "protection": {
+        "symbol": "SOLUSDT",
+        "positionIdx": 0,
+        "stopLoss": "79.98",
+        "updatedAt": "2026-07-05T21:57:04.365Z"
+      },
+      "finalGrossPnlUsdt": 0,
+      "finalFeesUsdt": 0.00901505,
+      "closedAt": "2026-07-06T01:15:35.069Z"
     }
   },
   "orderLinkIndex": {
@@ -915,7 +972,9 @@
     "x10-trade-1783107518207-35796": "x10-trade-1783107518207-35796",
     "x10-close-1783116096631-75488": "x10-trade-1783107518207-35796",
     "x10-trade-1783177781126-74501": "x10-trade-1783177781126-74501",
-    "x10-close-1783185122669-40552": "x10-trade-1783177781126-74501"
+    "x10-close-1783185122669-40552": "x10-trade-1783177781126-74501",
+    "x10-trade-1783288622270-17123": "x10-trade-1783288622270-17123",
+    "x10-close-1783300534370-18554": "x10-trade-1783288622270-17123"
   },
   "exchangeOrderIndex": {
     "45e60a71-b3b3-40fc-a5d4-557bbdb3ae80": "x10-adopted-1783003701896-92095",
@@ -947,7 +1006,9 @@
     "f2a74d82-b8fb-448a-ba66-174872412367": "x10-trade-1783107518207-35796",
     "76122661-df73-4123-8619-1360515ee7c4": "x10-trade-1783107518207-35796",
     "d9a21888-525e-485b-9978-003cfc6a97ac": "x10-trade-1783177781126-74501",
-    "418424c6-998c-47b6-a7c9-5e14810f878f": "x10-trade-1783177781126-74501"
+    "418424c6-998c-47b6-a7c9-5e14810f878f": "x10-trade-1783177781126-74501",
+    "78fa7e08-4a35-4616-8728-0d60f00f942f": "x10-trade-1783288622270-17123",
+    "0c157c54-43fc-437c-83f9-074ead45166f": "x10-trade-1783288622270-17123"
   },
   "processedFillIds": {
     "46cb7462-0473-5e4f-910f-2a84e159a7a5": {
@@ -1129,6 +1190,12 @@
       "orderId": "418424c6-998c-47b6-a7c9-5e14810f878f",
       "orderLinkId": "x10-close-1783185122669-40552",
       "processedAt": "2026-07-04T17:12:02.942Z"
+    },
+    "e8c5818b-ba8b-5275-9c4a-7192799dbd26": {
+      "logicalTradeId": "x10-trade-1783288622270-17123",
+      "orderId": "0c157c54-43fc-437c-83f9-074ead45166f",
+      "orderLinkId": "x10-close-1783300534370-18554",
+      "processedAt": "2026-07-06T01:15:34.610Z"
     }
   }
 }

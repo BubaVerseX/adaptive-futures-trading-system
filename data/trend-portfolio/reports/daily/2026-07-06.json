@@ -1,0 +1,80 @@
+{
+  "generatedAt": "2026-07-06T07:02:53.643Z",
+  "date": "2026-07-06",
+  "account": {
+    "equity": {
+      "startingUsdt": 100,
+      "realizedPnlUsdt": -0.27153505,
+      "currentUsdt": 63.280169
+    },
+    "openPositions": 0,
+    "totalCostsUsdt": 0.353333,
+    "currentRiskLevel": 0
+  },
+  "activity": {
+    "completedTradesToday": 1,
+    "completedTradesAllTime": 17,
+    "continuationTradesToday": 1,
+    "reentriesToday": 0
+  },
+  "quality": {
+    "trades": 1,
+    "netPnlUsdt": -0.009015,
+    "grossPnlUsdt": 0,
+    "feesUsdt": 0.009015,
+    "postCostWinRatePct": 0,
+    "profitFactor": 0,
+    "expectancyUsdt": -0.009015,
+    "averageWinnerUsdt": 0,
+    "averageLoserUsdt": -0.009015,
+    "feeBleedRatio": 1,
+    "grossPositiveButNetNegativeTrades": 0
+  },
+  "breakdown": {
+    "bySymbol": {
+      "SOLUSDT": {
+        "trades": 1,
+        "netPnlUsdt": -0.009015,
+        "grossPnlUsdt": 0,
+        "feesUsdt": 0.009015,
+        "postCostWinRatePct": 0,
+        "profitFactor": 0,
+        "expectancyUsdt": -0.009015,
+        "averageWinnerUsdt": 0,
+        "averageLoserUsdt": -0.009015,
+        "feeBleedRatio": 1,
+        "grossPositiveButNetNegativeTrades": 0
+      }
+    },
+    "bySetup": {
+      "HTF_TREND_CONTINUATION": {
+        "trades": 1,
+        "netPnlUsdt": -0.009015,
+        "grossPnlUsdt": 0,
+        "feesUsdt": 0.009015,
+        "postCostWinRatePct": 0,
+        "profitFactor": 0,
+        "expectancyUsdt": -0.009015,
+        "averageWinnerUsdt": 0,
+        "averageLoserUsdt": -0.009015,
+        "feeBleedRatio": 1,
+        "grossPositiveButNetNegativeTrades": 0
+      }
+    },
+    "byMarketMode": {
+      "V17_ACTIVE_OPPORTUNITY": {
+        "trades": 1,
+        "netPnlUsdt": -0.009015,
+        "grossPnlUsdt": 0,
+        "feesUsdt": 0.009015,
+        "postCostWinRatePct": 0,
+        "profitFactor": 0,
+        "expectancyUsdt": -0.009015,
+        "averageWinnerUsdt": 0,
+        "averageLoserUsdt": -0.009015,
+        "feeBleedRatio": 1,
+        "grossPositiveButNetNegativeTrades": 0
+      }
+    }
+  }
+}

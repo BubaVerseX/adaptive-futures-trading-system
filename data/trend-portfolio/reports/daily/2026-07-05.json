@@ -1,13 +1,13 @@
 {
-  "generatedAt": "2026-07-05T18:52:26.970Z",
+  "generatedAt": "2026-07-05T23:57:36.093Z",
   "date": "2026-07-05",
   "account": {
     "equity": {
       "startingUsdt": 100,
       "realizedPnlUsdt": -0.26252,
-      "currentUsdt": 63.291109
+      "currentUsdt": 63.231156
     },
-    "openPositions": 0,
+    "openPositions": 1,
     "totalCostsUsdt": 0.344318,
     "currentRiskLevel": 0
   },
