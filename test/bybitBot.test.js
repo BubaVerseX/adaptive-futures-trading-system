@@ -81,6 +81,17 @@ const {
 const {
   CONFIRMATION_PHRASE,
 } = require("../scripts/setupProfitControlled");
+const {
+  evaluateShadowPerformanceLock,
+} = require("../scripts/microLive");
+const {
+  MicrostructureFeatureEngine,
+  MicrostructureShadowEngine,
+  heuristicMicroPredictionPct,
+  microCostGate,
+  normalizeOrderBook,
+  normalizeTrade,
+} = require("../src/microstructure");
 
 const ISOLATED_ENV_DEFAULTS = Object.freeze({
   BYBIT_API_KEY: "test-key",
@@ -122,6 +133,11 @@ const ISOLATED_ENV_DEFAULTS = Object.freeze({
   V231_MAX_REALISTIC_PROFIT_FACTOR: "10",
   V231_REJECT_ZERO_DRAWDOWN: "true",
   V231_REJECT_ZERO_LOSING_TRADES: "true",
+  MICROSTRUCTURE_TAKER_MODE: "false",
+  MICRO_RESEARCH_MODE: "false",
+  MICRO_SHADOW_MODE: "false",
+  MICRO_LIVE_MODE: "false",
+  MICRO_LIVE_ACKNOWLEDGED: "false",
   EXPLORATION_MODE_ENABLED: "true",
   EXPLORATION_TRADE_RATIO: "0.55",
   FORCED_MARKET_SAMPLING_ENABLED: "true",
@@ -5657,6 +5673,122 @@ async function testV23PromotionOptimizerGeneratesSingleStrategyRiskProfile() {
   assert.equal(direct.liveProfile, null);
 }
 
+async function testV24MicrostructureFeatureEngineAndSafetyGates() {
+  assert.match(packageJson.scripts["micro:research"], /MICROSTRUCTURE_TAKER_MODE=true/);
+  assert.match(packageJson.scripts["micro:shadow"], /MICRO_SHADOW_MODE=true/);
+  assert.match(packageJson.scripts["micro:live"], /MICRO_LIVE_MODE=true/);
+  assert.match(packageJson.scripts.check, /src\/microstructure\/featureEngine\.js/);
+  assert.match(packageJson.scripts.check, /scripts\/microLive\.js/);
+
+  const cfg = config({
+    microstructureTakerMode: false,
+    microEstimatedSlippagePct: 0.001,
+    estimatedTakerFeePctPerSide: 0.01,
+    microMinPredictedReturnPct: 0.01,
+    microMinExpectedNetEdgePct: 0.001,
+    microMaxRelativeSpreadPct: 0.05,
+    microMinTopLiquidityUsdt: 10,
+    microShadowTradesFile: path.join(os.tmpdir(), `micro-shadow-${Date.now()}.json`),
+    microLatestSummaryFile: path.join(os.tmpdir(), `micro-summary-${Date.now()}.json`),
+  });
+  assert.equal(cfg.microSymbols.join(","), "BTCUSDT,ETHUSDT,SOLUSDT");
+  assert.equal(cfg.microPredictionHorizonSeconds, 3);
+
+  const book = normalizeOrderBook({
+    symbol: "BTCUSDT",
+    ts: 1700000000000,
+    b: [["100", "5"]],
+    a: [["100.01", "2"]],
+  });
+  assert.equal(book.bidPrice, 100);
+  assert.equal(book.askPrice, 100.01);
+  assert.equal(normalizeTrade({ symbol: "BTCUSDT", S: "Buy", p: "100.01", v: "0.5" }).side, "BUY");
+
+  const engine = new MicrostructureFeatureEngine();
+  engine.recordOrderBook("BTCUSDT", book);
+  engine.recordTrade("BTCUSDT", { timestamp: 1700000000100, side: "Buy", price: 100.01, size: 0.5 });
+  engine.recordTrade("BTCUSDT", { timestamp: 1700000000200, side: "Sell", price: 100, size: 0.1 });
+  const snapshot = engine.generateSnapshot("BTCUSDT", 1700000001000);
+  assert.ok(snapshot.features.midPrice > 0);
+  assert.ok(snapshot.features.relativeSpread > 0);
+  assert.ok(snapshot.features.l1OrderBookImbalance > 0);
+  assert.ok(snapshot.features.micropriceDeviationFromMid > 0);
+  assert.ok(Object.hasOwn(snapshot.features, "tradeImbalance_3s"));
+  assert.ok(Object.hasOwn(snapshot.features, "orderFlowPressureScore"));
+
+  const prediction = heuristicMicroPredictionPct(snapshot.features);
+  assert.equal(Number.isFinite(prediction), true);
+  const gate = microCostGate(snapshot, { predictedReturnPct: 0.08 }, cfg);
+  assert.equal(gate.approved, true);
+  assert.equal(gate.side, "LONG");
+  assert.equal(gate.takerOnly, true);
+  assert.ok(gate.expectedNetEdgePct > 0);
+  assert.ok(gate.topContributingFeatures.length >= 3);
+  const rejected = microCostGate(snapshot, { predictedReturnPct: 0.001 }, cfg);
+  assert.equal(rejected.approved, false);
+  assert.ok(rejected.blockedReasons.includes("PREDICTED_RETURN_BELOW_THRESHOLD"));
+  const badSpread = microCostGate({
+    ...snapshot,
+    features: { ...snapshot.features, relativeSpread: 295.11929 },
+  }, { predictedReturnBps: 12 }, cfg);
+  assert.equal(badSpread.approved, false);
+  assert.ok(badSpread.blockedReasons.includes("BAD_FEATURE_VALUES"));
+  assert.ok(badSpread.featureValidationWarnings.some((warning) => warning.includes("relativeSpread")));
+  assert.ok(Math.abs(badSpread.spreadCostBps) < 30000);
+  const badPrediction = microCostGate(snapshot, { predictedReturn: -12.273458 }, cfg);
+  assert.equal(badPrediction.approved, false);
+  assert.ok(badPrediction.blockedReasons.includes("PREDICTED_RETURN_ABSURD_VALUE"));
+  assert.ok(badPrediction.featureValidationWarnings.includes("PREDICTED_RETURN_ABSURD_VALUE"));
+
+  const shadow = new MicrostructureShadowEngine(cfg, () => {});
+  const entered = shadow.evaluateSnapshot(snapshot, { predictedReturnPct: 0.08 });
+  assert.equal(entered.entered, true);
+  const later = {
+    ...snapshot,
+    timestamp: snapshot.timestamp + cfg.microMaxHoldSeconds * 1000 + 1000,
+    isoTime: new Date(snapshot.timestamp + cfg.microMaxHoldSeconds * 1000 + 1000).toISOString(),
+    features: { ...snapshot.features, midPrice: 100.05 },
+  };
+  const closed = shadow.markToMarket(later);
+  assert.ok(closed);
+  assert.equal(closed.status, "CLOSED");
+  const report = shadow.persistReport();
+  assert.equal(report.noLiveOrders, true);
+  assert.ok(fs.existsSync(cfg.microLatestSummaryFile));
+  const locked = evaluateShadowPerformanceLock({
+    totalRawSignals: 499,
+    netPnl: -0.01,
+    profitFactor: 1.1,
+    maxDrawdown: 0.1,
+    unitValidationWarnings: 1,
+  }, { microShadowMinSignals: 500, microMaxDrawdownUsdt: 5 });
+  assert.ok(locked.some((reason) => reason.includes("shadow signals")));
+  assert.ok(locked.some((reason) => reason.includes("not positive")));
+  assert.ok(locked.some((reason) => reason.includes("unit validation warnings")));
+  const unlocked = evaluateShadowPerformanceLock({
+    totalRawSignals: 500,
+    netPnl: 0.25,
+    profitFactor: 1.25,
+    maxDrawdown: 1.2,
+    unitValidationWarnings: 0,
+  }, { microShadowMinSignals: 500, microMaxDrawdownUsdt: 5 });
+  assert.deepEqual(unlocked, []);
+
+  const guarded = spawnSync(process.execPath, ["src/bot.js"], {
+    cwd: path.join(__dirname, ".."),
+    env: {
+      ...process.env,
+      ...ISOLATED_ENV_DEFAULTS,
+      MICROSTRUCTURE_TAKER_MODE: "true",
+      BYBIT_API_KEY: "test-key",
+      BYBIT_API_SECRET: "test-secret",
+    },
+    encoding: "utf8",
+  });
+  assert.notEqual(guarded.status, 0);
+  assert.match(`${guarded.stdout}\n${guarded.stderr}`, /MICROSTRUCTURE_TAKER_MODE uses dedicated micro scripts/);
+}
+
 async function testV141TrendSizingExpandsHighAndEliteConfidence() {
   const cfg = config({
     trendPortfolioMode: true,
@@ -6036,13 +6168,14 @@ async function run() {
   await testV21StrategyLaboratoryRanksGatesAndShadows();
   await testV22QuantResearchPlatformBacktestsOptimizesAndShadows();
   await testV23PromotionOptimizerGeneratesSingleStrategyRiskProfile();
+  await testV24MicrostructureFeatureEngineAndSafetyGates();
   await testV141TrendSizingExpandsHighAndEliteConfidence();
   await testV14TrendUsesStopOnlyNativeProtection();
   await testV14TrendAdoptsExchangePositionWithoutOrders();
   await testV14TrendAdoptsExistingTenXPosition();
   await testV14TrendBlocksEarlyTakeProfitExit();
   await testV14TrendPyramidingDuplicateAndBudgetGuards();
-  console.log("Bybit client and bot tests passed: REST signing, centralized 34040 no-change handling, duplicate TP/SL skip, execution ledger fill dedupe, net edge gate, portfolio risk-at-stop checks, UTA balance parsing, live safety balance use, native protection payloads, WebSocket reconnect, API auto-recovery without shutdown, reconciliation, hedge exposure detection, native TP events, regime intelligence, V11 active market universe restriction, survivability scoring, next-generation continuation scoring, V11 mean reversion and activity reporting, active adaptive paper scalper mode, exploration path, exploration memory relaxation, fee-aware stats, advisory symbol cooldowns, adaptive learning, continuation market memory, cautious active recovery, activity floor, daily shutdown removal, forced market sampling, profit protection sizing, fee-aware entries, dynamic sizing, live-validation guards, allocation ladder, risk degradation, promotion checks, execution-cost logging, V6 profit-controlled config guards, setup preservation, deferred leverage mutation, exchange-minimum feasibility, risk degradation, maker/taker routing, V7 profit mode, quality score gate, fee killer, symbol memory V2/V3, expectancy report, winner amplifier continuation holds, V7.1 trade frequency recovery tuning, V8 professional trend/expectancy optimization, V9 edge maximization, V9.5 adaptive edge reinforcement, V10 aggressive adaptive trend dominance, V11 active market engine, V18 quantitative strategy platform, V20 institutional quant engine, V21 strategy laboratory, V22 quant research platform, and V23 promotion optimization.");
+  console.log("Bybit client and bot tests passed: REST signing, centralized 34040 no-change handling, duplicate TP/SL skip, execution ledger fill dedupe, net edge gate, portfolio risk-at-stop checks, UTA balance parsing, live safety balance use, native protection payloads, WebSocket reconnect, API auto-recovery without shutdown, reconciliation, hedge exposure detection, native TP events, regime intelligence, V11 active market universe restriction, survivability scoring, next-generation continuation scoring, V11 mean reversion and activity reporting, active adaptive paper scalper mode, exploration path, exploration memory relaxation, fee-aware stats, advisory symbol cooldowns, adaptive learning, continuation market memory, cautious active recovery, activity floor, daily shutdown removal, forced market sampling, profit protection sizing, fee-aware entries, dynamic sizing, live-validation guards, allocation ladder, risk degradation, promotion checks, execution-cost logging, V6 profit-controlled config guards, setup preservation, deferred leverage mutation, exchange-minimum feasibility, risk degradation, maker/taker routing, V7 profit mode, quality score gate, fee killer, symbol memory V2/V3, expectancy report, winner amplifier continuation holds, V7.1 trade frequency recovery tuning, V8 professional trend/expectancy optimization, V9 edge maximization, V9.5 adaptive edge reinforcement, V10 aggressive adaptive trend dominance, V11 active market engine, V18 quantitative strategy platform, V20 institutional quant engine, V21 strategy laboratory, V22 quant research platform, V23 promotion optimization, and V24 microstructure taker engine.");
 }
 
 run().catch((error) => {
