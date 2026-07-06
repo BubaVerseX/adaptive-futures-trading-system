@@ -10,3 +10,6 @@ logs
 *.log
 data/live-validation/
 data/profit-controlled-live/
+micro-env/
+__pycache__/
+*.pyc
