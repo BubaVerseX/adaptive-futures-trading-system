@@ -6,6 +6,7 @@ const { analyzeCandles, parseCandles } = require("../indicators");
 const { bounded, numeric, round } = require("../strategyUtils");
 const { EventDrivenBacktester, candleTime, summarizeResearchTrades } = require("./eventBacktester");
 const { RESEARCH_SYMBOLS } = require("./historicalDataEngine");
+const { PromotionOptimizer } = require("./promotionOptimizer");
 const { analysisContext, createResearchStrategies } = require("./strategyPlugins");
 
 const RESEARCH_WINDOWS_DAYS = Object.freeze([30, 90, 180, 365, 730]);
@@ -241,6 +242,9 @@ class ResearchPlatform {
     }
     const rankings = rankingItems.sort((left, right) => right.score - left.score).map((item, index) => ({ rank: index + 1, ...item }));
     const promotedStrategies = rankings.filter((item) => item.eligibleForLive);
+    const v23PromotionOptimization = this.config.v23PromotionOptimizationMode
+      ? new PromotionOptimizer(this.config, this.log, this.strategies).run(candlesBySymbol, strategyReports, { interval, symbols })
+      : null;
     const curve = equityCurve(allTrades.sort((left, right) => Date.parse(left.exitedAt) - Date.parse(right.exitedAt)));
     const dashboard = {
       bestStrategy: rankings[0] || null,
@@ -280,8 +284,11 @@ class ResearchPlatform {
       promotedStrategies,
       recommendedLiveStrategy: promotedStrategies[0] || null,
       dashboard,
+      v23PromotionOptimization,
       message: promotedStrategies.length
         ? `Promote ${promotedStrategies[0].strategyName} first; it ranked #${promotedStrategies[0].rank}.`
+        : v23PromotionOptimization && v23PromotionOptimization.liveProfile
+          ? v23PromotionOptimization.message
         : NO_RESEARCH_EDGE_MESSAGE,
     };
     this.log("INFO", "V22_QUANT_RESEARCH_PLATFORM_COMPLETED", {

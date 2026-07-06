@@ -33,7 +33,10 @@ const {
   EventDrivenBacktester,
   HistoricalDataEngine,
   NO_RESEARCH_EDGE_MESSAGE,
+  PromotionOptimizer,
   ResearchPlatform,
+  V23_CANDIDATE_STRATEGIES,
+  V23_DISABLED_STRATEGIES,
   createResearchStrategies,
   splitCandles,
 } = require("../src/research");
@@ -108,6 +111,7 @@ const ISOLATED_ENV_DEFAULTS = Object.freeze({
   STRATEGY_LABORATORY_SHADOW_MODE: "true",
   V22_RESEARCH_PLATFORM_MODE: "false",
   V22_RESEARCH_PRIMARY_INTERVAL: "1m",
+  V23_PROMOTION_OPTIMIZATION_MODE: "false",
   EXPLORATION_MODE_ENABLED: "true",
   EXPLORATION_TRADE_RATIO: "0.55",
   FORCED_MARKET_SAMPLING_ENABLED: "true",
@@ -5530,6 +5534,83 @@ async function testV22QuantResearchPlatformBacktestsOptimizesAndShadows() {
   assert.ok(shadow.every((item) => item.liveOrderGenerated === false));
 }
 
+async function testV23PromotionOptimizerGeneratesSingleStrategyRiskProfile() {
+  const researchTrendCandles = (direction = "UP", start = 100, count = 90) => {
+    const candles = [];
+    let price = start;
+    for (let index = 0; index < count; index += 1) {
+      const drift = direction === "UP" ? 0.35 : -0.35;
+      const wave = Math.sin(index / 4) * 0.08;
+      const open = price;
+      const close = Math.max(1, open + drift + wave);
+      const high = Math.max(open, close) + 0.2;
+      const low = Math.min(open, close) - 0.2;
+      const volume = 100000 + index * 50;
+      candles.push({
+        time: 1700000000000 + index * 60000,
+        open,
+        high,
+        low,
+        close,
+        volume,
+        turnover: close * volume,
+      });
+      price = close;
+    }
+    return candles;
+  };
+
+  assert.match(packageJson.scripts["research:v22"], /V23_PROMOTION_OPTIMIZATION_MODE=true/);
+  assert.match(packageJson.scripts.check, /src\/research\/promotionOptimizer\.js/);
+  assert.deepEqual(V23_CANDIDATE_STRATEGIES, ["MOMENTUM_CONTINUATION", "PULLBACK", "TREND_BREAKOUT"]);
+  assert.deepEqual(V23_DISABLED_STRATEGIES, ["MEAN_REVERSION", "VOLATILITY_EXPANSION"]);
+
+  const cfg = config({
+    v22ResearchPlatformMode: true,
+    v23PromotionOptimizationMode: true,
+    v22ResearchMinEntryConfidence: 40,
+    v22ResearchNotionalUsdt: 24,
+    v22MinProfitFactor: 0.75,
+    v22MaxDrawdownUsdt: 999,
+    v22MinTradeCount: 1,
+    v23MinProfitFactor: 1.5,
+    v23MaxDrawdownUsdt: 85,
+    v23MinTradeCount: 1,
+    v23MaxNetProfitReductionPct: 15,
+    v23MaxOptimizationCandidates: 432,
+    v23RequireOutOfSampleValidation: false,
+  });
+  const strategies = createResearchStrategies();
+  const candles = {
+    BTCUSDT: researchTrendCandles("UP", 100, 190),
+    ETHUSDT: researchTrendCandles("DOWN", 200, 190),
+    SOLUSDT: researchTrendCandles("UP", 50, 190),
+  };
+  const report = new ResearchPlatform(cfg, () => {}, strategies).run(candles);
+  assert.ok(report.v23PromotionOptimization);
+  assert.equal(report.v23PromotionOptimization.entryLogicUnchanged, true);
+  assert.deepEqual(report.v23PromotionOptimization.candidateStrategies, V23_CANDIDATE_STRATEGIES);
+  assert.deepEqual(report.v23PromotionOptimization.disabledStrategies, V23_DISABLED_STRATEGIES);
+  assert.equal(Object.hasOwn(report.v23PromotionOptimization.strategyResults, "MEAN_REVERSION"), false);
+  assert.equal(Object.hasOwn(report.v23PromotionOptimization.strategyResults, "VOLATILITY_EXPANSION"), false);
+  assert.ok(report.v23PromotionOptimization.liveProfile);
+  assert.equal(report.v23PromotionOptimization.liveProfile.profileName, "LIVE_PROFILE_V23");
+  assert.equal(report.v23PromotionOptimization.liveProfile.doNotCombineStrategies, true);
+  assert.equal(report.v23PromotionOptimization.liveProfile.allowedStrategies.length, 1);
+  assert.ok(V23_CANDIDATE_STRATEGIES.includes(report.v23PromotionOptimization.liveProfile.allowedStrategies[0]));
+  assert.equal(report.v23PromotionOptimization.liveProfile.entryLogicUnchanged, true);
+  assert.ok(report.v23PromotionOptimization.liveProfile.optimizedRiskManagement.riskParameters.capitalAllocationMultiplier <= 1);
+  assert.ok(Object.hasOwn(report.v23PromotionOptimization.liveProfile.optimizedRiskManagement.riskParameters, "maxConcurrentPositions"));
+  assert.ok(report.v23PromotionOptimization.liveProfile.promotionEvidence.profitFactor > 1.5);
+  assert.ok(report.v23PromotionOptimization.liveProfile.promotionEvidence.maximumDrawdownUsdt <= cfg.v23MaxDrawdownUsdt);
+
+  const optimizer = new PromotionOptimizer(cfg, () => {}, strategies);
+  const direct = optimizer.run(candles, report.strategies);
+  assert.ok(direct.strategyResults.PULLBACK || direct.strategyResults.MOMENTUM_CONTINUATION || direct.strategyResults.TREND_BREAKOUT);
+  assert.ok(Object.values(direct.strategyResults).every((item) => Array.isArray(item.paretoFrontier)));
+  assert.ok(Object.values(direct.strategyResults).every((item) => item.rejectedByNetProfitProtection >= 0));
+}
+
 async function testV141TrendSizingExpandsHighAndEliteConfidence() {
   const cfg = config({
     trendPortfolioMode: true,
@@ -5908,13 +5989,14 @@ async function run() {
   await testV20InstitutionalQuantEngineAndValidationReports();
   await testV21StrategyLaboratoryRanksGatesAndShadows();
   await testV22QuantResearchPlatformBacktestsOptimizesAndShadows();
+  await testV23PromotionOptimizerGeneratesSingleStrategyRiskProfile();
   await testV141TrendSizingExpandsHighAndEliteConfidence();
   await testV14TrendUsesStopOnlyNativeProtection();
   await testV14TrendAdoptsExchangePositionWithoutOrders();
   await testV14TrendAdoptsExistingTenXPosition();
   await testV14TrendBlocksEarlyTakeProfitExit();
   await testV14TrendPyramidingDuplicateAndBudgetGuards();
-  console.log("Bybit client and bot tests passed: REST signing, centralized 34040 no-change handling, duplicate TP/SL skip, execution ledger fill dedupe, net edge gate, portfolio risk-at-stop checks, UTA balance parsing, live safety balance use, native protection payloads, WebSocket reconnect, API auto-recovery without shutdown, reconciliation, hedge exposure detection, native TP events, regime intelligence, V11 active market universe restriction, survivability scoring, next-generation continuation scoring, V11 mean reversion and activity reporting, active adaptive paper scalper mode, exploration path, exploration memory relaxation, fee-aware stats, advisory symbol cooldowns, adaptive learning, continuation market memory, cautious active recovery, activity floor, daily shutdown removal, forced market sampling, profit protection sizing, fee-aware entries, dynamic sizing, live-validation guards, allocation ladder, risk degradation, promotion checks, execution-cost logging, V6 profit-controlled config guards, setup preservation, deferred leverage mutation, exchange-minimum feasibility, risk degradation, maker/taker routing, V7 profit mode, quality score gate, fee killer, symbol memory V2/V3, expectancy report, winner amplifier continuation holds, V7.1 trade frequency recovery tuning, V8 professional trend/expectancy optimization, V9 edge maximization, V9.5 adaptive edge reinforcement, V10 aggressive adaptive trend dominance, V11 active market engine, V18 quantitative strategy platform, V20 institutional quant engine, V21 strategy laboratory, and V22 quant research platform.");
+  console.log("Bybit client and bot tests passed: REST signing, centralized 34040 no-change handling, duplicate TP/SL skip, execution ledger fill dedupe, net edge gate, portfolio risk-at-stop checks, UTA balance parsing, live safety balance use, native protection payloads, WebSocket reconnect, API auto-recovery without shutdown, reconciliation, hedge exposure detection, native TP events, regime intelligence, V11 active market universe restriction, survivability scoring, next-generation continuation scoring, V11 mean reversion and activity reporting, active adaptive paper scalper mode, exploration path, exploration memory relaxation, fee-aware stats, advisory symbol cooldowns, adaptive learning, continuation market memory, cautious active recovery, activity floor, daily shutdown removal, forced market sampling, profit protection sizing, fee-aware entries, dynamic sizing, live-validation guards, allocation ladder, risk degradation, promotion checks, execution-cost logging, V6 profit-controlled config guards, setup preservation, deferred leverage mutation, exchange-minimum feasibility, risk degradation, maker/taker routing, V7 profit mode, quality score gate, fee killer, symbol memory V2/V3, expectancy report, winner amplifier continuation holds, V7.1 trade frequency recovery tuning, V8 professional trend/expectancy optimization, V9 edge maximization, V9.5 adaptive edge reinforcement, V10 aggressive adaptive trend dominance, V11 active market engine, V18 quantitative strategy platform, V20 institutional quant engine, V21 strategy laboratory, V22 quant research platform, and V23 promotion optimization.");
 }
 
 run().catch((error) => {

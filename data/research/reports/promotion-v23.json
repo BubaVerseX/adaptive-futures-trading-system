@@ -1,0 +1,1108 @@
+{
+  "generatedAt": "2026-07-06T07:35:11.341Z",
+  "objective": "V23 Promotion Optimization: keep entry logic fixed, optimize risk management for live eligibility",
+  "noLiveOrders": true,
+  "entryLogicUnchanged": true,
+  "candidateStrategies": [
+    "MOMENTUM_CONTINUATION",
+    "PULLBACK",
+    "TREND_BREAKOUT"
+  ],
+  "disabledStrategies": [
+    "MEAN_REVERSION",
+    "VOLATILITY_EXPANSION"
+  ],
+  "thresholds": {
+    "minProfitFactor": 1.5,
+    "maxDrawdownUsdt": 85,
+    "minTradeCount": 12,
+    "maxNetProfitReductionPct": 15,
+    "requireOutOfSampleValidation": true
+  },
+  "strategyResults": {
+    "TREND_BREAKOUT": {
+      "strategyId": "TREND_BREAKOUT",
+      "strategyName": "TrendBreakout",
+      "original": {
+        "tradeCount": 64,
+        "netProfitUsdt": 79.271264,
+        "profitFactor": 1.4408,
+        "expectancyUsdt": 1.238614,
+        "winRatePct": 93.75,
+        "averageWinnerUsdt": 4.318219,
+        "averageLoserUsdt": 44.955462,
+        "maximumDrawdownUsdt": 90.0495,
+        "sharpeRatio": 0.0685,
+        "sortinoRatio": 0.0256,
+        "averageHoldSeconds": 3628.13,
+        "averageTradeDurationSeconds": 3628.13,
+        "feesPaidUsdt": 3.025508,
+        "tradesPerMonth": 1562.0339
+      },
+      "optimized": {
+        "tradeCount": 64,
+        "netProfitUsdt": 265.878131,
+        "profitFactor": 999,
+        "expectancyUsdt": 4.154346,
+        "winRatePct": 100,
+        "averageWinnerUsdt": 4.154346,
+        "averageLoserUsdt": 0,
+        "maximumDrawdownUsdt": 0,
+        "sharpeRatio": 0.3421,
+        "sortinoRatio": 0,
+        "averageHoldSeconds": 3796.88,
+        "averageTradeDurationSeconds": 3796.88,
+        "feesPaidUsdt": 3.128198,
+        "tradesPerMonth": 1562.0339
+      },
+      "difference": {
+        "netProfitUsdt": 186.606867,
+        "netProfitPct": 235.4029,
+        "maximumDrawdownUsdt": -90.0495,
+        "maximumDrawdownPct": -100,
+        "profitFactor": 997.5592,
+        "sharpeRatio": 0.2736,
+        "tradeCount": 0,
+        "averageHoldSeconds": 168.75
+      },
+      "walkForwardValidation": {
+        "30d": {
+          "tradeCount": 64,
+          "netProfitUsdt": 265.878131,
+          "profitFactor": 999,
+          "expectancyUsdt": 4.154346,
+          "winRatePct": 100,
+          "averageWinnerUsdt": 4.154346,
+          "averageLoserUsdt": 0,
+          "maximumDrawdownUsdt": 0,
+          "sharpeRatio": 0.3421,
+          "sortinoRatio": 0,
+          "averageHoldSeconds": 3796.88,
+          "averageTradeDurationSeconds": 3796.88,
+          "feesPaidUsdt": 3.128198,
+          "tradesPerMonth": 1562.0339,
+          "status": "PASSED"
+        },
+        "90d": {
+          "tradeCount": 64,
+          "netProfitUsdt": 265.878131,
+          "profitFactor": 999,
+          "expectancyUsdt": 4.154346,
+          "winRatePct": 100,
+          "averageWinnerUsdt": 4.154346,
+          "averageLoserUsdt": 0,
+          "maximumDrawdownUsdt": 0,
+          "sharpeRatio": 0.3421,
+          "sortinoRatio": 0,
+          "averageHoldSeconds": 3796.88,
+          "averageTradeDurationSeconds": 3796.88,
+          "feesPaidUsdt": 3.128198,
+          "tradesPerMonth": 1562.0339,
+          "status": "PASSED"
+        },
+        "180d": {
+          "tradeCount": 64,
+          "netProfitUsdt": 265.878131,
+          "profitFactor": 999,
+          "expectancyUsdt": 4.154346,
+          "winRatePct": 100,
+          "averageWinnerUsdt": 4.154346,
+          "averageLoserUsdt": 0,
+          "maximumDrawdownUsdt": 0,
+          "sharpeRatio": 0.3421,
+          "sortinoRatio": 0,
+          "averageHoldSeconds": 3796.88,
+          "averageTradeDurationSeconds": 3796.88,
+          "feesPaidUsdt": 3.128198,
+          "tradesPerMonth": 1562.0339,
+          "status": "PASSED"
+        },
+        "365d": {
+          "tradeCount": 64,
+          "netProfitUsdt": 265.878131,
+          "profitFactor": 999,
+          "expectancyUsdt": 4.154346,
+          "winRatePct": 100,
+          "averageWinnerUsdt": 4.154346,
+          "averageLoserUsdt": 0,
+          "maximumDrawdownUsdt": 0,
+          "sharpeRatio": 0.3421,
+          "sortinoRatio": 0,
+          "averageHoldSeconds": 3796.88,
+          "averageTradeDurationSeconds": 3796.88,
+          "feesPaidUsdt": 3.128198,
+          "tradesPerMonth": 1562.0339,
+          "status": "PASSED"
+        },
+        "730d": {
+          "tradeCount": 64,
+          "netProfitUsdt": 265.878131,
+          "profitFactor": 999,
+          "expectancyUsdt": 4.154346,
+          "winRatePct": 100,
+          "averageWinnerUsdt": 4.154346,
+          "averageLoserUsdt": 0,
+          "maximumDrawdownUsdt": 0,
+          "sharpeRatio": 0.3421,
+          "sortinoRatio": 0,
+          "averageHoldSeconds": 3796.88,
+          "averageTradeDurationSeconds": 3796.88,
+          "feesPaidUsdt": 3.128198,
+          "tradesPerMonth": 1562.0339,
+          "status": "PASSED"
+        }
+      },
+      "outOfSampleValidated": false,
+      "optimizedParams": {
+        "donchian": 20,
+        "atrStop": 1.4,
+        "holdingBars": 180
+      },
+      "optimizedRiskParameters": {
+        "capitalAllocationMultiplier": 1,
+        "stopDistanceMultiplier": 1,
+        "trailingActivationR": 1.25,
+        "minimumTrailDistancePct": 0.12,
+        "holdingMultiplier": 1.25,
+        "maxConcurrentPositions": 3,
+        "maxSameSymbolPositions": 1,
+        "pyramiding": false
+      },
+      "promotionEligible": false,
+      "promotionBlockedReasons": [
+        "out-of-sample validation did not pass"
+      ],
+      "recommendation": "KEEP_RESEARCHING_RISK",
+      "evaluatedCandidates": 432,
+      "eligibleCandidates": 0,
+      "rejectedByNetProfitProtection": 268,
+      "paretoFrontier": [
+        {
+          "netProfitUsdt": 265.878131,
+          "maximumDrawdownUsdt": 0,
+          "profitFactor": 999,
+          "tradeCount": 64,
+          "riskParameters": {
+            "capitalAllocationMultiplier": 1,
+            "stopDistanceMultiplier": 1,
+            "trailingActivationR": 1.25,
+            "minimumTrailDistancePct": 0.12,
+            "holdingMultiplier": 1.25,
+            "maxConcurrentPositions": 3,
+            "maxSameSymbolPositions": 1,
+            "pyramiding": false
+          },
+          "params": {
+            "donchian": 20,
+            "atrStop": 1.4,
+            "holdingBars": 180
+          },
+          "promotionEligible": false
+        },
+        {
+          "netProfitUsdt": 265.878131,
+          "maximumDrawdownUsdt": 0,
+          "profitFactor": 999,
+          "tradeCount": 64,
+          "riskParameters": {
+            "capitalAllocationMultiplier": 1,
+            "stopDistanceMultiplier": 1,
+            "trailingActivationR": 1.25,
+            "minimumTrailDistancePct": 0.18,
+            "holdingMultiplier": 1.25,
+            "maxConcurrentPositions": 3,
+            "maxSameSymbolPositions": 1,
+            "pyramiding": false
+          },
+          "params": {
+            "donchian": 20,
+            "atrStop": 1.4,
+            "holdingBars": 180
+          },
+          "promotionEligible": false
+        }
+      ]
+    },
+    "MOMENTUM_CONTINUATION": {
+      "strategyId": "MOMENTUM_CONTINUATION",
+      "strategyName": "MomentumContinuation",
+      "original": {
+        "tradeCount": 89,
+        "netProfitUsdt": 245.273273,
+        "profitFactor": 2.9151,
+        "expectancyUsdt": 2.755879,
+        "winRatePct": 97.75,
+        "averageWinnerUsdt": 4.291307,
+        "averageLoserUsdt": 64.0352,
+        "maximumDrawdownUsdt": 128.0704,
+        "sharpeRatio": 0.1553,
+        "sortinoRatio": 0.043,
+        "averageHoldSeconds": 2710.11,
+        "averageTradeDurationSeconds": 2710.11,
+        "feesPaidUsdt": 6.033553,
+        "tradesPerMonth": 2172.2034
+      },
+      "optimized": {
+        "tradeCount": 40,
+        "netProfitUsdt": 265.67718,
+        "profitFactor": 999,
+        "expectancyUsdt": 6.641929,
+        "winRatePct": 100,
+        "averageWinnerUsdt": 6.641929,
+        "averageLoserUsdt": 0,
+        "maximumDrawdownUsdt": 0,
+        "sharpeRatio": 0.3476,
+        "sortinoRatio": 0,
+        "averageHoldSeconds": 1912.5,
+        "averageTradeDurationSeconds": 1912.5,
+        "feesPaidUsdt": 2.676906,
+        "tradesPerMonth": 976.2712
+      },
+      "difference": {
+        "netProfitUsdt": 20.403907,
+        "netProfitPct": 8.3188,
+        "maximumDrawdownUsdt": -128.0704,
+        "maximumDrawdownPct": -100,
+        "profitFactor": 996.0849,
+        "sharpeRatio": 0.1923,
+        "tradeCount": -49,
+        "averageHoldSeconds": -797.61
+      },
+      "walkForwardValidation": {
+        "30d": {
+          "tradeCount": 40,
+          "netProfitUsdt": 265.67718,
+          "profitFactor": 999,
+          "expectancyUsdt": 6.641929,
+          "winRatePct": 100,
+          "averageWinnerUsdt": 6.641929,
+          "averageLoserUsdt": 0,
+          "maximumDrawdownUsdt": 0,
+          "sharpeRatio": 0.3476,
+          "sortinoRatio": 0,
+          "averageHoldSeconds": 1912.5,
+          "averageTradeDurationSeconds": 1912.5,
+          "feesPaidUsdt": 2.676906,
+          "tradesPerMonth": 976.2712,
+          "status": "PASSED"
+        },
+        "90d": {
+          "tradeCount": 40,
+          "netProfitUsdt": 265.67718,
+          "profitFactor": 999,
+          "expectancyUsdt": 6.641929,
+          "winRatePct": 100,
+          "averageWinnerUsdt": 6.641929,
+          "averageLoserUsdt": 0,
+          "maximumDrawdownUsdt": 0,
+          "sharpeRatio": 0.3476,
+          "sortinoRatio": 0,
+          "averageHoldSeconds": 1912.5,
+          "averageTradeDurationSeconds": 1912.5,
+          "feesPaidUsdt": 2.676906,
+          "tradesPerMonth": 976.2712,
+          "status": "PASSED"
+        },
+        "180d": {
+          "tradeCount": 40,
+          "netProfitUsdt": 265.67718,
+          "profitFactor": 999,
+          "expectancyUsdt": 6.641929,
+          "winRatePct": 100,
+          "averageWinnerUsdt": 6.641929,
+          "averageLoserUsdt": 0,
+          "maximumDrawdownUsdt": 0,
+          "sharpeRatio": 0.3476,
+          "sortinoRatio": 0,
+          "averageHoldSeconds": 1912.5,
+          "averageTradeDurationSeconds": 1912.5,
+          "feesPaidUsdt": 2.676906,
+          "tradesPerMonth": 976.2712,
+          "status": "PASSED"
+        },
+        "365d": {
+          "tradeCount": 40,
+          "netProfitUsdt": 265.67718,
+          "profitFactor": 999,
+          "expectancyUsdt": 6.641929,
+          "winRatePct": 100,
+          "averageWinnerUsdt": 6.641929,
+          "averageLoserUsdt": 0,
+          "maximumDrawdownUsdt": 0,
+          "sharpeRatio": 0.3476,
+          "sortinoRatio": 0,
+          "averageHoldSeconds": 1912.5,
+          "averageTradeDurationSeconds": 1912.5,
+          "feesPaidUsdt": 2.676906,
+          "tradesPerMonth": 976.2712,
+          "status": "PASSED"
+        },
+        "730d": {
+          "tradeCount": 40,
+          "netProfitUsdt": 265.67718,
+          "profitFactor": 999,
+          "expectancyUsdt": 6.641929,
+          "winRatePct": 100,
+          "averageWinnerUsdt": 6.641929,
+          "averageLoserUsdt": 0,
+          "maximumDrawdownUsdt": 0,
+          "sharpeRatio": 0.3476,
+          "sortinoRatio": 0,
+          "averageHoldSeconds": 1912.5,
+          "averageTradeDurationSeconds": 1912.5,
+          "feesPaidUsdt": 2.676906,
+          "tradesPerMonth": 976.2712,
+          "status": "PASSED"
+        }
+      },
+      "outOfSampleValidated": true,
+      "optimizedParams": {
+        "minMomentum": 0.1,
+        "minCandles": 2,
+        "atrStop": 1.3,
+        "holdingBars": 72
+      },
+      "optimizedRiskParameters": {
+        "capitalAllocationMultiplier": 1,
+        "stopDistanceMultiplier": 1,
+        "trailingActivationR": 0.9,
+        "minimumTrailDistancePct": 0.12,
+        "holdingMultiplier": 1,
+        "maxConcurrentPositions": 1,
+        "maxSameSymbolPositions": 1,
+        "pyramiding": false
+      },
+      "promotionEligible": true,
+      "promotionBlockedReasons": [],
+      "recommendation": "PROMOTE",
+      "evaluatedCandidates": 432,
+      "eligibleCandidates": 40,
+      "rejectedByNetProfitProtection": 358,
+      "paretoFrontier": [
+        {
+          "netProfitUsdt": 267.142172,
+          "maximumDrawdownUsdt": 64.0352,
+          "profitFactor": 3.0859,
+          "tradeCount": 24,
+          "riskParameters": {
+            "capitalAllocationMultiplier": 1,
+            "stopDistanceMultiplier": 1.1,
+            "trailingActivationR": 1.25,
+            "minimumTrailDistancePct": 0.12,
+            "holdingMultiplier": 1,
+            "maxConcurrentPositions": 1,
+            "maxSameSymbolPositions": 1,
+            "pyramiding": false
+          },
+          "params": {
+            "minMomentum": 0.1,
+            "minCandles": 2,
+            "atrStop": 1.43,
+            "holdingBars": 72
+          },
+          "promotionEligible": true
+        },
+        {
+          "netProfitUsdt": 267.142172,
+          "maximumDrawdownUsdt": 64.0352,
+          "profitFactor": 3.0859,
+          "tradeCount": 24,
+          "riskParameters": {
+            "capitalAllocationMultiplier": 1,
+            "stopDistanceMultiplier": 1.1,
+            "trailingActivationR": 1.25,
+            "minimumTrailDistancePct": 0.18,
+            "holdingMultiplier": 1,
+            "maxConcurrentPositions": 1,
+            "maxSameSymbolPositions": 1,
+            "pyramiding": false
+          },
+          "params": {
+            "minMomentum": 0.1,
+            "minCandles": 2,
+            "atrStop": 1.43,
+            "holdingBars": 72
+          },
+          "promotionEligible": true
+        },
+        {
+          "netProfitUsdt": 267.142172,
+          "maximumDrawdownUsdt": 64.0352,
+          "profitFactor": 3.0859,
+          "tradeCount": 24,
+          "riskParameters": {
+            "capitalAllocationMultiplier": 0.95,
+            "stopDistanceMultiplier": 1.1,
+            "trailingActivationR": 1.25,
+            "minimumTrailDistancePct": 0.12,
+            "holdingMultiplier": 1,
+            "maxConcurrentPositions": 1,
+            "maxSameSymbolPositions": 1,
+            "pyramiding": false
+          },
+          "params": {
+            "minMomentum": 0.1,
+            "minCandles": 2,
+            "atrStop": 1.43,
+            "holdingBars": 72
+          },
+          "promotionEligible": true
+        },
+        {
+          "netProfitUsdt": 267.142172,
+          "maximumDrawdownUsdt": 64.0352,
+          "profitFactor": 3.0859,
+          "tradeCount": 24,
+          "riskParameters": {
+            "capitalAllocationMultiplier": 0.95,
+            "stopDistanceMultiplier": 1.1,
+            "trailingActivationR": 1.25,
+            "minimumTrailDistancePct": 0.18,
+            "holdingMultiplier": 1,
+            "maxConcurrentPositions": 1,
+            "maxSameSymbolPositions": 1,
+            "pyramiding": false
+          },
+          "params": {
+            "minMomentum": 0.1,
+            "minCandles": 2,
+            "atrStop": 1.43,
+            "holdingBars": 72
+          },
+          "promotionEligible": true
+        },
+        {
+          "netProfitUsdt": 265.67718,
+          "maximumDrawdownUsdt": 0,
+          "profitFactor": 999,
+          "tradeCount": 40,
+          "riskParameters": {
+            "capitalAllocationMultiplier": 1,
+            "stopDistanceMultiplier": 1,
+            "trailingActivationR": 0.9,
+            "minimumTrailDistancePct": 0.12,
+            "holdingMultiplier": 1,
+            "maxConcurrentPositions": 1,
+            "maxSameSymbolPositions": 1,
+            "pyramiding": false
+          },
+          "params": {
+            "minMomentum": 0.1,
+            "minCandles": 2,
+            "atrStop": 1.3,
+            "holdingBars": 72
+          },
+          "promotionEligible": true
+        },
+        {
+          "netProfitUsdt": 265.67718,
+          "maximumDrawdownUsdt": 0,
+          "profitFactor": 999,
+          "tradeCount": 40,
+          "riskParameters": {
+            "capitalAllocationMultiplier": 1,
+            "stopDistanceMultiplier": 1,
+            "trailingActivationR": 0.9,
+            "minimumTrailDistancePct": 0.18,
+            "holdingMultiplier": 1,
+            "maxConcurrentPositions": 1,
+            "maxSameSymbolPositions": 1,
+            "pyramiding": false
+          },
+          "params": {
+            "minMomentum": 0.1,
+            "minCandles": 2,
+            "atrStop": 1.3,
+            "holdingBars": 72
+          },
+          "promotionEligible": true
+        },
+        {
+          "netProfitUsdt": 265.67718,
+          "maximumDrawdownUsdt": 0,
+          "profitFactor": 999,
+          "tradeCount": 40,
+          "riskParameters": {
+            "capitalAllocationMultiplier": 0.95,
+            "stopDistanceMultiplier": 1,
+            "trailingActivationR": 0.9,
+            "minimumTrailDistancePct": 0.12,
+            "holdingMultiplier": 1,
+            "maxConcurrentPositions": 1,
+            "maxSameSymbolPositions": 1,
+            "pyramiding": false
+          },
+          "params": {
+            "minMomentum": 0.1,
+            "minCandles": 2,
+            "atrStop": 1.3,
+            "holdingBars": 72
+          },
+          "promotionEligible": true
+        },
+        {
+          "netProfitUsdt": 265.67718,
+          "maximumDrawdownUsdt": 0,
+          "profitFactor": 999,
+          "tradeCount": 40,
+          "riskParameters": {
+            "capitalAllocationMultiplier": 0.95,
+            "stopDistanceMultiplier": 1,
+            "trailingActivationR": 0.9,
+            "minimumTrailDistancePct": 0.18,
+            "holdingMultiplier": 1,
+            "maxConcurrentPositions": 1,
+            "maxSameSymbolPositions": 1,
+            "pyramiding": false
+          },
+          "params": {
+            "minMomentum": 0.1,
+            "minCandles": 2,
+            "atrStop": 1.3,
+            "holdingBars": 72
+          },
+          "promotionEligible": true
+        }
+      ]
+    },
+    "PULLBACK": {
+      "strategyId": "PULLBACK",
+      "strategyName": "Pullback",
+      "original": {
+        "tradeCount": 94,
+        "netProfitUsdt": 144.457873,
+        "profitFactor": 2.4467,
+        "expectancyUsdt": 1.536786,
+        "winRatePct": 97.87,
+        "averageWinnerUsdt": 2.655574,
+        "averageLoserUsdt": 49.927445,
+        "maximumDrawdownUsdt": 99.85489,
+        "sharpeRatio": 0.1203,
+        "sortinoRatio": 0.0302,
+        "averageHoldSeconds": 2518.09,
+        "averageTradeDurationSeconds": 2518.09,
+        "feesPaidUsdt": 5.00133,
+        "tradesPerMonth": 2294.2373
+      },
+      "optimized": {
+        "tradeCount": 28,
+        "netProfitUsdt": 214.545197,
+        "profitFactor": 999,
+        "expectancyUsdt": 7.662328,
+        "winRatePct": 100,
+        "averageWinnerUsdt": 7.662328,
+        "averageLoserUsdt": 0,
+        "maximumDrawdownUsdt": 0,
+        "sharpeRatio": 0.4383,
+        "sortinoRatio": 0,
+        "averageHoldSeconds": 2989.29,
+        "averageTradeDurationSeconds": 2989.29,
+        "feesPaidUsdt": 1.432772,
+        "tradesPerMonth": 683.3898
+      },
+      "difference": {
+        "netProfitUsdt": 70.087324,
+        "netProfitPct": 48.5175,
+        "maximumDrawdownUsdt": -99.85489,
+        "maximumDrawdownPct": -100,
+        "profitFactor": 996.5533,
+        "sharpeRatio": 0.318,
+        "tradeCount": -66,
+        "averageHoldSeconds": 471.2
+      },
+      "walkForwardValidation": {
+        "30d": {
+          "tradeCount": 28,
+          "netProfitUsdt": 214.545197,
+          "profitFactor": 999,
+          "expectancyUsdt": 7.662328,
+          "winRatePct": 100,
+          "averageWinnerUsdt": 7.662328,
+          "averageLoserUsdt": 0,
+          "maximumDrawdownUsdt": 0,
+          "sharpeRatio": 0.4383,
+          "sortinoRatio": 0,
+          "averageHoldSeconds": 2989.29,
+          "averageTradeDurationSeconds": 2989.29,
+          "feesPaidUsdt": 1.432772,
+          "tradesPerMonth": 683.3898,
+          "status": "PASSED"
+        },
+        "90d": {
+          "tradeCount": 28,
+          "netProfitUsdt": 214.545197,
+          "profitFactor": 999,
+          "expectancyUsdt": 7.662328,
+          "winRatePct": 100,
+          "averageWinnerUsdt": 7.662328,
+          "averageLoserUsdt": 0,
+          "maximumDrawdownUsdt": 0,
+          "sharpeRatio": 0.4383,
+          "sortinoRatio": 0,
+          "averageHoldSeconds": 2989.29,
+          "averageTradeDurationSeconds": 2989.29,
+          "feesPaidUsdt": 1.432772,
+          "tradesPerMonth": 683.3898,
+          "status": "PASSED"
+        },
+        "180d": {
+          "tradeCount": 28,
+          "netProfitUsdt": 214.545197,
+          "profitFactor": 999,
+          "expectancyUsdt": 7.662328,
+          "winRatePct": 100,
+          "averageWinnerUsdt": 7.662328,
+          "averageLoserUsdt": 0,
+          "maximumDrawdownUsdt": 0,
+          "sharpeRatio": 0.4383,
+          "sortinoRatio": 0,
+          "averageHoldSeconds": 2989.29,
+          "averageTradeDurationSeconds": 2989.29,
+          "feesPaidUsdt": 1.432772,
+          "tradesPerMonth": 683.3898,
+          "status": "PASSED"
+        },
+        "365d": {
+          "tradeCount": 28,
+          "netProfitUsdt": 214.545197,
+          "profitFactor": 999,
+          "expectancyUsdt": 7.662328,
+          "winRatePct": 100,
+          "averageWinnerUsdt": 7.662328,
+          "averageLoserUsdt": 0,
+          "maximumDrawdownUsdt": 0,
+          "sharpeRatio": 0.4383,
+          "sortinoRatio": 0,
+          "averageHoldSeconds": 2989.29,
+          "averageTradeDurationSeconds": 2989.29,
+          "feesPaidUsdt": 1.432772,
+          "tradesPerMonth": 683.3898,
+          "status": "PASSED"
+        },
+        "730d": {
+          "tradeCount": 28,
+          "netProfitUsdt": 214.545197,
+          "profitFactor": 999,
+          "expectancyUsdt": 7.662328,
+          "winRatePct": 100,
+          "averageWinnerUsdt": 7.662328,
+          "averageLoserUsdt": 0,
+          "maximumDrawdownUsdt": 0,
+          "sharpeRatio": 0.4383,
+          "sortinoRatio": 0,
+          "averageHoldSeconds": 2989.29,
+          "averageTradeDurationSeconds": 2989.29,
+          "feesPaidUsdt": 1.432772,
+          "tradesPerMonth": 683.3898,
+          "status": "PASSED"
+        }
+      },
+      "outOfSampleValidated": true,
+      "optimizedParams": {
+        "lookback": 8,
+        "atrStop": 1.25,
+        "holdingBars": 54
+      },
+      "optimizedRiskParameters": {
+        "capitalAllocationMultiplier": 1,
+        "stopDistanceMultiplier": 1,
+        "trailingActivationR": 1.25,
+        "minimumTrailDistancePct": 0.12,
+        "holdingMultiplier": 0.75,
+        "maxConcurrentPositions": 1,
+        "maxSameSymbolPositions": 1,
+        "pyramiding": false
+      },
+      "promotionEligible": true,
+      "promotionBlockedReasons": [],
+      "recommendation": "PROMOTE",
+      "evaluatedCandidates": 432,
+      "eligibleCandidates": 28,
+      "rejectedByNetProfitProtection": 382,
+      "paretoFrontier": [
+        {
+          "netProfitUsdt": 244.679295,
+          "maximumDrawdownUsdt": 99.85489,
+          "profitFactor": 3.4503,
+          "tradeCount": 94,
+          "riskParameters": {
+            "capitalAllocationMultiplier": 1,
+            "stopDistanceMultiplier": 1,
+            "trailingActivationR": 1.25,
+            "minimumTrailDistancePct": 0.12,
+            "holdingMultiplier": 0.75,
+            "maxConcurrentPositions": 3,
+            "maxSameSymbolPositions": 1,
+            "pyramiding": false
+          },
+          "params": {
+            "lookback": 8,
+            "atrStop": 1.25,
+            "holdingBars": 54
+          },
+          "promotionEligible": false
+        },
+        {
+          "netProfitUsdt": 244.679295,
+          "maximumDrawdownUsdt": 99.85489,
+          "profitFactor": 3.4503,
+          "tradeCount": 94,
+          "riskParameters": {
+            "capitalAllocationMultiplier": 1,
+            "stopDistanceMultiplier": 1,
+            "trailingActivationR": 1.25,
+            "minimumTrailDistancePct": 0.18,
+            "holdingMultiplier": 0.75,
+            "maxConcurrentPositions": 3,
+            "maxSameSymbolPositions": 1,
+            "pyramiding": false
+          },
+          "params": {
+            "lookback": 8,
+            "atrStop": 1.25,
+            "holdingBars": 54
+          },
+          "promotionEligible": false
+        },
+        {
+          "netProfitUsdt": 232.44543,
+          "maximumDrawdownUsdt": 94.862146,
+          "profitFactor": 3.4503,
+          "tradeCount": 94,
+          "riskParameters": {
+            "capitalAllocationMultiplier": 0.95,
+            "stopDistanceMultiplier": 1,
+            "trailingActivationR": 1.25,
+            "minimumTrailDistancePct": 0.12,
+            "holdingMultiplier": 0.75,
+            "maxConcurrentPositions": 3,
+            "maxSameSymbolPositions": 1,
+            "pyramiding": false
+          },
+          "params": {
+            "lookback": 8,
+            "atrStop": 1.25,
+            "holdingBars": 54
+          },
+          "promotionEligible": false
+        },
+        {
+          "netProfitUsdt": 232.44543,
+          "maximumDrawdownUsdt": 94.862146,
+          "profitFactor": 3.4503,
+          "tradeCount": 94,
+          "riskParameters": {
+            "capitalAllocationMultiplier": 0.95,
+            "stopDistanceMultiplier": 1,
+            "trailingActivationR": 1.25,
+            "minimumTrailDistancePct": 0.18,
+            "holdingMultiplier": 0.75,
+            "maxConcurrentPositions": 3,
+            "maxSameSymbolPositions": 1,
+            "pyramiding": false
+          },
+          "params": {
+            "lookback": 8,
+            "atrStop": 1.25,
+            "holdingBars": 54
+          },
+          "promotionEligible": false
+        },
+        {
+          "netProfitUsdt": 220.211473,
+          "maximumDrawdownUsdt": 89.8694,
+          "profitFactor": 3.4503,
+          "tradeCount": 94,
+          "riskParameters": {
+            "capitalAllocationMultiplier": 0.9,
+            "stopDistanceMultiplier": 1,
+            "trailingActivationR": 1.25,
+            "minimumTrailDistancePct": 0.12,
+            "holdingMultiplier": 0.75,
+            "maxConcurrentPositions": 3,
+            "maxSameSymbolPositions": 1,
+            "pyramiding": false
+          },
+          "params": {
+            "lookback": 8,
+            "atrStop": 1.25,
+            "holdingBars": 54
+          },
+          "promotionEligible": false
+        },
+        {
+          "netProfitUsdt": 220.211473,
+          "maximumDrawdownUsdt": 89.8694,
+          "profitFactor": 3.4503,
+          "tradeCount": 94,
+          "riskParameters": {
+            "capitalAllocationMultiplier": 0.9,
+            "stopDistanceMultiplier": 1,
+            "trailingActivationR": 1.25,
+            "minimumTrailDistancePct": 0.18,
+            "holdingMultiplier": 0.75,
+            "maxConcurrentPositions": 3,
+            "maxSameSymbolPositions": 1,
+            "pyramiding": false
+          },
+          "params": {
+            "lookback": 8,
+            "atrStop": 1.25,
+            "holdingBars": 54
+          },
+          "promotionEligible": false
+        },
+        {
+          "netProfitUsdt": 214.545197,
+          "maximumDrawdownUsdt": 0,
+          "profitFactor": 999,
+          "tradeCount": 28,
+          "riskParameters": {
+            "capitalAllocationMultiplier": 1,
+            "stopDistanceMultiplier": 1,
+            "trailingActivationR": 1.25,
+            "minimumTrailDistancePct": 0.12,
+            "holdingMultiplier": 0.75,
+            "maxConcurrentPositions": 1,
+            "maxSameSymbolPositions": 1,
+            "pyramiding": false
+          },
+          "params": {
+            "lookback": 8,
+            "atrStop": 1.25,
+            "holdingBars": 54
+          },
+          "promotionEligible": true
+        },
+        {
+          "netProfitUsdt": 214.545197,
+          "maximumDrawdownUsdt": 0,
+          "profitFactor": 999,
+          "tradeCount": 28,
+          "riskParameters": {
+            "capitalAllocationMultiplier": 1,
+            "stopDistanceMultiplier": 1,
+            "trailingActivationR": 1.25,
+            "minimumTrailDistancePct": 0.18,
+            "holdingMultiplier": 0.75,
+            "maxConcurrentPositions": 1,
+            "maxSameSymbolPositions": 1,
+            "pyramiding": false
+          },
+          "params": {
+            "lookback": 8,
+            "atrStop": 1.25,
+            "holdingBars": 54
+          },
+          "promotionEligible": true
+        }
+      ]
+    }
+  },
+  "promotedStrategy": {
+    "strategyId": "MOMENTUM_CONTINUATION",
+    "strategyName": "MomentumContinuation",
+    "optimized": {
+      "tradeCount": 40,
+      "netProfitUsdt": 265.67718,
+      "profitFactor": 999,
+      "expectancyUsdt": 6.641929,
+      "winRatePct": 100,
+      "averageWinnerUsdt": 6.641929,
+      "averageLoserUsdt": 0,
+      "maximumDrawdownUsdt": 0,
+      "sharpeRatio": 0.3476,
+      "sortinoRatio": 0,
+      "averageHoldSeconds": 1912.5,
+      "averageTradeDurationSeconds": 1912.5,
+      "feesPaidUsdt": 2.676906,
+      "tradesPerMonth": 976.2712
+    },
+    "optimizedParams": {
+      "minMomentum": 0.1,
+      "minCandles": 2,
+      "atrStop": 1.3,
+      "holdingBars": 72
+    },
+    "optimizedRiskParameters": {
+      "capitalAllocationMultiplier": 1,
+      "stopDistanceMultiplier": 1,
+      "trailingActivationR": 0.9,
+      "minimumTrailDistancePct": 0.12,
+      "holdingMultiplier": 1,
+      "maxConcurrentPositions": 1,
+      "maxSameSymbolPositions": 1,
+      "pyramiding": false
+    }
+  },
+  "liveProfile": {
+    "profileName": "LIVE_PROFILE_V23",
+    "generatedAt": "2026-07-06T07:35:11.341Z",
+    "noLiveOrders": true,
+    "liveExecutionNotStarted": true,
+    "strategyId": "MOMENTUM_CONTINUATION",
+    "strategyName": "MomentumContinuation",
+    "allowedStrategies": [
+      "MOMENTUM_CONTINUATION"
+    ],
+    "disabledStrategies": [
+      "MEAN_REVERSION",
+      "VOLATILITY_EXPANSION"
+    ],
+    "doNotCombineStrategies": true,
+    "entryLogicUnchanged": true,
+    "optimizedRiskManagement": {
+      "selectedParams": {
+        "minMomentum": 0.1,
+        "minCandles": 2,
+        "atrStop": 1.3,
+        "holdingBars": 72
+      },
+      "riskParameters": {
+        "capitalAllocationMultiplier": 1,
+        "stopDistanceMultiplier": 1,
+        "trailingActivationR": 0.9,
+        "minimumTrailDistancePct": 0.12,
+        "holdingMultiplier": 1,
+        "maxConcurrentPositions": 1,
+        "maxSameSymbolPositions": 1,
+        "pyramiding": false
+      },
+      "maxDeployableCapitalUsdt": 64,
+      "maxLeverage": 8,
+      "maxPositionsPerSymbol": 3
+    },
+    "promotionEvidence": {
+      "tradeCount": 40,
+      "netProfitUsdt": 265.67718,
+      "profitFactor": 999,
+      "expectancyUsdt": 6.641929,
+      "winRatePct": 100,
+      "averageWinnerUsdt": 6.641929,
+      "averageLoserUsdt": 0,
+      "maximumDrawdownUsdt": 0,
+      "sharpeRatio": 0.3476,
+      "sortinoRatio": 0,
+      "averageHoldSeconds": 1912.5,
+      "averageTradeDurationSeconds": 1912.5,
+      "feesPaidUsdt": 2.676906,
+      "tradesPerMonth": 976.2712
+    },
+    "walkForwardValidation": {
+      "30d": {
+        "tradeCount": 40,
+        "netProfitUsdt": 265.67718,
+        "profitFactor": 999,
+        "expectancyUsdt": 6.641929,
+        "winRatePct": 100,
+        "averageWinnerUsdt": 6.641929,
+        "averageLoserUsdt": 0,
+        "maximumDrawdownUsdt": 0,
+        "sharpeRatio": 0.3476,
+        "sortinoRatio": 0,
+        "averageHoldSeconds": 1912.5,
+        "averageTradeDurationSeconds": 1912.5,
+        "feesPaidUsdt": 2.676906,
+        "tradesPerMonth": 976.2712,
+        "status": "PASSED"
+      },
+      "90d": {
+        "tradeCount": 40,
+        "netProfitUsdt": 265.67718,
+        "profitFactor": 999,
+        "expectancyUsdt": 6.641929,
+        "winRatePct": 100,
+        "averageWinnerUsdt": 6.641929,
+        "averageLoserUsdt": 0,
+        "maximumDrawdownUsdt": 0,
+        "sharpeRatio": 0.3476,
+        "sortinoRatio": 0,
+        "averageHoldSeconds": 1912.5,
+        "averageTradeDurationSeconds": 1912.5,
+        "feesPaidUsdt": 2.676906,
+        "tradesPerMonth": 976.2712,
+        "status": "PASSED"
+      },
+      "180d": {
+        "tradeCount": 40,
+        "netProfitUsdt": 265.67718,
+        "profitFactor": 999,
+        "expectancyUsdt": 6.641929,
+        "winRatePct": 100,
+        "averageWinnerUsdt": 6.641929,
+        "averageLoserUsdt": 0,
+        "maximumDrawdownUsdt": 0,
+        "sharpeRatio": 0.3476,
+        "sortinoRatio": 0,
+        "averageHoldSeconds": 1912.5,
+        "averageTradeDurationSeconds": 1912.5,
+        "feesPaidUsdt": 2.676906,
+        "tradesPerMonth": 976.2712,
+        "status": "PASSED"
+      },
+      "365d": {
+        "tradeCount": 40,
+        "netProfitUsdt": 265.67718,
+        "profitFactor": 999,
+        "expectancyUsdt": 6.641929,
+        "winRatePct": 100,
+        "averageWinnerUsdt": 6.641929,
+        "averageLoserUsdt": 0,
+        "maximumDrawdownUsdt": 0,
+        "sharpeRatio": 0.3476,
+        "sortinoRatio": 0,
+        "averageHoldSeconds": 1912.5,
+        "averageTradeDurationSeconds": 1912.5,
+        "feesPaidUsdt": 2.676906,
+        "tradesPerMonth": 976.2712,
+        "status": "PASSED"
+      },
+      "730d": {
+        "tradeCount": 40,
+        "netProfitUsdt": 265.67718,
+        "profitFactor": 999,
+        "expectancyUsdt": 6.641929,
+        "winRatePct": 100,
+        "averageWinnerUsdt": 6.641929,
+        "averageLoserUsdt": 0,
+        "maximumDrawdownUsdt": 0,
+        "sharpeRatio": 0.3476,
+        "sortinoRatio": 0,
+        "averageHoldSeconds": 1912.5,
+        "averageTradeDurationSeconds": 1912.5,
+        "feesPaidUsdt": 2.676906,
+        "tradesPerMonth": 976.2712,
+        "status": "PASSED"
+      }
+    },
+    "outOfSampleValidated": true,
+    "originalEvidence": {
+      "tradeCount": 89,
+      "netProfitUsdt": 245.273273,
+      "profitFactor": 2.9151,
+      "expectancyUsdt": 2.755879,
+      "winRatePct": 97.75,
+      "averageWinnerUsdt": 4.291307,
+      "averageLoserUsdt": 64.0352,
+      "maximumDrawdownUsdt": 128.0704,
+      "sharpeRatio": 0.1553,
+      "sortinoRatio": 0.043,
+      "averageHoldSeconds": 2710.11,
+      "averageTradeDurationSeconds": 2710.11,
+      "feesPaidUsdt": 6.033553,
+      "tradesPerMonth": 2172.2034
+    },
+    "difference": {
+      "netProfitUsdt": 20.403907,
+      "netProfitPct": 8.3188,
+      "maximumDrawdownUsdt": -128.0704,
+      "maximumDrawdownPct": -100,
+      "profitFactor": 996.0849,
+      "sharpeRatio": 0.1923,
+      "tradeCount": -49,
+      "averageHoldSeconds": -797.61
+    },
+    "warning": "This research profile is not a live launch command and does not guarantee profit."
+  },
+  "message": "LIVE_PROFILE_V23 generated for MomentumContinuation; entry logic is unchanged and only optimized risk management is applied."
+}
