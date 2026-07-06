@@ -72,6 +72,12 @@ async function main() {
   const platform = new ResearchPlatform(config, () => {});
   const report = platform.run(candlesBySymbol, { interval: args.interval || config.v22ResearchPrimaryInterval || "1m" });
   writeJson(output, report);
+  if (report.v23PromotionOptimization) {
+    writeJson(config.v23PromotionReportFile, report.v23PromotionOptimization);
+    if (report.v23PromotionOptimization.liveProfile) {
+      writeJson(config.v23LiveProfileFile, report.v23PromotionOptimization.liveProfile);
+    }
+  }
   console.log(`V22 Quant Research Platform completed. Wrote ${output}`);
   console.log(JSON.stringify({
     message: report.message,
@@ -83,6 +89,14 @@ async function main() {
           netProfitUsdt: report.recommendedLiveStrategy.netProfitUsdt,
           profitFactor: report.recommendedLiveStrategy.profitFactor,
           tradeCount: report.recommendedLiveStrategy.tradeCount,
+        }
+      : null,
+    v23Promotion: report.v23PromotionOptimization
+      ? {
+          message: report.v23PromotionOptimization.message,
+          promotedStrategy: report.v23PromotionOptimization.promotedStrategy,
+          liveProfileFile: report.v23PromotionOptimization.liveProfile ? config.v23LiveProfileFile : null,
+          promotionReportFile: config.v23PromotionReportFile,
         }
       : null,
     leaderboard: report.rankings.map((item) => ({
@@ -97,7 +111,9 @@ async function main() {
       outOfSampleValidated: item.outOfSampleValidated,
     })),
   }, null, 2));
-  if (!report.promotedStrategies.length) console.log(NO_RESEARCH_EDGE_MESSAGE);
+  if (!report.promotedStrategies.length && !(report.v23PromotionOptimization && report.v23PromotionOptimization.liveProfile)) {
+    console.log(NO_RESEARCH_EDGE_MESSAGE);
+  }
 }
 
 main().catch((error) => {
