@@ -2,7 +2,7 @@
   "version": "V26",
   "status": "NOT_READY",
   "eligible": false,
-  "generatedAt": "2026-07-06T20:57:22.628Z",
+  "generatedAt": "2026-07-06T20:59:19.190Z",
   "noLiveOrders": true,
   "profileFile": "/Users/alinavanempel/Documents/Pionex/models/microstructure/live-profile-v26.json",
   "finalReadinessFile": "/Users/alinavanempel/Documents/Pionex/data/microstructure/reports/final-readiness.json",
