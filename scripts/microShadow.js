@@ -1,7 +1,12 @@
 "use strict";
 
 const { loadConfig } = require("../src/config");
-const { MicrostructureCollector, MicrostructureShadowEngine } = require("../src/microstructure");
+const {
+  MicrostructureCollector,
+  MicrostructureShadowEngine,
+  microModelStatus,
+  predictWithTrainedMicroModel,
+} = require("../src/microstructure");
 
 function log(level, message, details = {}) {
   const suffix = Object.keys(details).length ? ` ${JSON.stringify(details)}` : "";
@@ -32,6 +37,25 @@ async function main() {
     minSignals: args.minSignals,
   });
   const shadow = new MicrostructureShadowEngine(config, log);
+  const modelStatus = microModelStatus(config);
+  shadow.setModelStatus({
+    ready: modelStatus.ready,
+    collectingDataOnly: !modelStatus.ready,
+    status: modelStatus.status,
+  });
+  if (!modelStatus.ready) {
+    log("WARN", "MICRO_MODEL_NOT_READY", {
+      reason: modelStatus.reason,
+      collectingDataOnly: true,
+      requiredTraining: `At least ${config.microTrainingMinSnapshotsPerSymbol} snapshots per symbol, then npm run micro:train && npm run micro:validate`,
+    });
+  } else {
+    log("INFO", "MICRO_MODEL_READY", {
+      model: modelStatus.modelPath,
+      horizonSeconds: modelStatus.model.horizonSeconds,
+      heuristicPredictionsDisabled: true,
+    });
+  }
   const collector = new MicrostructureCollector(config, log);
   let done = false;
   const startedAt = Date.now();
@@ -40,8 +64,19 @@ async function main() {
     finish = resolve;
   });
   collector.on("snapshot", (snapshot) => {
-    shadow.markToMarket(snapshot);
-    shadow.evaluateSnapshot(snapshot);
+    if (!modelStatus.ready) {
+      shadow.recordRawSnapshot(snapshot);
+    } else {
+      const prediction = predictWithTrainedMicroModel(snapshot, config);
+      if (!prediction.ready) {
+        log("WARN", "MICRO_MODEL_PREDICTION_FAILED", { symbol: snapshot.symbol, error: prediction.error });
+        shadow.reject("MICRO_MODEL_PREDICTION_FAILED");
+        shadow.recordRawSnapshot(snapshot);
+      } else {
+        shadow.markToMarket(snapshot, prediction.prediction);
+        shadow.evaluateSnapshot(snapshot, prediction.prediction);
+      }
+    }
     const report = shadow.persistReport();
     if (!done && report.totalRawSignals >= args.minSignals) {
       done = true;

@@ -77,11 +77,13 @@ function normalizeTrade(data = {}) {
 }
 
 class MicrostructureFeatureEngine {
-  constructor({ windowsSeconds = WINDOWS_SECONDS } = {}) {
+  constructor({ windowsSeconds = WINDOWS_SECONDS, staleDataMs = 2000 } = {}) {
     this.windowsSeconds = windowsSeconds;
+    this.staleDataMs = staleDataMs;
     this.orderBooks = new Map();
     this.trades = new Map();
     this.snapshots = new Map();
+    this.lastSkipReasons = new Map();
   }
 
   recordOrderBook(symbol, data = {}) {
@@ -145,11 +147,23 @@ class MicrostructureFeatureEngine {
 
   generateSnapshot(symbol, timestamp = Date.now()) {
     const book = this.orderBooks.get(symbol);
-    if (!book) return null;
+    if (!book) {
+      this.lastSkipReasons.set(symbol, { reason: "ORDERBOOK_MISSING" });
+      return null;
+    }
     const bidPrice = numeric(book.bidPrice);
     const askPrice = numeric(book.askPrice);
     const bidSize = numeric(book.bidSize);
     const askSize = numeric(book.askSize);
+    const dataAgeMs = Math.max(0, timestamp - book.timestamp);
+    if (!Number.isFinite(book.timestamp) || dataAgeMs > this.staleDataMs) {
+      this.lastSkipReasons.set(symbol, { reason: "STALE_ORDERBOOK", dataAgeMs, staleDataMs: this.staleDataMs });
+      return null;
+    }
+    if (bidPrice <= 0 || askPrice <= 0 || askPrice <= bidPrice || bidSize <= 0 || askSize <= 0) {
+      this.lastSkipReasons.set(symbol, { reason: "INVALID_ORDERBOOK", bidPrice, askPrice, bidSize, askSize });
+      return null;
+    }
     const midPrice = (bidPrice + askPrice) / 2;
     const bidAskSpread = Math.max(0, askPrice - bidPrice);
     const relativeSpread = safeRatio(bidAskSpread, midPrice);
@@ -157,6 +171,10 @@ class MicrostructureFeatureEngine {
     const microprice = safeRatio(askPrice * bidSize + bidPrice * askSize, bidSize + askSize);
     const micropriceDeviationFromMid = safeRatio(microprice - midPrice, midPrice);
     const baseTrades = this.tradeFeatures(symbol, timestamp, 1, midPrice);
+    if (baseTrades.numberOfTrades <= 0) {
+      this.lastSkipReasons.set(symbol, { reason: "EMPTY_TRADE_WINDOW", windowSeconds: 1 });
+      return null;
+    }
     const features = {
       midPrice: round(midPrice),
       bidAskSpread: round(bidAskSpread),
@@ -188,12 +206,17 @@ class MicrostructureFeatureEngine {
         features[`${key}_${seconds}s`] = round(value);
       }
     }
+    const badFeature = Object.entries(features).find(([, value]) => !Number.isFinite(Number(value)));
+    if (badFeature) {
+      this.lastSkipReasons.set(symbol, { reason: "NON_FINITE_FEATURE", feature: badFeature[0], value: badFeature[1] });
+      return null;
+    }
     const snapshot = {
       timestamp,
       isoTime: new Date(timestamp).toISOString(),
       symbol,
       bookTimestamp: book.timestamp,
-      dataAgeMs: Math.max(0, timestamp - book.timestamp),
+      dataAgeMs,
       features,
     };
     if (!this.snapshots.has(symbol)) this.snapshots.set(symbol, []);

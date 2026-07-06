@@ -1,0 +1,27 @@
+{
+  "status": "NOT_READY",
+  "snapshotFiles": [
+    "/Users/alinavanempel/Documents/Pionex/data/microstructure/snapshots/2026-07-06/BTCUSDT.jsonl",
+    "/Users/alinavanempel/Documents/Pionex/data/microstructure/snapshots/2026-07-06/ETHUSDT.jsonl",
+    "/Users/alinavanempel/Documents/Pionex/data/microstructure/snapshots/2026-07-06/SOLUSDT.jsonl"
+  ],
+  "rows": 927,
+  "skippedBadRows": 0,
+  "snapshotsBySymbol": {
+    "BTCUSDT": 310,
+    "ETHUSDT": 310,
+    "SOLUSDT": 307
+  },
+  "minimumSnapshotsPerSymbol": 10000,
+  "notReadySymbols": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT"
+  ],
+  "horizonsSeconds": [
+    3,
+    5,
+    10,
+    30
+  ]
+}

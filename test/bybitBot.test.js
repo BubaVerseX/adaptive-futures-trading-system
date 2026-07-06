@@ -89,6 +89,7 @@ const {
   MicrostructureShadowEngine,
   heuristicMicroPredictionPct,
   microCostGate,
+  microModelStatus,
   normalizeOrderBook,
   normalizeTrade,
 } = require("../src/microstructure");
@@ -5690,6 +5691,7 @@ async function testV24MicrostructureFeatureEngineAndSafetyGates() {
     microMinTopLiquidityUsdt: 10,
     microShadowTradesFile: path.join(os.tmpdir(), `micro-shadow-${Date.now()}.json`),
     microLatestSummaryFile: path.join(os.tmpdir(), `micro-summary-${Date.now()}.json`),
+    microModelManifestFile: path.join(os.tmpdir(), `missing-micro-model-${Date.now()}.json`),
   });
   assert.equal(cfg.microSymbols.join(","), "BTCUSDT,ETHUSDT,SOLUSDT");
   assert.equal(cfg.microPredictionHorizonSeconds, 3);
@@ -5741,6 +5743,17 @@ async function testV24MicrostructureFeatureEngineAndSafetyGates() {
   assert.ok(badPrediction.featureValidationWarnings.includes("PREDICTED_RETURN_ABSURD_VALUE"));
 
   const shadow = new MicrostructureShadowEngine(cfg, () => {});
+  const status = microModelStatus(cfg);
+  assert.equal(status.ready, false);
+  assert.equal(status.status, "MICRO_MODEL_NOT_READY");
+  shadow.setModelStatus({ ready: false, collectingDataOnly: true, status: status.status });
+  const collected = shadow.recordRawSnapshot(snapshot);
+  assert.equal(collected.collected, true);
+  const collectOnlyReport = shadow.persistReport();
+  assert.equal(collectOnlyReport.modelReady, false);
+  assert.equal(collectOnlyReport.collectingDataOnly, true);
+  assert.equal(collectOnlyReport.totalRawSignals, 1);
+  assert.equal(collectOnlyReport.acceptedShadowTrades, 0);
   const entered = shadow.evaluateSnapshot(snapshot, { predictedReturnPct: 0.08 });
   assert.equal(entered.entered, true);
   const later = {
@@ -5756,17 +5769,20 @@ async function testV24MicrostructureFeatureEngineAndSafetyGates() {
   assert.equal(report.noLiveOrders, true);
   assert.ok(fs.existsSync(cfg.microLatestSummaryFile));
   const locked = evaluateShadowPerformanceLock({
-    totalRawSignals: 499,
+    modelReady: false,
+    acceptedShadowTrades: 499,
     netPnl: -0.01,
     profitFactor: 1.1,
     maxDrawdown: 0.1,
     unitValidationWarnings: 1,
   }, { microShadowMinSignals: 500, microMaxDrawdownUsdt: 5 });
-  assert.ok(locked.some((reason) => reason.includes("shadow signals")));
+  assert.ok(locked.some((reason) => reason.includes("trained microstructure model")));
+  assert.ok(locked.some((reason) => reason.includes("accepted shadow trades")));
   assert.ok(locked.some((reason) => reason.includes("not positive")));
   assert.ok(locked.some((reason) => reason.includes("unit validation warnings")));
   const unlocked = evaluateShadowPerformanceLock({
-    totalRawSignals: 500,
+    modelReady: true,
+    acceptedShadowTrades: 500,
     netPnl: 0.25,
     profitFactor: 1.25,
     maxDrawdown: 1.2,

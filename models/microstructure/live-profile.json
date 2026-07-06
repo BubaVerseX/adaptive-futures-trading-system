@@ -1,0 +1,7 @@
+{
+  "status": "MICRO_MODEL_NOT_READY",
+  "reason": "NO_TRAINED_MODELS",
+  "manifestStatus": "NOT_READY",
+  "validatedModels": [],
+  "liveOrdersAllowed": false
+}

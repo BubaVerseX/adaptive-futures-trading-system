@@ -349,7 +349,7 @@ function loadConfig() {
     microSymbols: [...FOCUSED_TRADING_SYMBOLS],
     microSnapshotIntervalMs: numberValue("MICRO_SNAPSHOT_INTERVAL_MS", 1000, { positive: true, integer: true }),
     microPredictionHorizonSeconds: numberValue("MICRO_PREDICTION_HORIZON_SECONDS", 3, { positive: true, integer: true, maximum: 30 }),
-    microPredictionHorizonsSeconds: String(process.env.MICRO_PREDICTION_HORIZONS_SECONDS || "1,3,5,10,30")
+    microPredictionHorizonsSeconds: String(process.env.MICRO_PREDICTION_HORIZONS_SECONDS || "3,5,10,30")
       .split(",")
       .map((value) => Number(value.trim()))
       .filter((value) => Number.isFinite(value) && value > 0),
@@ -359,7 +359,13 @@ function loadConfig() {
     microLatestSummaryFile: path.join(PROJECT_ROOT, "data", "microstructure", "reports", "latest-summary.json"),
     microShadowTradesFile: path.join(PROJECT_ROOT, "data", "microstructure", "shadow-trades.json"),
     microModelDir: path.join(PROJECT_ROOT, "models", "microstructure"),
+    microModelManifestFile: path.join(PROJECT_ROOT, "models", "microstructure", "model-manifest.json"),
+    microTrainingReportFile: path.join(PROJECT_ROOT, "models", "microstructure", "training-report.json"),
+    microValidationReportFile: path.join(PROJECT_ROOT, "models", "microstructure", "validation-report.json"),
     microLiveProfileFile: path.join(PROJECT_ROOT, "models", "microstructure", "live-profile.json"),
+    microPythonBin: process.env.MICRO_PYTHON_BIN || process.env.PYTHON || "python3",
+    microTrainingMinSnapshotsPerSymbol: numberValue("MICRO_TRAINING_MIN_SNAPSHOTS_PER_SYMBOL", 10000, { positive: true, integer: true }),
+    microPredictionTimeoutMs: numberValue("MICRO_PREDICTION_TIMEOUT_MS", 5000, { positive: true, integer: true }),
     microMaxDeployableCapitalUsdt: numberValue("MICRO_MAX_DEPLOYABLE_CAPITAL_USDT", 64, { positive: true }),
     microBaseTradeMarginUsdt: numberValue("MICRO_BASE_TRADE_MARGIN_USDT", 10, { positive: true }),
     microStrongTradeMarginUsdt: numberValue("MICRO_STRONG_TRADE_MARGIN_USDT", 20, { positive: true }),
@@ -374,6 +380,7 @@ function loadConfig() {
     microMaxRelativeSpreadPct: numberValue("MICRO_MAX_RELATIVE_SPREAD_PCT", 0.04, { positive: true }),
     microMinTopLiquidityUsdt: numberValue("MICRO_MIN_TOP_LIQUIDITY_USDT", 200, { minimum: 0 }),
     microMaxFeatureAbsValue: numberValue("MICRO_MAX_FEATURE_ABS_VALUE", 10000, { positive: true }),
+    microMaxRawFeatureAbsValue: numberValue("MICRO_MAX_RAW_FEATURE_ABS_VALUE", 1e12, { positive: true }),
     microMaxZScoreAbs: numberValue("MICRO_MAX_ZSCORE_ABS", 8, { positive: true }),
     microMaxContributionAbs: numberValue("MICRO_MAX_CONTRIBUTION_ABS", 100, { positive: true }),
     microMaxDrawdownUsdt: numberValue("MICRO_MAX_DRAWDOWN_USDT", 5, { positive: true }),

@@ -2,7 +2,7 @@
 
 const fs = require("node:fs");
 const { loadConfig } = require("../src/config");
-const { loadMicroProfile } = require("../src/microstructure");
+const { loadMicroProfile, microModelStatus } = require("../src/microstructure");
 
 function fail(message, details = {}) {
   console.error(`[${new Date().toISOString()}] [ERROR] ${message} ${JSON.stringify(details)}`);
@@ -10,9 +10,10 @@ function fail(message, details = {}) {
 }
 
 function evaluateShadowPerformanceLock(latest = {}, config = {}) {
-  const signalCount = Number(latest.totalRawSignals || latest.totalSignals || latest.shadowSignals || 0);
+  const acceptedTrades = Number(latest.acceptedShadowTrades || latest.tradesTaken || 0);
   const blockers = [];
-  if (signalCount < config.microShadowMinSignals) blockers.push(`shadow signals ${signalCount} < ${config.microShadowMinSignals}`);
+  if (!latest.modelReady) blockers.push("trained microstructure model was not used by latest shadow run");
+  if (acceptedTrades < config.microShadowMinSignals) blockers.push(`accepted shadow trades ${acceptedTrades} < ${config.microShadowMinSignals}`);
   if (Number(latest.netPnl || latest.netPnlAfterFees || 0) <= 0) blockers.push("shadow netPnl is not positive after fees");
   if (Number(latest.profitFactor || 0) <= 1.2) blockers.push(`profitFactor ${latest.profitFactor || 0} <= 1.2`);
   if (Number(latest.maxDrawdown || 0) > config.microMaxDrawdownUsdt) blockers.push(`maxDrawdown ${latest.maxDrawdown} > ${config.microMaxDrawdownUsdt}`);
@@ -41,6 +42,15 @@ async function main() {
     });
     return;
   }
+  const model = microModelStatus(config);
+  if (!model.ready) {
+    fail("MICRO LIVE NOT STARTED — trained model is missing.", {
+      reason: model.reason,
+      manifest: config.microModelManifestFile,
+      runFirst: "npm run micro:train && npm run micro:validate",
+    });
+    return;
+  }
   if (!fs.existsSync(config.microLatestSummaryFile)) {
     fail("MICRO LIVE NOT STARTED — latest shadow summary is missing.", {
       requiredSummary: config.microLatestSummaryFile,
@@ -58,7 +68,14 @@ async function main() {
     return;
   }
   const profile = loadMicroProfile(config.microLiveProfileFile);
-  if (!profile || profile.status !== "VALIDATED" || profile.shadowSignals < config.microShadowMinSignals || Number(profile.netPnlAfterFees || 0) <= 0) {
+  if (
+    !profile ||
+    profile.status !== "VALIDATED" ||
+    !profile.trainedModelExists ||
+    profile.shadowSignals < config.microShadowMinSignals ||
+    Number(profile.netPnlAfterFees || 0) <= 0 ||
+    Number(profile.profitFactor || 0) <= 1.2
+  ) {
     fail("MICRO LIVE NOT STARTED — profile has not proven positive shadow/model performance after fees.", {
       profileStatus: profile && profile.status,
       shadowSignals: profile && profile.shadowSignals,
