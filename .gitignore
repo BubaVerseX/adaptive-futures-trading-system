@@ -2,6 +2,8 @@ node_modules/
 .env
 npm-debug.log*
 data/bybit-bot.log
+data/microstructure/bybit-bot.log
+data/microstructure/snapshots/
 STOP_BOT.txt
 .env
 node_modules
@@ -13,4 +15,5 @@ data/profit-controlled-live/
 micro-env/
 __pycache__/
 *.pyc
+*.so
 catboost_info/

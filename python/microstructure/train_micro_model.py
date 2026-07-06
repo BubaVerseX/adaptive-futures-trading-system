@@ -150,7 +150,7 @@ def main() -> None:
     parser.add_argument("--snapshots", nargs="*", default=[], help="Optional snapshot JSONL files.")
     parser.add_argument("--snapshot-dir", default="data/microstructure/snapshots")
     parser.add_argument("--output-dir", default="models/microstructure")
-    parser.add_argument("--horizons", default="3,5,10,30")
+    parser.add_argument("--horizons", default="3,5,10,30,60,120")
     parser.add_argument("--min-snapshots-per-symbol", type=int, default=10000)
     parser.add_argument("--label-tolerance-ms", type=int, default=1500)
     args = parser.parse_args()

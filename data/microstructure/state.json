@@ -2,7 +2,7 @@
   "version": 1,
   "exchange": "BYBIT_V5_LINEAR",
   "strategyProfile": "BYBIT_ADAPTIVE_STAT_SCALP_V2",
-  "updatedAt": "2026-07-06T20:46:14.975Z",
+  "updatedAt": "2026-07-06T20:57:18.540Z",
   "mode": "DRY_RUN",
   "paused": false,
   "pauseReason": null,

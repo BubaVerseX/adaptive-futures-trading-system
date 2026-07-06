@@ -1,0 +1,76 @@
+{
+  "version": "V26",
+  "status": "NOT_READY",
+  "eligible": false,
+  "generatedAt": "2026-07-06T20:57:22.628Z",
+  "noLiveOrders": true,
+  "profileFile": "/Users/alinavanempel/Documents/Pionex/models/microstructure/live-profile-v26.json",
+  "finalReadinessFile": "/Users/alinavanempel/Documents/Pionex/data/microstructure/reports/final-readiness.json",
+  "blockers": [
+    "No V26 profile passed net PnL, profit factor, trade count, drawdown, and unit-warning gates."
+  ],
+  "repoCleanup": {
+    "gitignore": {
+      "updated": false,
+      "missingAdded": []
+    },
+    "microEnvTracking": {
+      "tracked": false,
+      "untracked": false
+    }
+  },
+  "pythonDependencies": {
+    "ok": true,
+    "python": "python3"
+  },
+  "snapshotValidation": {
+    "ok": true,
+    "counts": {
+      "BTCUSDT": 12926,
+      "ETHUSDT": 12841,
+      "SOLUSDT": 10187
+    },
+    "badCounts": {
+      "BTCUSDT": 0,
+      "ETHUSDT": 0,
+      "SOLUSDT": 0
+    },
+    "missing": [],
+    "files": 3,
+    "minimumSnapshotsPerSymbol": 10000
+  },
+  "training": {
+    "ok": true,
+    "status": 0,
+    "signal": null,
+    "report": "/Users/alinavanempel/Documents/Pionex/models/microstructure/training-report.json",
+    "trained": true
+  },
+  "validation": {
+    "ok": true,
+    "status": "REJECTED",
+    "signal": null,
+    "report": "/Users/alinavanempel/Documents/Pionex/models/microstructure/validation-report.json",
+    "profile": "/Users/alinavanempel/Documents/Pionex/models/microstructure/live-profile-v26.json",
+    "passed": false,
+    "best": {
+      "horizonSeconds": null,
+      "signalMode": null,
+      "sideMode": null,
+      "thresholdBps": null,
+      "tradeCount": 0,
+      "netPnl": 0,
+      "profitFactor": 0,
+      "maxDrawdown": null,
+      "blockers": [
+        "netPnl <= 0",
+        "profitFactor <= 1.2",
+        "tradeCount < 50",
+        "directionalAccuracy <= 0.50 and statistical profile is not acceptable"
+      ]
+    },
+    "message": "NO_VALID_MICROSTRUCTURE_EDGE_FOUND"
+  },
+  "reason": "NO_VALID_MICROSTRUCTURE_EDGE_FOUND",
+  "recommendedNextAction": "Collect more snapshots across different market regimes, then rerun npm run micro:finalize."
+}
