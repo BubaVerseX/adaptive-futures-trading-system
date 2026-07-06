@@ -29,7 +29,7 @@ function bpsToPct(value) {
 
 function sanitizeFeatureValue(key, value, config = {}) {
   const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return { valid: false, value: 0, reason: `${key}:NON_FINITE` };
+  if (!Number.isFinite(parsed)) return { valid: false, value: 0, reason: `${key}:NON_FINITE`, key, rawValue: value };
   const maxAbs = numeric(config.microMaxFeatureAbsValue, 10000);
   const normalizedCaps = {
     l1OrderBookImbalance: 1,
@@ -47,34 +47,68 @@ function sanitizeFeatureValue(key, value, config = {}) {
     vwapSellToMidDeviation: 0.05,
     shortRealizedVolatility: 0.05,
   };
-  const cap = Object.prototype.hasOwnProperty.call(normalizedCaps, key) ? normalizedCaps[key] : maxAbs;
-  if (Math.abs(parsed) > cap) return { valid: false, value: Math.sign(parsed) * cap, reason: `${key}:ABSURD_VALUE` };
+  const isWindowedNormalized = /^(tradeImbalance|vwapBuyToMidDeviation|vwapSellToMidDeviation|shortRealizedVolatility|volumeConcentration)_\d+s$/.test(key);
+  const rawMarketValue = (
+    /(?:Price|Size|Volume|Trades|Variance|Spread|Flow)$/i.test(key) ||
+    /(?:Price|Size|Volume|Trades|Variance|Spread|Flow)_\d+s$/i.test(key)
+  ) && key !== "relativeSpread";
+  const cap = Object.prototype.hasOwnProperty.call(normalizedCaps, key)
+    ? normalizedCaps[key]
+    : isWindowedNormalized
+      ? normalizedCaps[key.replace(/_\d+s$/, "")]
+      : rawMarketValue
+        ? numeric(config.microMaxRawFeatureAbsValue, 1e12)
+        : maxAbs;
+  if (Math.abs(parsed) > cap) {
+    return {
+      valid: false,
+      value: Math.sign(parsed) * cap,
+      reason: `${key}:ABSURD_VALUE`,
+      key,
+      rawValue: parsed,
+      cap,
+    };
+  }
   return { valid: true, value: clip(parsed, -cap, cap), reason: null };
 }
 
 function sanitizeMicroFeatures(features = {}, config = {}) {
   const sanitized = {};
   const warnings = [];
+  const details = [];
   for (const [key, value] of Object.entries(features || {})) {
     if (/zscore/i.test(key)) {
       const parsed = Number(value);
       if (!Number.isFinite(parsed)) {
         warnings.push(`${key}:NON_FINITE`);
+        details.push({ feature: key, value, reason: "NON_FINITE" });
         sanitized[key] = 0;
       } else {
         sanitized[key] = clip(parsed, -numeric(config.microMaxZScoreAbs, 8), numeric(config.microMaxZScoreAbs, 8));
-        if (sanitized[key] !== parsed) warnings.push(`${key}:CLIPPED`);
+        if (sanitized[key] !== parsed) {
+          warnings.push(`${key}:CLIPPED`);
+          details.push({ feature: key, value: parsed, clippedTo: sanitized[key], reason: "CLIPPED" });
+        }
       }
       continue;
     }
     const result = sanitizeFeatureValue(key, value, config);
     sanitized[key] = result.value;
-    if (!result.valid) warnings.push(result.reason);
+    if (!result.valid) {
+      warnings.push(result.reason);
+      details.push({
+        feature: result.key || key,
+        value: result.rawValue ?? value,
+        cap: result.cap,
+        reason: result.reason,
+      });
+    }
   }
   return {
     features: sanitized,
     valid: warnings.length === 0,
     warnings,
+    details,
   };
 }
 
@@ -221,6 +255,15 @@ function microCostGate(snapshot = {}, prediction = {}, config = {}) {
       ...validation.warnings,
       ...(predictionValidation.valid ? [] : [predictionValidation.warning]),
     ],
+    featureValidationDetails: [
+      ...validation.details,
+      ...(predictionValidation.valid ? [] : [{
+        feature: "predictedReturnBps",
+        value: predictionValidation.value,
+        cap: numeric(config.microMaxPredictedReturnBps, 50),
+        reason: predictionValidation.warning,
+      }]),
+    ],
     topLiquidityUsdt: round(topLiquidityUsdt, 4),
     blockedReasons,
     takerOnly: true,
@@ -245,5 +288,6 @@ module.exports = {
   loadMicroProfile,
   microCostGate,
   microMarginForSignal,
+  predictionBpsFromInput,
   sanitizeMicroFeatures,
 };

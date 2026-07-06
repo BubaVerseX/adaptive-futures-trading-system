@@ -2,7 +2,12 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
-const { heuristicMicroPredictionBps, microCostGate } = require("./signalEngine");
+const {
+  heuristicMicroPredictionBps,
+  microCostGate,
+  predictionBpsFromInput,
+  sanitizeMicroFeatures,
+} = require("./signalEngine");
 
 function numeric(value, fallback = 0) {
   const parsed = Number(value);
@@ -61,10 +66,45 @@ class MicrostructureShadowEngine {
     this.totalRawSignals = 0;
     this.signalMetrics = [];
     this.unitValidationWarnings = 0;
+    this.unitValidationWarningDetails = {};
+    this.modelReady = false;
+    this.collectingDataOnly = false;
+    this.modelStatus = "UNKNOWN";
   }
 
   reject(reason) {
     this.rejectionCounts[reason] = (this.rejectionCounts[reason] || 0) + 1;
+  }
+
+  setModelStatus({ ready = false, collectingDataOnly = false, status = "UNKNOWN" } = {}) {
+    this.modelReady = Boolean(ready);
+    this.collectingDataOnly = Boolean(collectingDataOnly);
+    this.modelStatus = status;
+  }
+
+  recordValidationWarnings(symbol, warnings = [], details = []) {
+    if (!warnings.length) return;
+    this.unitValidationWarnings += 1;
+    for (const detail of details) {
+      const key = `${detail.feature || "unknown"}:${detail.reason || "UNKNOWN"}`;
+      const current = this.unitValidationWarningDetails[key] || {
+        feature: detail.feature || "unknown",
+        reason: detail.reason || "UNKNOWN",
+        count: 0,
+        examples: [],
+      };
+      current.count += 1;
+      if (current.examples.length < 5) current.examples.push({ value: detail.value, cap: detail.cap });
+      this.unitValidationWarningDetails[key] = current;
+    }
+    this.log("WARN", "MICRO_FEATURE_VALIDATION_WARNING", { symbol, warnings, details });
+  }
+
+  recordRawSnapshot(snapshot) {
+    this.totalRawSignals += 1;
+    const validation = sanitizeMicroFeatures(snapshot.features || {}, this.config);
+    this.recordValidationWarnings(snapshot.symbol, validation.warnings, validation.details);
+    return { collected: true, validation };
   }
 
   evaluateSnapshot(snapshot, modelPrediction = null) {
@@ -82,7 +122,7 @@ class MicrostructureShadowEngine {
       spreadCostBps: gate.spreadCostBps,
       slippageCostBps: gate.slippageCostBps,
     });
-    if (gate.featureValidationWarnings && gate.featureValidationWarnings.length) this.unitValidationWarnings += 1;
+    this.recordValidationWarnings(snapshot.symbol, gate.featureValidationWarnings || [], gate.featureValidationDetails || []);
     if (!gate.approved) {
       for (const reason of gate.blockedReasons) this.reject(reason);
       return { entered: false, gate };
@@ -129,7 +169,7 @@ class MicrostructureShadowEngine {
     return { entered: true, gate, position };
   }
 
-  markToMarket(snapshot) {
+  markToMarket(snapshot, modelPrediction = null) {
     const position = this.openPositions.get(snapshot.symbol);
     if (!position) return null;
     const price = numeric(snapshot.features && snapshot.features.midPrice);
@@ -139,7 +179,10 @@ class MicrostructureShadowEngine {
     position.maxFavorableExcursionPct = Math.max(position.maxFavorableExcursionPct, movePct);
     position.maxAdverseExcursionPct = Math.min(position.maxAdverseExcursionPct, movePct);
     const heldSeconds = Math.max(0, (snapshot.timestamp - position.entryTimestamp) / 1000);
-    const predictionNowBps = heuristicMicroPredictionBps(snapshot.features || {}, this.config);
+    const predictionNow = modelPrediction
+      ? predictionBpsFromInput(modelPrediction, snapshot.features || {}, this.config)
+      : { value: heuristicMicroPredictionBps(snapshot.features || {}, this.config), valid: true };
+    const predictionNowBps = predictionNow.valid ? predictionNow.value : 0;
     const signalFlip = (position.side === "LONG" && predictionNowBps < 0) || (position.side === "SHORT" && predictionNowBps > 0);
     const edgeGone = Math.abs(predictionNowBps) < numeric(this.config.microMinNetEdgeBps, 3);
     const maxHold = heldSeconds >= this.config.microMaxHoldSeconds;
@@ -194,6 +237,9 @@ class MicrostructureShadowEngine {
       generatedAt: new Date().toISOString(),
       mode: "MICROSTRUCTURE_SHADOW",
       noLiveOrders: true,
+      modelReady: this.modelReady,
+      modelStatus: this.modelStatus,
+      collectingDataOnly: this.collectingDataOnly,
       ...summary,
       totalRawSignals: this.totalRawSignals,
       totalSignals: this.totalRawSignals,
@@ -212,6 +258,8 @@ class MicrostructureShadowEngine {
       averageSlippageCostBps: average("slippageCostBps"),
       maxDrawdown: maxDrawdown(runTrades),
       unitValidationWarnings: this.unitValidationWarnings,
+      unitValidationWarningDetails: Object.values(this.unitValidationWarningDetails)
+        .sort((left, right) => right.count - left.count),
       bestSymbol: Object.entries(summary.bySymbol || {}).sort((left, right) => right[1] - left[1])[0]?.[0] || null,
       worstSymbol: Object.entries(summary.bySymbol || {}).sort((left, right) => left[1] - right[1])[0]?.[0] || null,
       featureImportance,

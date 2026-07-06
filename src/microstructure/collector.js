@@ -21,12 +21,12 @@ function snapshotFile(config, symbol, timestamp = Date.now()) {
 }
 
 class MicrostructureCollector extends EventEmitter {
-  constructor(config, log = () => {}, WebSocketImpl = WebSocket, featureEngine = new MicrostructureFeatureEngine()) {
+  constructor(config, log = () => {}, WebSocketImpl = WebSocket, featureEngine = null) {
     super();
     this.config = config;
     this.log = log;
     this.WebSocketImpl = WebSocketImpl;
-    this.featureEngine = featureEngine;
+    this.featureEngine = featureEngine || new MicrostructureFeatureEngine({ staleDataMs: config.microStaleDataMs });
     this.socket = null;
     this.snapshotTimer = null;
     this.stopped = true;
@@ -85,7 +85,11 @@ class MicrostructureCollector extends EventEmitter {
   flushSnapshots(timestamp = Date.now()) {
     for (const symbol of this.config.microSymbols || this.config.focusedTradingSymbolsList || []) {
       const snapshot = this.featureEngine.generateSnapshot(symbol, timestamp);
-      if (!snapshot) continue;
+      if (!snapshot) {
+        const skip = this.featureEngine.lastSkipReasons.get(symbol);
+        if (skip) this.log("DEBUG", "MICRO_SNAPSHOT_SKIPPED", { symbol, ...skip });
+        continue;
+      }
       appendJsonl(snapshotFile(this.config, symbol, timestamp), snapshot);
       this.emit("snapshot", snapshot);
     }
