@@ -4,6 +4,16 @@ const { parseCandles } = require("../indicators");
 const { average, bounded, numeric, round } = require("../strategyUtils");
 const { analysisContext } = require("./strategyPlugins");
 
+const PARSED_CANDLE_CACHE = new WeakMap();
+
+function cachedParseCandles(rawCandles = []) {
+  if (!Array.isArray(rawCandles)) return parseCandles(rawCandles || []);
+  if (!PARSED_CANDLE_CACHE.has(rawCandles)) {
+    PARSED_CANDLE_CACHE.set(rawCandles, parseCandles(rawCandles));
+  }
+  return PARSED_CANDLE_CACHE.get(rawCandles);
+}
+
 function candleTime(candle, fallbackIndex = 0, candleSeconds = 60) {
   const raw = candle && (candle.time || candle.start || candle.timestamp);
   const parsed = Number(raw);
@@ -85,8 +95,12 @@ function summarizeResearchTrades(trades = []) {
   const days = tradeDurationDays(closed);
   return {
     tradeCount: closed.length,
+    winningTrades: wins.length,
+    losingTrades: losses.length,
     netProfitUsdt: round(closed.reduce((sum, trade) => sum + numeric(trade.netPnlUsdt), 0), 6),
     profitFactor: grossLoss > 0 ? round(grossWin / grossLoss, 4) : wins.length ? 999 : 0,
+    grossWinningUsdt: round(grossWin, 6),
+    grossLosingUsdt: round(grossLoss, 6),
     expectancyUsdt: closed.length ? round(closed.reduce((sum, trade) => sum + numeric(trade.netPnlUsdt), 0) / closed.length, 6) : 0,
     winRatePct: closed.length ? round((wins.length / closed.length) * 100, 2) : 0,
     averageWinnerUsdt: wins.length ? round(grossWin / wins.length, 6) : 0,
@@ -231,7 +245,7 @@ class EventDrivenBacktester {
   }
 
   run({ symbol, candles: rawCandles = [], strategy, params = strategy.defaultParams } = {}) {
-    const candles = parseCandles(rawCandles || []);
+    const candles = cachedParseCandles(rawCandles || []);
     const trades = [];
     if (!strategy || candles.length < 70) {
       return { trades, metrics: summarizeResearchTrades(trades), equityCurve: [], drawdownCurve: [] };

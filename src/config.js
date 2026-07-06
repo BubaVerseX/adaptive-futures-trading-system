@@ -419,6 +419,22 @@ function loadConfig() {
     v23MaxNetProfitReductionPct: numberValue("V23_MAX_NET_PROFIT_REDUCTION_PCT", 15, { minimum: 0, maximum: 100 }),
     v23MaxOptimizationCandidates: numberValue("V23_MAX_OPTIMIZATION_CANDIDATES", 432, { positive: true, integer: true, maximum: 1000 }),
     v23RequireOutOfSampleValidation: booleanValue("V23_REQUIRE_OUT_OF_SAMPLE_VALIDATION", true),
+    v23RejectImpossibleMetrics: booleanValue("V23_REJECT_IMPOSSIBLE_METRICS", true),
+    v231ResearchValidationMode: booleanValue("V231_RESEARCH_VALIDATION_MODE", false),
+    v231MinimumHistoryDays: numberValue("V231_MINIMUM_HISTORY_DAYS", 365, { positive: true, integer: true }),
+    v231RequiredIntervals: String(process.env.V231_REQUIRED_INTERVALS || "15m,1h,4h")
+      .split(",")
+      .map((interval) => interval.trim())
+      .filter(Boolean),
+    v231PrimaryInterval: String(process.env.V231_PRIMARY_INTERVAL || "1h").trim(),
+    v231MaxDownloadPages: numberValue("V231_MAX_DOWNLOAD_PAGES", 90, { positive: true, integer: true, maximum: 500 }),
+    v231ResearchRestBaseUrl: process.env.V231_RESEARCH_REST_BASE_URL || MAINNET_REST_BASE_URL,
+    v231ValidationReportFile: process.env.V231_VALIDATION_REPORT_FILE || path.join(PROJECT_ROOT, "data", "research", "reports", "validation-v23-real.json"),
+    v231PromotionReportFile: process.env.V231_PROMOTION_REPORT_FILE || path.join(PROJECT_ROOT, "data", "research", "reports", "promotion-v23-real.json"),
+    v231LiveProfileFile: process.env.V231_LIVE_PROFILE_FILE || path.join(PROJECT_ROOT, "data", "research", "reports", "live-profile-v23-real.json"),
+    v231MaxRealisticProfitFactor: numberValue("V231_MAX_REALISTIC_PROFIT_FACTOR", 10, { positive: true }),
+    v231RejectZeroDrawdown: booleanValue("V231_REJECT_ZERO_DRAWDOWN", true),
+    v231RejectZeroLosingTrades: booleanValue("V231_REJECT_ZERO_LOSING_TRADES", true),
     v20MinConfidence: numberValue("V20_MIN_CONFIDENCE", 45, { positive: true, maximum: 100 }),
     v20MarketRegimeWeight: numberValue("V20_MARKET_REGIME_WEIGHT", 0.14, { minimum: 0, maximum: 1 }),
     v20TrendWeight: numberValue("V20_TREND_WEIGHT", 0.24, { minimum: 0, maximum: 1 }),
