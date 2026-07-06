@@ -73,6 +73,7 @@ function loadConfig() {
   const activeAdaptiveScalperMode = booleanValue("ACTIVE_ADAPTIVE_SCALPER_MODE", paperTradingMode ? true : false);
   const swingMomentumMode = booleanValue("SWING_MOMENTUM_MODE", false);
   const trendPortfolioMode = booleanValue("TREND_PORTFOLIO_MODE", false);
+  const microstructureTakerMode = booleanValue("MICROSTRUCTURE_TAKER_MODE", false);
   const exchangeEnvironment = profitControlledEquityMode
     ? "PROFIT_CONTROLLED_LIVE"
     : liveValidationMode
@@ -87,7 +88,7 @@ function loadConfig() {
   const dataDir = path.join(
     PROJECT_ROOT,
     "data",
-    trendPortfolioMode ? "trend-portfolio" : profitControlledEquityMode ? "profit-controlled-live" : liveValidationMode ? "live-validation" : bybitDemoTrading ? "demo" : (paperTradingMode || activeAdaptiveScalperMode) ? "paper-trading" : ""
+    microstructureTakerMode ? "microstructure" : trendPortfolioMode ? "trend-portfolio" : profitControlledEquityMode ? "profit-controlled-live" : liveValidationMode ? "live-validation" : bybitDemoTrading ? "demo" : (paperTradingMode || activeAdaptiveScalperMode) ? "paper-trading" : ""
   );
   const defaultRestBaseUrl = bybitDemoTrading
     ? DEMO_REST_BASE_URL
@@ -128,6 +129,11 @@ function loadConfig() {
     activeAdaptiveScalperMode,
     swingMomentumMode,
     trendPortfolioMode,
+    microstructureTakerMode,
+    microResearchMode: booleanValue("MICRO_RESEARCH_MODE", false),
+    microShadowMode: booleanValue("MICRO_SHADOW_MODE", false),
+    microLiveMode: booleanValue("MICRO_LIVE_MODE", false),
+    microLiveAcknowledged: booleanValue("MICRO_LIVE_ACKNOWLEDGED", false),
     exchangeEnvironment,
     restBaseUrl,
     publicWsBaseUrl,
@@ -340,6 +346,45 @@ function loadConfig() {
     excludedSymbols: symbolsSet("EXCLUDED_SYMBOLS"),
     focusedTradingSymbolsList: [...FOCUSED_TRADING_SYMBOLS],
     focusedTradingSymbols: new Set(FOCUSED_TRADING_SYMBOLS),
+    microSymbols: [...FOCUSED_TRADING_SYMBOLS],
+    microSnapshotIntervalMs: numberValue("MICRO_SNAPSHOT_INTERVAL_MS", 1000, { positive: true, integer: true }),
+    microPredictionHorizonSeconds: numberValue("MICRO_PREDICTION_HORIZON_SECONDS", 3, { positive: true, integer: true, maximum: 30 }),
+    microPredictionHorizonsSeconds: String(process.env.MICRO_PREDICTION_HORIZONS_SECONDS || "1,3,5,10,30")
+      .split(",")
+      .map((value) => Number(value.trim()))
+      .filter((value) => Number.isFinite(value) && value > 0),
+    microDataDir: path.join(PROJECT_ROOT, "data", "microstructure"),
+    microSnapshotDir: path.join(PROJECT_ROOT, "data", "microstructure", "snapshots"),
+    microReportsDir: path.join(PROJECT_ROOT, "data", "microstructure", "reports"),
+    microLatestSummaryFile: path.join(PROJECT_ROOT, "data", "microstructure", "reports", "latest-summary.json"),
+    microShadowTradesFile: path.join(PROJECT_ROOT, "data", "microstructure", "shadow-trades.json"),
+    microModelDir: path.join(PROJECT_ROOT, "models", "microstructure"),
+    microLiveProfileFile: path.join(PROJECT_ROOT, "models", "microstructure", "live-profile.json"),
+    microMaxDeployableCapitalUsdt: numberValue("MICRO_MAX_DEPLOYABLE_CAPITAL_USDT", 64, { positive: true }),
+    microBaseTradeMarginUsdt: numberValue("MICRO_BASE_TRADE_MARGIN_USDT", 10, { positive: true }),
+    microStrongTradeMarginUsdt: numberValue("MICRO_STRONG_TRADE_MARGIN_USDT", 20, { positive: true }),
+    microEliteTradeMarginUsdt: numberValue("MICRO_ELITE_TRADE_MARGIN_USDT", 32, { positive: true }),
+    microMinPredictedReturnPct: numberValue("MICRO_MIN_PREDICTED_RETURN_PCT", 0.012, { minimum: 0 }),
+    microMinExpectedNetEdgePct: numberValue("MICRO_MIN_EXPECTED_NET_EDGE_PCT", 0.002, { minimum: 0 }),
+    microMinNetEdgeBps: numberValue("MICRO_MIN_NET_EDGE_BPS", 3, { minimum: 0 }),
+    microMaxPredictedReturnBps: numberValue("MICRO_MAX_PREDICTED_RETURN_BPS", 50, { positive: true }),
+    microSafetyBufferBps: numberValue("MICRO_SAFETY_BUFFER_BPS", 1, { minimum: 0 }),
+    microEstimatedSlippagePct: numberValue("MICRO_ESTIMATED_SLIPPAGE_PCT", 0.006, { minimum: 0 }),
+    microEstimatedSlippageBps: numberValue("MICRO_ESTIMATED_SLIPPAGE_BPS", 0.6, { minimum: 0 }),
+    microMaxRelativeSpreadPct: numberValue("MICRO_MAX_RELATIVE_SPREAD_PCT", 0.04, { positive: true }),
+    microMinTopLiquidityUsdt: numberValue("MICRO_MIN_TOP_LIQUIDITY_USDT", 200, { minimum: 0 }),
+    microMaxFeatureAbsValue: numberValue("MICRO_MAX_FEATURE_ABS_VALUE", 10000, { positive: true }),
+    microMaxZScoreAbs: numberValue("MICRO_MAX_ZSCORE_ABS", 8, { positive: true }),
+    microMaxContributionAbs: numberValue("MICRO_MAX_CONTRIBUTION_ABS", 100, { positive: true }),
+    microMaxDrawdownUsdt: numberValue("MICRO_MAX_DRAWDOWN_USDT", 5, { positive: true }),
+    microMaxTradesPerMinute: numberValue("MICRO_MAX_TRADES_PER_MINUTE", 6, { positive: true, integer: true }),
+    microMaxConsecutiveLosses: numberValue("MICRO_MAX_CONSECUTIVE_LOSSES", 4, { positive: true, integer: true }),
+    microMaxDailyLossUsdt: numberValue("MICRO_MAX_DAILY_LOSS_USDT", 3, { positive: true }),
+    microMaxHoldSeconds: numberValue("MICRO_MAX_HOLD_SECONDS", 30, { positive: true, integer: true, maximum: 300 }),
+    microMinHoldSeconds: numberValue("MICRO_MIN_HOLD_SECONDS", 3, { positive: true, integer: true, maximum: 60 }),
+    microStaleDataMs: numberValue("MICRO_STALE_DATA_MS", 2000, { positive: true, integer: true }),
+    microShadowMinSignals: numberValue("MICRO_SHADOW_MIN_SIGNALS", 500, { positive: true, integer: true }),
+    microShadowMinimumNetPnlUsdt: numberValue("MICRO_SHADOW_MIN_NET_PNL_USDT", 0, { minimum: 0 }),
     takeProfitPct: numberValue("TAKE_PROFIT_PCT", 2.1, { positive: true }),
     stopLossPct: numberValue("STOP_LOSS_PCT", 0.8, { positive: true }),
     trailingStopEnabled: booleanValue("TRAILING_STOP_ENABLED", true),

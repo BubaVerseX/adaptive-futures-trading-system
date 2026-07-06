@@ -1,0 +1,51 @@
+[
+  {
+    "id": "micro-shadow-BTCUSDT-1783340977061",
+    "status": "CLOSED",
+    "symbol": "BTCUSDT",
+    "side": "SHORT",
+    "enteredAt": "2026-07-06T12:29:37.061Z",
+    "entryTimestamp": 1783340977061,
+    "entryPrice": 62058.9,
+    "marginUsdt": 32,
+    "predictedReturnPct": -12.273458,
+    "expectedNetEdgePct": 12.157136,
+    "feeCostPct": 0.11,
+    "spreadCostPct": 0.000322,
+    "slippageEstimatePct": 0.006,
+    "maxFavorableExcursionPct": 0.008459705215529119,
+    "maxAdverseExcursionPct": 0,
+    "topContributingFeatures": [
+      {
+        "feature": "spread",
+        "contribution": -29511.929
+      },
+      {
+        "feature": "orderBookImbalance",
+        "contribution": 19.6064
+      },
+      {
+        "feature": "tradeImbalance",
+        "contribution": 12.7517
+      },
+      {
+        "feature": "netOrderFlow",
+        "contribution": 0.0247
+      },
+      {
+        "feature": "micropriceDeviation",
+        "contribution": 0.0019
+      }
+    ],
+    "exitedAt": "2026-07-06T12:29:39.062Z",
+    "exitTimestamp": 1783340979062,
+    "exitPrice": 62053.65,
+    "exitReason": "EDGE_DISAPPEARED",
+    "holdSeconds": 2.001,
+    "grossReturnPct": 0.00846,
+    "netReturnPct": -0.107862,
+    "grossPnlUsdt": 0.021657,
+    "feeCostUsdt": 0.2816,
+    "netPnlUsdt": -0.276127
+  }
+]

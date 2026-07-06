@@ -244,6 +244,15 @@ class LadderBot {
     process.once("SIGINT", () => void this.shutdown("CTRL+C / SIGINT"));
     process.once("SIGTERM", () => void this.shutdown("SIGTERM"));
 
+    if (this.config.microstructureTakerMode) {
+      this.log("WARN", "V24 MICROSTRUCTURE TAKER ENGINE ACTIVE", {
+        useDedicatedScripts: ["npm run micro:research", "npm run micro:shadow", "npm run micro:live"],
+        oldScannerDisabledForThisMode: true,
+        takerOnly: true,
+      });
+      throw new Error("MICROSTRUCTURE_TAKER_MODE uses dedicated micro scripts; refusing to start legacy scanner/trend engine.");
+    }
+
     this.log("INFO", "Starting Bybit Unified Futures Aggressive Scalping Bot.", {
       mode: this.config.dryRun ? "DRY_RUN" : "LIVE",
       environment: this.config.exchangeEnvironment,
