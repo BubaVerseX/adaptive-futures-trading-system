@@ -1,6 +1,6 @@
 {
   "version": "V27_FREQTRADE_STRATEGY_PACK",
-  "generatedAt": "2026-07-07T18:39:40.847Z",
+  "generatedAt": "2026-07-07T18:42:40.378Z",
   "noLiveOrders": true,
   "source": "werkkrew/freqtrade-strategies ideas translated into local research candidates",
   "symbols": [
@@ -8,7 +8,7 @@
     "ETHUSDT",
     "SOLUSDT"
   ],
-  "days": 21,
+  "days": 90,
   "totalCostBps": 12.2,
   "gates": {
     "minTrades": 20,
@@ -44,13 +44,13 @@
     },
     "training": {
       "trades": 11,
-      "netBps": -178.5576,
-      "profitFactor": 0.6567,
+      "netBps": -207.4105,
+      "profitFactor": 0.5991,
       "winRate": 0.3636,
-      "maxDrawdownBps": 334.6444,
-      "avgNetBps": -16.2325,
-      "grossWin": 341.5362,
-      "grossLoss": 520.0938,
+      "maxDrawdownBps": 331.9209,
+      "avgNetBps": -18.8555,
+      "grossWin": 309.9598,
+      "grossLoss": 517.3703,
       "sampleTrades": [
         {
           "side": "LONG",
@@ -204,13 +204,13 @@
       },
       "training": {
         "trades": 11,
-        "netBps": -178.5576,
-        "profitFactor": 0.6567,
+        "netBps": -207.4105,
+        "profitFactor": 0.5991,
         "winRate": 0.3636,
-        "maxDrawdownBps": 334.6444,
-        "avgNetBps": -16.2325,
-        "grossWin": 341.5362,
-        "grossLoss": 520.0938,
+        "maxDrawdownBps": 331.9209,
+        "avgNetBps": -18.8555,
+        "grossWin": 309.9598,
+        "grossLoss": 517.3703,
         "sampleTrades": [
           {
             "side": "LONG",
@@ -520,13 +520,13 @@
       },
       "training": {
         "trades": 11,
-        "netBps": -157.6128,
-        "profitFactor": 0.6842,
+        "netBps": -186.4657,
+        "profitFactor": 0.6244,
         "winRate": 0.3636,
-        "maxDrawdownBps": 313.6997,
-        "avgNetBps": -14.3284,
-        "grossWin": 341.5362,
-        "grossLoss": 499.149,
+        "maxDrawdownBps": 310.9762,
+        "avgNetBps": -16.9514,
+        "grossWin": 309.9598,
+        "grossLoss": 496.4255,
         "sampleTrades": [
           {
             "side": "LONG",
@@ -836,13 +836,13 @@
       },
       "training": {
         "trades": 11,
-        "netBps": -157.6128,
-        "profitFactor": 0.6842,
+        "netBps": -186.4657,
+        "profitFactor": 0.6244,
         "winRate": 0.3636,
-        "maxDrawdownBps": 313.6997,
-        "avgNetBps": -14.3284,
-        "grossWin": 341.5362,
-        "grossLoss": 499.149,
+        "maxDrawdownBps": 310.9762,
+        "avgNetBps": -16.9514,
+        "grossWin": 309.9598,
+        "grossLoss": 496.4255,
         "sampleTrades": [
           {
             "side": "LONG",
@@ -1152,13 +1152,13 @@
       },
       "training": {
         "trades": 11,
-        "netBps": -157.6128,
-        "profitFactor": 0.6842,
+        "netBps": -186.4657,
+        "profitFactor": 0.6244,
         "winRate": 0.3636,
-        "maxDrawdownBps": 313.6997,
-        "avgNetBps": -14.3284,
-        "grossWin": 341.5362,
-        "grossLoss": 499.149,
+        "maxDrawdownBps": 310.9762,
+        "avgNetBps": -16.9514,
+        "grossWin": 309.9598,
+        "grossLoss": 496.4255,
         "sampleTrades": [
           {
             "side": "LONG",
@@ -1468,13 +1468,13 @@
       },
       "training": {
         "trades": 15,
-        "netBps": -180.5538,
-        "profitFactor": 0.6407,
-        "winRate": 0.4,
+        "netBps": -187.3422,
+        "profitFactor": 0.6314,
+        "winRate": 0.3333,
         "maxDrawdownBps": 358.3215,
-        "avgNetBps": -12.0369,
-        "grossWin": 321.9816,
-        "grossLoss": 502.5354,
+        "avgNetBps": -12.4895,
+        "grossWin": 320.9785,
+        "grossLoss": 508.3207,
         "sampleTrades": [
           {
             "side": "SHORT",
@@ -1626,13 +1626,13 @@
       },
       "training": {
         "trades": 15,
-        "netBps": -159.6091,
-        "profitFactor": 0.6686,
-        "winRate": 0.4,
+        "netBps": -166.3974,
+        "profitFactor": 0.6586,
+        "winRate": 0.3333,
         "maxDrawdownBps": 337.3768,
-        "avgNetBps": -10.6406,
-        "grossWin": 321.9816,
-        "grossLoss": 481.5907,
+        "avgNetBps": -11.0932,
+        "grossWin": 320.9785,
+        "grossLoss": 487.3759,
         "sampleTrades": [
           {
             "side": "SHORT",
@@ -1784,13 +1784,13 @@
       },
       "training": {
         "trades": 15,
-        "netBps": -159.6091,
-        "profitFactor": 0.6686,
-        "winRate": 0.4,
+        "netBps": -166.3974,
+        "profitFactor": 0.6586,
+        "winRate": 0.3333,
         "maxDrawdownBps": 337.3768,
-        "avgNetBps": -10.6406,
-        "grossWin": 321.9816,
-        "grossLoss": 481.5907,
+        "avgNetBps": -11.0932,
+        "grossWin": 320.9785,
+        "grossLoss": 487.3759,
         "sampleTrades": [
           {
             "side": "SHORT",
@@ -1942,13 +1942,13 @@
       },
       "training": {
         "trades": 15,
-        "netBps": -159.6091,
-        "profitFactor": 0.6686,
-        "winRate": 0.4,
+        "netBps": -166.3974,
+        "profitFactor": 0.6586,
+        "winRate": 0.3333,
         "maxDrawdownBps": 337.3768,
-        "avgNetBps": -10.6406,
-        "grossWin": 321.9816,
-        "grossLoss": 481.5907,
+        "avgNetBps": -11.0932,
+        "grossWin": 320.9785,
+        "grossLoss": 487.3759,
         "sampleTrades": [
           {
             "side": "SHORT",
@@ -2100,13 +2100,13 @@
       },
       "training": {
         "trades": 23,
-        "netBps": 44.9402,
-        "profitFactor": 1.0749,
+        "netBps": 34.9833,
+        "profitFactor": 1.0573,
         "winRate": 0.4348,
         "maxDrawdownBps": 316.7902,
-        "avgNetBps": 1.9539,
+        "avgNetBps": 1.521,
         "grossWin": 645.1025,
-        "grossLoss": 600.1623,
+        "grossLoss": 610.1192,
         "sampleTrades": [
           {
             "side": "SHORT",
@@ -2167,12 +2167,12 @@
       },
       "validation": {
         "trades": 11,
-        "netBps": 149.8474,
-        "profitFactor": 1.6865,
+        "netBps": 144.5277,
+        "profitFactor": 1.6621,
         "winRate": 0.6364,
         "maxDrawdownBps": 122.0917,
-        "avgNetBps": 13.6225,
-        "grossWin": 368.1282,
+        "avgNetBps": 13.1389,
+        "grossWin": 362.8085,
         "grossLoss": 218.2808,
         "sampleTrades": [
           {
@@ -2258,13 +2258,13 @@
       },
       "training": {
         "trades": 23,
-        "netBps": 44.9402,
-        "profitFactor": 1.0749,
+        "netBps": 34.9833,
+        "profitFactor": 1.0573,
         "winRate": 0.4348,
         "maxDrawdownBps": 316.7902,
-        "avgNetBps": 1.9539,
+        "avgNetBps": 1.521,
         "grossWin": 645.1025,
-        "grossLoss": 600.1623,
+        "grossLoss": 610.1192,
         "sampleTrades": [
           {
             "side": "SHORT",
@@ -2325,12 +2325,12 @@
       },
       "validation": {
         "trades": 11,
-        "netBps": 149.8474,
-        "profitFactor": 1.6865,
+        "netBps": 144.5277,
+        "profitFactor": 1.6621,
         "winRate": 0.6364,
         "maxDrawdownBps": 122.0917,
-        "avgNetBps": 13.6225,
-        "grossWin": 368.1282,
+        "avgNetBps": 13.1389,
+        "grossWin": 362.8085,
         "grossLoss": 218.2808,
         "sampleTrades": [
           {
@@ -2416,13 +2416,13 @@
       },
       "training": {
         "trades": 23,
-        "netBps": 44.9402,
-        "profitFactor": 1.0749,
+        "netBps": 34.9833,
+        "profitFactor": 1.0573,
         "winRate": 0.4348,
         "maxDrawdownBps": 316.7902,
-        "avgNetBps": 1.9539,
+        "avgNetBps": 1.521,
         "grossWin": 645.1025,
-        "grossLoss": 600.1623,
+        "grossLoss": 610.1192,
         "sampleTrades": [
           {
             "side": "SHORT",
@@ -2483,12 +2483,12 @@
       },
       "validation": {
         "trades": 11,
-        "netBps": 149.8474,
-        "profitFactor": 1.6865,
+        "netBps": 144.5277,
+        "profitFactor": 1.6621,
         "winRate": 0.6364,
         "maxDrawdownBps": 122.0917,
-        "avgNetBps": 13.6225,
-        "grossWin": 368.1282,
+        "avgNetBps": 13.1389,
+        "grossWin": 362.8085,
         "grossLoss": 218.2808,
         "sampleTrades": [
           {
@@ -2574,13 +2574,13 @@
       },
       "training": {
         "trades": 23,
-        "netBps": 44.9402,
-        "profitFactor": 1.0749,
+        "netBps": 34.9833,
+        "profitFactor": 1.0573,
         "winRate": 0.4348,
         "maxDrawdownBps": 316.7902,
-        "avgNetBps": 1.9539,
+        "avgNetBps": 1.521,
         "grossWin": 645.1025,
-        "grossLoss": 600.1623,
+        "grossLoss": 610.1192,
         "sampleTrades": [
           {
             "side": "SHORT",
@@ -2641,12 +2641,12 @@
       },
       "validation": {
         "trades": 11,
-        "netBps": 149.8474,
-        "profitFactor": 1.6865,
+        "netBps": 144.5277,
+        "profitFactor": 1.6621,
         "winRate": 0.6364,
         "maxDrawdownBps": 122.0917,
-        "avgNetBps": 13.6225,
-        "grossWin": 368.1282,
+        "avgNetBps": 13.1389,
+        "grossWin": 362.8085,
         "grossLoss": 218.2808,
         "sampleTrades": [
           {
@@ -2732,13 +2732,13 @@
       },
       "training": {
         "trades": 11,
-        "netBps": -178.5576,
-        "profitFactor": 0.6567,
+        "netBps": -207.4105,
+        "profitFactor": 0.5991,
         "winRate": 0.3636,
-        "maxDrawdownBps": 334.6444,
-        "avgNetBps": -16.2325,
-        "grossWin": 341.5362,
-        "grossLoss": 520.0938,
+        "maxDrawdownBps": 331.9209,
+        "avgNetBps": -18.8555,
+        "grossWin": 309.9598,
+        "grossLoss": 517.3703,
         "sampleTrades": [
           {
             "side": "LONG",
@@ -2799,24 +2799,24 @@
       },
       "validation": {
         "trades": 4,
-        "netBps": 137.0072,
-        "profitFactor": 2.8814,
+        "netBps": 134.473,
+        "profitFactor": 2.8466,
         "winRate": 0.5,
         "maxDrawdownBps": 72.8237,
-        "avgNetBps": 34.2518,
-        "grossWin": 209.831,
+        "avgNetBps": 33.6183,
+        "grossWin": 207.2968,
         "grossLoss": 72.8237,
         "sampleTrades": [
           {
             "side": "LONG",
-            "entryTs": 1783359900000,
+            "entryTs": 1783360200000,
             "exitTs": 1783380300000,
-            "entry": 1788.54,
+            "entry": 1788.99,
             "exit": 1801.92,
-            "rawBps": 74.80962125532619,
-            "netBps": 62.60962125532619,
+            "rawBps": 72.2754179732702,
+            "netBps": 60.07541797327019,
             "reason": "SIGNAL_EXIT",
-            "heldCandles": 67
+            "heldCandles": 66
           },
           {
             "side": "SHORT",
@@ -2879,12 +2879,12 @@
       },
       "training": {
         "trades": 8,
-        "netBps": -174.7853,
-        "profitFactor": 0.5143,
+        "netBps": -190.5686,
+        "profitFactor": 0.4704,
         "winRate": 0.5,
         "maxDrawdownBps": 310.28,
-        "avgNetBps": -21.8482,
-        "grossWin": 185.0418,
+        "avgNetBps": -23.8211,
+        "grossWin": 169.2585,
         "grossLoss": 359.8271,
         "sampleTrades": [
           {
@@ -2946,24 +2946,24 @@
       },
       "validation": {
         "trades": 4,
-        "netBps": 137.0072,
-        "profitFactor": 2.8814,
+        "netBps": 134.473,
+        "profitFactor": 2.8466,
         "winRate": 0.5,
         "maxDrawdownBps": 72.8237,
-        "avgNetBps": 34.2518,
-        "grossWin": 209.831,
+        "avgNetBps": 33.6183,
+        "grossWin": 207.2968,
         "grossLoss": 72.8237,
         "sampleTrades": [
           {
             "side": "LONG",
-            "entryTs": 1783359900000,
+            "entryTs": 1783360200000,
             "exitTs": 1783380300000,
-            "entry": 1788.54,
+            "entry": 1788.99,
             "exit": 1801.92,
-            "rawBps": 74.80962125532619,
-            "netBps": 62.60962125532619,
+            "rawBps": 72.2754179732702,
+            "netBps": 60.07541797327019,
             "reason": "SIGNAL_EXIT",
-            "heldCandles": 67
+            "heldCandles": 66
           },
           {
             "side": "SHORT",
@@ -3026,13 +3026,13 @@
       },
       "training": {
         "trades": 11,
-        "netBps": -178.5576,
-        "profitFactor": 0.6567,
+        "netBps": -207.4105,
+        "profitFactor": 0.5991,
         "winRate": 0.3636,
-        "maxDrawdownBps": 334.6444,
-        "avgNetBps": -16.2325,
-        "grossWin": 341.5362,
-        "grossLoss": 520.0938,
+        "maxDrawdownBps": 331.9209,
+        "avgNetBps": -18.8555,
+        "grossWin": 309.9598,
+        "grossLoss": 517.3703,
         "sampleTrades": [
           {
             "side": "LONG",
@@ -3093,24 +3093,24 @@
       },
       "validation": {
         "trades": 4,
-        "netBps": 137.0072,
-        "profitFactor": 2.8814,
+        "netBps": 134.473,
+        "profitFactor": 2.8466,
         "winRate": 0.5,
         "maxDrawdownBps": 72.8237,
-        "avgNetBps": 34.2518,
-        "grossWin": 209.831,
+        "avgNetBps": 33.6183,
+        "grossWin": 207.2968,
         "grossLoss": 72.8237,
         "sampleTrades": [
           {
             "side": "LONG",
-            "entryTs": 1783359900000,
+            "entryTs": 1783360200000,
             "exitTs": 1783380300000,
-            "entry": 1788.54,
+            "entry": 1788.99,
             "exit": 1801.92,
-            "rawBps": 74.80962125532619,
-            "netBps": 62.60962125532619,
+            "rawBps": 72.2754179732702,
+            "netBps": 60.07541797327019,
             "reason": "SIGNAL_EXIT",
-            "heldCandles": 67
+            "heldCandles": 66
           },
           {
             "side": "SHORT",
@@ -3173,12 +3173,12 @@
       },
       "training": {
         "trades": 8,
-        "netBps": -174.7853,
-        "profitFactor": 0.5143,
+        "netBps": -190.5686,
+        "profitFactor": 0.4704,
         "winRate": 0.5,
         "maxDrawdownBps": 310.28,
-        "avgNetBps": -21.8482,
-        "grossWin": 185.0418,
+        "avgNetBps": -23.8211,
+        "grossWin": 169.2585,
         "grossLoss": 359.8271,
         "sampleTrades": [
           {
@@ -3240,24 +3240,24 @@
       },
       "validation": {
         "trades": 4,
-        "netBps": 137.0072,
-        "profitFactor": 2.8814,
+        "netBps": 134.473,
+        "profitFactor": 2.8466,
         "winRate": 0.5,
         "maxDrawdownBps": 72.8237,
-        "avgNetBps": 34.2518,
-        "grossWin": 209.831,
+        "avgNetBps": 33.6183,
+        "grossWin": 207.2968,
         "grossLoss": 72.8237,
         "sampleTrades": [
           {
             "side": "LONG",
-            "entryTs": 1783359900000,
+            "entryTs": 1783360200000,
             "exitTs": 1783380300000,
-            "entry": 1788.54,
+            "entry": 1788.99,
             "exit": 1801.92,
-            "rawBps": 74.80962125532619,
-            "netBps": 62.60962125532619,
+            "rawBps": 72.2754179732702,
+            "netBps": 60.07541797327019,
             "reason": "SIGNAL_EXIT",
-            "heldCandles": 67
+            "heldCandles": 66
           },
           {
             "side": "SHORT",

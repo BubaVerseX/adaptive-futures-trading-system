@@ -1,0 +1,944 @@
+{
+  "version": "V28_SIMPLE_ETH_SUPERTREND",
+  "generatedAt": "2026-07-07T18:53:00.282Z",
+  "status": "READY_FOR_SHADOW_ADAPTER",
+  "reason": null,
+  "best": {
+    "symbol": "ETHUSDT",
+    "strategy": "V28_ETH_SUPERTREND",
+    "timeframe": "5m",
+    "params": {
+      "name": "balanced",
+      "m1": 2,
+      "p1": 10,
+      "m2": 3,
+      "p2": 14,
+      "m3": 4,
+      "p3": 21,
+      "emaFilter": false,
+      "minAtr": 0,
+      "maxAtr": 0.03,
+      "side": "BOTH",
+      "sl": 0.015,
+      "tp": 0.015,
+      "maxHold": 24,
+      "minHold": 2
+    },
+    "train": {
+      "trades": 8,
+      "netBps": 1.04,
+      "profitFactor": 1.005,
+      "winRate": 0.625,
+      "maxDrawdownBps": 134.56,
+      "sample": [
+        {
+          "side": "LONG",
+          "rawBps": 62.71,
+          "netBps": 50.51,
+          "reason": "TIME",
+          "held": 24
+        },
+        {
+          "side": "LONG",
+          "rawBps": -39.81,
+          "netBps": -52.01,
+          "reason": "TIME",
+          "held": 24
+        },
+        {
+          "side": "SHORT",
+          "rawBps": -70.35,
+          "netBps": -82.55,
+          "reason": "SIGNAL",
+          "held": 6
+        },
+        {
+          "side": "LONG",
+          "rawBps": 150,
+          "netBps": 137.8,
+          "reason": "TP",
+          "held": 8
+        },
+        {
+          "side": "LONG",
+          "rawBps": -75.13,
+          "netBps": -87.33,
+          "reason": "SIGNAL",
+          "held": 20
+        }
+      ]
+    },
+    "val": {
+      "trades": 9,
+      "netBps": 75.72,
+      "profitFactor": 1.316,
+      "winRate": 0.333,
+      "maxDrawdownBps": 216.98,
+      "sample": [
+        {
+          "side": "SHORT",
+          "rawBps": -39.68,
+          "netBps": -51.88,
+          "reason": "TIME",
+          "held": 24
+        },
+        {
+          "side": "LONG",
+          "rawBps": 150,
+          "netBps": 137.8,
+          "reason": "TP",
+          "held": 9
+        },
+        {
+          "side": "LONG",
+          "rawBps": 8.72,
+          "netBps": -3.48,
+          "reason": "TIME",
+          "held": 24
+        },
+        {
+          "side": "LONG",
+          "rawBps": -6.65,
+          "netBps": -18.85,
+          "reason": "TIME",
+          "held": 24
+        },
+        {
+          "side": "LONG",
+          "rawBps": 150,
+          "netBps": 137.8,
+          "reason": "TP",
+          "held": 6
+        }
+      ]
+    },
+    "test": {
+      "trades": 8,
+      "netBps": 45.06,
+      "profitFactor": 1.239,
+      "winRate": 0.625,
+      "maxDrawdownBps": 153.08,
+      "sample": [
+        {
+          "side": "LONG",
+          "rawBps": -23.51,
+          "netBps": -35.71,
+          "reason": "TIME",
+          "held": 24
+        },
+        {
+          "side": "LONG",
+          "rawBps": 49.87,
+          "netBps": 37.67,
+          "reason": "TIME",
+          "held": 24
+        },
+        {
+          "side": "LONG",
+          "rawBps": -73.78,
+          "netBps": -85.98,
+          "reason": "SIGNAL",
+          "held": 10
+        },
+        {
+          "side": "SHORT",
+          "rawBps": -54.9,
+          "netBps": -67.1,
+          "reason": "SIGNAL",
+          "held": 19
+        },
+        {
+          "side": "LONG",
+          "rawBps": 72.9,
+          "netBps": 60.7,
+          "reason": "TIME",
+          "held": 24
+        }
+      ]
+    },
+    "totalNetBps": 121.82,
+    "ready": true
+  },
+  "profiles": [
+    {
+      "symbol": "ETHUSDT",
+      "strategy": "V28_ETH_SUPERTREND",
+      "timeframe": "5m",
+      "params": {
+        "name": "balanced",
+        "m1": 2,
+        "p1": 10,
+        "m2": 3,
+        "p2": 14,
+        "m3": 4,
+        "p3": 21,
+        "emaFilter": false,
+        "minAtr": 0,
+        "maxAtr": 0.03,
+        "side": "BOTH",
+        "sl": 0.015,
+        "tp": 0.015,
+        "maxHold": 24,
+        "minHold": 2
+      },
+      "train": {
+        "trades": 8,
+        "netBps": 1.04,
+        "profitFactor": 1.005,
+        "winRate": 0.625,
+        "maxDrawdownBps": 134.56,
+        "sample": [
+          {
+            "side": "LONG",
+            "rawBps": 62.71,
+            "netBps": 50.51,
+            "reason": "TIME",
+            "held": 24
+          },
+          {
+            "side": "LONG",
+            "rawBps": -39.81,
+            "netBps": -52.01,
+            "reason": "TIME",
+            "held": 24
+          },
+          {
+            "side": "SHORT",
+            "rawBps": -70.35,
+            "netBps": -82.55,
+            "reason": "SIGNAL",
+            "held": 6
+          },
+          {
+            "side": "LONG",
+            "rawBps": 150,
+            "netBps": 137.8,
+            "reason": "TP",
+            "held": 8
+          },
+          {
+            "side": "LONG",
+            "rawBps": -75.13,
+            "netBps": -87.33,
+            "reason": "SIGNAL",
+            "held": 20
+          }
+        ]
+      },
+      "val": {
+        "trades": 9,
+        "netBps": 75.72,
+        "profitFactor": 1.316,
+        "winRate": 0.333,
+        "maxDrawdownBps": 216.98,
+        "sample": [
+          {
+            "side": "SHORT",
+            "rawBps": -39.68,
+            "netBps": -51.88,
+            "reason": "TIME",
+            "held": 24
+          },
+          {
+            "side": "LONG",
+            "rawBps": 150,
+            "netBps": 137.8,
+            "reason": "TP",
+            "held": 9
+          },
+          {
+            "side": "LONG",
+            "rawBps": 8.72,
+            "netBps": -3.48,
+            "reason": "TIME",
+            "held": 24
+          },
+          {
+            "side": "LONG",
+            "rawBps": -6.65,
+            "netBps": -18.85,
+            "reason": "TIME",
+            "held": 24
+          },
+          {
+            "side": "LONG",
+            "rawBps": 150,
+            "netBps": 137.8,
+            "reason": "TP",
+            "held": 6
+          }
+        ]
+      },
+      "test": {
+        "trades": 8,
+        "netBps": 45.06,
+        "profitFactor": 1.239,
+        "winRate": 0.625,
+        "maxDrawdownBps": 153.08,
+        "sample": [
+          {
+            "side": "LONG",
+            "rawBps": -23.51,
+            "netBps": -35.71,
+            "reason": "TIME",
+            "held": 24
+          },
+          {
+            "side": "LONG",
+            "rawBps": 49.87,
+            "netBps": 37.67,
+            "reason": "TIME",
+            "held": 24
+          },
+          {
+            "side": "LONG",
+            "rawBps": -73.78,
+            "netBps": -85.98,
+            "reason": "SIGNAL",
+            "held": 10
+          },
+          {
+            "side": "SHORT",
+            "rawBps": -54.9,
+            "netBps": -67.1,
+            "reason": "SIGNAL",
+            "held": 19
+          },
+          {
+            "side": "LONG",
+            "rawBps": 72.9,
+            "netBps": 60.7,
+            "reason": "TIME",
+            "held": 24
+          }
+        ]
+      },
+      "totalNetBps": 121.82,
+      "ready": true
+    },
+    {
+      "symbol": "ETHUSDT",
+      "strategy": "V28_ETH_SUPERTREND",
+      "timeframe": "5m",
+      "params": {
+        "name": "balanced",
+        "m1": 2,
+        "p1": 10,
+        "m2": 3,
+        "p2": 14,
+        "m3": 4,
+        "p3": 21,
+        "emaFilter": false,
+        "minAtr": 0,
+        "maxAtr": 0.03,
+        "side": "BOTH",
+        "sl": 0.02,
+        "tp": 0.015,
+        "maxHold": 24,
+        "minHold": 2
+      },
+      "train": {
+        "trades": 8,
+        "netBps": 1.04,
+        "profitFactor": 1.005,
+        "winRate": 0.625,
+        "maxDrawdownBps": 134.56,
+        "sample": [
+          {
+            "side": "LONG",
+            "rawBps": 62.71,
+            "netBps": 50.51,
+            "reason": "TIME",
+            "held": 24
+          },
+          {
+            "side": "LONG",
+            "rawBps": -39.81,
+            "netBps": -52.01,
+            "reason": "TIME",
+            "held": 24
+          },
+          {
+            "side": "SHORT",
+            "rawBps": -70.35,
+            "netBps": -82.55,
+            "reason": "SIGNAL",
+            "held": 6
+          },
+          {
+            "side": "LONG",
+            "rawBps": 150,
+            "netBps": 137.8,
+            "reason": "TP",
+            "held": 8
+          },
+          {
+            "side": "LONG",
+            "rawBps": -75.13,
+            "netBps": -87.33,
+            "reason": "SIGNAL",
+            "held": 20
+          }
+        ]
+      },
+      "val": {
+        "trades": 9,
+        "netBps": 75.72,
+        "profitFactor": 1.316,
+        "winRate": 0.333,
+        "maxDrawdownBps": 216.98,
+        "sample": [
+          {
+            "side": "SHORT",
+            "rawBps": -39.68,
+            "netBps": -51.88,
+            "reason": "TIME",
+            "held": 24
+          },
+          {
+            "side": "LONG",
+            "rawBps": 150,
+            "netBps": 137.8,
+            "reason": "TP",
+            "held": 9
+          },
+          {
+            "side": "LONG",
+            "rawBps": 8.72,
+            "netBps": -3.48,
+            "reason": "TIME",
+            "held": 24
+          },
+          {
+            "side": "LONG",
+            "rawBps": -6.65,
+            "netBps": -18.85,
+            "reason": "TIME",
+            "held": 24
+          },
+          {
+            "side": "LONG",
+            "rawBps": 150,
+            "netBps": 137.8,
+            "reason": "TP",
+            "held": 6
+          }
+        ]
+      },
+      "test": {
+        "trades": 8,
+        "netBps": 45.06,
+        "profitFactor": 1.239,
+        "winRate": 0.625,
+        "maxDrawdownBps": 153.08,
+        "sample": [
+          {
+            "side": "LONG",
+            "rawBps": -23.51,
+            "netBps": -35.71,
+            "reason": "TIME",
+            "held": 24
+          },
+          {
+            "side": "LONG",
+            "rawBps": 49.87,
+            "netBps": 37.67,
+            "reason": "TIME",
+            "held": 24
+          },
+          {
+            "side": "LONG",
+            "rawBps": -73.78,
+            "netBps": -85.98,
+            "reason": "SIGNAL",
+            "held": 10
+          },
+          {
+            "side": "SHORT",
+            "rawBps": -54.9,
+            "netBps": -67.1,
+            "reason": "SIGNAL",
+            "held": 19
+          },
+          {
+            "side": "LONG",
+            "rawBps": 72.9,
+            "netBps": 60.7,
+            "reason": "TIME",
+            "held": 24
+          }
+        ]
+      },
+      "totalNetBps": 121.82,
+      "ready": true
+    },
+    {
+      "symbol": "ETHUSDT",
+      "strategy": "V28_ETH_SUPERTREND",
+      "timeframe": "5m",
+      "params": {
+        "name": "balanced",
+        "m1": 2,
+        "p1": 10,
+        "m2": 3,
+        "p2": 14,
+        "m3": 4,
+        "p3": 21,
+        "emaFilter": false,
+        "minAtr": 0,
+        "maxAtr": 0.03,
+        "side": "BOTH",
+        "sl": 0.03,
+        "tp": 0.015,
+        "maxHold": 24,
+        "minHold": 2
+      },
+      "train": {
+        "trades": 8,
+        "netBps": 1.04,
+        "profitFactor": 1.005,
+        "winRate": 0.625,
+        "maxDrawdownBps": 134.56,
+        "sample": [
+          {
+            "side": "LONG",
+            "rawBps": 62.71,
+            "netBps": 50.51,
+            "reason": "TIME",
+            "held": 24
+          },
+          {
+            "side": "LONG",
+            "rawBps": -39.81,
+            "netBps": -52.01,
+            "reason": "TIME",
+            "held": 24
+          },
+          {
+            "side": "SHORT",
+            "rawBps": -70.35,
+            "netBps": -82.55,
+            "reason": "SIGNAL",
+            "held": 6
+          },
+          {
+            "side": "LONG",
+            "rawBps": 150,
+            "netBps": 137.8,
+            "reason": "TP",
+            "held": 8
+          },
+          {
+            "side": "LONG",
+            "rawBps": -75.13,
+            "netBps": -87.33,
+            "reason": "SIGNAL",
+            "held": 20
+          }
+        ]
+      },
+      "val": {
+        "trades": 9,
+        "netBps": 75.72,
+        "profitFactor": 1.316,
+        "winRate": 0.333,
+        "maxDrawdownBps": 216.98,
+        "sample": [
+          {
+            "side": "SHORT",
+            "rawBps": -39.68,
+            "netBps": -51.88,
+            "reason": "TIME",
+            "held": 24
+          },
+          {
+            "side": "LONG",
+            "rawBps": 150,
+            "netBps": 137.8,
+            "reason": "TP",
+            "held": 9
+          },
+          {
+            "side": "LONG",
+            "rawBps": 8.72,
+            "netBps": -3.48,
+            "reason": "TIME",
+            "held": 24
+          },
+          {
+            "side": "LONG",
+            "rawBps": -6.65,
+            "netBps": -18.85,
+            "reason": "TIME",
+            "held": 24
+          },
+          {
+            "side": "LONG",
+            "rawBps": 150,
+            "netBps": 137.8,
+            "reason": "TP",
+            "held": 6
+          }
+        ]
+      },
+      "test": {
+        "trades": 8,
+        "netBps": 45.06,
+        "profitFactor": 1.239,
+        "winRate": 0.625,
+        "maxDrawdownBps": 153.08,
+        "sample": [
+          {
+            "side": "LONG",
+            "rawBps": -23.51,
+            "netBps": -35.71,
+            "reason": "TIME",
+            "held": 24
+          },
+          {
+            "side": "LONG",
+            "rawBps": 49.87,
+            "netBps": 37.67,
+            "reason": "TIME",
+            "held": 24
+          },
+          {
+            "side": "LONG",
+            "rawBps": -73.78,
+            "netBps": -85.98,
+            "reason": "SIGNAL",
+            "held": 10
+          },
+          {
+            "side": "SHORT",
+            "rawBps": -54.9,
+            "netBps": -67.1,
+            "reason": "SIGNAL",
+            "held": 19
+          },
+          {
+            "side": "LONG",
+            "rawBps": 72.9,
+            "netBps": 60.7,
+            "reason": "TIME",
+            "held": 24
+          }
+        ]
+      },
+      "totalNetBps": 121.82,
+      "ready": true
+    },
+    {
+      "symbol": "ETHUSDT",
+      "strategy": "V28_ETH_SUPERTREND",
+      "timeframe": "5m",
+      "params": {
+        "name": "balanced",
+        "m1": 2,
+        "p1": 10,
+        "m2": 3,
+        "p2": 14,
+        "m3": 4,
+        "p3": 21,
+        "emaFilter": false,
+        "minAtr": 0,
+        "maxAtr": 0.06,
+        "side": "BOTH",
+        "sl": 0.015,
+        "tp": 0.015,
+        "maxHold": 24,
+        "minHold": 2
+      },
+      "train": {
+        "trades": 8,
+        "netBps": 1.04,
+        "profitFactor": 1.005,
+        "winRate": 0.625,
+        "maxDrawdownBps": 134.56,
+        "sample": [
+          {
+            "side": "LONG",
+            "rawBps": 62.71,
+            "netBps": 50.51,
+            "reason": "TIME",
+            "held": 24
+          },
+          {
+            "side": "LONG",
+            "rawBps": -39.81,
+            "netBps": -52.01,
+            "reason": "TIME",
+            "held": 24
+          },
+          {
+            "side": "SHORT",
+            "rawBps": -70.35,
+            "netBps": -82.55,
+            "reason": "SIGNAL",
+            "held": 6
+          },
+          {
+            "side": "LONG",
+            "rawBps": 150,
+            "netBps": 137.8,
+            "reason": "TP",
+            "held": 8
+          },
+          {
+            "side": "LONG",
+            "rawBps": -75.13,
+            "netBps": -87.33,
+            "reason": "SIGNAL",
+            "held": 20
+          }
+        ]
+      },
+      "val": {
+        "trades": 9,
+        "netBps": 75.72,
+        "profitFactor": 1.316,
+        "winRate": 0.333,
+        "maxDrawdownBps": 216.98,
+        "sample": [
+          {
+            "side": "SHORT",
+            "rawBps": -39.68,
+            "netBps": -51.88,
+            "reason": "TIME",
+            "held": 24
+          },
+          {
+            "side": "LONG",
+            "rawBps": 150,
+            "netBps": 137.8,
+            "reason": "TP",
+            "held": 9
+          },
+          {
+            "side": "LONG",
+            "rawBps": 8.72,
+            "netBps": -3.48,
+            "reason": "TIME",
+            "held": 24
+          },
+          {
+            "side": "LONG",
+            "rawBps": -6.65,
+            "netBps": -18.85,
+            "reason": "TIME",
+            "held": 24
+          },
+          {
+            "side": "LONG",
+            "rawBps": 150,
+            "netBps": 137.8,
+            "reason": "TP",
+            "held": 6
+          }
+        ]
+      },
+      "test": {
+        "trades": 8,
+        "netBps": 45.06,
+        "profitFactor": 1.239,
+        "winRate": 0.625,
+        "maxDrawdownBps": 153.08,
+        "sample": [
+          {
+            "side": "LONG",
+            "rawBps": -23.51,
+            "netBps": -35.71,
+            "reason": "TIME",
+            "held": 24
+          },
+          {
+            "side": "LONG",
+            "rawBps": 49.87,
+            "netBps": 37.67,
+            "reason": "TIME",
+            "held": 24
+          },
+          {
+            "side": "LONG",
+            "rawBps": -73.78,
+            "netBps": -85.98,
+            "reason": "SIGNAL",
+            "held": 10
+          },
+          {
+            "side": "SHORT",
+            "rawBps": -54.9,
+            "netBps": -67.1,
+            "reason": "SIGNAL",
+            "held": 19
+          },
+          {
+            "side": "LONG",
+            "rawBps": 72.9,
+            "netBps": 60.7,
+            "reason": "TIME",
+            "held": 24
+          }
+        ]
+      },
+      "totalNetBps": 121.82,
+      "ready": true
+    },
+    {
+      "symbol": "ETHUSDT",
+      "strategy": "V28_ETH_SUPERTREND",
+      "timeframe": "5m",
+      "params": {
+        "name": "balanced",
+        "m1": 2,
+        "p1": 10,
+        "m2": 3,
+        "p2": 14,
+        "m3": 4,
+        "p3": 21,
+        "emaFilter": false,
+        "minAtr": 0,
+        "maxAtr": 0.06,
+        "side": "BOTH",
+        "sl": 0.02,
+        "tp": 0.015,
+        "maxHold": 24,
+        "minHold": 2
+      },
+      "train": {
+        "trades": 8,
+        "netBps": 1.04,
+        "profitFactor": 1.005,
+        "winRate": 0.625,
+        "maxDrawdownBps": 134.56,
+        "sample": [
+          {
+            "side": "LONG",
+            "rawBps": 62.71,
+            "netBps": 50.51,
+            "reason": "TIME",
+            "held": 24
+          },
+          {
+            "side": "LONG",
+            "rawBps": -39.81,
+            "netBps": -52.01,
+            "reason": "TIME",
+            "held": 24
+          },
+          {
+            "side": "SHORT",
+            "rawBps": -70.35,
+            "netBps": -82.55,
+            "reason": "SIGNAL",
+            "held": 6
+          },
+          {
+            "side": "LONG",
+            "rawBps": 150,
+            "netBps": 137.8,
+            "reason": "TP",
+            "held": 8
+          },
+          {
+            "side": "LONG",
+            "rawBps": -75.13,
+            "netBps": -87.33,
+            "reason": "SIGNAL",
+            "held": 20
+          }
+        ]
+      },
+      "val": {
+        "trades": 9,
+        "netBps": 75.72,
+        "profitFactor": 1.316,
+        "winRate": 0.333,
+        "maxDrawdownBps": 216.98,
+        "sample": [
+          {
+            "side": "SHORT",
+            "rawBps": -39.68,
+            "netBps": -51.88,
+            "reason": "TIME",
+            "held": 24
+          },
+          {
+            "side": "LONG",
+            "rawBps": 150,
+            "netBps": 137.8,
+            "reason": "TP",
+            "held": 9
+          },
+          {
+            "side": "LONG",
+            "rawBps": 8.72,
+            "netBps": -3.48,
+            "reason": "TIME",
+            "held": 24
+          },
+          {
+            "side": "LONG",
+            "rawBps": -6.65,
+            "netBps": -18.85,
+            "reason": "TIME",
+            "held": 24
+          },
+          {
+            "side": "LONG",
+            "rawBps": 150,
+            "netBps": 137.8,
+            "reason": "TP",
+            "held": 6
+          }
+        ]
+      },
+      "test": {
+        "trades": 8,
+        "netBps": 45.06,
+        "profitFactor": 1.239,
+        "winRate": 0.625,
+        "maxDrawdownBps": 153.08,
+        "sample": [
+          {
+            "side": "LONG",
+            "rawBps": -23.51,
+            "netBps": -35.71,
+            "reason": "TIME",
+            "held": 24
+          },
+          {
+            "side": "LONG",
+            "rawBps": 49.87,
+            "netBps": 37.67,
+            "reason": "TIME",
+            "held": 24
+          },
+          {
+            "side": "LONG",
+            "rawBps": -73.78,
+            "netBps": -85.98,
+            "reason": "SIGNAL",
+            "held": 10
+          },
+          {
+            "side": "SHORT",
+            "rawBps": -54.9,
+            "netBps": -67.1,
+            "reason": "SIGNAL",
+            "held": 19
+          },
+          {
+            "side": "LONG",
+            "rawBps": 72.9,
+            "netBps": 60.7,
+            "reason": "TIME",
+            "held": 24
+          }
+        ]
+      },
+      "totalNetBps": 121.82,
+      "ready": true
+    }
+  ]
+}

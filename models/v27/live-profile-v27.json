@@ -1,6 +1,6 @@
 {
   "version": "V27_FREQTRADE_STRATEGY_PACK",
-  "generatedAt": "2026-07-07T18:39:40.847Z",
+  "generatedAt": "2026-07-07T18:42:40.378Z",
   "status": "REJECTED",
   "reason": "NO_VALID_FREQTRADE_EDGE_FOUND",
   "best": {
@@ -28,13 +28,13 @@
     },
     "training": {
       "trades": 11,
-      "netBps": -178.5576,
-      "profitFactor": 0.6567,
+      "netBps": -207.4105,
+      "profitFactor": 0.5991,
       "winRate": 0.3636,
-      "maxDrawdownBps": 334.6444,
-      "avgNetBps": -16.2325,
-      "grossWin": 341.5362,
-      "grossLoss": 520.0938,
+      "maxDrawdownBps": 331.9209,
+      "avgNetBps": -18.8555,
+      "grossWin": 309.9598,
+      "grossLoss": 517.3703,
       "sampleTrades": [
         {
           "side": "LONG",
