@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-06T20:48:18.211Z",
+  "generatedAt": "2026-07-07T14:08:00.694Z",
   "mode": "MICROSTRUCTURE_SHADOW",
   "noLiveOrders": true,
   "modelReady": false,
@@ -14,8 +14,8 @@
   "profitFactor": 0,
   "averageHoldSeconds": 0,
   "bySymbol": {},
-  "totalRawSignals": 51,
-  "totalSignals": 51,
+  "totalRawSignals": 25000,
+  "totalSignals": 25000,
   "historicalShadowTrades": 1,
   "historicalNetPnl": -0.276127,
   "skippedDueToSpread": 0,
@@ -36,7 +36,7 @@
   "featureImportance": [],
   "rejectionCounts": {},
   "liveEligibility": {
-    "minimumShadowSignals": 500,
+    "minimumShadowSignals": 25000,
     "positiveAfterFeesRequired": true,
     "minimumProfitFactor": 1.2,
     "maxDrawdownUsdt": 5,

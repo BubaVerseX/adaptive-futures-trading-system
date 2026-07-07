@@ -2,7 +2,7 @@
   "version": "V26",
   "status": "NOT_READY",
   "eligible": false,
-  "generatedAt": "2026-07-06T20:59:19.190Z",
+  "generatedAt": "2026-07-07T16:56:23.650Z",
   "noLiveOrders": true,
   "profileFile": "/Users/alinavanempel/Documents/Pionex/models/microstructure/live-profile-v26.json",
   "finalReadinessFile": "/Users/alinavanempel/Documents/Pionex/data/microstructure/reports/final-readiness.json",
@@ -26,9 +26,9 @@
   "snapshotValidation": {
     "ok": true,
     "counts": {
-      "BTCUSDT": 12926,
-      "ETHUSDT": 12841,
-      "SOLUSDT": 10187
+      "BTCUSDT": 60787,
+      "ETHUSDT": 57974,
+      "SOLUSDT": 41835
     },
     "badCounts": {
       "BTCUSDT": 0,
@@ -36,7 +36,7 @@
       "SOLUSDT": 0
     },
     "missing": [],
-    "files": 3,
+    "files": 6,
     "minimumSnapshotsPerSymbol": 10000
   },
   "training": {
@@ -65,8 +65,7 @@
       "blockers": [
         "netPnl <= 0",
         "profitFactor <= 1.2",
-        "tradeCount < 50",
-        "directionalAccuracy <= 0.50 and statistical profile is not acceptable"
+        "tradeCount < 50"
       ]
     },
     "message": "NO_VALID_MICROSTRUCTURE_EDGE_FOUND"
