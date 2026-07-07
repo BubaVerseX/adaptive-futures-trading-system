@@ -1,0 +1,164 @@
+{
+  "version": "V27_FREQTRADE_STRATEGY_PACK",
+  "generatedAt": "2026-07-07T18:39:40.847Z",
+  "status": "REJECTED",
+  "reason": "NO_VALID_FREQTRADE_EDGE_FOUND",
+  "best": {
+    "symbol": "ETHUSDT",
+    "strategy": "Supertrend_fast",
+    "timeframe": "5m",
+    "params": {
+      "name": "Supertrend_fast",
+      "a": {
+        "mult": 2,
+        "period": 7
+      },
+      "b": {
+        "mult": 3,
+        "period": 10
+      },
+      "c": {
+        "mult": 4,
+        "period": 14
+      },
+      "stopLossPct": 0.015,
+      "takeProfitPct": 0.025,
+      "maxHoldCandles": 96,
+      "allowShort": true
+    },
+    "training": {
+      "trades": 11,
+      "netBps": -178.5576,
+      "profitFactor": 0.6567,
+      "winRate": 0.3636,
+      "maxDrawdownBps": 334.6444,
+      "avgNetBps": -16.2325,
+      "grossWin": 341.5362,
+      "grossLoss": 520.0938,
+      "sampleTrades": [
+        {
+          "side": "LONG",
+          "entryTs": 1783288200000,
+          "exitTs": 1783297800000,
+          "entry": 1781.06,
+          "exit": 1776.97,
+          "rawBps": -22.963852986423355,
+          "netBps": -35.16385298642335,
+          "reason": "SIGNAL_EXIT",
+          "heldCandles": 31
+        },
+        {
+          "side": "SHORT",
+          "entryTs": 1783298100000,
+          "exitTs": 1783327200000,
+          "entry": 1779.84,
+          "exit": 1764.06,
+          "rawBps": 88.65965480043135,
+          "netBps": 76.45965480043135,
+          "reason": "MAX_HOLD",
+          "heldCandles": 96
+        },
+        {
+          "side": "SHORT",
+          "entryTs": 1783327500000,
+          "exitTs": 1783334100000,
+          "entry": 1765.49,
+          "exit": 1768.85,
+          "rawBps": -19.031543650770608,
+          "netBps": -31.231543650770607,
+          "reason": "SIGNAL_EXIT",
+          "heldCandles": 21
+        },
+        {
+          "side": "LONG",
+          "entryTs": 1783334400000,
+          "exitTs": 1783339200000,
+          "entry": 1773.41,
+          "exit": 1758.41,
+          "rawBps": -84.5828093898196,
+          "netBps": -96.7828093898196,
+          "reason": "SIGNAL_EXIT",
+          "heldCandles": 15
+        },
+        {
+          "side": "SHORT",
+          "entryTs": 1783339500000,
+          "exitTs": 1783350600000,
+          "entry": 1738.79,
+          "exit": 1764.8718499999998,
+          "rawBps": -149.99999999999886,
+          "netBps": -162.19999999999885,
+          "reason": "STOP",
+          "heldCandles": 36
+        }
+      ]
+    },
+    "validation": {
+      "trades": 6,
+      "netBps": 204.7664,
+      "profitFactor": 1.7561,
+      "winRate": 0.3333,
+      "maxDrawdownBps": 174.6573,
+      "avgNetBps": 34.1277,
+      "grossWin": 475.6,
+      "grossLoss": 270.8336,
+      "sampleTrades": [
+        {
+          "side": "LONG",
+          "entryTs": 1783372800000,
+          "exitTs": 1783380300000,
+          "entry": 1817.18,
+          "exit": 1801.92,
+          "rawBps": -83.97627092527978,
+          "netBps": -96.17627092527978,
+          "reason": "SIGNAL_EXIT",
+          "heldCandles": 24
+        },
+        {
+          "side": "SHORT",
+          "entryTs": 1783380600000,
+          "exitTs": 1783401300000,
+          "entry": 1802.77,
+          "exit": 1757.70075,
+          "rawBps": 250.00000000000006,
+          "netBps": 237.80000000000007,
+          "reason": "TAKE_PROFIT",
+          "heldCandles": 68
+        },
+        {
+          "side": "SHORT",
+          "entryTs": 1783401600000,
+          "exitTs": 1783406400000,
+          "entry": 1758.27,
+          "exit": 1774.03,
+          "rawBps": -89.63356026093825,
+          "netBps": -101.83356026093826,
+          "reason": "SIGNAL_EXIT",
+          "heldCandles": 15
+        },
+        {
+          "side": "LONG",
+          "entryTs": 1783406700000,
+          "exitTs": 1783430100000,
+          "entry": 1774.65,
+          "exit": 1776.06,
+          "rawBps": 7.945228636631755,
+          "netBps": -4.254771363368245,
+          "reason": "SIGNAL_EXIT",
+          "heldCandles": 77
+        },
+        {
+          "side": "SHORT",
+          "entryTs": 1783430400000,
+          "exitTs": 1783436100000,
+          "entry": 1775.8,
+          "exit": 1785.81,
+          "rawBps": -56.36896046852118,
+          "netBps": -68.56896046852118,
+          "reason": "SIGNAL_EXIT",
+          "heldCandles": 18
+        }
+      ]
+    }
+  }
+}
