@@ -142,7 +142,43 @@ async function fetchCandles(symbol, interval, limit = 500) {
     .sort((a, b) => a.ts - b.ts);
 }
 
-// ---------------- Shared indicators ----------------
+// ---------------- Instrument precision (qty step, min qty, price tick) ----------------
+
+const instrumentInfoCache = {};
+
+function decimalsOf(step) {
+  const str = String(step);
+  if (str.includes("e-")) return parseInt(str.split("e-")[1], 10);
+  const idx = str.indexOf(".");
+  return idx === -1 ? 0 : str.length - idx - 1;
+}
+
+async function getInstrumentInfo(symbol) {
+  if (instrumentInfoCache[symbol]) return instrumentInfoCache[symbol];
+  const json = await bybitPublicGet(`/v5/market/instruments-info?category=linear&symbol=${symbol}`);
+  if (json.retCode !== 0 || !json.result || !json.result.list || !json.result.list.length) {
+    throw new Error(`could not fetch instrument info for ${symbol}: ${JSON.stringify(json).slice(0, 200)}`);
+  }
+  const info = json.result.list[0];
+  const qtyStep = parseFloat(info.lotSizeFilter.qtyStep);
+  const minOrderQty = parseFloat(info.lotSizeFilter.minOrderQty);
+  const tickSize = parseFloat(info.priceFilter.tickSize);
+  const cached = { qtyStep, minOrderQty, tickSize, qtyDecimals: decimalsOf(qtyStep), priceDecimals: decimalsOf(tickSize) };
+  instrumentInfoCache[symbol] = cached;
+  console.log(`[v32] instrument info ${symbol}: qtyStep=${qtyStep} minOrderQty=${minOrderQty} tickSize=${tickSize}`);
+  return cached;
+}
+
+function roundQty(rawQty, info) {
+  const bumped = Math.max(rawQty, info.minOrderQty);
+  const stepped = Math.floor(bumped / info.qtyStep) * info.qtyStep;
+  return stepped.toFixed(info.qtyDecimals);
+}
+
+function roundPrice(rawPrice, info) {
+  const stepped = Math.round(rawPrice / info.tickSize) * info.tickSize;
+  return stepped.toFixed(info.priceDecimals);
+}
 
 function atr(candles, period) {
   const trs = candles.map((c, i) => i === 0 ? c.high - c.low :
@@ -327,11 +363,20 @@ async function setLeverage(symbol) {
 }
 
 async function placeEntryOrder(symbol, price, sig, side) {
-  const qty = (cfg.maxNotionalUsdt / price).toFixed(3);
-  const stopLoss = side === "LONG" ? (price * (1 - sig.sl)).toFixed(2) : (price * (1 + sig.sl)).toFixed(2);
-  const takeProfit = side === "LONG" ? (price * (1 + sig.tp)).toFixed(2) : (price * (1 - sig.tp)).toFixed(2);
+  const info = await getInstrumentInfo(symbol);
+  const rawQty = cfg.maxNotionalUsdt / price;
+  const qty = roundQty(rawQty, info);
+  if (Number(qty) <= 0) {
+    console.log(`[v32] [${symbol}] skipping entry — computed qty rounds to 0 even after bumping to minOrderQty (${info.minOrderQty}). Notional too small for this symbol.`);
+    return null;
+  }
+  const rawSl = side === "LONG" ? price * (1 - sig.sl) : price * (1 + sig.sl);
+  const rawTp = side === "LONG" ? price * (1 + sig.tp) : price * (1 - sig.tp);
+  const stopLoss = roundPrice(rawSl, info);
+  const takeProfit = roundPrice(rawTp, info);
   const orderSide = side === "LONG" ? "Buy" : "Sell";
-  console.log(`[v32] ${cfg.dryRun ? "DRY_RUN " : ""}ENTRY ${side} ${symbol} qty=${qty} price~${price} SL=${stopLoss} TP=${takeProfit}`);
+  const actualNotional = (Number(qty) * price).toFixed(2);
+  console.log(`[v32] ${cfg.dryRun ? "DRY_RUN " : ""}ENTRY ${side} ${symbol} qty=${qty} (~${actualNotional} USDT notional) price~${price} SL=${stopLoss} TP=${takeProfit}`);
   if (cfg.dryRun) return { simulated: true, qty, stopLoss, takeProfit };
   const json = await bybitPrivatePost("/v5/order/create", {
     category: "linear", symbol, side: orderSide, orderType: "Market", qty, stopLoss, takeProfit, timeInForce: "IOC",
@@ -342,10 +387,12 @@ async function placeEntryOrder(symbol, price, sig, side) {
 
 async function closePositionMarket(symbol, qty, positionSide) {
   const closingSide = positionSide === "LONG" ? "Sell" : "Buy"; // opposite side, reduceOnly
-  console.log(`[v32] ${cfg.dryRun ? "DRY_RUN " : ""}EXIT ${positionSide} ${symbol} qty=${qty}`);
+  const info = await getInstrumentInfo(symbol);
+  const qtyStr = roundQty(Number(qty), info);
+  console.log(`[v32] ${cfg.dryRun ? "DRY_RUN " : ""}EXIT ${positionSide} ${symbol} qty=${qtyStr}`);
   if (cfg.dryRun) return { simulated: true };
   const json = await bybitPrivatePost("/v5/order/create", {
-    category: "linear", symbol, side: closingSide, orderType: "Market", qty, reduceOnly: true, timeInForce: "IOC",
+    category: "linear", symbol, side: closingSide, orderType: "Market", qty: qtyStr, reduceOnly: true, timeInForce: "IOC",
   });
   if (json.retCode !== 0) throw new Error("close order failed: " + json.retMsg);
   return json.result;
@@ -424,6 +471,7 @@ async function processSymbol(symbol, state, supertrendParams) {
     if (side) {
       const latestPrice = candles[candles.length - 1].close;
       const result = await placeEntryOrder(symbol, latestPrice, sig, side);
+      if (result === null) continue; // skipped: notional too small for this symbol's minimum, try next strategy
       sym.position = { strategy: strategyName, side, entryPrice: latestPrice, entryTs: closed.ts, heldCandles: 0 };
       state.tradesTaken += 1;
       console.log(`[v32] [${symbol}/${strategyName}] ENTRY recorded:`, result);
@@ -449,6 +497,7 @@ async function main() {
   if (state.dayKey !== todayKey()) { state = freshState(); saveState(state); }
 
   runStartupChecks(state);
+  for (const symbol of SYMBOLS) await getInstrumentInfo(symbol);
   if (!cfg.dryRun) for (const symbol of SYMBOLS) await setLeverage(symbol);
 
   while (true) {
