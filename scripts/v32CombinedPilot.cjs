@@ -60,7 +60,12 @@ const PROFILE_FILE = process.env.V30_PROFILE_FILE || path.join(ROOT, "models", "
 
 const SYMBOLS = (process.env.V32_SYMBOLS || "BTCUSDT,ETHUSDT,SOLUSDT").split(",").map((s) => s.trim());
 const STRATEGIES = (process.env.V32_STRATEGIES || "supertrend,pullback,breakout").split(",").map((s) => s.trim());
-const LOOP_SLEEP_MS = 30000;
+const LOOP_SLEEP_MS = Number(process.env.V32_LOOP_SLEEP_MS || 15000); // now cheap to check often — candle cache skips redundant network calls
+
+// Your total working capital, split evenly across symbols so up to 3 concurrent
+// positions stay near this total rather than 3x over it. Override with
+// V32_MAX_NOTIONAL_USDT directly if you want a different per-trade size.
+const TOTAL_CAPITAL_USDT = Number(process.env.V32_TOTAL_CAPITAL_USDT || 64);
 
 const cfg = {
   apiKey: process.env.BYBIT_API_KEY || "",
@@ -68,8 +73,7 @@ const cfg = {
   testnet: process.env.BYBIT_TESTNET === "true",
   dryRun: process.env.DRY_RUN !== "false",
   ack: process.env.ACKNOWLEDGE_V32_LIVE === "true",
-  // Sized so 3 concurrent positions (one per symbol, per the conflict rule below) totals ~64 USDT.
-  maxNotionalUsdt: Number(process.env.V32_MAX_NOTIONAL_USDT || 21),
+  maxNotionalUsdt: Number(process.env.V32_MAX_NOTIONAL_USDT || (TOTAL_CAPITAL_USDT / SYMBOLS.length)),
   // No trade-count cap by default — you asked for "trade as much as he wants."
   // The daily loss cap below is what actually protects your capital; it is
   // intentionally NOT removed, because uncapped trades + uncapped losses is
@@ -129,7 +133,27 @@ async function bybitPrivatePost(pathName, bodyObj) {
   return httpRequest("POST", REST_BASE + pathName, headers, body);
 }
 
-// ---------------- Market data ----------------
+// ---------------- Smart candle cache — only re-fetch when a new candle could actually exist ----------------
+
+const candleCache = {};
+
+function intervalMs(interval) {
+  return Number(interval) * 60 * 1000;
+}
+
+async function getCandles(symbol, interval) {
+  candleCache[symbol] = candleCache[symbol] || {};
+  const cached = candleCache[symbol][interval];
+  const now = Date.now();
+  if (cached && now < cached.nextFetchAt) {
+    return cached.candles; // no new candle could have closed yet, skip the network call entirely
+  }
+  const candles = await fetchCandles(symbol, interval, 500);
+  const closed = candles[candles.length - 2];
+  const nextFetchAt = closed.ts + intervalMs(interval) + 5000; // small buffer after expected close
+  candleCache[symbol][interval] = { candles, nextFetchAt };
+  return candles;
+}
 
 async function fetchCandles(symbol, interval, limit = 500) {
   const q = new URLSearchParams({ category: "linear", symbol, interval, limit: String(limit) });
@@ -318,8 +342,8 @@ const STRATEGY_FNS = {
 
 function freshState() {
   const perSymbol = {};
-  for (const symbol of SYMBOLS) perSymbol[symbol] = { position: null, lastClosedCandleTs: {} };
-  return { tradesTaken: 0, realizedPnlUsdt: 0, dayKey: todayKey(), perSymbol };
+  for (const symbol of SYMBOLS) perSymbol[symbol] = { position: null, lastClosedCandleTs: {}, lastReconcileAt: null, lastClosedPnlTs: 0 };
+  return { tradesTaken: 0, realizedPnlUsdt: 0, dayKey: todayKey(), perSymbol, tradesLog: [] };
 }
 
 function loadState() {
@@ -327,8 +351,9 @@ function loadState() {
   if (fs.existsSync(STATE_FILE)) {
     const loaded = JSON.parse(fs.readFileSync(STATE_FILE, "utf8"));
     loaded.perSymbol = loaded.perSymbol || {};
+    loaded.tradesLog = loaded.tradesLog || [];
     for (const symbol of SYMBOLS) {
-      if (!loaded.perSymbol[symbol]) loaded.perSymbol[symbol] = { position: null, lastClosedCandleTs: {} };
+      if (!loaded.perSymbol[symbol]) loaded.perSymbol[symbol] = { position: null, lastClosedCandleTs: {}, lastReconcileAt: null, lastClosedPnlTs: 0 };
     }
     return loaded;
   }
@@ -353,6 +378,42 @@ async function getOpenPosition(symbol) {
   const json = await bybitPrivateGet("/v5/position/list", { category: "linear", symbol });
   if (json.retCode !== 0) throw new Error("get position failed: " + json.retMsg);
   return (json.result.list || []).find((p) => Number(p.size) > 0) || null;
+}
+
+// FIXED SAFETY GAP: previously, state.realizedPnlUsdt was only ever updated in the
+// DRY_RUN branch. In live mode, nothing read back real fills, so the daily loss cap
+// could never actually trigger — it looked active but silently did nothing. This
+// pulls REAL realized PnL from Bybit's closed-pnl endpoint, which is ground truth
+// (actual fills, actual fees), not an estimate.
+const RECONCILE_INTERVAL_MS = 5 * 60 * 1000; // every 5 minutes per symbol
+
+async function reconcileClosedPnl(symbol, state) {
+  if (cfg.dryRun) return; // nothing on the exchange to reconcile against
+  const sym = state.perSymbol[symbol];
+  const now = Date.now();
+  if (sym.lastReconcileAt && now - sym.lastReconcileAt < RECONCILE_INTERVAL_MS) return;
+  sym.lastReconcileAt = now;
+
+  const json = await bybitPrivateGet("/v5/position/closed-pnl", { category: "linear", symbol, limit: "20" });
+  if (json.retCode !== 0) {
+    console.error(`[v32] [${symbol}] closed-pnl fetch failed: ${json.retMsg}`);
+    return;
+  }
+  const entries = json.result.list || [];
+  const lastSeen = sym.lastClosedPnlTs || 0;
+  const newEntries = entries.filter((e) => Number(e.updatedTime) > lastSeen).sort((a, b) => Number(a.updatedTime) - Number(b.updatedTime));
+
+  for (const e of newEntries) {
+    const pnl = Number(e.closedPnl);
+    state.realizedPnlUsdt += pnl;
+    state.tradesLog = state.tradesLog || [];
+    state.tradesLog.push({
+      symbol, side: e.side, qty: e.qty, avgEntryPrice: e.avgEntryPrice, avgExitPrice: e.avgExitPrice,
+      closedPnl: pnl, closedAt: new Date(Number(e.updatedTime)).toISOString(),
+    });
+    console.log(`[v32] [${symbol}] REAL closed PnL recorded: ${pnl.toFixed(4)} USDT (running total: ${state.realizedPnlUsdt.toFixed(4)})`);
+    sym.lastClosedPnlTs = Math.max(sym.lastClosedPnlTs || 0, Number(e.updatedTime));
+  }
 }
 
 async function setLeverage(symbol) {
@@ -418,23 +479,28 @@ function runStartupChecks(state) {
 
 async function processSymbol(symbol, state, supertrendParams) {
   const sym = state.perSymbol[symbol];
-  const candlesByInterval = {};
+  await reconcileClosedPnl(symbol, state);
 
   const exchangePosition = cfg.dryRun ? null : await getOpenPosition(symbol);
   const hasPosition = cfg.dryRun ? !!sym.position : !!exchangePosition;
 
   if (hasPosition && sym.position) {
     const interval = STRATEGY_FNS[sym.position.strategy].interval;
-    if (!candlesByInterval[interval]) candlesByInterval[interval] = await fetchCandles(symbol, interval, 500);
-    const candles = candlesByInterval[interval];
+    const candles = await getCandles(symbol, interval);
     const idx = candles.length - 2;
     const strategyFn = STRATEGY_FNS[sym.position.strategy].fn;
     const sig = strategyFn(candles, idx, supertrendParams);
-    sym.position.heldCandles += 1;
+
+    // FIXED: heldCandles is derived from actual elapsed time / interval, not incremented
+    // once per 30s loop tick. The old version could close a "100 candle" hold after ~50
+    // minutes of wall-clock time instead of the intended ~25 hours on a 15m strategy.
+    const heldCandles = Math.floor((Date.now() - sym.position.entryTs) / intervalMs(interval));
+
     const isLong = sym.position.side === "LONG";
     const exitSignal = isLong ? sig.longExit : sig.shortExit;
-    const hitTime = sym.position.heldCandles >= sig.maxHold;
-    const hitExit = exitSignal && sym.position.heldCandles >= sig.minHold;
+    const hitTime = heldCandles >= sig.maxHold;
+    const hitExit = exitSignal && heldCandles >= sig.minHold;
+
     if (cfg.dryRun && (hitTime || hitExit)) {
       const latestPrice = candles[candles.length - 1].close;
       const qty = (cfg.maxNotionalUsdt / sym.position.entryPrice).toFixed(3);
@@ -442,12 +508,12 @@ async function processSymbol(symbol, state, supertrendParams) {
       const priceDelta = isLong ? (latestPrice - sym.position.entryPrice) : (sym.position.entryPrice - latestPrice);
       const pnlUsdt = (priceDelta / sym.position.entryPrice) * cfg.maxNotionalUsdt;
       state.realizedPnlUsdt += pnlUsdt;
-      console.log(`[v32] [${symbol}/${sym.position.strategy}] DRY_RUN exit reason=${hitTime ? "TIME" : "EXIT_SIGNAL"} pnlUsdt=${pnlUsdt.toFixed(4)}`);
+      console.log(`[v32] [${symbol}/${sym.position.strategy}] DRY_RUN exit reason=${hitTime ? "TIME" : "EXIT_SIGNAL"} heldCandles=${heldCandles}/${sig.maxHold} pnlUsdt=${pnlUsdt.toFixed(4)}`);
       sym.position = null;
     } else if (!cfg.dryRun && hitTime) {
       const qty = (cfg.maxNotionalUsdt / sym.position.entryPrice).toFixed(3);
       await closePositionMarket(symbol, qty, sym.position.side);
-      console.log(`[v32] [${symbol}/${sym.position.strategy}] time-stop close.`);
+      console.log(`[v32] [${symbol}/${sym.position.strategy}] time-stop close (held ${heldCandles}/${sig.maxHold} candles, ~${((Date.now() - sym.position.entryTs) / 3600000).toFixed(1)}h).`);
       sym.position = null;
     }
     return;
@@ -457,10 +523,7 @@ async function processSymbol(symbol, state, supertrendParams) {
 
   for (const strategyName of STRATEGIES) {
     const strategyDef = STRATEGY_FNS[strategyName];
-    if (!candlesByInterval[strategyDef.interval]) {
-      candlesByInterval[strategyDef.interval] = await fetchCandles(symbol, strategyDef.interval, 500);
-    }
-    const candles = candlesByInterval[strategyDef.interval];
+    const candles = await getCandles(symbol, strategyDef.interval);
     const idx = candles.length - 2;
     const closed = candles[idx];
     if (closed.ts === sym.lastClosedCandleTs[strategyName]) continue;
@@ -472,7 +535,7 @@ async function processSymbol(symbol, state, supertrendParams) {
       const latestPrice = candles[candles.length - 1].close;
       const result = await placeEntryOrder(symbol, latestPrice, sig, side);
       if (result === null) continue; // skipped: notional too small for this symbol's minimum, try next strategy
-      sym.position = { strategy: strategyName, side, entryPrice: latestPrice, entryTs: closed.ts, heldCandles: 0 };
+      sym.position = { strategy: strategyName, side, entryPrice: latestPrice, entryTs: Date.now(), heldCandles: 0 };
       state.tradesTaken += 1;
       console.log(`[v32] [${symbol}/${strategyName}] ENTRY recorded:`, result);
       break;
@@ -487,7 +550,7 @@ async function main() {
   console.log(`V32 Combined Pilot — symbols=[${SYMBOLS.join(", ")}] strategies=[${STRATEGIES.join(", ")}]`);
   console.log(`Mode: ${cfg.dryRun ? "DRY_RUN (no orders will be placed)" : "LIVE — REAL ORDERS"}`);
   console.log(`Network: ${cfg.testnet ? "TESTNET" : "MAINNET"}`);
-  console.log(`Limits: maxNotionalPerTrade=${cfg.maxNotionalUsdt} USDT | maxTradesTotal=${cfg.maxTrades} | maxLeverage=${cfg.maxLeverage}x | maxDailyLoss=${cfg.maxDailyLossUsdt} USDT`);
+  console.log(`Limits: maxNotionalPerTrade=${cfg.maxNotionalUsdt.toFixed(2)} USDT | maxTradesTotal=${cfg.maxTrades} | maxLeverage=${cfg.maxLeverage}x | maxDailyLoss=${cfg.maxDailyLossUsdt} USDT`);
   console.log("NOTE: pullback and breakout are NEW, UNVALIDATED implementations. Supertrend is ETH-tested only.");
   console.log("Rule: one strategy per symbol at a time — whichever signals first claims it.");
   console.log("=".repeat(60));
