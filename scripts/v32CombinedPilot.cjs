@@ -459,6 +459,7 @@ async function main() {
     for (const symbol of SYMBOLS) {
       try { await processSymbol(symbol, state, supertrendParams); }
       catch (err) { console.error(`[v32] [${symbol}] loop error:`, err.message); }
+      await new Promise((r) => setTimeout(r, 500)); // small stagger to avoid rate-limit bursts
     }
 
     saveState(state);
