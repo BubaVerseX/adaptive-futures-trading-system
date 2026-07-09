@@ -33,6 +33,7 @@ function parseArgs() {
     symbol: get("--symbol", "BTCUSDT"),
     strategy: get("--strategy", "pullback"),
     days: Number(get("--days", 120)),
+    offsetDays: Number(get("--offset-days", 0)), // 0 = most recent N days. >0 = an earlier, non-overlapping window for robustness checking.
     minAgreement: Number(get("--min-agreement", 2)),
   };
 }
@@ -49,12 +50,13 @@ function httpGetJson(url) {
   });
 }
 
-async function fetchHistoricalCandles(symbol, interval, days) {
+async function fetchHistoricalCandles(symbol, interval, days, offsetDays = 0) {
   const REST_BASE = "https://api.bybit.com";
   const stepMs = Number(interval) * 60 * 1000;
   const limit = 1000;
-  const wantedStart = Date.now() - days * 24 * 60 * 60 * 1000;
-  let endTime = Date.now();
+  const windowEnd = Date.now() - offsetDays * 24 * 60 * 60 * 1000;
+  const wantedStart = windowEnd - days * 24 * 60 * 60 * 1000;
+  let endTime = windowEnd;
   const seen = new Set();
   const out = [];
   while (endTime > wantedStart) {
@@ -172,11 +174,11 @@ async function main() {
   const strategyDef = STRATEGY_FNS[args.strategy];
   if (!strategyDef) { console.error(`Unknown strategy: ${args.strategy}`); process.exit(1); }
 
-  console.log(`MTF Confluence backtest: ${args.symbol} / ${args.strategy} (${strategyDef.interval}m entries + 4h trend filter), ${args.days} days\n`);
+  console.log(`MTF Confluence backtest: ${args.symbol} / ${args.strategy} (${strategyDef.interval}m entries + 4h trend filter), ${args.days} days, offset=${args.offsetDays} days back\n`);
 
   const [entryCandles, trendCandles] = await Promise.all([
-    fetchHistoricalCandles(args.symbol, strategyDef.interval, args.days),
-    fetchHistoricalCandles(args.symbol, TREND_INTERVAL, args.days),
+    fetchHistoricalCandles(args.symbol, strategyDef.interval, args.days, args.offsetDays),
+    fetchHistoricalCandles(args.symbol, TREND_INTERVAL, args.days, args.offsetDays),
   ]);
   console.log(`Fetched ${entryCandles.length} entry-timeframe candles, ${trendCandles.length} 4h trend candles`);
 
