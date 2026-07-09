@@ -200,6 +200,9 @@ async function main() {
 
   console.log(JSON.stringify(summary, null, 2));
 
+  const buyHoldPct = +(((candles[candles.length - 1].close - candles[0].close) / candles[0].close) * 100).toFixed(2);
+  console.log(`\nBuy-and-hold benchmark over the same ${args.days} days: ${buyHoldPct}% (just holding ${args.symbol} spot, no trading at all)`);
+
   if (args.sizingMode === "full-notional" && result.liquidationRiskCount > 0) {
     console.log(`\n⚠ WARNING: ${result.liquidationRiskCount} of ${result.trades.length} trades had a stop-loss distance wide enough that`);
     console.log(`  ${args.leverage}x leverage risks liquidation BEFORE the intended stop could fire. Consider lower leverage`);
