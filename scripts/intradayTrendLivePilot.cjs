@@ -317,7 +317,8 @@ async function main() {
   }
 
   saveState(state);
-  saveReport({ generatedAt: new Date().toISOString(), state, config: cfg });
+  const { apiKey, apiSecret, ...safeCfg } = cfg;
+  saveReport({ generatedAt: new Date().toISOString(), state, config: safeCfg });
   console.log("\n[intraday] Run complete. Exiting until next scheduled run.");
 }
 
