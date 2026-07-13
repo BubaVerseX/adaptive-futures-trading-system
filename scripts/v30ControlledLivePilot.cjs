@@ -63,6 +63,9 @@ const cfg = {
   maxTrades: Number(process.env.V30_MAX_TRADES || 9),
   maxLeverage: Number(process.env.V30_MAX_LEVERAGE || 10),
   maxDailyLossUsdt: Number(process.env.V30_MAX_DAILY_LOSS_USDT || 8),
+  // How many of the 3 Supertrend indicators must agree before entering.
+  // 3 = strict (original), 2 = looser, more frequent, less confirmed.
+  minAgreement: Number(process.env.V30_MIN_ST_AGREEMENT || 3),
 };
 
 const REST_BASE = cfg.testnet ? "https://api-testnet.bybit.com" : "https://api.bybit.com";
@@ -212,8 +215,10 @@ function signalAt(candles, p, i) {
   const a = atr(candles, 14);
   const c = candles[i];
 
-  const up = d1[i] === 1 && d2[i] === 1 && d3[i] === 1;
-  const down = d1[i] === -1 && d2[i] === -1 && d3[i] === -1;
+  const votesUp = [d1[i], d2[i], d3[i]].filter((v) => v === 1).length;
+  const votesDown = [d1[i], d2[i], d3[i]].filter((v) => v === -1).length;
+  const up = votesUp >= cfg.minAgreement;
+  const down = votesDown >= cfg.minAgreement;
   const trendOkLong = !p.emaFilter || (e1[i] !== null && e2[i] !== null && e1[i] > e2[i]);
   const vol = a[i] ? a[i] / c.close : 0;
   const volOk = vol >= p.minAtr && vol <= p.maxAtr;
