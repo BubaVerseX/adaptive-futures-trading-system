@@ -26,7 +26,12 @@ function loadProfile() {
   const profile = JSON.parse(fs.readFileSync(PROFILE_FILE, "utf8"));
 
   if (profile.status !== "READY_FOR_SHADOW_ADAPTER") {
-    throw new Error("V28 profile not ready. Status: " + profile.status);
+    console.warn("V28 profile is not officially ready. Using best candidate for SHADOW ONLY:", profile.status);
+    console.warn("NO LIVE ORDERS. This is only a market-regime shadow test.");
+  }
+
+  if (!profile.best || !profile.best.params) {
+    throw new Error("V28 profile has no best params.");
   }
 
   return profile.best.params;

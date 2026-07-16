@@ -37,31 +37,36 @@ function sleep(ms) {
 
 async function fetchCandles(interval) {
   const file = path.join(CACHE, `v28_${SYMBOL}_${interval}_${DAYS}d.json`);
+
   if (!REFRESH && fs.existsSync(file)) {
     const data = JSON.parse(fs.readFileSync(file, "utf8"));
-    if (data.length > 100) return data;
+    if (Array.isArray(data) && data.length > 5000) return data;
   }
 
-  const now = Date.now();
-  const start = now - DAYS * 24 * 60 * 60 * 1000;
   const step = Number(interval) * 60 * 1000;
-  let cursor = start;
+  const limit = 1000;
+  const wantedStart = Date.now() - DAYS * 24 * 60 * 60 * 1000;
+
+  let endTime = Date.now();
   const seen = new Set();
   const out = [];
 
-  while (cursor < now) {
+  while (endTime > wantedStart) {
+    const startTime = Math.max(wantedStart, endTime - limit * step);
+
     const q = new URLSearchParams({
       category: "linear",
       symbol: SYMBOL,
       interval,
-      start: String(cursor),
-      end: String(now),
-      limit: "1000",
+      start: String(startTime),
+      end: String(endTime),
+      limit: String(limit),
     });
 
     const json = await getJson(`https://api.bybit.com/v5/market/kline?${q}`);
-    if (!json || json.retCode !== 0) {
-      throw new Error("Bybit download failed: " + JSON.stringify(json).slice(0, 200));
+
+    if (!json || json.retCode !== 0 || !json.result || !Array.isArray(json.result.list)) {
+      throw new Error("Bybit download failed: " + JSON.stringify(json).slice(0, 300));
     }
 
     const rows = json.result.list.map(r => ({
@@ -82,10 +87,13 @@ async function fetchCandles(interval) {
       }
     }
 
-    const next = rows[rows.length - 1].ts + step;
-    if (next <= cursor) break;
-    cursor = next;
-    await sleep(100);
+    const firstTs = rows[0].ts;
+    const nextEnd = firstTs - step;
+
+    if (nextEnd >= endTime) break;
+    endTime = nextEnd;
+
+    await sleep(120);
   }
 
   out.sort((a, b) => a.ts - b.ts);
