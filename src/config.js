@@ -3,6 +3,7 @@
 require("dotenv").config();
 
 const path = require("node:path");
+const fs = require("node:fs");
 
 const PROJECT_ROOT = path.join(__dirname, "..");
 const FOCUSED_TRADING_SYMBOLS = Object.freeze(["BTCUSDT", "ETHUSDT", "SOLUSDT"]);
@@ -1103,6 +1104,22 @@ function loadConfig() {
   }
   if (!config.dryRun && !config.bybitDemoTrading && !config.bybitTestnet && !config.acknowledgeLiveTrading) {
     throw new Error("Mainnet trading requires ACKNOWLEDGE_LIVE_TRADING=true.");
+  }
+  if (!config.dryRun && !config.bybitDemoTrading && !config.bybitTestnet) {
+    // Live trading was stood down on 2026-07-16 after four independent checks (this repo's
+    // three plus a fourth from a separate parallel investigation) found no real edge. See
+    // TRADING_STATUS.md and EDGE_EVIDENCE_TEMPLATE.md. No live capital moves again without
+    // written evidence meeting all four criteria there.
+    if (process.env.I_HAVE_A_BACKTESTED_EDGE !== "true") {
+      throw new Error(
+        "Mainnet trading requires I_HAVE_A_BACKTESTED_EDGE=true. See EDGE_EVIDENCE_TEMPLATE.md."
+      );
+    }
+    if (!fs.existsSync(path.join(PROJECT_ROOT, "EDGE_EVIDENCE.md"))) {
+      throw new Error(
+        "Mainnet trading requires EDGE_EVIDENCE.md in the repo root, filled out per EDGE_EVIDENCE_TEMPLATE.md."
+      );
+    }
   }
   if (!config.dryRun && (!config.apiKey || !config.apiSecret)) {
     throw new Error("DRY_RUN=false requires BYBIT_API_KEY and BYBIT_API_SECRET.");

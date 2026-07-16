@@ -295,6 +295,7 @@ async function getOpenPosition(symbol) {
 // pulls REAL realized PnL from Bybit's closed-pnl endpoint, which is ground truth
 // (actual fills, actual fees), not an estimate.
 const RECONCILE_INTERVAL_MS = 5 * 60 * 1000; // every 5 minutes per symbol
+const COOLDOWN_MS = Number(process.env.V33_COOLDOWN_MINUTES || 20) * 60 * 1000;
 
 async function reconcileClosedPnl(symbol, state) {
   if (cfg.dryRun) return; // nothing on the exchange to reconcile against
@@ -333,6 +334,11 @@ async function reconcileClosedPnl(symbol, state) {
     });
     console.log(`[v33] [${symbol}] REAL closed PnL recorded: ${pnl.toFixed(4)} USDT (running total: ${state.realizedPnlUsdt.toFixed(4)})`);
     sym.lastClosedPnlTs = Math.max(sym.lastClosedPnlTs, Number(e.updatedTime));
+    // Cooldown after ANY close (win or loss): prevents immediately re-entering
+    // the same symbol on a whipsawing signal and paying another round-trip
+    // fee before the market has actually moved on. Fees are certain; the
+    // signal being right again immediately is not.
+    sym.cooldownUntil = Date.now() + COOLDOWN_MS;
   }
 }
 
@@ -349,6 +355,24 @@ async function placeEntryOrder(symbol, price, sig, side) {
   const qty = roundQty(rawQty, info);
   if (Number(qty) <= 0) {
     console.log(`[v33] [${symbol}] skipping entry — computed qty rounds to 0 even after bumping to minOrderQty (${info.minOrderQty}). Notional too small for this symbol.`);
+    return null;
+  }
+  const impliedNotional = Number(qty) * price;
+  // roundQty force-bumps below-minimum orders up to the exchange's minOrderQty,
+  // which for expensive-per-unit symbols (BTC etc.) can be many times the
+  // intended per-trade size on a small account. Skip rather than silently
+  // deploying a much larger position than configured.
+  if (impliedNotional > cfg.maxNotionalUsdt * 2) {
+    console.log(`[v33] [${symbol}] skipping entry — exchange minOrderQty (${info.minOrderQty}) forces ~${impliedNotional.toFixed(2)} USDT notional, more than 2x the configured ${cfg.maxNotionalUsdt} USDT target. Too expensive per-unit for this account size.`);
+    return null;
+  }
+  // Bybit also rejects any order below a flat 5 USDT order VALUE, separate from
+  // minOrderQty/qtyStep rounding. Catching this here avoids a guaranteed-reject
+  // API call every time a signal fires on a symbol whose qtyStep rounds the
+  // configured notional down below that floor — no fee is charged on a
+  // rejected order, but it's wasted API calls and log noise, not a real trade.
+  if (impliedNotional < 5.5) {
+    console.log(`[v33] [${symbol}] skipping entry — rounded notional ~${impliedNotional.toFixed(2)} USDT is below Bybit's 5 USDT minimum order value.`);
     return null;
   }
   const rawSl = side === "LONG" ? price * (1 - sig.sl) : price * (1 + sig.sl);
@@ -389,6 +413,8 @@ function runStartupChecks(state) {
   if (fs.existsSync(STOP_FILE)) abortIf(true, "STOP_BOT.txt exists");
   abortIf(!cfg.dryRun && (!cfg.apiKey || !cfg.apiSecret), "DRY_RUN=false but API key/secret missing");
   abortIf(!cfg.dryRun && !cfg.ack, "DRY_RUN=false but ACKNOWLEDGE_V33_LIVE is not 'true'");
+  abortIf(!cfg.dryRun && process.env.I_HAVE_A_BACKTESTED_EDGE !== "true", "DRY_RUN=false requires I_HAVE_A_BACKTESTED_EDGE=true — see EDGE_EVIDENCE_TEMPLATE.md");
+  abortIf(!cfg.dryRun && !fs.existsSync(path.join(ROOT, "EDGE_EVIDENCE.md")), "DRY_RUN=false requires EDGE_EVIDENCE.md in repo root, filled out per EDGE_EVIDENCE_TEMPLATE.md");
   abortIf(SYMBOLS.length === 0, "no symbols configured");
   abortIf(STRATEGIES.some((s) => !STRATEGY_FNS[s]), `unknown strategy in V33_STRATEGIES: ${STRATEGIES.join(",")}`);
   abortIf(state.tradesTaken >= cfg.maxTrades, `already reached maxTrades (${cfg.maxTrades})`);
@@ -440,6 +466,7 @@ async function processSymbol(symbol, state, supertrendParams) {
   }
 
   if (state.tradesTaken >= cfg.maxTrades) return;
+  if (sym.cooldownUntil && Date.now() < sym.cooldownUntil) return; // recently closed here, sit out the cooldown
 
   for (const strategyName of STRATEGIES) {
     const strategyDef = STRATEGY_FNS[strategyName];
@@ -481,18 +508,53 @@ async function main() {
   if (state.dayKey !== todayKey()) { state = freshState(); saveState(state); }
 
   runStartupChecks(state);
-  for (const symbol of SYMBOLS) await getInstrumentInfo(symbol);
-  if (!cfg.dryRun) for (const symbol of SYMBOLS) await setLeverage(symbol);
+  // A single misbehaving symbol (exotic risk-limit tiers, delisting mid-init,
+  // etc.) must not take down the whole process — skip it and keep going.
+  // This is exactly what killed the run when a low-liquidity symbol's max
+  // leverage tier rejected the configured leverage.
+  const tickerJson = await bybitPublicGet("/v5/market/tickers?category=linear");
+  const priceBySymbol = {};
+  if (tickerJson && tickerJson.retCode === 0) {
+    for (const t of tickerJson.result.list) priceBySymbol[t.symbol] = Number(t.lastPrice);
+  }
+
+  const activeSymbols = [];
+  for (const symbol of SYMBOLS) {
+    try {
+      const info = await getInstrumentInfo(symbol);
+      // Skip symbols whose exchange minimums can never fit the configured
+      // per-trade notional at the current price — same check placeEntryOrder
+      // does at signal time, done once here instead of repeatedly on every
+      // signal fire for a symbol that will never be tradeable at this size.
+      const price = priceBySymbol[symbol];
+      if (price) {
+        const impliedNotional = Number(roundQty(cfg.maxNotionalUsdt / price, info)) * price;
+        if (impliedNotional < 5.5) {
+          console.log(`[v33] [${symbol}] excluding — implied notional ~${impliedNotional.toFixed(2)} USDT below Bybit's 5 USDT minimum at current price, would never fill.`);
+          continue;
+        }
+        if (impliedNotional > cfg.maxNotionalUsdt * 2) {
+          console.log(`[v33] [${symbol}] excluding — exchange minOrderQty forces ~${impliedNotional.toFixed(2)} USDT notional, more than 2x the ${cfg.maxNotionalUsdt} USDT target.`);
+          continue;
+        }
+      }
+      if (!cfg.dryRun) await setLeverage(symbol);
+      activeSymbols.push(symbol);
+    } catch (err) {
+      console.error(`[v33] [${symbol}] init failed, excluding from this run: ${err.message}`);
+    }
+  }
+  console.log(`[v33] Active symbols after init: ${activeSymbols.length}/${SYMBOLS.length}`);
 
   while (true) {
     if (fs.existsSync(STOP_FILE)) { console.log("[v33] STOP_BOT.txt detected — exiting."); break; }
     if (state.tradesTaken >= cfg.maxTrades) { console.log(`[v33] maxTrades (${cfg.maxTrades}) reached — exiting.`); break; }
     if (state.realizedPnlUsdt <= -Math.abs(cfg.maxDailyLossUsdt)) { console.log(`[v33] daily loss limit hit — exiting.`); break; }
 
-    for (const symbol of SYMBOLS) {
+    for (const symbol of activeSymbols) {
       try { await processSymbol(symbol, state, supertrendParams); }
       catch (err) { console.error(`[v33] [${symbol}] loop error:`, err.message); }
-      await new Promise((r) => setTimeout(r, 500)); // small stagger to avoid rate-limit bursts
+      await new Promise((r) => setTimeout(r, Number(process.env.V33_STAGGER_MS || 900))); // stagger to avoid rate-limit bursts
     }
 
     saveState(state);

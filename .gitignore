@@ -1,6 +1,7 @@
 node_modules/
 .env
 npm-debug.log*
+.DS_Store
 data/bybit-bot.log
 data/microstructure/bybit-bot.log
 data/microstructure/snapshots/

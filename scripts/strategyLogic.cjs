@@ -129,6 +129,50 @@ function breakoutSignal(candles, i) {
   };
 }
 
+// ---------------- ATR-based position sizing ----------------
+//
+// NOT wired into any live pilot. Library function only, for use if/when a
+// strategy actually clears the bar in EDGE_EVIDENCE_TEMPLATE.md — a flat
+// per-trade notional (what every live pilot in this repo used) means a $9
+// move is a very different risk on a low-volatility symbol (e.g. BTC) than
+// on a high-volatility one (e.g. a small-cap perp). ATR-based sizing instead
+// targets a fixed dollar (or %-of-equity) risk if the stop is hit, regardless
+// of the symbol's own volatility.
+//
+// riskAmountUsdt: dollars you're willing to lose if the stop-loss is hit.
+// atrValue: current ATR (same price units as `price`), e.g. atr(candles, 14)[i].
+// atrStopMultiple: how many ATRs away the stop-loss sits (must match whatever
+//   the strategy actually places as its stop, or this sizing is wrong).
+// price: current price, used to convert the sized quantity to notional.
+// maxNotionalUsdt: optional hard cap — ATR sizing can call for a much larger
+//   notional than intended on a very calm symbol; this never lets it exceed
+//   the cap regardless of how small the ATR-implied risk looks.
+// qtyStep: optional exchange quantity step to round down to (avoids
+//   over-ordering past what the instrument's precision allows).
+function atrPositionSize({ riskAmountUsdt, atrValue, atrStopMultiple = 1.5, price, maxNotionalUsdt = Infinity, qtyStep = null }) {
+  if (!(riskAmountUsdt > 0) || !(atrValue > 0) || !(price > 0) || !(atrStopMultiple > 0)) {
+    return { qty: 0, notionalUsdt: 0, stopDistance: 0, reason: "invalid input" };
+  }
+  const stopDistance = atrValue * atrStopMultiple;
+  let qty = riskAmountUsdt / stopDistance;
+  let notionalUsdt = qty * price;
+  if (notionalUsdt > maxNotionalUsdt) {
+    qty = maxNotionalUsdt / price;
+    notionalUsdt = maxNotionalUsdt;
+  }
+  if (qtyStep) {
+    qty = Math.floor(qty / qtyStep) * qtyStep;
+    notionalUsdt = qty * price;
+  }
+  return { qty, notionalUsdt, stopDistance };
+}
+
+// Convenience wrapper: risk expressed as a % of current equity instead of a flat dollar amount.
+function atrPositionSizeByEquityPct({ equityUsdt, riskPct, atrValue, atrStopMultiple = 1.5, price, maxNotionalUsdt = Infinity, qtyStep = null }) {
+  const riskAmountUsdt = equityUsdt * (riskPct / 100);
+  return atrPositionSize({ riskAmountUsdt, atrValue, atrStopMultiple, price, maxNotionalUsdt, qtyStep });
+}
+
 // ---------------- Fee-aware edge gate ----------------
 
 const FEE_GATE = {
@@ -165,5 +209,6 @@ module.exports = {
   PULLBACK_PARAMS, pullbackSignal,
   BREAKOUT_PARAMS, breakoutSignal,
   FEE_GATE, passesFeeGate,
+  atrPositionSize, atrPositionSizeByEquityPct,
   STRATEGY_FNS, intervalMs,
 };

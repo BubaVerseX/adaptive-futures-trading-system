@@ -305,6 +305,8 @@ async function main() {
   if (fs.existsSync(STOP_FILE)) abortIf(true, "STOP_BOT.txt exists");
   abortIf(!cfg.dryRun && (!cfg.apiKey || !cfg.apiSecret), "DRY_RUN=false but API key/secret missing");
   abortIf(!cfg.dryRun && !cfg.ack, "DRY_RUN=false but ACKNOWLEDGE_INTRADAY_LIVE is not 'true'");
+  abortIf(!cfg.dryRun && process.env.I_HAVE_A_BACKTESTED_EDGE !== "true", "DRY_RUN=false requires I_HAVE_A_BACKTESTED_EDGE=true — see EDGE_EVIDENCE_TEMPLATE.md");
+  abortIf(!cfg.dryRun && !fs.existsSync(path.join(ROOT, "EDGE_EVIDENCE.md")), "DRY_RUN=false requires EDGE_EVIDENCE.md in repo root, filled out per EDGE_EVIDENCE_TEMPLATE.md");
 
   await validateCredentials();
 

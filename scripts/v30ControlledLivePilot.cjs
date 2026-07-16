@@ -352,6 +352,8 @@ function runStartupChecks(state, params) {
   if (fs.existsSync(STOP_FILE)) abortIf(true, "STOP_BOT.txt exists");
   abortIf(!cfg.dryRun && (!cfg.apiKey || !cfg.apiSecret), "DRY_RUN=false but API key/secret missing");
   abortIf(!cfg.dryRun && !cfg.ack, "DRY_RUN=false but ACKNOWLEDGE_V30_LIVE is not 'true'");
+  abortIf(!cfg.dryRun && process.env.I_HAVE_A_BACKTESTED_EDGE !== "true", "DRY_RUN=false requires I_HAVE_A_BACKTESTED_EDGE=true — see EDGE_EVIDENCE_TEMPLATE.md");
+  abortIf(!cfg.dryRun && !fs.existsSync(path.join(ROOT, "EDGE_EVIDENCE.md")), "DRY_RUN=false requires EDGE_EVIDENCE.md in repo root, filled out per EDGE_EVIDENCE_TEMPLATE.md");
   abortIf(!params || !params.sl || !params.tp, "profile params missing sl/tp");
   abortIf(SYMBOLS.length === 0, "no symbols configured");
   abortIf(state.tradesTaken >= cfg.maxTrades, `already reached maxTrades (${cfg.maxTrades})`);
