@@ -1,6 +1,32 @@
 # Trading Status — read this first next session
 
-Last updated: 2026-07-16 — **LIVE TRADING STOPPED. This is the final session report.**
+Last updated: 2026-07-18 — still stood down; one new hypothesis tested and rejected, see below.
+
+## 2026-07-18 — "Regime-Gated Trend Pullback" hypothesis tested, FAILED
+
+A new strategy hypothesis (external doc, reviewed by a separate Claude
+instance): an ADX(14)-based 1h regime filter (price>200EMA, 50EMA>200EMA
+rising, ADX>22) gating a 15m pullback-and-reclaim entry with tiered
+TP/breakeven/time-stop exits. Ran the full 4-point gauntlet from
+`EDGE_EVIDENCE_TEMPLATE.md` on BTCUSDT/ETHUSDT/SOLUSDT, 15m candles, two
+non-overlapping 180-day windows. **All four criteria failed** — full
+numbers in `REGIME_GATED_PULLBACK_BACKTEST.md` (committed). Headline:
+basket PF 0.96 (window 1) / 0.79 (window 2), both under the 1.3 bar; window
+2 also net negative (-21.49%) and missed beating buy-and-hold by 1.2pp;
+window-1 result flips negative under 1.5x fee stress (-19.11%). The one
+part of the hypothesis that held up: the regime filter is not a no-op — it
+cut window-1 losses from -77% (filter off) to -6% (filter on) and rejected
+86.5% of raw entry candidates — but that's risk reduction, not edge
+creation. The underlying pullback/reclaim entry logic still loses money on
+its own at this fee level and win rate (~30-37%).
+
+**No live pilot built. No parameter tweaking applied to rescue it, per the
+gauntlet's own rule.** `EDGE_EVIDENCE.md` still does not exist;
+`I_HAVE_A_BACKTESTED_EDGE` remains unset. This is now a fifth independent
+negative result on the pile (three original repo checks + one external
+parallel investigation + this one). Script is reusable for testing further
+hypotheses: `scripts/backtestRegimeGatedPullback.cjs` (self-contained,
+public Bybit data only, no API key needed).
 
 ## FINAL SESSION REPORT — 2026-07-16
 
