@@ -1,6 +1,388 @@
 # Trading Status — read this first next session
 
-Last updated: 2026-07-18 — still stood down; one new hypothesis tested and rejected, see below.
+Last updated: 2026-08-25 — still stood down; also ran an honest DCA-vs-lump-sum
+comparison (not a strategy/edge test, no gauntlet — DCA doesn't claim to beat
+buy-and-hold, only to reduce timing risk). See below.
+
+## 2026-08-25 — DCA vs lump-sum comparison, BTC/ETH/SOL (not a gauntlet test)
+
+Not a hypothesis test — no pass/fail verdict applies here, per instructions
+(DCA doesn't claim an edge). New script: `scripts/backtestDCA.cjs`. Fixed
+$10 buy every 12h, no price condition, no stop-loss, BTC/ETH/SOL, 245 days
+(same window as the grid test), plus the same two non-overlapping 120-day
+windows to check consistency.
+
+**DCA beat lump-sum-on-day-1 in all 3 symbols across all 3 periods (full,
+W1, W2) — 9 for 9, fully consistent, not one lucky window.** Full-period
+example (ETHUSDT): DCA +17.05% vs Day1 lump-sum -16.22% vs LastDay lump-sum
+-0.31% — a 33.3 percentage-point spread between best and worst. Same pattern
+on SOL (+14.06% vs -20.72%) and BTC (+10.60% vs -9.91%).
+
+**Why, mechanically, not just luck:** all three symbols fell substantially
+early in the 245-day period then partially recovered (W2, the older window,
+is net negative for all three; W1, the recent window, is net positive) —
+exactly the volatile down-then-up path where spreading purchases across the
+decline lowers DCA's average cost basis below both the day-1 entry price
+and, in most cases, the final price. Day-1 lump-sum locked in the (higher)
+starting price and rode the full decline before any recovery. This is the
+textbook condition DCA is supposed to help with — it isn't surprising DCA
+won here, but it's confirmed rather than assumed.
+
+**One instructive exception:** SOLUSDT W2 (the declining window on its own,
+before any recovery) is the one case where "LastDay" lump-sum beat DCA
+(-3.02% vs DCA's -11.49%) — buying only at the very end, near that window's
+low, beat averaging in through the whole decline. This is exactly the
+"worst-case timing" framing working as intended: waiting until the end
+isn't always worse, it depends on where in the cycle the window ends. DCA
+still beat Day1 lump-sum in that same window by a wide margin (-11.49% vs
+-31.72%).
+
+**Bottom line:** this is a real, consistent illustration of DCA reducing
+entry-timing risk over this specific volatile period, not a claim that DCA
+beats buy-and-hold in general (it structurally can't beat a lump-sum bought
+at the eventual best price — see the SOL W2 exception above). Full numbers
+in `data/dcabacktest/report.json`. No change to trading-bot status — this
+isn't a live-trading candidate, it doesn't touch the `I_HAVE_A_BACKTESTED_EDGE`
+gate, and doesn't count toward the negative-results pile since it made no
+edge claim to fail.
+
+## 2026-08-25 — Symmetric grid/mean-reversion hypothesis on ETHUSDT (4 values of X), NO EDGE
+
+New hypothesis: LONG-only entry when 15m close <= EMA20*(1-X%), take-profit at
+entry*(1+X%), hard stop at entry*(1-2%) regardless of X. Tested X in
+{0.5%, 1%, 1.5%, 2%}, ETHUSDT only (not a basket), same 4-criteria gauntlet
+(two non-overlapping 120-day windows, beats buy-and-hold, survives 1.5x fee
+stress) as everything else. New script: `scripts/backtestMeanReversionGrid.cjs`
+(reuses `ema()` from `strategyLogic.cjs` and `summarizeTrades()`/`computeWindows()`
+from `freshGauntlet.cjs`, live public Bybit data, no key).
+
+**Result: all 4 values of X fail all 4 criteria in both windows.** W1 (120d
+recent): PF 0.56-0.76 across all X (need >1.3). W2 (120d prior): PF 0.69-0.72
+(need >1.3, positive — W2 is net negative for every X, -18.9% to -44.9%).
+Never beats buy-and-hold in either window at any X. Fails 1.5x fee stress
+everywhere (PF drops further, returns more negative).
+
+**Mechanical reason, not just "wrong regime":** the fixed 2% stop against a
+smaller X% target creates a payoff ratio that needs a specific win rate just
+to break even *before fees* — and the observed win rates land right at or
+just below that line for every X (X=0.5%: need 80.0% win rate pre-fee,
+observed 78.0-80.4%; X=1%: need 66.7%, observed 64.2-64.3%; X=1.5%: need
+57.1%, observed 52.5-54.3%; X=2%: need 50.0%, observed 39.1-44.6%). Fees
+then push every case decisively negative. This is a structural payoff-ratio
+problem built into the rule as specified (symmetric target vs a stop that's
+1-4x larger), not primarily a regime-fit issue.
+
+**Regime comparison (the specific ask):** computed Kaufman Efficiency Ratio
+(daily-resampled closes; ~1=pure trend, ~0=pure chop) per window instead of
+assuming which period was choppy. W1 ER=0.039 (choppy, buyHold +8.27%), W2
+ER=0.090 (choppy, buyHold -22.22%), WS (most recent 40d) ER=0.409 (clearly
+TRENDING, buyHold +31.68% — this is the current rally), WO (oldest available
+40d in the fetched range, 2025-12-23→2026-02-01) ER=0.243 (mixed,
+buyHold -20.21%). **Counter to the strategy's own core assumption, it did
+not clearly do better in choppier conditions:** at X=0.5% (most trades, most
+statistically meaningful), the trending window WS lost less (-1.12%, PF
+0.94, 46 trades) than the more range-bound/declining WO (-22.38%, PF 0.56,
+112 trades) — backwards from what a mean-reversion strategy should show. At
+X=1.5%, WS was the only window/X combination to show a positive return
+(+4.7%, PF 3.18) anywhere in the whole test, but on only 6 trades — far
+below any reporting threshold, noise. No X value shows a clean, sample-backed
+"better in chop" pattern; the payoff-ratio problem above explains the
+uniform losses better than regime does.
+
+**Verdict: NO EDGE at any tested X.** `EDGE_EVIDENCE.md` not created. This
+is result #14 on the pile. Full per-window numbers in
+`data/meanreversiongrid/report.json`.
+
+## 2026-08-25 — New hypothesis: time-of-day / day-of-week / funding-settlement raw pattern check, NO EDGE
+
+First genuinely new angle tried since the regime-gated pullback test
+(2026-07-18): not an indicator-based entry signal, just raw candle
+statistics (return, win rate, realized vol) bucketed by UTC hour-of-day and
+day-of-week, plus a targeted check of the 8h funding settlement times
+(00:00/08:00/16:00 UTC). New script: `scripts/sessionEffectsCheck.cjs`
+(live public Bybit data, no key). ~210 days of 1h candles (5,040/symbol) for
+the hour/day-of-week check, ~180 days of 15m candles (17,280/symbol) for the
+funding-window check — both comfortably over the 4,000+/100+ sample bars.
+Same two-non-overlapping-window persistence standard as every other test in
+this repo (chronological first-half vs second-half split).
+
+**Hour-of-day / day-of-week (1h candles, full-sample 95% CI flags):**
+- BTCUSDT: 1 hour bucket flagged (hour 20 UTC, +0.063%/candle), 0 day-of-week
+  buckets flagged.
+- ETHUSDT: 3 hour buckets flagged (hour 2 −0.079%, hour 10 −0.072%, hour 19
+  +0.107%), 1 day-of-week bucket flagged (Thursday −0.058%).
+- SOLUSDT: 1 hour bucket flagged (hour 10 UTC, −0.096%), 0 day-of-week
+  buckets flagged.
+- **Multiple-comparisons context:** 24 hours × 3 symbols = 72 hour buckets
+  tested at 95% CI → ~3.6 false positives expected from pure chance alone;
+  5 were flagged. 7 days × 3 symbols = 21 day buckets tested → ~1 false
+  positive expected; 1 was flagged. Both counts are exactly what noise
+  produces at this sample size — not evidence on their own.
+- **Two-window persistence: 0 of 6 flagged buckets held up.** Every single
+  one either flipped sign or lost significance between the first and
+  second half of the sample (e.g. ETH hour 19: full-sample +0.107% sig, W1
+  +0.191% sig, W2 +0.022% not sig — decayed to noise in the second half;
+  BTC hour 20 similarly only significant in W2, not W1). Interesting but
+  unconfirmed cross-symbol note: hour 10 UTC was negative in all three
+  symbols (BTC −0.049% not flagged, ETH −0.072% flagged, SOL −0.096%
+  flagged) but did not persist across the window split for either flagged
+  symbol, so this is reported as an observation, not a finding.
+
+**Funding settlement (00:00/08:00/16:00 UTC, 15m candles, 540
+settlement events/symbol):** pre-60min, pre-30min, post-30min, post-60min
+mean returns around each settlement, all three symbols. **Zero windows
+flagged in the full sample for any symbol** — every 95% CI comfortably
+straddled zero (e.g. BTC post60 mean +0.020%, CI [−0.016%, +0.056%]). No
+persistence check was even needed since nothing cleared the first bar.
+
+**Verdict: NO EDGE.** Nothing — not one bucket, not one symbol, not the
+funding-window check — survived the same two-window persistence standard
+used everywhere else in this repo. `EDGE_EVIDENCE.md` was not created. This
+was a clean, well-powered null result (not an underpowered "insufficient
+data" outcome like the Polymarket H2 check) — the sample sizes were large
+enough that a real effect of this magnitude would very likely have shown
+up and held across both windows if it existed.
+
+## 2026-08-25 — 3-day follow-up: rally check + full gauntlet re-run, ALL FAIL again (result #12)
+
+## 2026-08-25 — 3-day follow-up: rally check + full gauntlet re-run, ALL FAIL again
+
+Re-ran `freshGauntlet.cjs` and `backtestRegimeGatedPullback.cjs` fresh (`--no-cache`,
+live public Bybit data) exactly 3 days after the 2026-08-23 run, per instructions:
+report price/trend continuation, current volatility vs 30d average, and the full
+gauntlet table, no cherry-picking.
+
+**Price levels vs 3 days ago (2026-08-22 →2026-08-25, live Bybit data):**
+
+| Symbol | 3d-ago close | Current close | 3d chg | 7d chg | 30d chg |
+|---|---:|---:|---:|---:|---:|
+| BTCUSDT | 77,410.20 | 79,085.50 | +2.16% | +22.39% | +22.30% |
+| ETHUSDT | 2,438.61 | 2,466.77 | +1.15% | +28.97% | +28.92% |
+| SOLUSDT | 94.46 | 98.50 | +4.28% | +27.67% | +30.83% |
+
+**Trend has continued, not stalled or reversed** — all three symbols made further
+new highs over the 3 days since the last check, on top of the 18-29% run already
+in place. Not a blow-off/reversal signal, just more of the same uptrend.
+
+**Volatility — still elevated, not normalized:**
+
+| Symbol | Current 1h ATR% | 30d avg 1h ATR% | Ratio |
+|---|---:|---:|---:|
+| BTCUSDT | 0.876% | 0.490% | 1.79x |
+| ETHUSDT | 0.959% | 0.675% | 1.42x |
+| SOLUSDT | 1.474% | 0.756% | 1.95x |
+
+Comparable to the 1.5-2.6x range reported 2026-08-23 — the trending/high-vol
+backdrop that made this worth re-testing hasn't gone away.
+
+### Full gauntlet re-run (same 5 strategies, same 4 criteria, same window definitions)
+
+| Strategy | Window | Trades | Win% | PF | Net% (basket) | Buy-hold | Passes? |
+|---|---|---:|---:|---:|---:|---:|---|
+| supertrend | W1 (120d recent) | 940 | 35.1% | 0.71 | -42.36% | +9.19% | **N** |
+| supertrend | W2 (120d prior) | 1789 | 38.7% | 0.76 | -60.98% | -22.08% | **N** |
+| supertrend | WS (40d, rally) | 214 | 33.2% | 0.71 | -12.23% | +28.57% | **N** |
+| pullback | W1 (120d recent) | 434 | 41.0% | 1.12 | +13.82% | +9.15% | **N** (misses PF/trades/buy-hold; only the fee-stress leg passes) |
+| pullback | W2 (120d prior) | 523 | 36.9% | 0.81 | -30.23% | -22.04% | **N** |
+| pullback | WS (40d, rally) | 136 | 39.0% | 1.02 | +0.18% | +28.54% | **N** |
+| breakout | W1 (120d recent) | 1147 | 25.4% | 0.56 | -55.52% | +9.15% | **N** |
+| breakout | W2 (120d prior) | 1138 | 28.3% | 0.73 | -45.22% | -22.04% | **N** |
+| breakout | WS (40d, rally) | 390 | 22.8% | 0.55 | -21.93% | +28.54% | **N** |
+| daily-trend (Donchian) | W1 (120d recent) | 7 | 28.6% | 1.11 | +0.14% | +8.52% | **N** (7 trades) |
+| daily-trend (Donchian) | W2 (120d prior) | 10 | 40.0% | 1.05 | +0.06% | -22.10% | **N** (10 trades) |
+| daily-trend (Donchian) | WS (40d, rally) | 1 | 0% | 0 | -0.33% | +29.05% | **N** (1 trade) |
+| regime-gated pullback | W1 (180d recent) | 632 | 35.8% | 0.88 | -13.32% | +18.67% | **N** |
+| regime-gated pullback | W2 (180d prior) | 624 | 33.2% | 0.84 | -17.69% | -49.83% | **N** (fails PF/trades despite beating buy-hold) |
+| regime-gated pullback | WS (40d, rally) | 140 | 32.1% | 0.76 | -6.52% | +28.57% | **N** |
+
+Fee stress (1.5x): supertrend PF 0.62/-91.26% (W1); breakout PF 0.47/-96.07% (W1);
+daily-trend PF 0.87/-0.63% (W1); regime-gated PF 0.78/-59.84% (W1); pullback is the
+lone stress *pass* on W1 (PF 1.03, +1.23%) but still fails criteria 1/2/3 outright,
+so it doesn't change the verdict.
+
+**Change vs the 2026-08-23 run:** essentially none. Same fails across the board,
+numbers moved by low single digits on W1/WS (more data folded in as the rally
+continued) and are unchanged on W2 (fixed historical window). Pullback is again
+the closest candidate — W1 PF 1.12 (was 1.13), WS return flipped from -2.51% to
++0.18% as the rally kept going — but still misses 100+ trades on the standard
+window, still fails W2, still never beats buy-and-hold on either standard window.
+No candidate crossed from fail to pass on anything.
+
+**Outcome: `EDGE_EVIDENCE.md` still not created, `I_HAVE_A_BACKTESTED_EDGE`
+remains unset.** No cherry-picking applied — pullback's marginally-better WS
+number this run is reported plainly above, not used to override its W1/W2/trade-count
+failures. This is the twelfth independent negative result since the 2026-07-16
+stand-down. No live trading until a candidate clears all four criteria in one
+sitting.
+
+## 2026-08-23 — Regime check + 3-window gauntlet re-run (adds a short window over the current rally): 5 combos tested, ALL FAIL in all 3 windows
+
+A quick market-regime check (no backtest) showed BTC/ETH/SOL all up 18-29% over
+the trailing 7-30 days with 1h ATR% running 1.5-2.6x its 30-day average —
+clearly a different (trending, high-vol) backdrop than the flat/down conditions
+the 2026-08-16 run was tested against. That was flagged as worth re-testing,
+not itself grounds to reopen.
+
+Per instructions, re-ran the same 5 candidates (supertrend, pullback, breakout,
+daily-trend Donchian via `freshGauntlet.cjs`; regime-gated pullback via
+`backtestRegimeGatedPullback.cjs`) through the same 4-criteria gauntlet, on the
+same two standard non-overlapping windows (120d for the first four, 180d for
+regime-gated) — **plus a new supplementary 40-day window** added to both
+scripts (`WINDOW_SHORT_DAYS`) covering just 2026-07-13 to 2026-08-22, so the
+current trending move gets its own dedicated look instead of being diluted
+inside a 120-180 day blend. The short window is reported alongside the
+standard two, not as a replacement, and does not count toward the official
+4-criteria verdict (it has no second non-overlapping window to pair against,
+so it's scored as a single-window standalone analogue: PF>1.3, 100+ trades,
+positive, beats buy-hold, survives 1.5x fee stress — informational only).
+
+**Result: all 5 candidates fail in all 3 windows, including the short one
+built specifically to capture the rally.** `EDGE_EVIDENCE.md` was not created.
+
+### Basket-level results (3-symbol equal-weight portfolio)
+
+| Strategy | Window | Trades | Win% | PF | Net% (portfolio) | Buy-hold | Passes? |
+|---|---|---:|---:|---:|---:|---:|---|
+| supertrend | W1 (120d recent) | 888 | 35.8% | 0.73 | -38.03% | +4.17% | **N** |
+| supertrend | W2 (120d prior) | 1792 | 38.6% | 0.76 | -61.19% | -21.06% | **N** |
+| supertrend | WS (40d, rally) | 171 | 35.1% | 0.81 | -6.08% | +29.39% | **N** |
+| pullback | W1 (120d recent) | 428 | 40.7% | 1.13 | +13.69% | +4.20% | **N** (misses PF/trades/buy-hold) |
+| pullback | W2 (120d prior) | 525 | 36.6% | 0.81 | -31.71% | -21.06% | **N** |
+| pullback | WS (40d, rally) | 132 | 36.4% | 0.93 | -2.51% | +29.48% | **N** |
+| breakout | W1 (120d recent) | 1145 | 25.1% | 0.56 | -54.60% | +4.20% | **N** |
+| breakout | W2 (120d prior) | 1137 | 28.2% | 0.73 | -45.18% | -21.06% | **N** |
+| breakout | WS (40d, rally) | 388 | 22.9% | 0.60 | -18.31% | +29.48% | **N** |
+| daily-trend (Donchian) | W1 (120d recent) | 7 | 28.6% | 1.11 | +0.14% | +4.44% | **N** (7 trades) |
+| daily-trend (Donchian) | W2 (120d prior) | 10 | 40.0% | 1.05 | +0.06% | -19.89% | **N** (10 trades) |
+| daily-trend (Donchian) | WS (40d, rally) | 2 | 0% | 0 | -0.52% | +28.48% | **N** (2 trades) |
+| regime-gated pullback | W1 (180d recent) | 639 | 36.2% | 0.91 | -10.98% | +23.10% | **N** |
+| regime-gated pullback | W2 (180d prior) | 619 | 33.0% | 0.83 | -17.98% | -54.36% | **N** (fails PF/trades despite beating buy-hold) |
+| regime-gated pullback | WS (40d, rally) | 145 | 35.2% | 0.87 | -3.50% | +29.63% | **N** |
+
+Fee stress (1.5x): every candidate net negative on W1 and on WS — supertrend
+-88.64%/-26.65%, pullback +2.78% (only stress pass, W1)/-15.58% (WS),
+breakout -95.81%/-58.54%, daily-trend -0.63%/-1.82%, regime-gated
+-56.36%/-19.71%.
+
+**Reading on the short window specifically:** all five candidates
+underperformed simple buy-and-hold by 25-35 percentage points on the 40-day
+rally window (buy-hold +28-30% vs. every strategy negative or barely
+positive). None of these are trend-following systems that struggle to enter
+in choppy conditions and then miss a clean breakout — they *did* trade
+(132-388 trades on the intraday ones), they just lost money trading through a
+strong uptrend, mostly on fees and whipsaw exits (SL/TP/time-stop churn) on
+timeframes too short to hold the actual trend move. Daily-trend Donchian
+barely traded at all (2 entries) and still lost slightly, missing almost the
+entire rally.
+
+**Outcome: `EDGE_EVIDENCE.md` still not created. `I_HAVE_A_BACKTESTED_EDGE`
+remains unset.** The current rally does not change the verdict — if anything
+it's a clean illustration that these specific strategies don't monetize a
+strong trending move well even when the market obligingly hands them one, on
+top of already failing across both flat/down-market windows. This makes
+eleven independent negative results on the pile since the 2026-07-16
+stand-down. No live trading until a candidate genuinely clears all four
+criteria in one sitting, no exceptions for close calls, single-symbol wins,
+or single-window wins (including this new short window).
+
+## 2026-08-16 — Fresh evidence check (1 month after stand-down): 5 combos tested, ALL FAIL
+
+Requested after a 1-month break: re-run the regime-gated pullback test on
+**current** data (it had actually already been run on 2026-07-18 and failed —
+see the entry below — but a month had passed so the instruction was to treat
+nothing older as still valid and re-test fresh), plus a general refresh of
+the core strategy suite (supertrend, pullback, breakout, daily-trend
+Donchian) on BTCUSDT/ETHUSDT/SOLUSDT over the most recent available data.
+Same 4-criteria gauntlet as always (PF>1.3 & 100+ trades on the recent
+window; PF>1.3 & 100+ trades & positive on a second non-overlapping window;
+beats buy-and-hold on both; net positive at 1.5x fees).
+
+**Result: all 5 candidates failed. Nothing cleared the bar. `EDGE_EVIDENCE.md`
+was not created.**
+
+New/updated scripts: `scripts/freshGauntlet.cjs` (new — supertrend/pullback/
+breakout/daily-trend through the same 4-criteria gauntlet, basket-level
+across BTC/ETH/SOL, two non-overlapping 120-day windows). Note for future
+reuse: the per-candle strategy functions in `strategyLogic.cjs` recompute
+full-history indicator series on every call — fine at the data volumes
+those functions were originally used at, but an O(n²) trap once you feed it
+~80k 5m candles (a 290-day lookback). `freshGauntlet.cjs` precomputes
+indicator series once per symbol instead; a first attempt without that fix
+burned 8+ CPU-minutes without finishing and had to be killed.
+`scripts/backtestRegimeGatedPullback.cjs` was rerun unmodified with
+`--no-cache` for fresh data (same script from 2026-07-18, no spec changes).
+
+### Basket-level results (3-symbol equal-weight portfolio, this is what the gauntlet criteria are actually evaluated against)
+
+| Strategy | Window | Trades | Win% | PF | Net% (portfolio) | Buy-hold | Passes all 4? |
+|---|---|---:|---:|---:|---:|---:|---|
+| supertrend | W1 (120d, recent) | 838 | 34.0% | 0.68 | -41.79% | -17.48% | **N** |
+| supertrend | W2 (120d, prior) | 1788 | 38.6% | 0.76 | -61.64% | -20.72% | **N** |
+| pullback | W1 (120d, recent) | 434 | 38.2% | 0.96 | -4.89% | -17.22% | **N** |
+| pullback | W2 (120d, prior) | 521 | 36.7% | 0.83 | -28.51% | -21.21% | **N** |
+| breakout | W1 (120d, recent) | 1137 | 24.4% | 0.51 | -58.31% | -17.22% | **N** |
+| breakout | W2 (120d, prior) | 1148 | 27.8% | 0.70 | -48.63% | -21.21% | **N** |
+| daily-trend (Donchian) | W1 (120d, recent) | 7 | 28.6% | 1.11 | +0.14% | -16.38% | **N** (only 7 trades, needs 100+) |
+| daily-trend (Donchian) | W2 (120d, prior) | 10 | 40.0% | 1.05 | +0.06% | -22.34% | **N** (only 10 trades) |
+| regime-gated pullback | W1 (180d, recent) | 620 | 35.8% | 0.88 | -13.54% | -8.02% | **N** (misses buy-hold too, first time) |
+| regime-gated pullback | W2 (180d, prior) | 628 | 32.6% | 0.84 | -17.27% | -49.12% | **N** |
+
+Fee stress (1.5x): supertrend PF 0.60 / -90.11%; pullback PF 0.87 / -40.33%;
+breakout PF 0.43 / -96.75%; daily-trend PF 0.87 / -0.63%; regime-gated PF
+0.78 / -59.04% (pooled) / -25.02% (portfolio). All net negative under stress
+— criterion 4 fails across the board too, so this isn't a close call on any
+single criterion for any candidate.
+
+**Per-candidate verdict:**
+- **supertrend, breakout:** fail every criterion, badly (PF well under 1,
+  breakout's win rate ~24-28% is the worst of the set).
+- **pullback:** closest of the intraday three — window 1 basket PF 0.96,
+  SOLUSDT alone hit PF 1.14 / +16.72% in window 1 — but window 2 falls to
+  PF 0.83 / -28.51% (fails criterion 2 outright) and the basket never beats
+  buy-and-hold in either window. Per the gauntlet's own rule, a good
+  single-symbol/single-window result does not override a basket/second-window
+  failure.
+- **daily-trend:** structurally can't pass at this window length — Donchian
+  breakout on daily candles trades a handful of times per 120 days by
+  design, nowhere near the 100-trade minimum. It's the only strategy whose
+  return beat buy-and-hold in both windows (roughly flat vs. buy-hold's
+  double-digit losses), but "roughly flat, low sample" isn't evidence of
+  edge, it's evidence of barely trading during a bad stretch for the
+  underlying asset.
+- **regime-gated pullback:** fails all four again, and this time also misses
+  beating buy-and-hold in window 1 (-13.54% vs. -8.02%) — last month's test
+  only passed that sub-criterion because the benchmark itself was down
+  -39.32%. See market-conditions note below.
+
+### Market conditions this month vs. a month ago
+
+Not a regime flip, but the shape of the drawdown moved in time. Comparing
+the two regime-gated-pullback runs (same script, same symbols, 180-day
+windows measured from "now"):
+
+| | 2026-07-18 run | 2026-08-16 run |
+|---|---|---|
+| Window 1 (most recent 180d) buy-hold | -39.32% | -8.02% |
+| Window 2 (prior 180d) buy-hold | -20.30% | -49.12% |
+
+A month ago, the sharpest part of the decline was still inside the "recent"
+window; now that same sharp decline has rolled into the "prior" window,
+and the most recent 180 days look much closer to flat/stabilizing. Net:
+still a down market across the full ~1-year lookback, no clear reversal to
+an uptrend, but the pace of the decline was front-loaded into the
+2025-08→2026-02 period specifically rather than being smooth. This matters
+for reading the regime-gated result: its apparent "beat buy-and-hold" in
+the prior test was mostly a function of testing against an unusually bad
+benchmark window, not the strategy improving.
+
+**Outcome: `EDGE_EVIDENCE.md` was not created. `I_HAVE_A_BACKTESTED_EDGE`
+remains unset. No parameter tweaking was applied to any candidate — one
+run, one honest result per strategy, per the gauntlet's own rule.** This
+now makes six independent negative results on the pile since the
+2026-07-16 stand-down (five prior + this batch of five more tested in one
+sitting). If this comes up again, the default is unchanged: no live trading
+until a candidate genuinely clears all four criteria in one sitting, no
+exceptions for close calls or single-symbol wins.
 
 ## 2026-07-18 — "Regime-Gated Trend Pullback" hypothesis tested, FAILED
 
