@@ -28,6 +28,7 @@
  *   node scripts/backtestBroadTrend.cjs --top 40 --days 1095 --refresh   # fills the cache once
  *   node scripts/researchLowTurnover.cjs --days 1095
  *   node scripts/researchLowTurnover.cjs --days 1095 --venue perp --fee-mult 1.5
+ *   node scripts/researchLowTurnover.cjs --days 1095 --symbols BTCUSDT,ETHUSDT,SOLUSDT
  *
  * Execution model: a decision made on day t's close earns day t+1's return (no
  * lookahead). Costs are charged on every change in position size. Portfolios are
@@ -73,10 +74,12 @@ function parseArgs() {
     cacheDir: get("--cache", path.join(process.cwd(), "data/research/cache/broadtrend")),
     exclude: new Set(get("--exclude", DEFAULT_EXCLUDE.join(",")).split(",").filter(Boolean)),
     minDays: Number(get("--min-days", 365)),
+    // Optional allow-list, e.g. --symbols BTCUSDT,ETHUSDT,SOLUSDT (a small account can't hold 28 coins).
+    only: new Set(get("--symbols", "").split(",").filter(Boolean)),
   };
 }
 
-function loadUniverse(cacheDir, days, exclude, minDays) {
+function loadUniverse(cacheDir, days, exclude, minDays, only) {
   if (!fs.existsSync(cacheDir)) {
     throw new Error(`No candle cache at ${cacheDir}. Run: node scripts/backtestBroadTrend.cjs --top 40 --days ${days} --refresh`);
   }
@@ -86,6 +89,7 @@ function loadUniverse(cacheDir, days, exclude, minDays) {
     if (!file.endsWith(suffix)) continue;
     const symbol = file.slice(0, -suffix.length);
     if (exclude.has(symbol)) continue;
+    if (only && only.size && !only.has(symbol)) continue;
     const candles = JSON.parse(fs.readFileSync(path.join(cacheDir, file), "utf8"))
       .filter((c) => c.close > 0)
       .sort((a, b) => a.ts - b.ts);
@@ -261,7 +265,7 @@ function main() {
   const args = parseArgs();
   const venue = VENUES[args.venue];
   if (!venue) throw new Error(`--venue must be one of: ${Object.keys(VENUES).join(", ")}`);
-  const universe = loadUniverse(args.cacheDir, args.days, args.exclude, args.minDays);
+  const universe = loadUniverse(args.cacheDir, args.days, args.exclude, args.minDays, args.only);
   const symbols = Object.keys(universe).sort();
   if (!symbols.length) throw new Error("No usable symbols in cache.");
 
@@ -310,7 +314,7 @@ function main() {
 
   const outFile = path.join(process.cwd(), "data/research/reports/low-turnover-report.json");
   fs.mkdirSync(path.dirname(outFile), { recursive: true });
-  fs.writeFileSync(outFile, JSON.stringify({ generatedAt: new Date().toISOString(), args: { ...args, exclude: [...args.exclude] }, params: PARAMS, symbols, table }, null, 2));
+  fs.writeFileSync(outFile, JSON.stringify({ generatedAt: new Date().toISOString(), args: { ...args, exclude: [...args.exclude], only: [...args.only] }, params: PARAMS, symbols, table }, null, 2));
   console.log(`\nFull results written to ${outFile}`);
 }
 
