@@ -19,7 +19,11 @@ const https = require("https");
 const { dailyTrendSignalAt, DAILY_TREND_PARAMS } = require("./dailyTrendStrategy.cjs");
 const { atr } = require("./strategyLogic.cjs");
 
-const FEE_BPS_ROUND_TRIP = 14; // matters much less here given trade frequency, but included for honesty
+const FEE_BPS_ROUND_TRIP = 14; // round-trip taker fee + slippage, charged on the position's NOTIONAL
+// Perp funding isn't in daily candles. Charge a conservative flat cost on notional for every
+// day held, longs and shorts alike (Bybit's typical 0.01%/8h is ~3 bps/day; shorts often
+// receive it, so this overstates cost on shorts).
+const FUNDING_BPS_PER_DAY = 3;
 
 function parseArgs() {
   const args = process.argv.slice(2);
@@ -97,6 +101,7 @@ function runDailyTrendBacktest(candles, params, sizingConfig = { mode: "risk-bas
   let maxDD = 0;
   let liquidationRiskCount = 0;
   let position = null;
+  let exposureDays = 0; // sum of notional-as-fraction-of-equity x days held
 
   // Liquidation happens roughly when the adverse move reaches 1/leverage (before fees/funding).
   // Leave a safety margin — treat anything past 80% of that threshold as genuinely at risk.
@@ -121,26 +126,35 @@ function runDailyTrendBacktest(candles, params, sizingConfig = { mode: "risk-bas
         const stopDistancePct = Math.abs(position.entryPrice - position.stopPrice) / position.entryPrice;
 
         let pnlFraction;
+        let notionalFraction;
         if (sizingConfig.mode === "full-notional") {
           // Full notional deployed every trade (capital x leverage). Return scales directly
           // with leverage — this is the "use the whole 64" mode, at the cost of risk per
           // trade now varying with volatility instead of staying fixed.
-          pnlFraction = priceDelta * sizingConfig.leverage - FEE_BPS_ROUND_TRIP / 10000;
+          notionalFraction = sizingConfig.leverage;
+          pnlFraction = priceDelta * notionalFraction;
           if (stopDistancePct >= liquidationThresholdPct) {
             liquidationRiskCount++;
             position.liquidationRisk = true;
           }
         } else {
           // risk-based (default): same $ risk per trade regardless of current volatility
-          pnlFraction = (priceDelta / stopDistancePct) * params.riskPerTradePct - FEE_BPS_ROUND_TRIP / 10000;
+          // Position notional as a fraction of equity is riskPct / stopDistancePct (e.g. 1% risk
+          // with an 8% stop = 12.5% of equity). Fees scale with that notional, not with equity —
+          // charging FEE_BPS_ROUND_TRIP against full equity overstated costs ~8x at 1% risk.
+          notionalFraction = params.riskPerTradePct / stopDistancePct;
+          pnlFraction = priceDelta * notionalFraction;
         }
+        const heldDays = i - position.entryIdx;
+        pnlFraction -= notionalFraction * (FEE_BPS_ROUND_TRIP + FUNDING_BPS_PER_DAY * heldDays) / 10000;
+        exposureDays += notionalFraction * heldDays;
 
         equity *= (1 + pnlFraction);
         peak = Math.max(peak, equity);
         maxDD = Math.max(maxDD, (peak - equity) / peak);
         trades.push({
           side: position.side, entryIdx: position.entryIdx, exitIdx: i, exitReason,
-          heldDays: i - position.entryIdx, pnlFraction, stopDistancePct: +(stopDistancePct * 100).toFixed(2),
+          heldDays, notionalFraction, pnlFraction, stopDistancePct: +(stopDistancePct * 100).toFixed(2),
           liquidationRisk: !!position.liquidationRisk,
         });
         position = null;
@@ -157,11 +171,12 @@ function runDailyTrendBacktest(candles, params, sizingConfig = { mode: "risk-bas
     }
   }
 
-  return { trades, finalEquity: equity, maxDD, liquidationRiskCount };
+  const tradableDays = Math.max(1, candles.length - (params.entryLookback + 1));
+  return { trades, finalEquity: equity, maxDD, liquidationRiskCount, avgExposure: exposureDays / tradableDays };
 }
 
 function summarize(result) {
-  const { trades, finalEquity, maxDD } = result;
+  const { trades, finalEquity, maxDD, avgExposure } = result;
   if (!trades.length) return { tradeCount: 0 };
   const wins = trades.filter((t) => t.pnlFraction > 0);
   const losses = trades.filter((t) => t.pnlFraction <= 0);
@@ -175,6 +190,9 @@ function summarize(result) {
     profitFactor: profitFactor === Infinity ? "inf" : +profitFactor.toFixed(2),
     maxDrawdownPct: +(maxDD * 100).toFixed(2),
     avgHeldDays: +(trades.reduce((a, t) => a + t.heldDays, 0) / trades.length).toFixed(1),
+    // Average notional exposure as a fraction of equity over the whole window (buy-and-hold = 1).
+    // Compare returns against buy-and-hold scaled by this, not raw buy-and-hold.
+    avgExposure: +(avgExposure || 0).toFixed(3),
   };
 }
 
@@ -202,6 +220,7 @@ async function main() {
 
   const buyHoldPct = +(((candles[candles.length - 1].close - candles[0].close) / candles[0].close) * 100).toFixed(2);
   console.log(`\nBuy-and-hold benchmark over the same ${args.days} days: ${buyHoldPct}% (just holding ${args.symbol} spot, no trading at all)`);
+  console.log(`Buy-and-hold at the strategy's average exposure (${summary.avgExposure}x): ${(buyHoldPct * summary.avgExposure).toFixed(2)}% — the like-for-like comparison`);
 
   if (args.sizingMode === "full-notional" && result.liquidationRiskCount > 0) {
     console.log(`\n⚠ WARNING: ${result.liquidationRiskCount} of ${result.trades.length} trades had a stop-loss distance wide enough that`);
