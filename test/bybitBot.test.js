@@ -8,6 +8,16 @@ const os = require("node:os");
 const path = require("node:path");
 const packageJson = require("../package.json");
 
+// The mainnet edge guard in src/config.js needs I_HAVE_A_BACKTESTED_EDGE=true and an
+// EDGE_EVIDENCE.md in the repo root. Satisfy it in-memory so the existing live-config
+// tests keep exercising config mapping; testMainnetEdgeGuardBlocksWithoutEvidence
+// covers the guard itself. Never create the real file from a test.
+const EDGE_EVIDENCE_PATH = path.join(__dirname, "..", "EDGE_EVIDENCE.md");
+const realExistsSync = fs.existsSync;
+let fakeEdgeEvidence = true;
+fs.existsSync = (target) => (fakeEdgeEvidence && path.resolve(String(target)) === EDGE_EVIDENCE_PATH ? true : realExistsSync(target));
+process.env.I_HAVE_A_BACKTESTED_EDGE = "true";
+
 const { BybitClient, intervalForApi, normalizedOrderStatus, parseUnifiedUsdtBalance, queryString } = require("../src/bybitClient");
 const { LadderBot } = require("../src/bot");
 const { loadConfig } = require("../src/config");
@@ -6109,7 +6119,33 @@ async function testV14TrendPyramidingDuplicateAndBudgetGuards() {
   assert.match(budget.reason, /deployable capital budget/);
 }
 
+function testMainnetEdgeGuardBlocksWithoutEvidence() {
+  const liveEnv = {
+    BYBIT_API_KEY: "live-key",
+    BYBIT_API_SECRET: "live-secret",
+    BYBIT_DEMO_TRADING: "false",
+    BYBIT_TESTNET: "false",
+    DRY_RUN: "false",
+    ACKNOWLEDGE_LIVE_TRADING: "true",
+    BYBIT_REST_BASE_URL: "",
+    BYBIT_WS_BASE_URL: "",
+    BYBIT_PUBLIC_WS_BASE_URL: "",
+    BYBIT_PRIVATE_WS_BASE_URL: "",
+  };
+  assert.throws(
+    () => withEnv({ ...liveEnv, I_HAVE_A_BACKTESTED_EDGE: undefined }, () => loadConfig()),
+    /requires I_HAVE_A_BACKTESTED_EDGE=true/
+  );
+  fakeEdgeEvidence = false;
+  try {
+    assert.throws(() => withEnv(liveEnv, () => loadConfig()), /requires EDGE_EVIDENCE\.md/);
+  } finally {
+    fakeEdgeEvidence = true;
+  }
+}
+
 async function run() {
+  testMainnetEdgeGuardBlocksWithoutEvidence();
   await testDemoTradingConfigUsesDemoOnlyEndpoints();
   await testLiveValidationConfigGuards();
   await testLiveValidationStartupChecksProceedWithoutOrders();

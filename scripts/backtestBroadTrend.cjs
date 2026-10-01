@@ -123,7 +123,8 @@ function robustnessCheck(candles, sizingConfig) {
   const firstHalf = candles.slice(0, mid);
   const secondHalf = candles.slice(mid);
 
-  const rFull = summarize(runDailyTrendBacktest(candles, DAILY_TREND_PARAMS, sizingConfig));
+  const fullRun = runDailyTrendBacktest(candles, DAILY_TREND_PARAMS, sizingConfig);
+  const rFull = { ...summarize(fullRun), trades: fullRun.trades.map((t) => ({ side: t.side, heldDays: t.heldDays, pnlFraction: t.pnlFraction })) };
   const r1 = summarize(runDailyTrendBacktest(firstHalf, DAILY_TREND_PARAMS, sizingConfig));
   const r2 = summarize(runDailyTrendBacktest(secondHalf, DAILY_TREND_PARAMS, sizingConfig));
 
@@ -181,7 +182,24 @@ async function main() {
   const totalTrades = allTrades.reduce((a, b) => a + b, 0);
   console.log(`  Avg strategy net return per symbol: ${avgNet.toFixed(2)}%`);
   console.log(`  Avg buy-and-hold return per symbol: ${avgBuyHold.toFixed(2)}%`);
+  // The strategy risks 1%/trade, so it typically holds ~5-15% notional exposure on average while
+  // buy-and-hold holds 100%. Raw "strategy vs buy-and-hold" mixes edge with exposure; this line
+  // scales buy-and-hold down to the strategy's own average exposure per symbol.
+  const avgExposure = results.reduce((a, r) => a + (r.full.avgExposure || 0), 0) / results.length;
+  const avgScaledBuyHold = results.reduce((a, r) => a + r.buyHoldPct * (r.full.avgExposure || 0), 0) / results.length;
+  console.log(`  Avg strategy notional exposure: ${avgExposure.toFixed(3)}x equity (buy-and-hold = 1x)`);
+  console.log(`  Avg buy-and-hold scaled to that exposure: ${avgScaledBuyHold.toFixed(2)}% (like-for-like benchmark)`);
   console.log(`  Total trades across universe: ${totalTrades}`);
+
+  // Per-symbol halves have ~10-15 trades each — too few to tell edge from noise either way.
+  // Pool every trade across the universe and ask whether the mean is reliably above zero.
+  const pooled = results.flatMap((r) => r.full.trades || []).map((t) => t.pnlFraction);
+  if (pooled.length > 1) {
+    const mean = pooled.reduce((a, b) => a + b, 0) / pooled.length;
+    const sd = Math.sqrt(pooled.reduce((a, b) => a + (b - mean) ** 2, 0) / (pooled.length - 1));
+    const tStat = mean / (sd / Math.sqrt(pooled.length));
+    console.log(`  Pooled per-trade mean: ${(mean * 100).toFixed(3)}% of equity over ${pooled.length} trades, t-stat ${tStat.toFixed(2)} (|t| > 2 ≈ unlikely to be pure noise; symbols are correlated, so treat as optimistic)`);
+  }
   console.log(`  Symbols with robust edge (both halves): ${robustSymbols.length} / ${results.length} (${((robustSymbols.length / results.length) * 100).toFixed(1)}%)`);
 
   const expectedFalsePositiveRate = 0.05; // rough: how many would pass a loose bar by pure chance
