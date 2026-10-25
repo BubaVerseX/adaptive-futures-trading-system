@@ -1,0 +1,84 @@
+"use strict";
+
+/**
+ * Position sizing and the hard stops: max open positions, a cash reserve for
+ * rent/fees, a daily loss limit (trading halts for the rest of the UTC day), and a
+ * pause after a losing streak.
+ */
+class RiskManager {
+  constructor(risk, startSol) {
+    this.r = risk;
+    this.startSol = startSol;
+    this.dayKey = null;
+    this.realizedToday = 0;
+    this.realizedTotal = 0;
+    this.feesOnlyTotal = 0;
+    this.lossStreak = 0;
+    this.pausedUntil = 0;
+    this.halted = false;
+    this.trades = 0;
+    this.wins = 0;
+    this.losses = 0;
+  }
+
+  rollDay(nowMs) {
+    const k = new Date(nowMs).toISOString().slice(0, 10);
+    if (k !== this.dayKey) {
+      this.dayKey = k;
+      this.realizedToday = 0;
+      this.halted = false;
+    }
+  }
+
+  dailyLimitSol() {
+    return (this.startSol * this.r.dailyLossLimitPct) / 100;
+  }
+
+  canEnter(nowMs, openCount, availableSol) {
+    this.rollDay(nowMs);
+    if (this.halted) return { ok: false, reason: "daily-loss-limit" };
+    if (nowMs < this.pausedUntil) return { ok: false, reason: "loss-streak-pause" };
+    if (openCount >= this.r.maxOpenPositions) return { ok: false, reason: "max-open" };
+    if (this.sizeFor(availableSol) <= 0) return { ok: false, reason: "insufficient-funds" };
+    return { ok: true };
+  }
+
+  sizeFor(availableSol) {
+    const free = availableSol - this.r.reserveSol;
+    if (free < this.r.minTradeSol) return 0;
+    const size = Math.min(this.r.maxTradeSol, Math.max(this.r.minTradeSol, free * this.r.tradeFractionOfFree));
+    return Math.min(size, free);
+  }
+
+  record(netSol, nowMs) {
+    this.rollDay(nowMs);
+    this.realizedToday += netSol;
+    this.realizedTotal += netSol;
+    if (this.realizedToday <= -this.dailyLimitSol()) this.halted = true;
+  }
+
+  onTradeClosed(netSol, nowMs) {
+    this.trades++;
+    if (netSol > 0) {
+      this.wins++;
+      this.lossStreak = 0;
+    } else {
+      this.losses++;
+      this.lossStreak++;
+      if (this.lossStreak >= this.r.lossStreak) {
+        this.pausedUntil = nowMs + this.r.lossStreakPauseMin * 60000;
+        this.lossStreak = 0;
+      }
+    }
+    this.record(netSol, nowMs);
+  }
+
+  // Failed transactions still cost their fee.
+  onFeesOnly(feeSol, nowMs) {
+    if (!(feeSol > 0)) return;
+    this.feesOnlyTotal += feeSol;
+    this.record(-feeSol, nowMs);
+  }
+}
+
+module.exports = { RiskManager };

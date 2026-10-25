@@ -35,3 +35,8 @@ models/
 *.jsonl
 gitleaks-report.json
 gitleaks-public-report.json
+
+# pump.fun bot: never commit wallets or stop files
+pump/wallet*.json
+*.wallet.json
+STOP_PUMP.txt
