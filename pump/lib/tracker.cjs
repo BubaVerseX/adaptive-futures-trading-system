@@ -59,7 +59,7 @@ class Tracker {
     this.derive = derive;
     this.tokens = new Map();
     this.tickCount = 0;
-    this.stats = { seen: 0, expired: 0, badLayout: 0 };
+    this.stats = { seen: 0, expired: 0, badLayout: 0, nonStandard: 0 };
   }
 
   add(evt, nowMs) {
@@ -140,6 +140,13 @@ class Tracker {
       this.stats.badLayout++; // pump.fun changed its account format: never trade on garbage
       return;
     }
+    if (!t.curve) {
+      // vSol - realSol and vSol * vTok are constant for a coin's whole life on the curve.
+      const base = dec.vSol - dec.realSol;
+      const k = dec.vSol * dec.vTok;
+      t.curve = { base: round(base, 6), k: Math.round(k), totalSupply: dec.totalSupply, standard: curve.isStandardCurve(base, k, dec.totalSupply) };
+      if (!t.curve.standard) this.stats.nonStandard++;
+    }
     t.polled = true;
     t.last = { vSol: dec.vSol, vTok: dec.vTok, realSol: dec.realSol, complete: dec.complete, t: nowMs };
     t.samples.push({ t: nowMs, realSol: dec.realSol });
@@ -205,7 +212,8 @@ class Tracker {
       vSol,
       vTok,
       price,
-      mcapSol: price * C.TOTAL_SUPPLY_TOKENS,
+      mcapSol: price * (t.curve ? t.curve.totalSupply : C.TOTAL_SUPPLY_TOKENS),
+      standardCurve: t.curve ? t.curve.standard : true,
       realSol,
       progress: curve.progressFromRealSol(realSol),
       complete: t.complete || t.last.complete,

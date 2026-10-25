@@ -62,13 +62,16 @@ function inspectTransaction(vtx, wallet, extraAllowed = []) {
   const keys = vtx.message.staticAccountKeys.map((k) => k.toBase58());
   const me = pk(wallet).toBase58();
   const unknown = new Set();
+  const harmless = new Set();
   const risky = [];
   let outflow = 0n;
   for (const ix of vtx.message.compiledInstructions) {
     const program = keys[ix.programIdIndex];
-    if (!allowed.has(program)) unknown.add(program);
     const data = Buffer.from(ix.data);
     const accounts = ix.accountKeyIndexes.map((i) => keys[i]);
+    // A program can only move the wallet's SOL or coins if the wallet (and so its
+    // signature) is passed to it. Unknown programs that never see the wallet can't.
+    if (!allowed.has(program)) (accounts.includes(me) ? unknown : harmless).add(program);
     if (!accounts.includes(me)) continue;
     if (program === C.SYSTEM_PROGRAM_ID) {
       const kind = data.length >= 4 ? data.readUInt32LE(0) : -1;
@@ -80,7 +83,7 @@ function inspectTransaction(vtx, wallet, extraAllowed = []) {
       else if (data[0] === 9 && accounts[1] !== me) risky.push("closes a token account into someone else's wallet");
     }
   }
-  return { outflowSol: Number(outflow) / C.LAMPORTS_PER_SOL, unknownPrograms: [...unknown], risky };
+  return { outflowSol: Number(outflow) / C.LAMPORTS_PER_SOL, unknownPrograms: [...unknown], harmlessPrograms: [...harmless].filter((p) => !unknown.has(p)), risky };
 }
 
 /**

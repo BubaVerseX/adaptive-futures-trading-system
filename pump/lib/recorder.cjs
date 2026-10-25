@@ -44,6 +44,7 @@ class Recorder {
       devSoldAgeMs: t.devSoldAtMs === null ? null : t.devSoldAtMs - t.createdAtMs,
       holders: t.holders,
       complete: t.complete,
+      curve: t.curve || null,
       maxRealSol: Math.round(t.maxRealSol * 1e4) / 1e4,
       path: t.path,
     };

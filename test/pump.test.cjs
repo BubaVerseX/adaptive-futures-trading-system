@@ -445,7 +445,45 @@ test("inspect: flags drains that are not plain transfers", () => {
   assert.equal(seeded.risky.length, 1, "createAccountWithSeed from the wallet is refused");
   const unknown = sol.inspectTransaction(buildTx(me, { extra: [new web3.TransactionInstruction({ programId: other, keys: [{ pubkey: me, isSigner: true, isWritable: true }], data: Buffer.from([1]) })] }), me);
   assert.deepEqual(unknown.unknownPrograms, [other.toBase58()]);
-  assert.deepEqual(sol.inspectTransaction(buildTx(me, { extra: [new web3.TransactionInstruction({ programId: other, keys: [], data: Buffer.alloc(0) })] }), me, [other.toBase58()]).unknownPrograms, []);
+  assert.deepEqual(sol.inspectTransaction(buildTx(me, { extra: [new web3.TransactionInstruction({ programId: other, keys: [{ pubkey: me, isSigner: true, isWritable: true }], data: Buffer.alloc(0) })] }), me, [other.toBase58()]).unknownPrograms, []);
+  // An unknown program that is never handed the wallet can't touch its SOL or coins.
+  const blind = sol.inspectTransaction(buildTx(me, { extra: [new web3.TransactionInstruction({ programId: other, keys: [{ pubkey: web3.Keypair.generate().publicKey, isSigner: false, isWritable: true }], data: Buffer.from([7]) })] }), me);
+  assert.deepEqual(blind.unknownPrograms, []);
+  assert.deepEqual(blind.harmlessPrograms, [other.toBase58()]);
+});
+
+test("live broker: an unknown program that never sees the wallet does not block a buy", async () => {
+  const cfg = cfgFor();
+  const kp = web3.Keypair.generate();
+  const mint = web3.Keypair.generate().publicKey.toBase58();
+  const net = mockNet(kp, mint, [{ status: "confirmed", meta: meta(kp.publicKey.toBase58(), mint, -0.0322, 0, 900) }]);
+  net.build({ extra: [new web3.TransactionInstruction({ programId: web3.Keypair.generate().publicKey, keys: [{ pubkey: web3.Keypair.generate().publicKey, isSigner: false, isWritable: false }], data: Buffer.from([1]) })] });
+  const r = await newBroker(cfg, kp, net).buy({ mint, sol: 0.03 });
+  assert.ok(r.ok, r.error);
+});
+
+test("curve: non-standard curves are detected, recorded and skipped by the strategy", async () => {
+  const cfg = cfgFor();
+  const tr = new Tracker(cfg, { bondingCurve: (m) => `c#${m}`, ata: () => "x" });
+  tr.add({ mint: "ODD", createdAtMs: 0 }, 0);
+  const vSol = 782.6, vTok = 1.073e9; // starts at ~729 SOL market cap with nothing bought
+  tr.ingest([{ key: "c#ODD", mint: "ODD", kind: "curve", account: { data: curve.encodeBondingCurve({ vSol, vTok, realSol: 0, realTok: 793.1e6 }), owner: C.PUMP_PROGRAM_ID } }], 1000);
+  const t = tr.tokens.get("ODD");
+  assert.equal(t.curve.standard, false);
+  assert.equal(tr.stats.nonStandard, 1);
+  const f = tr.features("ODD", 1000);
+  assert.equal(f.standardCurve, false);
+  assert.ok(strategy.preEntry({ ...baseFeatures(), standardCurve: false }, cfg.strategy).reasons.includes("non-standard-curve"));
+  assert.ok(!strategy.preEntry({ ...baseFeatures(), standardCurve: true }, cfg.strategy).reasons.includes("non-standard-curve"));
+  // Standard coin: recognised as such.
+  tr.add({ mint: "STD", createdAtMs: 0 }, 0);
+  tr.ingest([{ key: "c#STD", mint: "STD", kind: "curve", account: fakeAccount(2) }], 1000);
+  assert.equal(tr.tokens.get("STD").curve.standard, true);
+  // Replay rebuilds a recorded coin's reserves from its own curve parameters.
+  const { RecordedMarket } = require("../pump/lib/recordedMarket.cjs");
+  const m = new RecordedMarket([{ mint: "ODD", createdAtMs: 0, path: [[1000, 5]], curve: { base: 782.6, k: 782.6 * 1.073e9, totalSupply: 1e9 } }], { clock: () => 2000 });
+  const [acc] = await m.getAccounts(["curve#ODD"]);
+  near(curve.decodeBondingCurve(acc.data).vSol, 787.6, 1e-6);
 });
 
 test("live broker: buy is inspected, simulated, signed locally and booked from the chain", async () => {
@@ -473,7 +511,7 @@ test("live broker: refuses direct outflow, simulated drains, owner changes and u
     [(n) => n.build({ transferLamports: 0.5e9 }), /straight out/],
     [(n) => { n.state.simLoss = 0.5; }, /wallet would lose/],
     [(n) => { n.state.simOwner = web3.Keypair.generate().publicKey.toBase58(); }, /take over or close the wallet/],
-    [(n) => n.build({ extra: [new web3.TransactionInstruction({ programId: web3.Keypair.generate().publicKey, keys: [], data: Buffer.alloc(0) })] }), /unknown program/],
+    [(n) => n.build({ extra: [new web3.TransactionInstruction({ programId: web3.Keypair.generate().publicKey, keys: [{ pubkey: kp.publicKey, isSigner: true, isWritable: true }], data: Buffer.alloc(0) })] }), /unknown program/],
     [(n) => { n.state.simErr = { InstructionError: [2, { Custom: 6002 }] }; }, /would fail on-chain/],
   ];
   for (const [setup, msg] of cases) {

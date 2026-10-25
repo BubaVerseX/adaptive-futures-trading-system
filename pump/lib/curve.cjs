@@ -56,6 +56,11 @@ function reservesFromRealSol(realSol) {
   return { vSol, vTok: C.CURVE_K / vSol };
 }
 
+// Every standard pump.fun coin starts at 30 virtual SOL / 1.073B virtual tokens, 1B supply.
+function isStandardCurve(base, k, totalSupply) {
+  return Math.abs(base - C.INITIAL_VIRTUAL_SOL) < 0.5 && Math.abs(k / C.CURVE_K - 1) < 0.02 && Math.abs(totalSupply - C.TOTAL_SUPPLY_TOKENS) < 1e6;
+}
+
 function progressFromRealSol(realSol) {
   return Math.min(1, Math.max(0, realSol / C.GRADUATION_REAL_SOL));
 }
@@ -74,6 +79,7 @@ module.exports = {
   quoteBuyTokens,
   quoteSellSol,
   reservesFromRealSol,
+  isStandardCurve,
   progressFromRealSol,
   liquidationValueSol,
 };

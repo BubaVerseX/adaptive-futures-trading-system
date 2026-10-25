@@ -16,6 +16,8 @@ function preEntry(f, s) {
   if (f.drawdownFromPeakPct > s.maxDrawdownFromPeakPct) reasons.push("off-peak");
   if (f.devBuySol !== null && f.devBuySol !== undefined && f.devBuySol > s.maxDevBuySol) reasons.push("big-dev-buy");
   if (f.devSold) reasons.push("dev-sold");
+  // Thresholds are calibrated for pump.fun's standard curve; anything else is skipped.
+  if (s.requireStandardCurve && f.standardCurve === false) reasons.push("non-standard-curve");
   return { ok: reasons.length === 0, reasons };
 }
 

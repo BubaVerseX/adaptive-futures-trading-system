@@ -30,6 +30,7 @@ const DEFAULT_STRATEGY = {
   maxHoldSec: 420,
   outflowExitPct: 20, // real SOL in the curve fell this far from its peak since entry
   exitProgress: 0.9, // sell before graduation to PumpSwap
+  requireStandardCurve: 1, // 1 = only coins on pump.fun's standard curve (30 SOL / 1.073B virtual)
 };
 
 const DEFAULT_COSTS = {

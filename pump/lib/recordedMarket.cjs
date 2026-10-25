@@ -68,10 +68,20 @@ class RecordedMarket {
     const age = now - r.createdAtMs;
     const rs = this.realSolAt(r, age);
     if (rs === null) return null;
-    const { vSol, vTok } = curve.reservesFromRealSol(rs);
+    const { vSol, vTok } = this.reserves(r, rs);
     const complete = !!r.complete && age >= r.path[r.path.length - 1][0];
     const realTok = Math.max(0, vTok - (C.INITIAL_VIRTUAL_TOKENS - C.INITIAL_REAL_TOKENS));
-    return { data: curve.encodeBondingCurve({ vSol, vTok, realSol: rs, realTok, complete }), owner: C.PUMP_PROGRAM_ID };
+    const totalSupply = r.curve && r.curve.totalSupply ? r.curve.totalSupply : C.TOTAL_SUPPLY_TOKENS;
+    return { data: curve.encodeBondingCurve({ vSol, vTok, realSol: rs, realTok, totalSupply, complete }), owner: C.PUMP_PROGRAM_ID };
+  }
+
+  // Exact reserves from the coin's own curve parameters (recorded), else the standard curve.
+  reserves(r, realSol) {
+    if (r.curve && r.curve.base > 0 && r.curve.k > 0) {
+      const vSol = r.curve.base + Math.max(0, realSol);
+      return { vSol, vTok: r.curve.k / vSol };
+    }
+    return curve.reservesFromRealSol(realSol);
   }
 
   devAccount(r, now) {
@@ -113,7 +123,7 @@ class RecordedMarket {
     }
     const age = this.clock() - r.createdAtMs;
     const rs = this.realSolAt(r, age) || 0;
-    const { vTok } = curve.reservesFromRealSol(rs);
+    const { vTok } = this.reserves(r, rs);
     const rows = [{ address: this.derive.ata(this.derive.bondingCurve(mint), mint), uiAmount: vTok - (C.INITIAL_VIRTUAL_TOKENS - C.TOTAL_SUPPLY_TOKENS) }];
     rows.push({ address: `holder#1#${mint}`, uiAmount: (top1 / 100) * C.TOTAL_SUPPLY_TOKENS });
     for (let i = 2; i <= 10; i++) rows.push({ address: `holder#${i}#${mint}`, uiAmount: (rest / 100) * C.TOTAL_SUPPLY_TOKENS });

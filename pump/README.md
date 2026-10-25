@@ -25,12 +25,15 @@ cd ~/adaptive-futures-trading-system
 git fetch origin && git checkout pump-bot && npm install
 ```
 
-Get a free Solana RPC (the public one is slow and rate-limited): sign up at
-helius.dev, copy your mainnet RPC URL, and add it to `.env` in this folder:
+Get a free Solana RPC (the public one blocks the holder check): sign up at
+helius.dev, copy your mainnet RPC link, then run this and paste it when asked:
 
+```bash
+node pump/bot.cjs --set-rpc
 ```
-SOLANA_RPC_URL=https://mainnet.helius-rpc.com/?api-key=YOUR_KEY
-```
+
+If PumpPortal's coin feed is down, find new coins straight from Solana instead:
+`echo 'PUMP_DISCOVERY=rpc' >> .env`
 
 Then test everything (spends nothing):
 

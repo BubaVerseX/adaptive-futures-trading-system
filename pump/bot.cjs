@@ -4,7 +4,7 @@
 require("dotenv").config();
 const fs = require("fs");
 const path = require("path");
-const { loadConfig } = require("./lib/config.cjs");
+const { loadConfig, REPO_ROOT } = require("./lib/config.cjs");
 const C = require("./lib/constants.cjs");
 const curve = require("./lib/curve.cjs");
 const sol = require("./lib/solana.cjs");
@@ -30,6 +30,7 @@ function log(level, msg) {
 const HELP = `pump.fun momentum bot
 
   node pump/bot.cjs                 paper trading with fake SOL on live data (default)
+  node pump/bot.cjs --set-rpc       paste your Helius (or other) RPC link; it is tested and saved to .env
   node pump/bot.cjs --check         test RPC, coin feed, on-chain reads and the trade API (spends nothing)
   node pump/bot.cjs --new-wallet    create the bot's own wallet (fund it with only what you can lose)
   node pump/bot.cjs --wallet        show the bot wallet's address, balance and coins
@@ -48,6 +49,10 @@ function parseArgs(argv) {
     if (k === "--live") a.live = true;
     else if (k === "--paper") a.paper = true;
     else if (k === "--check") a.check = true;
+    else if (k === "--set-rpc") {
+      a.setRpc = true;
+      if (argv[i + 1] && !argv[i + 1].startsWith("--")) a.rpcUrl = argv[++i];
+    }
     else if (k === "--new-wallet") a.newWallet = true;
     else if (k === "--wallet") a.wallet = true;
     else if (k === "--sell-all") a.sellAll = true;
@@ -113,7 +118,8 @@ function status(engine, broker, risk, tracker, price, startEquity) {
   log(
     "info",
     `${broker.mode.toUpperCase()} | equity ${equity.toFixed(4)} SOL${price.fmt(equity)} | P&L ${signed(pnl)} SOL${price.fmt(pnl)} | open ${engine.positions.size} | ` +
-      `trades ${risk.trades} (W${risk.wins}/L${risk.losses}) | watching ${tracker.tokens.size} of ${tracker.stats.seen} coins seen${gate}`
+      `trades ${risk.trades} (W${risk.wins}/L${risk.losses}) | watching ${tracker.tokens.size} of ${tracker.stats.seen} coins seen` +
+      `${tracker.stats.nonStandard ? ` (${tracker.stats.nonStandard} odd-curve skipped)` : ""}${gate}`
   );
 }
 
@@ -248,51 +254,66 @@ async function check(cfg) {
 
   console.log(`2) New-coin feed (${cfg.discovery})`);
   const feed = makeFeed(cfg, conn);
-  const first = await new Promise((resolve) => {
-    const timer = setTimeout(() => resolve(null), 45000);
+  const coins = await new Promise((resolve) => {
+    const got = [];
+    const timer = setTimeout(() => resolve(got), 45000);
     feed.on("status", (s) => console.log(`        ${s}`));
-    feed.on("create", (e) => { clearTimeout(timer); resolve(e); });
+    feed.on("create", (e) => {
+      got.push(e);
+      if (got.length >= 3) { clearTimeout(timer); resolve(got); }
+    });
     feed.start();
   });
   feed.stop();
-  if (!first) fail("no new coin within 45s (try PUMP_DISCOVERY=rpc or set PUMPPORTAL_API_KEY)");
-  else pass(`new coin ${first.symbol || "?"} ${first.mint} (dev bought ${Number.isFinite(first.devBuySol) ? first.devBuySol : "?"} SOL)`);
+  if (!coins.length) fail("no new coin within 45s (try PUMP_DISCOVERY=rpc or set PUMPPORTAL_API_KEY)");
+  else pass(`${coins.length} new coin(s) seen`);
 
-  if (first) {
-    console.log("3) Reading that coin's bonding curve on-chain");
-    const derived = sol.bondingCurveAddress(first.mint);
-    if (first.bondingCurve && first.bondingCurve !== derived) fail(`curve address mismatch: feed ${first.bondingCurve}, derived ${derived}`);
-    let acc = null;
-    for (let i = 0; i < 12 && !acc; i++) {
-      [acc] = await sol.getAccounts(conn, [derived]).catch(() => [null]);
-      if (!acc) await sleep(800);
-    }
-    let vTok = null;
-    if (!acc) fail("bonding curve account not found");
-    else {
-      const d = curve.decodeBondingCurve(acc.data);
-      if (!d || !d.discriminatorOk) fail("unexpected bonding curve layout (pump.fun may have changed it)");
-      else if (!(d.vSol >= 29 && d.vTok <= 1.0731e9 && d.vTok > 1e8)) fail(`reserves look wrong: ${d.vSol} SOL / ${d.vTok} tokens`);
-      else {
-        vTok = d.vTok;
-        pass(`${d.realSol.toFixed(3)} SOL in the curve, market cap ${curve.mcapSol(d.vSol, d.vTok).toFixed(1)} SOL, graduated: ${d.complete}`);
+  let first = null, firstVTok = null;
+  if (coins.length) {
+    console.log("3) Reading their bonding curves on-chain");
+    await sleep(1500);
+    for (const c of coins) {
+      const derived = sol.bondingCurveAddress(c.mint);
+      if (c.bondingCurve && c.bondingCurve !== derived) fail(`curve address mismatch for ${c.mint}: feed ${c.bondingCurve}, derived ${derived}`);
+      let accs = [null, null];
+      for (let i = 0; i < 10 && !accs[0]; i++) {
+        accs = await sol.getAccounts(conn, [derived, c.mint]).catch(() => [null, null]);
+        if (!accs[0]) await sleep(800);
       }
+      const [acc, mintAcc] = accs;
+      const d = acc && curve.decodeBondingCurve(acc.data);
+      if (!d || !d.discriminatorOk) { fail(`${c.mint}: bonding curve ${acc ? "has an unexpected layout" : "not found"}`); continue; }
+      const base = d.vSol - d.realSol;
+      const std = curve.isStandardCurve(base, d.vSol * d.vTok, d.totalSupply);
+      const decimals = mintAcc && mintAcc.data.length > 44 ? mintAcc.data[44] : "?";
+      const program = mintAcc ? (mintAcc.owner === C.TOKEN_2022_PROGRAM_ID ? "Token-2022" : mintAcc.owner === C.TOKEN_PROGRAM_ID ? "Token" : mintAcc.owner) : "?";
+      pass(`${c.mint.slice(0, 8)}… ${std ? "standard curve" : "NON-STANDARD curve (the bot skips these)"}: ` +
+        `${d.realSol.toFixed(3)} SOL in, virtual ${d.vSol.toFixed(3)} SOL / ${(d.vTok / 1e6).toFixed(2)}M tokens, supply ${(d.totalSupply / 1e6).toFixed(0)}M, ${decimals} decimals, ${program}`);
+      if (!first && std) { first = c; firstVTok = d.vTok; }
+    }
+    if (!first) {
+      console.log("        none of these coins use the standard curve; checking the rest with the first one anyway");
+      first = coins[0];
     }
     try {
-      const h = summarizeHolders(await sol.getLargestHolders(conn, first.mint), { curveBalance: vTok ? curveTokenBalance(vTok) : null });
+      const h = summarizeHolders(await sol.getLargestHolders(conn, first.mint), {
+        curveAtas: [C.TOKEN_PROGRAM_ID, C.TOKEN_2022_PROGRAM_ID].map((p) => sol.ataAddress(sol.bondingCurveAddress(first.mint), first.mint, p)),
+        curveBalance: firstVTok ? curveTokenBalance(firstVTok) : null,
+      });
       pass(`holder check works (largest holder ${h.top1Pct}%, top 10 ${h.top10Pct}%)`);
     } catch (e) {
-      fail(`holder check failed: ${e.message} (a free Helius/QuickNode RPC usually fixes this)`);
+      fail(`holder check failed: ${String(e.message).slice(0, 120)} (the free public RPC blocks this; use a free Helius RPC)`);
     }
 
     console.log("4) PumpPortal trade API (builds a transaction; nothing is signed or sent)");
     const who = fs.existsSync(cfg.walletFile) ? loadWallet(cfg.walletFile).publicKey : sol.web3.Keypair.generate().publicKey;
     try {
       const r = await tradeApiCheck(cfg, first.mint, who, conn);
-      const odd = [...r.ins.risky, ...r.ins.unknownPrograms.map((p) => `unknown program ${p}`)];
+      const odd = [...r.ins.risky, ...r.ins.unknownPrograms.map((p) => `unknown program ${p} is given the wallet's signature`)];
       if (r.ins.outflowSol > 0.001 * 1.03 + 0.006) fail(`the transaction sends ${r.ins.outflowSol} SOL straight out; the bot would refuse it`);
       else if (odd.length) fail(`the bot would refuse buys: ${odd.join("; ")}. Tell Claude; a program is only added after checking it`);
-      else pass(`transaction built and inspected (${r.instructions} instructions, only known programs)`);
+      else pass(`transaction built and inspected (${r.instructions} instructions)`);
+      for (const p of r.ins.harmlessPrograms) console.log(`        note: also calls ${p}, which never gets the wallet, so it can't move your SOL or coins`);
       if (r.sim && r.sim.ok) pass(`simulated: the wallet would spend ${r.sim.lossSol.toFixed(6)} SOL for a 0.001 SOL buy`);
       else console.log(`        simulation skipped (${r.sim && (r.sim.simErr || r.sim.error)}); normal before the wallet is funded`);
     } catch (e) {
@@ -392,6 +413,22 @@ async function withdraw(cfg, to, yes) {
   console.log(`sent: ${await broker.withdrawAll(to)}`);
 }
 
+// Asks for the RPC link at a prompt (no shell quoting to get wrong), tests it, saves it to .env.
+async function setRpc(url) {
+  if (!url) {
+    const rl = require("readline").createInterface({ input: process.stdin, output: process.stdout });
+    url = await new Promise((r) => rl.question("Paste your RPC link (from helius.dev) and press Enter: ", (x) => { rl.close(); r(x.trim()); }));
+  }
+  if (!/^https:\/\/\S+$/.test(url) || /PASTE|YOUR|abc123/i.test(url)) {
+    throw new Error("that is not a real RPC link: it should start with https:// and end with your own api-key");
+  }
+  const slot = await sol.connection(url).getSlot();
+  const envFile = path.join(REPO_ROOT, ".env");
+  const keep = fs.existsSync(envFile) ? fs.readFileSync(envFile, "utf8").split("\n").filter((l) => l.trim() && !l.startsWith("SOLANA_RPC_URL=")) : [];
+  fs.writeFileSync(envFile, [...keep, `SOLANA_RPC_URL=${url}`].join("\n") + "\n", { mode: 0o600 });
+  console.log(`Works (slot ${slot}). Saved to ${envFile}. Now run: node pump/bot.cjs --check`);
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) return console.log(HELP);
@@ -403,6 +440,7 @@ async function main() {
     console.log("Fund it by sending SOL on the Solana network to the address above, only what you can afford to lose.");
     return;
   }
+  if (args.setRpc) return setRpc(args.rpcUrl);
   if (args.check) return check(cfg);
   if (args.wallet) return walletInfo(cfg);
   if (args.sellAll) return sellAll(cfg);
