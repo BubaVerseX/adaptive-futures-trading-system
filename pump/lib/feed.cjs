@@ -126,6 +126,7 @@ function borsh(buf, offset) {
   return {
     u8: () => buf[take(1)],
     u64: () => Number(buf.readBigUInt64LE(take(8))),
+    i64: () => Number(buf.readBigInt64LE(take(8))),
     key: () => base58Encode(buf.subarray(take(32), o)),
     str: () => {
       const n = buf.readUInt32LE(take(4));
@@ -142,10 +143,40 @@ function decodeCreateEvent(data) {
   return { name: r.str(), symbol: r.str(), uri: r.str(), mint: r.key(), bondingCurve: r.key(), user: r.key() };
 }
 
-// pump.fun TradeEvent starts mint, sol_amount, token_amount, is_buy, user (more appended).
+// pump.fun TradeEvent starts mint, sol_amount, token_amount, is_buy, user, then timestamp
+// and the curve's reserves after the trade (more fields appended after those).
 function decodeTradeEvent(data) {
   const r = borsh(data, 8);
-  return { mint: r.key(), solAmount: r.u64() / C.LAMPORTS_PER_SOL, tokenAmount: r.u64() / C.TOKEN_UNIT, isBuy: r.u8() === 1, user: r.key() };
+  const e = { mint: r.key(), solAmount: r.u64() / C.LAMPORTS_PER_SOL, tokenAmount: r.u64() / C.TOKEN_UNIT, isBuy: r.u8() === 1, user: r.key() };
+  try {
+    e.timestamp = r.i64();
+    e.vSol = r.u64() / C.LAMPORTS_PER_SOL;
+    e.vTok = r.u64() / C.TOKEN_UNIT;
+    e.realSol = r.u64() / C.LAMPORTS_PER_SOL;
+  } catch (_) { /* an older, shorter layout: the leading fields are enough */ }
+  return e;
+}
+
+// This wallet's own pump.fun trades of `mint` in a transaction, from its logged events:
+// SOL and coins moved, and the price just before them (what the curve showed when they filled).
+function walletFill(logs, mint, wallet, isBuy) {
+  const events = [];
+  for (const data of pumpEventData(logs)) {
+    if (!data.subarray(0, 8).equals(TRADE_EVENT)) continue;
+    try {
+      const e = decodeTradeEvent(data);
+      if (e.mint === mint && e.user === wallet && e.isBuy === isBuy) events.push(e);
+    } catch (_) { /* unreadable event */ }
+  }
+  if (!events.length) return null;
+  const sol = events.reduce((a, e) => a + e.solAmount, 0);
+  const tokens = events.reduce((a, e) => a + e.tokenAmount, 0);
+  const last = events[events.length - 1];
+  const out = { sol, tokens, avgPrice: tokens > 0 ? sol / tokens : null, fillPrice: null, realSolAfter: last.realSol };
+  if (last.vSol > 0 && last.vTok > 0) {
+    out.fillPrice = isBuy ? (last.vSol - sol) / (last.vTok + tokens) : (last.vSol + sol) / (last.vTok - tokens);
+  }
+  return out;
 }
 
 // "Program data:" lines logged by the pump.fun program itself. The invoke stack tells
@@ -332,4 +363,4 @@ class RpcLogsFeed extends EventEmitter {
   }
 }
 
-module.exports = { PumpPortalFeed, RpcLogsFeed, normalizeCreate, parseCreateTx, parseCreateLogs, CREATE_EVENT, TRADE_EVENT };
+module.exports = { PumpPortalFeed, RpcLogsFeed, normalizeCreate, parseCreateTx, parseCreateLogs, walletFill, CREATE_EVENT, TRADE_EVENT };

@@ -157,7 +157,7 @@ async function run(cfg, args) {
   if (live) requireLive(cfg);
   const conn = sol.connection(cfg.rpcUrl);
   const poller = new sol.AccountPoller({ main: conn, free: cfg.pollRpcUrl ? sol.connection(cfg.pollRpcUrl, { retryOnRateLimit: false }) : null });
-  const rpc = { getAccounts: (keys) => poller.getAccounts(keys), getLargestHolders: (mint) => sol.getLargestHolders(conn, mint) };
+  const rpc = { getAccounts: (keys) => poller.getAccounts(keys), getLargestHolders: (mint) => sol.getLargestHolders(conn, mint), bestSlot: () => poller.bestSlot };
   const tracker = new Tracker(cfg, sol.derive);
   const price = new SolPrice(cfg.solUsdOverride);
   await price.refresh();

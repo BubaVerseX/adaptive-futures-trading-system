@@ -65,6 +65,12 @@ class Recorder {
     this.counts.trades++;
     this.append(`trades-${mode}-${dayOf(trade.closedAtMs || trade.openedAtMs)}.jsonl`, trade);
   }
+
+  // Buys that never became a position (slippage, refused, not landed): what they cost and why.
+  recordBuyFail(mode, row) {
+    this.counts.buyFails = (this.counts.buyFails || 0) + 1;
+    this.append(`buyfails-${mode}-${dayOf(row.atMs)}.jsonl`, row);
+  }
 }
 
 module.exports = { Recorder };

@@ -232,6 +232,7 @@ class AccountPoller {
         if (r.slot >= this.bestSlot - this.maxLagSlots) {
           this.seen(r.slot);
           this.stats.free++;
+          r.accounts.slot = r.slot;
           return r.accounts;
         }
         this.stats.stale++;
@@ -246,6 +247,7 @@ class AccountPoller {
     const r = await this.fetch(this.main, keys);
     this.seen(r.slot);
     this.stats.main++;
+    r.accounts.slot = r.slot;
     return r.accounts;
   }
 }

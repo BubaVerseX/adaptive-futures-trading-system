@@ -72,6 +72,7 @@ class Engine {
     if (targets.length) {
       try {
         const accounts = await this.rpc.getAccounts(targets.map((t) => t.key));
+        this.lastPoll = { slot: accounts.slot, atMs: nowMs };
         this.tracker.ingest(targets.map((t, i) => ({ ...t, account: accounts[i] })), nowMs);
       } catch (e) {
         this.stats.pollErrors++;
@@ -227,6 +228,12 @@ class Engine {
       this.stats.buyFails++;
       this.risk.onFeesOnly(res.feesSol || 0, now);
       this.log("trade", `  buy failed ${label(pos)}: ${res.error || "no tokens received"}`);
+      if (this.recorder && this.recorder.recordBuyFail) {
+        this.recorder.recordBuyFail(this.broker.mode, {
+          atMs: now, mint: pos.mint, symbol: pos.symbol, error: res.error || "no tokens received", decidedAtMs: pos.decidedAtMs,
+          sizeSol: r6(pos.sizeSol), feesSol: res.feesSol || 0, sig: res.sig || null, final: !!res.final, entry: pos.entry,
+        });
+      }
       // An unconfirmed transaction can still land later; look again before giving up on it.
       // (One that failed on-chain is final.)
       if (this.broker.tokenBalance && res.sig && !res.final) this.lateFillChecks.push({ mint: pos.mint, symbol: pos.symbol, sizeSol: pos.sizeSol, atMs: now, entry: pos.entry });
@@ -238,15 +245,25 @@ class Engine {
     pos.openedAtMs = now;
     pos.tokens = res.tokens;
     pos.costSol += res.solSpent;
-    pos.entryPrice = res.fillPrice || (f ? f.price : pos.decisionPrice);
+    // The price we really bought at (from the trade itself) when it is known and sane,
+    // else the curve's price right now.
+    const real = res.fillPrice > 0 && Math.abs(res.fillPrice / pos.decisionPrice - 1) <= 0.3;
+    pos.entryPrice = real ? res.fillPrice : f ? f.price : pos.decisionPrice;
+    pos.fillPrice = real ? res.fillPrice : null;
     pos.peakPrice = pos.entryPrice;
     if (f) {
       pos.peakRealSol = f.realSol;
       pos.lastF = f;
     }
+    if (res.realSolAfter > 0) pos.peakRealSol = Math.max(pos.peakRealSol || 0, res.realSolAfter);
     pos.estimated = !!res.estimated;
+    pos.buy = {
+      sig: res.sig || null, slot: res.slot || null, fillSource: real ? res.fillSource || "fill" : "mark",
+      premiumPct: Number.isFinite(res.premiumPct) ? r2(res.premiumPct) : null, timing: res.timing || null, filledAtMs: now,
+    };
     const slip = (pos.entryPrice / pos.decisionPrice - 1) * 100;
-    this.log("trade", `  filled ${label(pos)}  cost ${res.solSpent.toFixed(4)} SOL | slippage ${signed(slip, 1)}%${res.sig ? " | tx " + res.sig : ""}`);
+    const premium = pos.buy.premiumPct !== null && Math.abs(pos.buy.premiumPct) >= 0.5 ? ` | paid ${signed(pos.buy.premiumPct, 1)}% SOL for the move` : "";
+    this.log("trade", `  filled ${label(pos)}  cost ${res.solSpent.toFixed(4)} SOL | price vs decision ${signed(slip, 1)}%${premium}${res.sig ? " | tx " + res.sig : ""}`);
     // Something may have happened while the buy was in flight (creator sold, price crashed): act now.
     this.checkExit(pos, now);
   }
@@ -289,6 +306,10 @@ class Engine {
 
   sell(pos, d, f, nowMs) {
     pos.state = "selling";
+    pos.pendingExit = {
+      decidedAtMs: nowMs, decisionPrice: f ? f.price : null,
+      pollSlot: this.lastPoll ? this.lastPoll.slot || null : null, bestSlot: this.rpc && this.rpc.bestSlot ? this.rpc.bestSlot() : null,
+    };
     const estimateSol = f ? curve.liquidationValueSol(f.vSol, f.vTok, pos.tokens * d.fraction, this.feeFraction()) : 0;
     this.log("trade", `SELL   ${label(pos)}  ${(d.fraction * 100).toFixed(0)}% | ${d.reason} | ${signed(d.gainPct, 1)}%`);
     this.track(
@@ -328,7 +349,19 @@ class Engine {
     pos.proceedsSol += res.solReceived;
     pos.tokens = Math.max(0, pos.tokens - (res.tokensSold || 0));
     if (res.estimated) pos.estimated = true;
-    pos.exits.push({ reason: d.reason, fraction: d.fraction, gainPct: r2(d.gainPct), sol: r6(res.solReceived), atMs: now });
+    const x = pos.pendingExit || {};
+    const filledGain = res.fillPrice > 0 && pos.entryPrice > 0 ? (res.fillPrice / pos.entryPrice - 1) * 100 : null;
+    pos.exits.push({
+      reason: d.reason, fraction: d.fraction, gainPct: r2(d.gainPct), sol: r6(res.solReceived), atMs: now,
+      decidedAtMs: x.decidedAtMs, decisionPrice: x.decisionPrice, fillPrice: res.fillPrice || null, filledGainPct: filledGain === null ? null : r2(filledGain),
+      decideToDoneMs: x.decidedAtMs ? now - x.decidedAtMs : null, pollSlot: x.pollSlot, bestSlot: x.bestSlot, attempts: res.attempts || undefined,
+    });
+    const tries = res.attempts || [];
+    const timeouts = tries.filter((a) => a.outcome === "timeout").length;
+    if (tries.length > 1 || filledGain !== null) {
+      this.log("trade", `  sale ${label(pos)}: decided ${signed(d.gainPct, 1)}%${filledGain !== null ? ` -> filled ${signed(filledGain, 1)}%` : ""}` +
+        ` | ${tries.length} attempt(s)${timeouts ? ` (${timeouts} timed out)` : ""} | decision to done ${((now - (x.decidedAtMs || now)) / 1000).toFixed(1)}s`);
+    }
     // `closed` comes from the chain (paper: from the simulation), not from what was asked for.
     if (!res.closed) {
       if (d.reason === "take-profit-1" && res.tokensSold > 0) pos.tp1Done = true;
@@ -360,6 +393,11 @@ class Engine {
       netSol: r6(net),
       netPct: r2((net / pos.costSol) * 100),
       peakGainPct: r2((pos.peakPrice / pos.entryPrice - 1) * 100),
+      decidedAtMs: pos.decidedAtMs,
+      decisionPrice: pos.decisionPrice,
+      entryPrice: pos.entryPrice,
+      fillPrice: pos.fillPrice || null,
+      buy: pos.buy,
       exits: pos.exits,
       entry: pos.entry,
       estimated: pos.estimated || undefined,

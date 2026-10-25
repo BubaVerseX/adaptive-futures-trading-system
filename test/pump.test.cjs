@@ -13,7 +13,7 @@ const { Tracker, summarizeHolders, curveTokenBalance } = require("../pump/lib/tr
 const { PaperBroker } = require("../pump/lib/paperBroker.cjs");
 const { RiskManager, carryPeak } = require("../pump/lib/risk.cjs");
 const { replay, metrics, splitByTime } = require("../pump/lib/replay.cjs");
-const { normalizeCreate, parseCreateLogs, RpcLogsFeed, CREATE_EVENT, TRADE_EVENT } = require("../pump/lib/feed.cjs");
+const { normalizeCreate, parseCreateLogs, RpcLogsFeed, walletFill, CREATE_EVENT, TRADE_EVENT } = require("../pump/lib/feed.cjs");
 const sol = require("../pump/lib/solana.cjs");
 const { LiveBroker } = require("../pump/lib/liveBroker.cjs");
 const { createWallet, loadWallet } = require("../pump/lib/wallet.cjs");
@@ -1217,6 +1217,47 @@ test("live broker: a send that errored is re-sent through the second endpoint (s
   assert.equal(pushed.length >= 1, true);
   assert.equal(net.conn.sent.length, 1, "the same transaction landed once");
   assert.equal(Buffer.from(net.conn.sent[0].raw).toString("base64"), pushed[0]);
+});
+
+// A trade transaction's logs with this wallet's TradeEvent (post-trade reserves included).
+function tradeLogs({ mint, user, isBuy, sol, tokens, vSolAfter, vTokAfter, short = false }) {
+  const head = [["key", mint], ["u64", Math.round(sol * 1e9)], ["u64", Math.round(tokens * 1e6)], ["bool", isBuy ? 1 : 0], ["key", user]];
+  const tail = [["u64", 1761400000], ["u64", Math.round(vSolAfter * 1e9)], ["u64", Math.round(vTokAfter * 1e6)], ["u64", Math.round((vSolAfter - 30) * 1e9)], ["u64", 7e14]];
+  return [`Program ${C.PUMP_PROGRAM_ID} invoke [1]`, `Program log: Instruction: ${isBuy ? "Buy" : "Sell"}`, anchorEventLine(TRADE_EVENT, short ? head : head.concat(tail)), `Program ${C.PUMP_PROGRAM_ID} success`];
+}
+
+test("fills: the real price comes from the wallet's own trade event (pre-trade curve price)", async () => {
+  const me = web3.Keypair.generate().publicKey.toBase58();
+  const mint = web3.Keypair.generate().publicKey.toBase58();
+  const logs = tradeLogs({ mint, user: me, isBuy: true, sol: 0.03, tokens: 9e5, vSolAfter: 40.03, vTokAfter: 8.04e8 });
+  const f = walletFill(logs, mint, me, true);
+  near(f.fillPrice, 40 / 8.049e8, 1e-15); // the curve just before this buy
+  near(f.avgPrice, 0.03 / 9e5, 1e-15);
+  near(f.realSolAfter, 10.03, 1e-9);
+  assert.equal(walletFill(logs, mint, web3.Keypair.generate().publicKey.toBase58(), true), null, "someone else's trade");
+  const short = walletFill(tradeLogs({ mint, user: me, isBuy: true, sol: 0.03, tokens: 9e5, short: true }), mint, me, true);
+  assert.equal(short.fillPrice, null); // older layout: amounts only
+  near(short.sol, 0.03);
+  // The live broker reports it with the buy; the engine then measures gains from it.
+  const cfg = cfgFor();
+  const kp = web3.Keypair.generate();
+  const wallet = kp.publicKey.toBase58();
+  const buyMeta = { ...meta(wallet, mint, -0.0326, 0, 9e5), logMessages: tradeLogs({ mint, user: wallet, isBuy: true, sol: 0.0295, tokens: 9e5, vSolAfter: 40.0295, vTokAfter: 8.04e8 }) };
+  const net = mockNet(kp, mint, [{ status: "confirmed", meta: buyMeta, tokensAfter: 9e5 }]);
+  const r = await newBroker(cfg, kp, net).buy({ mint, sol: 0.03 });
+  assert.ok(r.ok, r.error);
+  near(r.fillPrice, 40 / 8.049e8, 1e-15);
+  assert.equal(r.fillSource, "event");
+  assert.ok(Number.isFinite(r.premiumPct));
+});
+
+test("recorder: failed buys get their own log", () => {
+  const { Recorder } = require("../pump/lib/recorder.cjs");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pump-rec-"));
+  const rec = new Recorder(dir, cfgFor().runtime);
+  rec.recordBuyFail("live", { atMs: Date.UTC(2026, 9, 25, 22), mint: "M", error: "failed on-chain: 6002", final: true });
+  const rows = fs.readFileSync(path.join(dir, "buyfails-live-2026-10-25.jsonl"), "utf8").trim().split("\n").map(JSON.parse);
+  assert.equal(rows[0].error, "failed on-chain: 6002");
 });
 
 test("live broker: withdraw sends the exact lamport balance minus the fee", async () => {

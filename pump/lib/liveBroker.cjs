@@ -3,6 +3,7 @@
 const C = require("./constants.cjs");
 const sol = require("./solana.cjs");
 const { base58Encode } = require("./base58.cjs");
+const { walletFill } = require("./feed.cjs");
 const { web3 } = sol;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -99,6 +100,7 @@ class LiveBroker {
    *   strict: refuse unknown programs even when the simulation looks fine (buys)
    */
   async tradeLocal(body, { maxLossSol, strict, expectCoinsOf = null }) {
+    const t0 = Date.now();
     const res = await this.fetchWithTimeout(
       C.PUMPPORTAL_TRADE_LOCAL_URL,
       { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) },
@@ -109,6 +111,7 @@ class LiveBroker {
       throw new Error(`PumpPortal ${res.status}: ${text.slice(0, 200)}`);
     }
     const tx = web3.VersionedTransaction.deserialize(new Uint8Array(await res.arrayBuffer()));
+    const builtMs = Date.now() - t0;
     if (!tx.message.staticAccountKeys[0].equals(this.owner)) throw new Error("refused transaction: fee payer is not this wallet");
     const ins = sol.inspectTransaction(tx, this.owner, this.extraPrograms);
     const odd = [...ins.risky, ...ins.unknownPrograms.map((p) => `unknown program ${p}`)];
@@ -132,6 +135,7 @@ class LiveBroker {
       throw new Error(`refused transaction: could not simulate it (${sim.error})`);
     }
 
+    const simMs = Date.now() - t0 - builtMs;
     tx.sign([this.kp]);
     const sig = base58Encode(tx.signatures[0]);
     const raw = tx.serialize();
@@ -141,7 +145,7 @@ class LiveBroker {
     } catch (e) {
       sendError = e.message;
     }
-    return { sig, sendError, raw };
+    return { sig, sendError, raw, builtMs, simMs, sentAtMs: Date.now() };
   }
 
   // Polls the status every 300ms. While waiting, the same signed bytes are re-sent through
@@ -252,7 +256,15 @@ class LiveBroker {
       return { ok: false, error: "confirmed but no coins received", sig: sent.sig, feesSol: this.txFeeSol() };
     }
     notePost(tx.meta.postBalances[0] / C.LAMPORTS_PER_SOL);
-    return { ok: true, tokens: tokenDelta(tx, this.ownerStr, mint), solSpent: -payerDeltaSol(tx), sig: sent.sig };
+    const solSpent = -payerDeltaSol(tx);
+    const fill = walletFill(tx.meta.logMessages, mint, this.ownerStr, true);
+    return {
+      ok: true, tokens: tokenDelta(tx, this.ownerStr, mint), solSpent, sig: sent.sig, slot: tx.slot,
+      fillPrice: fill && fill.fillPrice, avgPrice: fill && fill.avgPrice, realSolAfter: fill && fill.realSolAfter, fillSource: fill && fill.fillPrice ? "event" : "mark",
+      // What the price move cost on top of the order (PumpPortal fixes the coins, not the SOL).
+      premiumPct: ((solSpent - C.TOKEN_ACCOUNT_RENT_SOL - this.txFeeSol()) / (amountSol * (1 + (this.c.pumpFeePct + this.c.portalFeePct) / 100)) - 1) * 100,
+      timing: { buildMs: sent.builtMs, simMs: sent.simMs, landMs: Date.now() - sent.sentAtMs },
+    };
   }
 
   estimateBuyCost(amountSol) {
@@ -276,6 +288,8 @@ class LiveBroker {
       if (!tx) { out.unreadable++; continue; }
       out.sol += payerDeltaSol(tx);
       out.tokens += -tokenDelta(tx, this.ownerStr, mint);
+      const fill = walletFill(tx.meta.logMessages, mint, this.ownerStr, false);
+      if (fill && fill.fillPrice) out.fillPrice = fill.fillPrice;
       out.any = true;
       open[i].booked = true;
     }
@@ -291,7 +305,8 @@ class LiveBroker {
   async sell({ mint, fraction, estimateSol = 0 }) {
     if (!this.sellSigs.has(mint)) this.sellSigs.set(mint, []);
     const list = this.sellSigs.get(mint);
-    let received = 0, sold = 0, feesSol = 0, acted = false, estimated = false, lastErr = null, lastSig = null;
+    let received = 0, sold = 0, feesSol = 0, acted = false, estimated = false, lastErr = null, lastSig = null, fillPrice = null;
+    const attempts = [];
 
     // 1. Something from an earlier attempt landed after we stopped waiting: book it, don't sell again.
     const early = await this.bookLanded(mint).catch(() => ({ any: false }));
@@ -334,15 +349,20 @@ class LiveBroker {
         );
       } catch (e) {
         lastErr = e.message; // refused or would fail: nothing was sent
+        attempts.push({ amount, outcome: "refused", error: String(e.message).slice(0, 120) });
         await this.sleep(400);
         continue;
       }
+      const attempt = { amount, slip: (full ? fullSlips : partialSlips)[i], buildMs: sent.builtMs, simMs: sent.simMs, sig: sent.sig };
+      attempts.push(attempt);
       const entry = { sig: sent.sig, booked: false };
       list.push(entry);
       // A full exit doesn't wait 30s on one attempt: after 10s the next one is built (the
       // unconfirmed one stays on the list and is booked if it lands after all).
       const limit = full && i < 2 ? Math.min(10000, this.confirmMs) : this.confirmMs;
       const conf = await this.confirm(sent.sig, sent.sendError ? Math.min(12000, limit) : limit, sent.raw, !!sent.sendError);
+      attempt.outcome = conf.ok ? "landed" : conf.onChainError ? "onchain-fail" : "timeout";
+      attempt.waitMs = Date.now() - sent.sentAtMs;
       if (conf.onChainError) {
         feesSol += this.txFeeSol();
         entry.booked = true; // failed on-chain: nothing moved
@@ -350,7 +370,7 @@ class LiveBroker {
         if (!list.some((x) => !x.booked)) continue; // nothing else in flight: try again at once
       }
       const b = await this.bookLanded(mint).catch(() => ({ any: false }));
-      if (b.any) { received += b.sol; sold += b.tokens; acted = true; lastSig = sent.sig; break; }
+      if (b.any) { received += b.sol; sold += b.tokens; acted = true; lastSig = sent.sig; fillPrice = b.fillPrice || null; break; }
       lastErr = sent.sendError && !conf.onChainError ? `send failed: ${sent.sendError}` : conf.error;
       // Coins left the wallet through an attempt we can't read yet: count it, estimated.
       const left = await this.tokenBalance(mint).catch(() => null);
@@ -371,7 +391,7 @@ class LiveBroker {
     }
     if (!acted) {
       this.flowSol -= feesSol;
-      return { ok: false, error: lastErr, feesSol };
+      return { ok: false, error: lastErr, feesSol, attempts };
     }
 
     // 3. Tidy up: after a full exit sweep any dust, then close the empty account for its rent.
@@ -416,7 +436,7 @@ class LiveBroker {
     }
     await this.refreshBalance().catch(() => {});
     this.flowSol += received + rentRefund - feesSol;
-    return { ok: true, solReceived: received + rentRefund, tokensSold: sold, rentRefund, closed, feesSol, estimated, sig: lastSig, closeError };
+    return { ok: true, solReceived: received + rentRefund, tokensSold: sold, rentRefund, closed, feesSol, estimated, sig: lastSig, closeError, fillPrice, attempts };
   }
 
   async sendLegacy(tx) {
