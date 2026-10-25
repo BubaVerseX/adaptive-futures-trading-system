@@ -320,7 +320,8 @@ class LiveBroker {
         if (i) await this.sleep(1500);
         const c = await this.closeEmptyAccounts(mint).catch((e) => ({ refundSol: 0, error: e.message }));
         rentRefund = c.refundSol || 0;
-        closeError = rentRefund ? null : c.error || "account not empty yet";
+        closeError = rentRefund || c.gone ? null : c.error || "account not empty yet";
+        if (c.gone) break; // the sale closed it itself; its rent came back with the sale
       }
       this.sellSigs.delete(mint); // nothing left that a late attempt could sell
     }
@@ -339,22 +340,33 @@ class LiveBroker {
     return sig;
   }
 
+  // This wallet's token accounts for one coin, read by address (no token-index lag).
+  async tokenAccountsOf(mint) {
+    const atas = [C.TOKEN_PROGRAM_ID, C.TOKEN_2022_PROGRAM_ID].map((programId) => ({ programId, address: sol.ataAddress(this.owner, mint, programId) }));
+    const infos = await this.conn.getMultipleAccountsInfo(atas.map((a) => sol.pk(a.address)), "confirmed");
+    return atas.flatMap((a, i) => (infos[i] && infos[i].data && infos[i].data.length >= 72 ? [{ ...a, amount: infos[i].data.readBigUInt64LE(64) }] : []));
+  }
+
   // Empty token accounts hold ~0.002 SOL of rent each; closing them gives it back.
+  // For one coin, { gone: true } means it has no account left (a sale already closed it).
   async closeEmptyAccounts(mint = null) {
-    const filters = mint
-      ? [{ mint: sol.pk(mint) }]
-      : [{ programId: sol.pk(C.TOKEN_PROGRAM_ID) }, { programId: sol.pk(C.TOKEN_2022_PROGRAM_ID) }];
-    const empties = [];
-    for (const f of filters) {
-      const res = await this.conn.getParsedTokenAccountsByOwner(this.owner, f, "confirmed");
-      for (const v of res.value) if (v.account.data.parsed.info.tokenAmount.amount === "0") empties.push(v);
+    let empties = [];
+    if (mint) {
+      const accounts = await this.tokenAccountsOf(mint);
+      if (!accounts.length) return { closed: 0, refundSol: 0, gone: true };
+      empties = accounts.filter((a) => a.amount === 0n);
+    } else {
+      for (const programId of [C.TOKEN_PROGRAM_ID, C.TOKEN_2022_PROGRAM_ID]) {
+        const res = await this.conn.getParsedTokenAccountsByOwner(this.owner, { programId: sol.pk(programId) }, "confirmed");
+        for (const v of res.value) if (v.account.data.parsed.info.tokenAmount.amount === "0") empties.push({ address: v.pubkey, programId: v.account.owner });
+      }
     }
     if (!empties.length) return { closed: 0, refundSol: 0 };
     let refundSol = 0;
     for (let i = 0; i < empties.length; i += 10) {
       const batch = empties.slice(i, i + 10);
       const tx = new web3.Transaction();
-      for (const v of batch) tx.add(sol.closeAccountInstruction(v.pubkey, this.owner, this.owner, v.account.owner));
+      for (const v of batch) tx.add(sol.closeAccountInstruction(v.address, this.owner, this.owner, v.programId));
       const sig = await this.sendLegacy(tx);
       const t = await this.getTx(sig);
       refundSol += t ? payerDeltaSol(t) : batch.length * C.TOKEN_ACCOUNT_RENT_SOL - C.BASE_FEE_SOL;

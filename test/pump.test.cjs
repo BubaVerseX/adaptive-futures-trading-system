@@ -711,7 +711,7 @@ function mockNet(kp, mint, outcomes = []) {
           if (o.status === "dropped") return null;
           if (o.status === "late" && !o.visible) return null;
           if (o.status === "failed") return { confirmationStatus: "confirmed", err: { InstructionError: [0, "Custom"] } };
-          if (o.tokensAfter !== undefined && !o.applied) { state.tokens = o.tokensAfter; o.applied = true; }
+          if (o.tokensAfter !== undefined && !o.applied) { state.tokens = o.tokensAfter; o.applied = true; if (o.closesAccount) state.ataGone = true; }
           return { confirmationStatus: "confirmed", err: null };
         }),
       };
@@ -731,8 +731,18 @@ function mockNet(kp, mint, outcomes = []) {
       const extra = cfg.accounts.addresses.slice(1).map((_, i) => (i === 0 ? tokenAcc() : null));
       return { value: { err: null, logs: [], accounts: [{ lamports: state.preLamports - state.simLoss * 1e9, owner: state.simOwner }, ...extra] } };
     },
-    async getMultipleAccountsInfo(keys) { return keys.map(() => null); },
+    async getMultipleAccountsInfo(keys) {
+      // The wallet's token account for this coin (classic token program), unless a sale closed it.
+      const ata = sol.ataAddress(me, mint, C.TOKEN_PROGRAM_ID);
+      return keys.map((k) => {
+        if (state.ataGone || String(k.toBase58 ? k.toBase58() : k) !== ata) return null;
+        const d = Buffer.alloc(165);
+        d.writeBigUInt64LE(BigInt(Math.round(state.tokens * 1e6)), 64);
+        return { data: d, owner: new web3.PublicKey(C.TOKEN_PROGRAM_ID), lamports: 2039280 };
+      });
+    },
     async getParsedTokenAccountsByOwner() {
+      if (state.ataGone) return { value: [] };
       const raw = Math.round(state.tokens * 1e6);
       return { value: [{ pubkey: web3.Keypair.generate().publicKey, account: { owner: new web3.PublicKey(C.TOKEN_PROGRAM_ID), data: { parsed: { info: { mint, tokenAmount: { amount: String(raw), uiAmount: state.tokens } } } } } }] };
     },
@@ -916,6 +926,22 @@ test("live broker: full sell books proceeds and closes the empty account for the
   near(r.solReceived, 0.04 + 0.00203428);
   assert.deepEqual([net.bodies[0].amount, net.bodies[0].pool], ["100%", "auto"]);
   assert.equal(net.conn.sent.length, 2, "sell + close account");
+});
+
+test("live broker: a sale that closed the token account itself needs no second close", async () => {
+  const cfg = cfgFor();
+  const kp = web3.Keypair.generate();
+  const me = kp.publicKey.toBase58();
+  const mint = web3.Keypair.generate().publicKey.toBase58();
+  const net = mockNet(kp, mint, [{ status: "confirmed", meta: meta(me, mint, 0.04 + 0.00203928, 1000, 0), tokensAfter: 0, closesAccount: true }]);
+  net.state.tokens = 1000;
+  const r = await newBroker(cfg, kp, net).sell({ mint, fraction: 1 });
+  assert.ok(r.ok, r.error);
+  assert.equal(r.closed, true);
+  assert.equal(r.closeError, null, "no false warning");
+  assert.equal(r.rentRefund, 0);
+  near(r.solReceived, 0.04 + 0.00203928); // the rent came back inside the sale
+  assert.equal(net.conn.sent.length, 1, "no separate close transaction");
 });
 
 test("live broker: a partial sell that times out is never re-sent as a partial", async () => {
