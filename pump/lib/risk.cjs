@@ -1,14 +1,22 @@
 "use strict";
 
+const C = require("./constants.cjs");
+
+// A buy's own overhead besides the coins: token-account rent plus transaction fees.
+const BUY_OVERHEAD_SOL = C.TOKEN_ACCOUNT_RENT_SOL + 0.0002;
+
 /**
  * Position sizing and the hard stops: max open positions, a cash reserve for
  * rent/fees, a daily loss limit (trading halts for the rest of the UTC day), a
  * pause after a losing streak, and a keep-floor (no new buys once the account is
- * below keepPct of its best value this run). Account values count closed trades only.
+ * below keepPct of its best value). Account values count closed trades only; new buys
+ * are sized so that the cash left stays above the floor even if every open coin went to zero.
  */
 class RiskManager {
-  constructor(risk, startSol) {
+  constructor(risk, startSol, { buySlippagePct = 20, buyOverheadSol = BUY_OVERHEAD_SOL } = {}) {
     this.r = risk;
+    this.buyOverheadSol = buyOverheadSol;
+    this.buyMult = 1 + buySlippagePct / 100; // a live buy can cost this much more when the price moves
     this.startSol = startSol;
     this.dayKey = null;
     this.realizedToday = 0;
@@ -54,20 +62,31 @@ class RiskManager {
     if (this.belowFloor()) return { ok: false, reason: "keep-floor" };
     if (nowMs < this.pausedUntil) return { ok: false, reason: "loss-streak-pause" };
     if (openCount >= this.r.maxOpenPositions) return { ok: false, reason: "max-open" };
-    if (this.sizeFor(availableSol) <= 0) return { ok: false, reason: "insufficient-funds" };
+    if (this.sizeFor(availableSol) <= 0) {
+      const short = availableSol - this.r.reserveSol < this.r.minTradeSol;
+      return { ok: false, reason: !short && this.r.keepPct > 0 && this.roomSol(availableSol) < this.r.minTradeSol ? "keep-floor-room" : "insufficient-funds" };
+    }
     return { ok: true };
+  }
+
+  // The most a new buy may cost so the cash left, after its worst-case fill, stays at or
+  // above the keep-floor (and the reserve) even if every coin already bought went to zero.
+  roomSol(availableSol) {
+    const keep = Math.max(this.r.reserveSol, this.r.keepPct > 0 ? this.floorSol() : 0);
+    return (availableSol - keep - this.buyOverheadSol) / this.buyMult;
   }
 
   // conviction (1..convictionMax): a stronger signal buys proportionally more.
   sizeFor(availableSol, conviction = 1) {
     const free = availableSol - this.r.reserveSol;
-    if (free < this.r.minTradeSol) return 0;
+    const room = this.roomSol(availableSol);
+    if (free < this.r.minTradeSol || room < this.r.minTradeSol) return 0;
     // Compounding: the size limit grows with the account, never below its base value.
     const growth = this.r.compound ? Math.max(1, this.equitySol() / this.startSol) : 1;
     // A strong signal may also take a bigger share of the free cash, up to half of it.
     const share = Math.max(this.r.tradeFractionOfFree, Math.min(0.5, this.r.tradeFractionOfFree * conviction));
     const size = Math.min(this.r.maxTradeSol * growth * conviction, Math.max(this.r.minTradeSol, free * share));
-    return Math.min(size, free);
+    return Math.min(size, free, room);
   }
 
   record(netSol, nowMs) {
@@ -75,6 +94,10 @@ class RiskManager {
     this.realizedToday += netSol;
     this.realizedTotal += netSol;
     this.peakSol = Math.max(this.peakSol, this.equitySol());
+    if (this.onPeak && this.peakSol > (this.savedPeak || 0)) {
+      this.savedPeak = this.peakSol;
+      this.onPeak(this.peakSol);
+    }
     if (this.realizedToday <= -this.dailyLimitSol()) this.halted = true;
   }
 
@@ -102,4 +125,14 @@ class RiskManager {
   }
 }
 
-module.exports = { RiskManager };
+/**
+ * Best balance to start a live run from, so a restart after losses doesn't lower the
+ * keep-floor. saved: { wallet, peakSol } from the last run. Clamped to the budget (a
+ * lowered budget mustn't freeze the bot) and never below this run's own start.
+ */
+function carryPeak({ saved, owner, startSol, budgetSol, reset = false }) {
+  if (reset || !saved || saved.wallet !== owner || !(saved.peakSol > 0)) return startSol;
+  return Math.max(startSol, Math.min(saved.peakSol, budgetSol || saved.peakSol));
+}
+
+module.exports = { RiskManager, carryPeak };

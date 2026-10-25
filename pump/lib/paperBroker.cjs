@@ -29,7 +29,7 @@ class PaperBroker {
   }
 
   availableSol() {
-    const committed = this.pending.filter((o) => o.type === "buy").reduce((a, o) => a + o.sol, 0);
+    const committed = this.pending.filter((o) => o.type === "buy").reduce((a, o) => a + o.sol + this.txCostSol() + C.TOKEN_ACCOUNT_RENT_SOL, 0);
     return this.cash - committed;
   }
 
@@ -82,11 +82,12 @@ class PaperBroker {
     const tx = this.txCostSol();
     const held = this.holdings.get(o.mint) || 0;
     if (held <= 0) return { ok: false, error: "nothing-to-sell", feesSol: 0 };
-    // A sell whose price fell past its slippage limit fails and is retried with more
-    // slippage a moment later (the live bot does the same: 1x, 1.6x, 2.4x).
+    // A sell whose price fell past its slippage limit fails and is retried a moment later,
+    // like live: a partial escalates 1x, 1.6x, 2.4x; a full exit starts wide (2.4x, 70, 70).
     if (o.decisionPrice && !last.complete && o.attempt < 2) {
       const s = this.c.sellSlippagePct;
-      const allowed = [s, Math.min(50, s * 1.6), Math.min(70, s * 2.4)][o.attempt];
+      const steps = o.fraction >= 0.999 ? [Math.min(70, s * 2.4), 70, 70] : [s, Math.min(50, s * 1.6), Math.min(70, s * 2.4)];
+      const allowed = steps[o.attempt];
       if ((1 - curve.price(last.vSol, last.vTok) / o.decisionPrice) * 100 > allowed) {
         o.attempt++;
         return null;

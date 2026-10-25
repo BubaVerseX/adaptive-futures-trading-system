@@ -37,6 +37,7 @@ class Engine {
     this.lastPollWarnMs = 0;
     this.layoutWarned = false;
     this.lateFillChecks = []; // live buys that timed out: { mint, symbol, sizeSol, atMs }
+    this.lateFillLookups = 0;
     this.stats = { buys: 0, buyFails: 0, sells: 0, sellFails: 0, pollErrors: 0, holdersChecks: 0, lateFills: 0 };
   }
 
@@ -58,11 +59,12 @@ class Engine {
   }
 
   busy() {
-    return this.positions.size > 0 || this.lateFillChecks.length > 0;
+    return this.positions.size > 0 || this.lateFillChecks.length > 0 || this.lateFillLookups > 0;
   }
 
+  // Waits for everything in flight, including work started by work that was in flight.
   async settle() {
-    await Promise.allSettled([...this.inflight]);
+    while (this.inflight.size) await Promise.allSettled([...this.inflight]);
   }
 
   async tick(nowMs = this.clock()) {
@@ -70,7 +72,8 @@ class Engine {
     if (targets.length) {
       try {
         const accounts = await this.rpc.getAccounts(targets.map((t) => t.key));
-        this.tracker.ingest(targets.map((t, i) => ({ ...t, account: accounts[i] })), nowMs);
+        this.lastPoll = { slot: accounts.slot, atMs: nowMs };
+        this.tracker.ingest(targets.map((t, i) => ({ ...t, account: accounts[i], slot: accounts.slot })), nowMs);
       } catch (e) {
         this.stats.pollErrors++;
         if (nowMs - this.lastPollWarnMs > 30000) {
@@ -95,27 +98,37 @@ class Engine {
   }
 
   manageExits(nowMs) {
-    for (const pos of this.positions.values()) {
-      if (pos.state !== "open" || nowMs < pos.nextSellAtMs) continue;
-      const f = this.tracker.features(pos.mint, nowMs);
-      if (pos.forceExit) {
-        // A full exit left coins behind (dust, or the chain couldn't be read): finish it.
-        this.sell(pos, { action: "sell", fraction: 1, reason: "finish-exit", gainPct: f ? (f.price / pos.entryPrice - 1) * 100 : 0 }, f, nowMs);
-        continue;
-      }
-      if (!f) {
-        // No price data for something we hold (e.g. a late fill): get out rather than hold blind.
-        this.sell(pos, { action: "sell", fraction: 1, reason: "no-data", gainPct: 0 }, null, nowMs);
-        continue;
-      }
-      strategy.updatePeaks(pos, f);
-      pos.lastPrice = f.price;
-      pos.lastF = f;
-      const d = this.stopping
-        ? { action: "sell", fraction: 1, reason: "shutdown", gainPct: (f.price / pos.entryPrice - 1) * 100 }
-        : strategy.exitDecision(pos, f, this.s, nowMs);
-      if (d.action === "sell") this.sell(pos, d, f, nowMs);
+    for (const pos of this.positions.values()) this.checkExit(pos, nowMs);
+  }
+
+  checkExit(pos, nowMs) {
+    if (pos.state !== "open" || nowMs < pos.nextSellAtMs) return;
+    const f = this.tracker.features(pos.mint, nowMs);
+    if (pos.forceExit) {
+      // A full exit left coins behind (dust, or the chain couldn't be read): finish it.
+      this.sell(pos, { action: "sell", fraction: 1, reason: "finish-exit", gainPct: f ? (f.price / pos.entryPrice - 1) * 100 : 0 }, f, nowMs);
+      return;
     }
+    if (!f) {
+      // No price data for something we hold (e.g. a late fill): get out rather than hold blind.
+      this.sell(pos, { action: "sell", fraction: 1, reason: "no-data", gainPct: 0 }, null, nowMs);
+      return;
+    }
+    if (pos.buy && pos.buy.slot && !(f.slot >= pos.buy.slot) && !this.stopping) {
+      // The newest poll is older than our own fill: judging price or flow on it would compare
+      // the fill with the past. Only rules that need no fresh price apply until the next poll.
+      const early = f.complete || f.progress >= this.s.exitProgress ? "near-graduation"
+        : f.devSold && (!f.devSoldAtMs || f.devSoldAtMs >= pos.decidedAtMs) ? "dev-sold" : null;
+      if (early) this.sell(pos, { action: "sell", fraction: 1, reason: early, gainPct: (f.price / pos.entryPrice - 1) * 100 }, f, nowMs);
+      return;
+    }
+    strategy.updatePeaks(pos, f);
+    pos.lastPrice = f.price;
+    pos.lastF = f;
+    const d = this.stopping
+      ? { action: "sell", fraction: 1, reason: "shutdown", gainPct: (f.price / pos.entryPrice - 1) * 100 }
+      : strategy.exitDecision(pos, f, this.s, nowMs);
+    if (d.action === "sell") this.sell(pos, d, f, nowMs);
   }
 
   // A coin is bought once, unless re-entry is switched on: then one more time, after a cooldown.
@@ -223,8 +236,15 @@ class Engine {
       this.stats.buyFails++;
       this.risk.onFeesOnly(res.feesSol || 0, now);
       this.log("trade", `  buy failed ${label(pos)}: ${res.error || "no tokens received"}`);
+      if (this.recorder && this.recorder.recordBuyFail) {
+        this.recorder.recordBuyFail(this.broker.mode, {
+          atMs: now, mint: pos.mint, symbol: pos.symbol, error: res.error || "no tokens received", decidedAtMs: pos.decidedAtMs,
+          sizeSol: r6(pos.sizeSol), feesSol: res.feesSol || 0, sig: res.sig || null, final: !!res.final, entry: pos.entry,
+        });
+      }
       // An unconfirmed transaction can still land later; look again before giving up on it.
-      if (this.broker.tokenBalance && res.sig) this.lateFillChecks.push({ mint: pos.mint, symbol: pos.symbol, sizeSol: pos.sizeSol, atMs: now, entry: pos.entry });
+      // (One that failed on-chain is final.)
+      if (this.broker.tokenBalance && res.sig && !res.final) this.lateFillChecks.push({ mint: pos.mint, symbol: pos.symbol, sizeSol: pos.sizeSol, atMs: now, entry: pos.entry });
       return;
     }
     this.stats.buys++;
@@ -233,12 +253,26 @@ class Engine {
     pos.openedAtMs = now;
     pos.tokens = res.tokens;
     pos.costSol += res.solSpent;
-    pos.entryPrice = res.fillPrice || (f ? f.price : pos.decisionPrice);
+    // The price we really bought at (from the trade itself) when it is known and sane,
+    // else the curve's price right now.
+    const real = res.fillPrice > 0 && Math.abs(res.fillPrice / pos.decisionPrice - 1) <= 0.3;
+    pos.entryPrice = real ? res.fillPrice : f ? f.price : pos.decisionPrice;
+    pos.fillPrice = real ? res.fillPrice : null;
     pos.peakPrice = pos.entryPrice;
-    if (f) pos.peakRealSol = f.realSol;
+    if (f) {
+      pos.peakRealSol = f.realSol;
+      pos.lastF = f;
+    }
     pos.estimated = !!res.estimated;
+    pos.buy = {
+      sig: res.sig || null, slot: res.slot || null, fillSource: real ? res.fillSource || "fill" : "mark",
+      premiumPct: Number.isFinite(res.premiumPct) ? r2(res.premiumPct) : null, timing: res.timing || null, filledAtMs: now,
+    };
     const slip = (pos.entryPrice / pos.decisionPrice - 1) * 100;
-    this.log("trade", `  filled ${label(pos)}  cost ${res.solSpent.toFixed(4)} SOL | slippage ${signed(slip, 1)}%${res.sig ? " | tx " + res.sig : ""}`);
+    const premium = pos.buy.premiumPct !== null && Math.abs(pos.buy.premiumPct) >= 0.5 ? ` | paid ${signed(pos.buy.premiumPct, 1)}% SOL for the move` : "";
+    this.log("trade", `  filled ${label(pos)}  cost ${res.solSpent.toFixed(4)} SOL | price vs decision ${signed(slip, 1)}%${premium}${res.sig ? " | tx " + res.sig : ""}`);
+    // Something may have happened while the buy was in flight (creator sold, price crashed): act now.
+    this.checkExit(pos, now);
   }
 
   // If coins from a "failed" buy show up after all, adopt them and sell at once.
@@ -247,14 +281,24 @@ class Engine {
     if (!due.length) return;
     this.lateFillChecks = this.lateFillChecks.filter((c) => nowMs - c.atMs < 45000);
     for (const c of due) {
+      this.lateFillLookups++;
       this.track(
-        this.broker.tokenBalance(c.mint).then(
+        this.broker.tokenBalance(c.mint).finally(() => this.lateFillLookups--).then(
           (tokens) => {
-            if (!(tokens > 0) || this.positions.has(c.mint)) return;
+            if (!(tokens > 0)) {
+              // Nothing yet: look once more later (a stuck transaction can still land for a while),
+              // then release the money held for it.
+              c.zeroReads = (c.zeroReads || 0) + 1;
+              if (c.zeroReads < 2) this.lateFillChecks.push({ ...c, atMs: this.clock() });
+              else if (this.broker.settleLateBuy) this.broker.settleLateBuy(c.mint, false);
+              return;
+            }
+            if (this.positions.has(c.mint)) return;
             this.stats.lateFills++;
             const f = this.tracker.features(c.mint, this.clock());
             const price = f ? f.price : 0;
             const cost = this.broker.estimateBuyCost ? this.broker.estimateBuyCost(c.sizeSol) : c.sizeSol;
+            if (this.broker.settleLateBuy) this.broker.settleLateBuy(c.mint, true);
             const pos = {
               mint: c.mint, symbol: c.symbol, state: "open", decidedAtMs: c.atMs, openedAtMs: c.atMs, sizeSol: c.sizeSol,
               decisionPrice: price, entryPrice: price, tokens, costSol: cost, proceedsSol: 0,
@@ -277,11 +321,15 @@ class Engine {
 
   sell(pos, d, f, nowMs) {
     pos.state = "selling";
+    pos.pendingExit = {
+      decidedAtMs: nowMs, decisionPrice: f ? f.price : null,
+      pollSlot: this.lastPoll ? this.lastPoll.slot || null : null, bestSlot: this.rpc && this.rpc.bestSlot ? this.rpc.bestSlot() : null,
+    };
     const estimateSol = f ? curve.liquidationValueSol(f.vSol, f.vTok, pos.tokens * d.fraction, this.feeFraction()) : 0;
     this.log("trade", `SELL   ${label(pos)}  ${(d.fraction * 100).toFixed(0)}% | ${d.reason} | ${signed(d.gainPct, 1)}%`);
     this.track(
       this.broker
-        .sell({ mint: pos.mint, fraction: d.fraction, nowMs, estimateSol, decisionPrice: f ? f.price : null })
+        .sell({ mint: pos.mint, fraction: d.fraction, nowMs, estimateSol, decisionPrice: f ? f.price : null, reason: d.reason })
         .catch((e) => ({ ok: false, error: e.message }))
         .then((res) => this.onSold(pos, d, res))
     );
@@ -290,6 +338,19 @@ class Engine {
   onSold(pos, d, res) {
     const now = this.clock();
     pos.costSol += res.feesSol || 0; // fees of attempts that failed on-chain
+    if (!res.ok && res.goneWithoutSale) {
+      // The wallet holds none of this coin and no sale of ours explains it. Re-check a few
+      // times (a node can lag); then book it as lost so it doesn't block the bot forever.
+      pos.goneChecks = (pos.goneChecks || 0) + 1;
+      if (pos.goneChecks >= 3) {
+        this.log("warn", `  ${label(pos)}: the coins are not in the wallet and no sale was found; booked as lost (check with --wallet)`);
+        pos.exits.push({ reason: "gone", fraction: 1, gainPct: -100, sol: 0, atMs: now });
+        pos.estimated = true;
+        pos.tokens = 0;
+        this.closePosition(pos, now);
+        return;
+      }
+    }
     if (!res.ok) {
       pos.state = "open";
       pos.sellFailures++;
@@ -303,13 +364,26 @@ class Engine {
     pos.proceedsSol += res.solReceived;
     pos.tokens = Math.max(0, pos.tokens - (res.tokensSold || 0));
     if (res.estimated) pos.estimated = true;
-    pos.exits.push({ reason: d.reason, fraction: d.fraction, gainPct: r2(d.gainPct), sol: r6(res.solReceived), atMs: now });
+    const x = pos.pendingExit || {};
+    const filledGain = res.fillPrice > 0 && pos.entryPrice > 0 ? (res.fillPrice / pos.entryPrice - 1) * 100 : null;
+    pos.exits.push({
+      reason: d.reason, fraction: d.fraction, gainPct: r2(d.gainPct), sol: r6(res.solReceived), atMs: now,
+      decidedAtMs: x.decidedAtMs, decisionPrice: x.decisionPrice, fillPrice: res.fillPrice || null, filledGainPct: filledGain === null ? null : r2(filledGain),
+      decideToDoneMs: x.decidedAtMs ? now - x.decidedAtMs : null, pollSlot: x.pollSlot, bestSlot: x.bestSlot, attempts: res.attempts || undefined,
+    });
+    const tries = res.attempts || [];
+    const timeouts = tries.filter((a) => a.outcome === "timeout").length;
+    if (tries.length > 1 || filledGain !== null) {
+      this.log("trade", `  sale ${label(pos)}: decided ${signed(d.gainPct, 1)}%${filledGain !== null ? ` -> filled ${signed(filledGain, 1)}%` : ""}` +
+        ` | ${tries.length} attempt(s)${timeouts ? ` (${timeouts} timed out)` : ""} | decision to done ${((now - (x.decidedAtMs || now)) / 1000).toFixed(1)}s`);
+    }
     // `closed` comes from the chain (paper: from the simulation), not from what was asked for.
     if (!res.closed) {
       if (d.reason === "take-profit-1" && res.tokensSold > 0) pos.tp1Done = true;
       if (d.fraction >= 0.999) pos.forceExit = true;
       pos.state = "open";
       this.log("trade", `  sold part of ${label(pos)}  +${res.solReceived.toFixed(4)} SOL`);
+      this.checkExit(pos, now); // the rest is managed from now, not from the next tick
       return;
     }
     this.closePosition(pos, now);
@@ -334,6 +408,11 @@ class Engine {
       netSol: r6(net),
       netPct: r2((net / pos.costSol) * 100),
       peakGainPct: r2((pos.peakPrice / pos.entryPrice - 1) * 100),
+      decidedAtMs: pos.decidedAtMs,
+      decisionPrice: pos.decisionPrice,
+      entryPrice: pos.entryPrice,
+      fillPrice: pos.fillPrice || null,
+      buy: pos.buy,
       exits: pos.exits,
       entry: pos.entry,
       estimated: pos.estimated || undefined,
@@ -342,6 +421,18 @@ class Engine {
     this.positions.delete(pos.mint);
     this.recorder.recordTrade(this.broker.mode, trade);
     this.log("trade", `CLOSED ${label(pos)}  net ${signed(net)} SOL (${signed(trade.netPct, 1)}%) after ${trade.holdSec.toFixed(0)}s`);
+  }
+
+  // Gain or loss of the coins held now, as if sold at the current curve price (after exit
+  // fees, with the token-account rent that comes back on a full exit).
+  unrealizedSol() {
+    let v = 0;
+    for (const p of this.positions.values()) {
+      if (p.state === "closed" || !(p.costSol > 0)) continue;
+      const value = p.lastF && p.tokens > 0 ? curve.liquidationValueSol(p.lastF.vSol, p.lastF.vTok, p.tokens, this.feeFraction()) + C.TOKEN_ACCOUNT_RENT_SOL : 0;
+      v += value + p.proceedsSol - p.costSol;
+    }
+    return v;
   }
 
   // Value of open positions at the current curve price, after exit fees.

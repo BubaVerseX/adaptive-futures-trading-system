@@ -42,6 +42,8 @@ class Recorder {
       devBuySol: t.devBuySol,
       devTokensInitial: t.devTokensInitial,
       devSoldAgeMs: t.devSoldAtMs === null ? null : t.devSoldAtMs - t.createdAtMs,
+      devNullReads: t.devNullReads || 0,
+      mintTries: t.mintTries || 0,
       holders: t.holders,
       complete: t.complete,
       curve: t.curve || null,
@@ -62,6 +64,12 @@ class Recorder {
   recordTrade(mode, trade) {
     this.counts.trades++;
     this.append(`trades-${mode}-${dayOf(trade.closedAtMs || trade.openedAtMs)}.jsonl`, trade);
+  }
+
+  // Buys that never became a position (slippage, refused, not landed): what they cost and why.
+  recordBuyFail(mode, row) {
+    this.counts.buyFails = (this.counts.buyFails || 0) + 1;
+    this.append(`buyfails-${mode}-${dayOf(row.atMs)}.jsonl`, row);
   }
 }
 

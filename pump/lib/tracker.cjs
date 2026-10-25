@@ -59,7 +59,7 @@ class Tracker {
     this.derive = derive;
     this.tokens = new Map();
     this.tickCount = 0;
-    this.stats = { seen: 0, expired: 0, badLayout: 0, nonStandard: 0 };
+    this.stats = { seen: 0, expired: 0, badLayout: 0, nonStandard: 0, devNullIgnored: 0, mintGiveUps: 0 };
   }
 
   add(evt, nowMs) {
@@ -114,6 +114,12 @@ class Tracker {
       if (!this.isFast(t, nowMs, held) && !slowTurn) continue;
       out.push({ key: t.bondingCurve, mint: t.mint, kind: "curve" });
       const active = t.maxRealSol >= this.rt.devTrackMinRealSol || held.has(t.mint);
+      // A mint the RPC couldn't show yet is asked for again later while the coin still matters.
+      if (t.mintRequested && !t.tokenProgram && t.mintRetryAtTick && this.tickCount >= t.mintRetryAtTick &&
+        (held.has(t.mint) || (nowMs - t.createdAtMs) / 1000 <= this.s.entryMaxAgeSec)) {
+        t.mintRequested = false;
+        t.mintRetryAtTick = null;
+      }
       if (active && t.creator && !t.tokenProgram && !t.mintRequested) {
         out.push({ key: t.mint, mint: t.mint, kind: "mint" });
       }
@@ -127,13 +133,13 @@ class Tracker {
     for (const r of results) {
       const t = this.tokens.get(r.mint);
       if (!t) continue;
-      if (r.kind === "curve") this.ingestCurve(t, r.account, nowMs);
+      if (r.kind === "curve") this.ingestCurve(t, r.account, nowMs, r.slot);
       else if (r.kind === "mint") this.ingestMint(t, r.account);
       else if (r.kind === "devAta") this.ingestDevAta(t, r.account, nowMs);
     }
   }
 
-  ingestCurve(t, account, nowMs) {
+  ingestCurve(t, account, nowMs, slot) {
     if (!account) return; // not visible to this RPC node yet
     const dec = curve.decodeBondingCurve(account.data);
     if (!dec || !dec.discriminatorOk) {
@@ -152,7 +158,7 @@ class Tracker {
       if (!t.curve.standard) this.stats.nonStandard++;
     }
     t.polled = true;
-    t.last = { vSol: dec.vSol, vTok: dec.vTok, realSol: dec.realSol, complete: dec.complete, t: nowMs };
+    t.last = { vSol: dec.vSol, vTok: dec.vTok, realSol: dec.realSol, complete: dec.complete, t: nowMs, slot };
     t.samples.push({ t: nowMs, realSol: dec.realSol });
     // Keep ~2 minutes of samples; inflow windows only look back 60s.
     while (t.samples.length > 2 && t.samples[1].t < nowMs - 120000) t.samples.shift();
@@ -169,7 +175,12 @@ class Tracker {
   ingestMint(t, account) {
     t.mintTries = (t.mintTries || 0) + 1;
     if (!account || !account.owner) {
-      t.mintRequested = t.mintTries >= 3; // RPC lag: retry a couple of times, then give up
+      // RPC lag: retry a couple of times, then pause for 10 ticks (pollTargets asks again).
+      if (t.mintTries % 3 === 0) {
+        t.mintRequested = true;
+        t.mintRetryAtTick = this.tickCount + 10;
+        this.stats.mintGiveUps++;
+      }
       return;
     }
     t.mintRequested = true;
@@ -181,6 +192,16 @@ class Tracker {
   }
 
   ingestDevAta(t, account, nowMs) {
+    if (account) t.devSeen = true;
+    else if (!t.devSeen) {
+      // A node that hasn't applied the launch yet answers null; that is not "sold". Three in a
+      // row means the creator really has no account (never bought, or sold and closed it).
+      t.devNullReads = (t.devNullReads || 0) + 1;
+      if (t.devNullReads < 3) {
+        this.stats.devNullIgnored++;
+        return;
+      }
+    }
     const amount = account ? tokenAccountAmount(account.data) : 0;
     if (amount === null) return;
     if (t.devTokensInitial === null) {
@@ -213,6 +234,7 @@ class Tracker {
       symbol: t.symbol,
       ageSec: (nowMs - t.createdAtMs) / 1000,
       staleSec: (nowMs - t.last.t) / 1000,
+      slot: t.last.slot, // chain slot of this data (live polls only)
       vSol,
       vTok,
       price,

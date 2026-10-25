@@ -1,5 +1,6 @@
 "use strict";
 
+const C = require("./constants.cjs");
 const { Tracker } = require("./tracker.cjs");
 const { PaperBroker } = require("./paperBroker.cjs");
 const { RiskManager } = require("./risk.cjs");
@@ -28,7 +29,7 @@ async function replay(records, baseCfg, { mode = "edge", sizeSol = 0.03, startSo
   let now = market.records.length ? market.records[0].createdAtMs : 0;
   const tracker = new Tracker(cfg, market.derive);
   const broker = new PaperBroker(cfg, tracker, bankroll);
-  const risk = new RiskManager(cfg.risk, bankroll);
+  const risk = new RiskManager(cfg.risk, bankroll, { buySlippagePct: cfg.costs.buySlippagePct, buyOverheadSol: C.TOKEN_ACCOUNT_RENT_SOL + cfg.costs.priorityFeeSol + C.BASE_FEE_SOL });
   const engine = new Engine({ cfg, tracker, broker, risk, recorder: new Recorder("", cfg.runtime, { enabled: false }), rpc: market, clock: () => now });
   const lastLaunch = market.records.length ? market.records[market.records.length - 1].createdAtMs : 0;
   const end = lastLaunch + (Math.max(cfg.runtime.watchSec, cfg.runtime.watchSecActive) + cfg.strategy.maxHoldSec) * 1000;

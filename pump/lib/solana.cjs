@@ -183,15 +183,17 @@ function connection(rpcUrl, { retryOnRateLimit = true } = {}) {
 // Batched getMultipleAccountsInfo: keys -> { accounts: [{ data: Buffer, owner: string } | null], slot }.
 async function getAccountsAt(conn, keys, { batch = 100, commitment = "processed" } = {}) {
   const accounts = new Array(keys.length).fill(null);
+  const starts = [];
+  for (let i = 0; i < keys.length; i += batch) starts.push(i);
+  // Batches go out together: one round trip per tick however many coins are watched.
+  const results = await Promise.all(starts.map((i) => conn.getMultipleAccountsInfoAndContext(keys.slice(i, i + batch).map(pk), commitment)));
   let slot = Infinity;
-  for (let i = 0; i < keys.length; i += batch) {
-    const slice = keys.slice(i, i + batch);
-    const res = await conn.getMultipleAccountsInfoAndContext(slice.map(pk), commitment);
+  results.forEach((res, n) => {
     slot = Math.min(slot, res.context.slot);
     res.value.forEach((info, j) => {
-      accounts[i + j] = info ? { data: info.data, owner: info.owner.toBase58() } : null;
+      accounts[starts[n] + j] = info ? { data: info.data, owner: info.owner.toBase58() } : null;
     });
-  }
+  });
   return { accounts, slot: slot === Infinity ? 0 : slot };
 }
 
@@ -230,6 +232,7 @@ class AccountPoller {
         if (r.slot >= this.bestSlot - this.maxLagSlots) {
           this.seen(r.slot);
           this.stats.free++;
+          r.accounts.slot = r.slot;
           return r.accounts;
         }
         this.stats.stale++;
@@ -244,6 +247,7 @@ class AccountPoller {
     const r = await this.fetch(this.main, keys);
     this.seen(r.slot);
     this.stats.main++;
+    r.accounts.slot = r.slot;
     return r.accounts;
   }
 }

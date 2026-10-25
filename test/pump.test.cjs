@@ -11,9 +11,9 @@ const { loadConfig } = require("../pump/lib/config.cjs");
 const strategy = require("../pump/lib/strategy.cjs");
 const { Tracker, summarizeHolders, curveTokenBalance } = require("../pump/lib/tracker.cjs");
 const { PaperBroker } = require("../pump/lib/paperBroker.cjs");
-const { RiskManager } = require("../pump/lib/risk.cjs");
+const { RiskManager, carryPeak } = require("../pump/lib/risk.cjs");
 const { replay, metrics, splitByTime } = require("../pump/lib/replay.cjs");
-const { normalizeCreate, parseCreateLogs, RpcLogsFeed, CREATE_EVENT, TRADE_EVENT } = require("../pump/lib/feed.cjs");
+const { normalizeCreate, parseCreateLogs, RpcLogsFeed, walletFill, CREATE_EVENT, TRADE_EVENT } = require("../pump/lib/feed.cjs");
 const sol = require("../pump/lib/solana.cjs");
 const { LiveBroker } = require("../pump/lib/liveBroker.cjs");
 const { createWallet, loadWallet } = require("../pump/lib/wallet.cjs");
@@ -117,11 +117,11 @@ test("config: by default it holds as many coins as it can pay for, never pauses,
   const risk = new RiskManager(cfg.risk, 0.11);
   let cash = 0.11, open = 0;
   while (risk.canEnter(0, open, cash).ok) {
-    cash -= risk.sizeFor(cash) + 0.00204; // + token-account rent
+    cash -= risk.sizeFor(cash) * 1.2 + C.TOKEN_ACCOUNT_RENT_SOL + 0.0002; // worst-case fill: +20% slippage, rent and fees
     open++;
   }
-  assert.equal(open, 5);
-  assert.ok(cash >= cfg.risk.reserveSol);
+  assert.equal(open, 2); // the rest stays above the keep-floor (half) even if both coins went to zero
+  assert.ok(cash >= 0.055 - 1e-9);
   const r = new RiskManager(cfg.risk, 0.1);
   for (let i = 0; i < 8; i++) r.onTradeClosed(-0.004, 1000 + i); // 8 losses in a row
   assert.ok(r.canEnter(1010, 0, 0.068).ok, "no pause, no daily stop");
@@ -138,6 +138,27 @@ test("config: max preset is the default without the keep-floor", () => {
   assert.ok(risk.canEnter(2000, 0, 0.05).ok, "never stops on losses");
 });
 
+test("risk: the keep-floor carries over restarts (same wallet), clamped to the budget", () => {
+  const saved = { wallet: "W", peakSol: 0.22 };
+  assert.equal(carryPeak({ saved, owner: "W", startSol: 0.12, budgetSol: 0.25 }), 0.22); // restart after losses
+  assert.equal(carryPeak({ saved, owner: "OTHER", startSol: 0.12, budgetSol: 0.25 }), 0.12);
+  assert.equal(carryPeak({ saved, owner: "W", startSol: 0.12, budgetSol: 0.25, reset: true }), 0.12);
+  assert.equal(carryPeak({ saved, owner: "W", startSol: 0.1, budgetSol: 0.15 }), 0.15); // lowered budget
+  assert.equal(carryPeak({ saved, owner: "W", startSol: 0.25, budgetSol: 0.25 }), 0.25); // deposit since
+  assert.equal(carryPeak({ saved: null, owner: "W", startSol: 0.12, budgetSol: 0.25 }), 0.12);
+  const r = new RiskManager(cfgFor().risk, 0.12);
+  r.peakSol = 0.22;
+  const peaks = [];
+  r.onPeak = (p) => peaks.push(p);
+  r.savedPeak = 0.22;
+  r.onTradeClosed(0.05, 0); // 0.17: below the carried best, nothing to save
+  r.onTradeClosed(0.07, 0); // 0.24: a new best
+  assert.deepEqual(peaks.map((p) => Math.round(p * 1000) / 1000), [0.24]);
+  const low = new RiskManager(cfgFor().risk, 0.1);
+  low.peakSol = 0.22; // carried: half is 0.11, this run starts below it
+  assert.equal(low.canEnter(Date.UTC(2026, 9, 26), 0, 0.1).reason, "keep-floor");
+});
+
 test("conviction: stronger buying pressure buys more, within the free cash", () => {
   const s = cfgFor().strategy; // minimums: 2.5 SOL per 30s, 0.8 SOL per 15s
   assert.equal(strategy.conviction({ inflow30: 2.5, inflow15: 0.8 }, s, 2), 1);
@@ -148,7 +169,7 @@ test("conviction: stronger buying pressure buys more, within the free cash", () 
   assert.equal(strategy.conviction({ inflow30: NaN, inflow15: 1 }, s, 2), 1);
   const r = new RiskManager(cfgFor().risk, 0.11);
   near(r.sizeFor(0.11), 0.025);
-  near(r.sizeFor(0.11, 2), 0.049); // never more than half of the free cash: (0.11 - 0.012) / 2
+  near(r.sizeFor(0.11, 2), 0.0439673, 1e-6); // what still fits above the keep-floor at a worst-case fill
   near(r.sizeFor(0.3, 2), 0.05); // twice the base size
   near(r.sizeFor(0.3, 1.5), 0.0375);
 });
@@ -192,6 +213,45 @@ test("tracker: inflow windows, peaks, dev sell detection and holder summary", ()
   assert.equal(h2.top1Pct, 5);
 });
 
+test("tracker: a creator account a lagging node can't show yet is not a sale; mint reads are retried", () => {
+  const cfg = cfgFor();
+  const derive = { bondingCurve: (m) => `curve#${m}`, ata: (o, m) => `ata#${o}#${m}` };
+  const devAcct = (amt) => { const d = Buffer.alloc(165); d.writeBigUInt64LE(BigInt(amt * C.TOKEN_UNIT), 64); return { data: d, owner: C.TOKEN_PROGRAM_ID }; };
+  const tr = new Tracker(cfg, derive);
+  tr.add({ mint: "M", creator: "DEV", devBuySol: 0.4, devTokens: 1e7, createdAtMs: 0 }, 0);
+  tr.ingest([{ key: "curve#M", mint: "M", kind: "curve", account: fakeAccount(2) }], 1000);
+  tr.ingest([{ key: "M", mint: "M", kind: "mint", account: { owner: C.TOKEN_PROGRAM_ID } }], 1000);
+  tr.ingest([{ key: "ata#DEV#M", mint: "M", kind: "devAta", account: null }], 2000); // node behind: null
+  assert.equal(tr.features("M", 2000).devSold, false);
+  tr.ingest([{ key: "ata#DEV#M", mint: "M", kind: "devAta", account: devAcct(1e7) }], 3000);
+  assert.equal(tr.features("M", 3000).devSold, false);
+  assert.equal(tr.stats.devNullIgnored, 1);
+  // Seen once, then gone: the creator closed the account after selling out.
+  tr.ingest([{ key: "ata#DEV#M", mint: "M", kind: "devAta", account: null }], 4000);
+  assert.equal(tr.features("M", 4000).devSold, true);
+  // Never seen, three nulls in a row: treated as no tokens (sold out if the launch buy had some).
+  const t2 = new Tracker(cfg, derive);
+  t2.add({ mint: "N", creator: "DEV", devBuySol: 0.4, devTokens: 1e7, createdAtMs: 0 }, 0);
+  t2.ingest([{ key: "curve#N", mint: "N", kind: "curve", account: fakeAccount(2) }], 1000);
+  for (const ms of [2000, 3000, 4000]) t2.ingest([{ key: "ata#DEV#N", mint: "N", kind: "devAta", account: null }], ms);
+  assert.equal(t2.features("N", 4000).devSold, true);
+  // A mint the RPC can't show three times is asked for again 10 ticks later, then derives the dev account.
+  const t3 = new Tracker(cfg, derive);
+  t3.add({ mint: "Q", creator: "DEV", createdAtMs: 0 }, 0);
+  t3.ingest([{ key: "curve#Q", mint: "Q", kind: "curve", account: fakeAccount(2) }], 1000);
+  const mintAsked = () => t3.pollTargets(2000).some((x) => x.kind === "mint");
+  for (let i = 0; i < 3; i++) {
+    assert.ok(mintAsked());
+    t3.ingest([{ key: "Q", mint: "Q", kind: "mint", account: null }], 2000);
+  }
+  assert.equal(t3.stats.mintGiveUps, 1);
+  let ticks = 1;
+  while (!mintAsked() && ticks < 50) ticks++;
+  assert.equal(ticks, 10, "asked again after a 10-tick pause");
+  t3.ingest([{ key: "Q", mint: "Q", kind: "mint", account: { owner: C.TOKEN_PROGRAM_ID } }], 2000);
+  assert.equal(t3.tokens.get("Q").devAta, "ata#DEV#Q");
+});
+
 test("tracker: dead coins expire early, held coins never expire", () => {
   const cfg = cfgFor();
   const tr = new Tracker(cfg, { bondingCurve: (m) => `c#${m}`, ata: () => "x" });
@@ -211,7 +271,7 @@ test("paper broker: a round trip at unchanged price costs exactly fees + tx cost
   at(0);
   const pb = new PaperBroker(cfg, tr, 1);
   const pBuy = pb.buy({ mint: "M", sol: 0.03, decisionPrice: tr.features("M", 0).price, nowMs: 0 });
-  near(pb.availableSol(), 0.97, 1e-12);
+  near(pb.availableSol(), 1 - 0.03 - pb.txCostSol() - C.TOKEN_ACCOUNT_RENT_SOL, 1e-12); // a pending buy holds its whole cost
   at(1500);
   pb.onTick(1500);
   const b = await pBuy;
@@ -244,7 +304,7 @@ test("paper broker: buys fail on slippage and still pay the network fee", async 
 });
 
 test("risk: sizing, reserve, loss-streak pause and daily loss limit (when switched on)", () => {
-  const r = new RiskManager({ ...cfgFor().risk, maxOpenPositions: 2, maxTradeSol: 0.03, dailyLossLimitPct: 40, lossStreakPauseMin: 10 }, 0.1);
+  const r = new RiskManager({ ...cfgFor().risk, maxOpenPositions: 2, maxTradeSol: 0.03, dailyLossLimitPct: 40, lossStreakPauseMin: 10, keepPct: 0 }, 0.1);
   near(r.sizeFor(0.1), 0.03);
   near(r.sizeFor(0.04), 0.0112, 1e-12);
   assert.equal(r.sizeFor(0.02), 0);
@@ -276,7 +336,7 @@ test("risk: winnings grow the trade size; the keep-floor stops buys below half t
   r.onTradeClosed(-0.039, t0 + 2 * 86400000); // 0.071 < half of 0.15, daily limit not hit
   assert.equal(r.canEnter(t0 + 2 * 86400000, 0, 0.07).reason, "keep-floor");
   assert.ok(r.belowFloor());
-  near(r.sizeFor(0.07), 0.0232); // after losses the size never grows above the base
+  assert.equal(r.sizeFor(0.07), 0); // below the floor: nothing fits
   const off = new RiskManager({ ...base, keepPct: 0, compound: 0 }, 0.1);
   off.onTradeClosed(0.05, t0);
   near(off.sizeFor(0.2), 0.03);
@@ -695,10 +755,15 @@ function mockNet(kp, mint, outcomes = []) {
   const conn = {
     sent,
     async sendRawTransaction(raw) {
+      if (state.sendThrows > 0) { state.sendThrows--; throw new Error("503 Service Unavailable"); }
       const tx = raw.length && web3.VersionedTransaction.deserialize(raw);
       const sig = base58Encode(tx.signatures[0]);
       sent.push({ raw, sig });
-      bySig.set(sig, outcomes.shift() || { status: "confirmed", meta: { preBalances: [0], postBalances: [0], preTokenBalances: [], postTokenBalances: [] } });
+      const o = outcomes.shift() || { status: "confirmed", meta: { preBalances: [0], postBalances: [0], preTokenBalances: [], postTokenBalances: [] } };
+      bySig.set(sig, o);
+      if (state.onSend) state.onSend(sent.length, sig, bySig); // let a test change the world as each tx goes out
+      if (o.tokensOnSend !== undefined) state.tokens = o.tokensOnSend; // coins leave before the status is visible
+      if (o.closesOnSend) state.ataGone = true;
       return sig;
     },
     async getSignatureStatuses(sigs) {
@@ -718,6 +783,7 @@ function mockNet(kp, mint, outcomes = []) {
     },
     async getTransaction(sig) {
       const o = bySig.get(sig);
+      if (o && o.unreadable) return null; // landed, but the RPC can't return it yet
       return o && o.status !== "dropped" && o.status !== "failed" ? { meta: o.meta } : null;
     },
     async getBalance() { return state.preLamports; },
@@ -736,6 +802,7 @@ function mockNet(kp, mint, outcomes = []) {
       const ata = sol.ataAddress(me, mint, C.TOKEN_PROGRAM_ID);
       return keys.map((k) => {
         if (state.ataGone || String(k.toBase58 ? k.toBase58() : k) !== ata) return null;
+        if (state.hideReads > 0) { state.hideReads--; return null; } // a node that hasn't applied our buy yet
         const d = Buffer.alloc(165);
         d.writeBigUInt64LE(BigInt(Math.round(state.tokens * 1e6)), 64);
         return { data: d, owner: new web3.PublicKey(C.TOKEN_PROGRAM_ID), lamports: 2039280 };
@@ -755,7 +822,8 @@ function mockNet(kp, mint, outcomes = []) {
   };
   // Make every "late" transaction visible (it landed after the bot stopped waiting).
   const landLate = () => { for (const o of bySig.values()) if (o.status === "late") o.visible = true; };
-  return { conn, fetchImpl, bodies, state, me, landLate, build: (b) => { nextBuild = b; } };
+  const markUnreadable = (sig) => { const o = bySig.get(sig); if (o) o.unreadable = true; };
+  return { conn, fetchImpl, bodies, state, me, landLate, markUnreadable, build: (b) => { nextBuild = b; } };
 }
 
 const tb = (me, mint, amt) => [{ owner: me, mint, uiTokenAmount: { amount: String(Math.round(amt * 1e6)), decimals: 6 } }];
@@ -987,6 +1055,317 @@ test("live broker: an earlier sell that landed late is booked instead of selling
   assert.equal(net.conn.sent.length, 4, "only the close-account transaction was added");
 });
 
+test("live broker: a take-profit that timed out but landed is booked once, not twice", async () => {
+  const cfg = cfgFor();
+  const kp = web3.Keypair.generate();
+  const me = kp.publicKey.toBase58();
+  const mint = web3.Keypair.generate().publicKey.toBase58();
+  const net = mockNet(kp, mint, [
+    { status: "late", meta: meta(me, mint, 0.02, 1000, 500), tokensOnSend: 500 }, // lands, status not visible yet
+    { status: "confirmed", meta: meta(me, mint, 0.022, 500, 0), tokensAfter: 0 },
+    { status: "confirmed", meta: meta(me, mint, 0.00203928, 0, 0) },
+  ]);
+  net.state.tokens = 1000;
+  const lb = newBroker(cfg, kp, net);
+  const tp = await lb.sell({ mint, fraction: 0.5, estimateSol: 0.02 });
+  assert.ok(tp.ok && tp.estimated && !tp.closed);
+  near(tp.solReceived, 0.02);
+  net.landLate();
+  const rest = await lb.sell({ mint, fraction: 1, estimateSol: 0.022 });
+  assert.ok(rest.ok, rest.error);
+  assert.equal(rest.closed, true);
+  near(tp.solReceived + rest.solReceived, 0.02 + 0.022 + 0.00203928); // the late 50% is not counted again
+  assert.deepEqual(net.bodies.map((b) => b.amount), ["50%", "100%"]);
+});
+
+test("live broker: a sale that landed but can't be read back is booked as an estimate plus rent", async () => {
+  const cfg = cfgFor();
+  const kp = web3.Keypair.generate();
+  const me = kp.publicKey.toBase58();
+  const mint = web3.Keypair.generate().publicKey.toBase58();
+  const net = mockNet(kp, mint, [
+    { status: "late", meta: meta(me, mint, 0.04, 1000, 0) }, // still in flight when we stop waiting
+    { status: "dropped" }, { status: "dropped" },
+  ]);
+  net.state.tokens = 1000;
+  const lb = newBroker(cfg, kp, net);
+  assert.equal((await lb.sell({ mint, fraction: 1, estimateSol: 0.04 })).ok, false);
+  // It lands (closing the account) but the RPC can't return the transaction yet.
+  const first = [...net.conn.sent][0].sig;
+  net.landLate();
+  net.state.tokens = 0;
+  net.state.ataGone = true;
+  net.markUnreadable(first);
+  const r = await lb.sell({ mint, fraction: 1, estimateSol: 0.04 });
+  assert.ok(r.ok, r.error);
+  assert.equal(r.estimated, true);
+  assert.equal(r.closed, true);
+  near(r.solReceived, 0.04 + C.TOKEN_ACCOUNT_RENT_SOL);
+  assert.equal(net.conn.sent.length, 3, "nothing new was sent");
+});
+
+test("live broker: zero coins on the first read is checked again, never booked as a free sale", async () => {
+  const cfg = cfgFor();
+  const kp = web3.Keypair.generate();
+  const me = kp.publicKey.toBase58();
+  const mint = web3.Keypair.generate().publicKey.toBase58();
+  const net = mockNet(kp, mint, [
+    { status: "confirmed", meta: meta(me, mint, 0.04, 1000, 0), tokensAfter: 0 },
+    { status: "confirmed", meta: meta(me, mint, 0.00203928, 0, 0) },
+  ]);
+  net.state.tokens = 1000;
+  net.state.hideReads = 1; // the first read comes from a node that hasn't applied our buy yet
+  const r = await newBroker(cfg, kp, net).sell({ mint, fraction: 1, estimateSol: 0.04 });
+  assert.ok(r.ok, r.error);
+  near(r.tokensSold, 1000);
+  near(r.solReceived, 0.04 + 0.00203928);
+  assert.deepEqual(net.bodies.map((b) => b.amount), ["100%"]);
+  // No coins and no sale of ours anywhere: say so instead of booking a sale.
+  const empty = mockNet(kp, mint, []);
+  const g = await newBroker(cfg, kp, empty).sell({ mint, fraction: 1, estimateSol: 0.04 });
+  assert.equal(g.ok, false);
+  assert.equal(g.goneWithoutSale, true);
+});
+
+test("live broker: a take-profit that failed on-chain is retried as a take-profit, not a full exit", async () => {
+  const cfg = cfgFor();
+  const kp = web3.Keypair.generate();
+  const me = kp.publicKey.toBase58();
+  const mint = web3.Keypair.generate().publicKey.toBase58();
+  const net = mockNet(kp, mint, [
+    { status: "failed" },
+    { status: "confirmed", meta: meta(me, mint, 0.02, 1000, 500), tokensAfter: 500 },
+  ]);
+  net.state.tokens = 1000;
+  const r = await newBroker(cfg, kp, net).sell({ mint, fraction: 0.5, estimateSol: 0.02 });
+  assert.ok(r.ok, r.error);
+  assert.deepEqual(net.bodies.map((b) => b.amount), ["50%", "50%"], "the runner is kept");
+  assert.equal(r.closed, false);
+  near(r.tokensSold, 500);
+});
+
+test("live broker: a deposit is not profit and doesn't raise the budget; a buy holds its worst case", async () => {
+  const cfg = cfgFor();
+  const kp = web3.Keypair.generate();
+  const me = kp.publicKey.toBase58();
+  const mint = web3.Keypair.generate().publicKey.toBase58();
+  const buyMeta = { preBalances: [2e8], postBalances: [2e8 - 0.0306e9], preTokenBalances: tb(me, mint, 0), postTokenBalances: tb(me, mint, 1000) };
+  const net = mockNet(kp, mint, [{ status: "confirmed", meta: buyMeta, tokensAfter: 1000 }]);
+  net.state.preLamports = 1e8; // 0.1 SOL
+  const lb = newBroker(cfg, kp, net, { budgetSol: 0.1 });
+  await lb.refreshBalance();
+  near(lb.availableSol(), 0.1);
+  net.state.preLamports = 2e8; // the owner sends 0.1 SOL while the bot runs
+  await lb.refreshBalance();
+  near(lb.availableSol(), 0.1, 1e-9);
+  near(lb.externalSol(), 0.1, 1e-9);
+  const p = lb.buy({ mint, sol: 0.03 });
+  near(lb.committed, 0.03 * 1.2 + C.TOKEN_ACCOUNT_RENT_SOL + lb.txFeeSol(), 1e-12); // held while in flight
+  net.state.preLamports = 2e8 - 0.0306e9;
+  const r = await p;
+  assert.ok(r.ok, r.error);
+  near(lb.committed, 0, 1e-12);
+  near(lb.flowSol, -0.0306, 1e-9);
+  near(lb.availableSol(), 0.1 - 0.0306, 1e-9); // the budget minus what trading spent
+  near(lb.externalSol(), 0.1, 1e-9); // still just the deposit
+});
+
+test("engine: P&L counts closed trades and open coins, not the wallet balance", () => {
+  const { Engine } = require("../pump/lib/engine.cjs");
+  const cfg = cfgFor();
+  const eng = new Engine({ cfg, tracker: new Tracker(cfg, null), broker: { mode: "live" }, risk: new RiskManager(cfg.risk, 0.1), recorder: null, rpc: null });
+  const { vSol, vTok } = curve.reservesFromRealSol(10);
+  const tokens = curve.quoteBuyTokens(vSol, vTok, 0.03);
+  eng.positions.set("M", { mint: "M", state: "open", tokens, costSol: 0.0326, proceedsSol: 0, lastF: { vSol: vSol + 0.03, vTok: vTok - tokens } });
+  eng.positions.set("B", { mint: "B", state: "buying", tokens: 0, costSol: 0, proceedsSol: 0 }); // not filled yet
+  const back = curve.liquidationValueSol(vSol + 0.03, vTok - tokens, tokens, eng.feeFraction()) + C.TOKEN_ACCOUNT_RENT_SOL;
+  near(eng.unrealizedSol(), back - 0.0326, 1e-12);
+});
+
+test("live broker: full exits use a wide bound at once and retry an on-chain failure without idling", async () => {
+  const cfg = cfgFor();
+  const kp = web3.Keypair.generate();
+  const me = kp.publicKey.toBase58();
+  const mint = web3.Keypair.generate().publicKey.toBase58();
+  const net = mockNet(kp, mint, [
+    { status: "failed" },
+    { status: "confirmed", meta: meta(me, mint, 0.04, 1000, 0), tokensAfter: 0 },
+    { status: "confirmed", meta: meta(me, mint, 0.00203928, 0, 0) },
+  ]);
+  net.state.tokens = 1000;
+  const lb = newBroker(cfg, kp, net);
+  let balanceReads = 0;
+  const realBalance = lb.tokenBalance.bind(lb);
+  lb.tokenBalance = (m) => { balanceReads++; return realBalance(m); };
+  const r = await lb.sell({ mint, fraction: 1, estimateSol: 0.04 });
+  assert.ok(r.ok, r.error);
+  assert.deepEqual(net.bodies.map((b) => b.slippage), [60, 70], "a full exit doesn't climb 25 -> 40 -> 60");
+  assert.equal(balanceReads, 2, "one read before selling, one after the exit; none between the attempts");
+  near(r.feesSol, lb.txFeeSol());
+});
+
+test("live broker: a send that errored is re-sent through the second endpoint (same bytes)", async () => {
+  const cfg = cfgFor();
+  const kp = web3.Keypair.generate();
+  const me = kp.publicKey.toBase58();
+  const mint = web3.Keypair.generate().publicKey.toBase58();
+  const net = mockNet(kp, mint, [{ status: "confirmed", meta: meta(me, mint, -0.0306, 0, 1000), tokensAfter: 1000 }]);
+  net.state.sendThrows = 1; // the main RPC refuses the first send
+  const pushed = [];
+  const rebroadcastConn = { sendRawTransaction: (raw, o) => { pushed.push(Buffer.from(raw).toString("base64")); return net.conn.sendRawTransaction(raw, o); } };
+  const r = await newBroker(cfg, kp, net, { rebroadcastConn }).buy({ mint, sol: 0.03 });
+  assert.ok(r.ok, r.error);
+  assert.equal(pushed.length >= 1, true);
+  assert.equal(net.conn.sent.length, 1, "the same transaction landed once");
+  assert.equal(Buffer.from(net.conn.sent[0].raw).toString("base64"), pushed[0]);
+});
+
+// A trade transaction's logs with this wallet's TradeEvent (post-trade reserves included).
+function tradeLogs({ mint, user, isBuy, sol, tokens, vSolAfter, vTokAfter, short = false }) {
+  const head = [["key", mint], ["u64", Math.round(sol * 1e9)], ["u64", Math.round(tokens * 1e6)], ["bool", isBuy ? 1 : 0], ["key", user]];
+  const tail = [["u64", 1761400000], ["u64", Math.round(vSolAfter * 1e9)], ["u64", Math.round(vTokAfter * 1e6)], ["u64", Math.round((vSolAfter - 30) * 1e9)], ["u64", 7e14]];
+  return [`Program ${C.PUMP_PROGRAM_ID} invoke [1]`, `Program log: Instruction: ${isBuy ? "Buy" : "Sell"}`, anchorEventLine(TRADE_EVENT, short ? head : head.concat(tail)), `Program ${C.PUMP_PROGRAM_ID} success`];
+}
+
+test("fills: the real price comes from the wallet's own trade event (pre-trade curve price)", async () => {
+  const me = web3.Keypair.generate().publicKey.toBase58();
+  const mint = web3.Keypair.generate().publicKey.toBase58();
+  const logs = tradeLogs({ mint, user: me, isBuy: true, sol: 0.03, tokens: 9e5, vSolAfter: 40.03, vTokAfter: 8.04e8 });
+  const f = walletFill(logs, mint, me, true);
+  near(f.fillPrice, 40 / 8.049e8, 1e-15); // the curve just before this buy
+  near(f.avgPrice, 0.03 / 9e5, 1e-15);
+  near(f.realSolAfter, 10.03, 1e-9);
+  assert.equal(walletFill(logs, mint, web3.Keypair.generate().publicKey.toBase58(), true), null, "someone else's trade");
+  const short = walletFill(tradeLogs({ mint, user: me, isBuy: true, sol: 0.03, tokens: 9e5, short: true }), mint, me, true);
+  assert.equal(short.fillPrice, null); // older layout: amounts only
+  near(short.sol, 0.03);
+  // The live broker reports it with the buy; the engine then measures gains from it.
+  const cfg = cfgFor();
+  const kp = web3.Keypair.generate();
+  const wallet = kp.publicKey.toBase58();
+  const buyMeta = { ...meta(wallet, mint, -0.0326, 0, 9e5), logMessages: tradeLogs({ mint, user: wallet, isBuy: true, sol: 0.0295, tokens: 9e5, vSolAfter: 40.0295, vTokAfter: 8.04e8 }) };
+  const net = mockNet(kp, mint, [{ status: "confirmed", meta: buyMeta, tokensAfter: 9e5 }]);
+  const r = await newBroker(cfg, kp, net).buy({ mint, sol: 0.03 });
+  assert.ok(r.ok, r.error);
+  near(r.fillPrice, 40 / 8.049e8, 1e-15);
+  assert.equal(r.fillSource, "event");
+  assert.ok(Number.isFinite(r.premiumPct));
+});
+
+test("recorder: failed buys get their own log", () => {
+  const { Recorder } = require("../pump/lib/recorder.cjs");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pump-rec-"));
+  const rec = new Recorder(dir, cfgFor().runtime);
+  rec.recordBuyFail("live", { atMs: Date.UTC(2026, 9, 25, 22), mint: "M", error: "failed on-chain: 6002", final: true });
+  const rows = fs.readFileSync(path.join(dir, "buyfails-live-2026-10-25.jsonl"), "utf8").trim().split("\n").map(JSON.parse);
+  assert.equal(rows[0].error, "failed on-chain: 6002");
+});
+
+test("review fixes: an older attempt covered by an estimate is never booked again; rent never added twice", async () => {
+  const cfg = cfgFor();
+  const R = C.TOKEN_ACCOUNT_RENT_SOL;
+  const kp = web3.Keypair.generate();
+  const me = kp.publicKey.toBase58();
+  const mint = web3.Keypair.generate().publicKey.toBase58();
+  // A take-profit's 50% goes unanswered; the next call's 100% fails because that 50% landed
+  // meanwhile (but can't be read yet); the sweep sells the rest.
+  const net = mockNet(kp, mint, [
+    { status: "late", meta: meta(me, mint, 0.02, 1000, 500) },
+    { status: "dropped" }, { status: "dropped" },
+    { status: "failed" },
+    { status: "confirmed", meta: meta(me, mint, 0.022, 500, 0), tokensAfter: 0 },
+    { status: "confirmed", meta: meta(me, mint, R, 0, 0) },
+  ]);
+  net.state.tokens = 1000;
+  net.state.onSend = (n, sig, bySig) => {
+    const a0 = [...bySig.values()][0];
+    if (n === 4) { net.state.tokens = 500; a0.visible = true; a0.unreadable = true; }
+    if (n === 5) a0.unreadable = false; // readable by the time the sweep looks
+  };
+  const lb = newBroker(cfg, kp, net);
+  assert.equal((await lb.sell({ mint, fraction: 0.5, estimateSol: 0.02 })).ok, false);
+  const r = await lb.sell({ mint, fraction: 1, estimateSol: 0.04 });
+  near(r.solReceived, 0.02 + 0.022 + R, 1e-9); // the late 50% counted once (as the estimate)
+  near(r.tokensSold, 1000);
+  // Same start, but the readable sweep closes the account itself: its rent is already inside it.
+  const kp2 = web3.Keypair.generate();
+  const me2 = kp2.publicKey.toBase58();
+  const net2 = mockNet(kp2, mint, [
+    { status: "late", meta: meta(me2, mint, 0.02, 1000, 500) },
+    { status: "failed" },
+    { status: "confirmed", meta: meta(me2, mint, 0.022 + R, 500, 0), tokensAfter: 0, closesAccount: true },
+  ]);
+  net2.state.tokens = 1000;
+  net2.state.onSend = (n, sig, bySig) => {
+    if (n === 2) { net2.state.tokens = 500; const a0 = [...bySig.values()][0]; a0.visible = true; a0.unreadable = true; }
+  };
+  const r2 = await newBroker(cfg, kp2, net2).sell({ mint, fraction: 0.5, estimateSol: 0.02 });
+  near(r2.solReceived, 0.02 + 0.022 + R, 1e-9);
+});
+
+test("review fixes: an error seen only at 'processed' is not final", async () => {
+  const cfg = cfgFor();
+  const kp = web3.Keypair.generate();
+  const me = kp.publicKey.toBase58();
+  const mint = web3.Keypair.generate().publicKey.toBase58();
+  const net = mockNet(kp, mint, [
+    { status: "confirmed", meta: meta(me, mint, 0.02, 1000, 500), tokensAfter: 500 },
+    { status: "confirmed", meta: meta(me, mint, 0.019, 500, 250), tokensAfter: 250 },
+  ]);
+  net.state.tokens = 1000;
+  const real = net.conn.getSignatureStatuses.bind(net.conn);
+  let forked = true; // the first answer comes from a minority fork where it failed
+  net.conn.getSignatureStatuses = async (sigs, o) => {
+    if (forked) { forked = false; return { value: sigs.map(() => ({ confirmationStatus: "processed", err: { InstructionError: [2, { Custom: 6003 }] } })) }; }
+    return real(sigs, o);
+  };
+  const r = await newBroker(cfg, kp, net).sell({ mint, fraction: 0.5, estimateSol: 0.02 });
+  assert.deepEqual(net.bodies.map((b) => b.amount), ["50%"], "no second take-profit on top of one that landed");
+  near(r.tokensSold, 500);
+});
+
+test("review fixes: a buy whose outcome is unknown keeps its money held until the late check settles it", async () => {
+  const cfg = cfgFor();
+  const kp = web3.Keypair.generate();
+  const mint = web3.Keypair.generate().publicKey.toBase58();
+  const net = mockNet(kp, mint, [{ status: "late" }]);
+  net.state.preLamports = 1e9; // the wallet holds more than the budget
+  const lb = newBroker(cfg, kp, net, { budgetSol: 0.1 });
+  await lb.refreshBalance();
+  const r = await lb.buy({ mint, sol: 0.03 });
+  assert.equal(r.ok, false);
+  assert.ok(lb.availableSol() < 0.1 - 0.03, "the unknown buy's cost stays reserved");
+  lb.settleLateBuy(mint, false); // the late check found nothing twice
+  near(lb.availableSol(), 0.1, 1e-9);
+  // Money that left the wallet without being booked can't widen the budget either.
+  net.state.preLamports = 1e9 - 0.05e9;
+  await lb.refreshBalance();
+  near(lb.availableSol(), 0.05, 1e-9);
+});
+
+test("review fixes: a full exit whose close step was unsure is finished, not booked as lost", async () => {
+  const cfg = cfgFor();
+  const kp = web3.Keypair.generate();
+  const me = kp.publicKey.toBase58();
+  const mint = web3.Keypair.generate().publicKey.toBase58();
+  const net = mockNet(kp, mint, [
+    { status: "confirmed", meta: meta(me, mint, 0.04, 1000, 0), tokensAfter: 0 },
+    { status: "confirmed", meta: meta(me, mint, C.TOKEN_ACCOUNT_RENT_SOL, 0, 0) },
+  ]);
+  net.state.tokens = 1000;
+  const lb = newBroker(cfg, kp, net);
+  const real = lb.closeEmptyAccounts.bind(lb);
+  let lagging = 2; // both close-step reads hit a node that still shows the coins
+  lb.closeEmptyAccounts = async (m) => (m && lagging-- > 0 ? { closed: 0, refundSol: 0, nonEmpty: true } : real(m));
+  const first = await lb.sell({ mint, fraction: 1, estimateSol: 0.04 });
+  assert.ok(first.ok && !first.closed);
+  const finish = await lb.sell({ mint, fraction: 1, estimateSol: 0 });
+  assert.ok(finish.ok, finish.error);
+  assert.equal(finish.closed, true);
+  assert.equal(finish.goneWithoutSale, undefined);
+  near(finish.solReceived, C.TOKEN_ACCOUNT_RENT_SOL); // just the rent back
+});
+
 test("live broker: withdraw sends the exact lamport balance minus the fee", async () => {
   const cfg = cfgFor();
   const kp = web3.Keypair.generate();
@@ -995,6 +1374,113 @@ test("live broker: withdraw sends the exact lamport balance minus the fee", asyn
   await newBroker(cfg, kp, net).withdrawAll(web3.Keypair.generate().publicKey.toBase58());
   const tx = web3.Transaction.from(net.conn.sent[0].raw);
   assert.equal(tx.instructions[0].data.readBigUInt64LE(4), 123456789n - 5000n);
+});
+
+test("engine: shutdown waits for a sale started by a late-fill check; failed-on-chain buys aren't re-checked", async () => {
+  const { Engine } = require("../pump/lib/engine.cjs");
+  const { Recorder } = require("../pump/lib/recorder.cjs");
+  const cfg = cfgFor();
+  const tr = new Tracker(cfg, { bondingCurve: (m) => `c#${m}`, ata: () => "x" });
+  for (const m of ["LATE", "FAIL"]) {
+    tr.add({ mint: m, symbol: m, createdAtMs: 0 }, 0);
+    tr.ingest([{ key: `c#${m}`, mint: m, kind: "curve", account: fakeAccount(8) }], 0);
+  }
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const broker = {
+    mode: "live",
+    availableSol: () => 0.1,
+    buy: async ({ mint }) => (mint === "FAIL" ? { ok: false, error: "failed on-chain", sig: "S2", feesSol: 0.0001, final: true } : { ok: false, error: "not confirmed in time", sig: "S1", feesSol: 0 }),
+    tokenBalance: async () => { await wait(20); return 1234; },
+    estimateBuyCost: (s) => s * 1.0175 + 0.0021,
+    sell: async () => { await wait(20); return { ok: true, solReceived: 0.025, tokensSold: 1234, closed: true }; },
+  };
+  let now = 1000;
+  const rpc = { getAccounts: async (keys) => keys.map(() => fakeAccount(8)), getLargestHolders: async () => [] };
+  const eng = new Engine({ cfg, tracker: tr, broker, risk: new RiskManager(cfg.risk, 0.1), recorder: new Recorder("", cfg.runtime, { enabled: false }), rpc, clock: () => now });
+  eng.buy(tr.features("LATE", now), 0.03, now);
+  eng.buy(tr.features("FAIL", now), 0.03, now);
+  await eng.settle();
+  assert.deepEqual(eng.lateFillChecks.map((c) => c.mint), ["LATE"]);
+  now = 50000;
+  eng.stopping = true;
+  eng.checkLateFills(now);
+  assert.equal(eng.busy(), true, "a lookup in flight keeps the bot from quitting");
+  await eng.settle();
+  assert.equal(eng.closedTrades.length, 1, "the sale it started finished before settle returned");
+  assert.equal(eng.busy(), false);
+});
+
+test("engine: a creator sale during the buy is acted on as soon as the buy fills", async () => {
+  const { Engine } = require("../pump/lib/engine.cjs");
+  const { Recorder } = require("../pump/lib/recorder.cjs");
+  const cfg = cfgFor();
+  const tr = new Tracker(cfg, { bondingCurve: (m) => `c#${m}`, ata: () => "x" });
+  tr.add({ mint: "RUG", symbol: "RUG", createdAtMs: 0 }, 0);
+  tr.ingest([{ key: "c#RUG", mint: "RUG", kind: "curve", account: fakeAccount(8) }], 0);
+  const sells = [];
+  let fill;
+  const broker = {
+    mode: "live",
+    availableSol: () => 0.1,
+    buy: () => new Promise((r) => { fill = r; }),
+    sell: async (o) => { sells.push(o.reason); return { ok: true, solReceived: 0.02, tokensSold: 1000, closed: true }; },
+  };
+  let now = 1000;
+  const eng = new Engine({ cfg, tracker: tr, broker, risk: new RiskManager(cfg.risk, 0.1), recorder: new Recorder("", cfg.runtime, { enabled: false }), rpc: null, clock: () => now });
+  eng.buy(tr.features("RUG", now), 0.03, now);
+  now = 2500;
+  tr.tokens.get("RUG").devSoldAtMs = 2000; // the creator dumps while our buy is in flight
+  fill({ ok: true, tokens: 1000, solSpent: 0.0326 });
+  await eng.settle();
+  assert.deepEqual(sells, ["dev-sold"], "sold in the same step as the fill, not a tick later");
+});
+
+test("engine: right after a fill, price rules wait for data newer than the fill", async () => {
+  const { Engine } = require("../pump/lib/engine.cjs");
+  const { Recorder } = require("../pump/lib/recorder.cjs");
+  const cfg = cfgFor();
+  const tr = new Tracker(cfg, { bondingCurve: (m) => `c#${m}`, ata: () => "x" });
+  tr.add({ mint: "W", symbol: "W", createdAtMs: 0 }, 0);
+  tr.ingest([{ key: "c#W", mint: "W", kind: "curve", account: fakeAccount(8), slot: 100 }], 0);
+  const sells = [];
+  let fill;
+  const broker = { mode: "live", availableSol: () => 0.1, buy: () => new Promise((r) => { fill = r; }), sell: async (o) => { sells.push(o.reason); return { ok: true, solReceived: 0.02, tokensSold: 1, closed: true }; } };
+  const eng = new Engine({ cfg, tracker: tr, broker, risk: new RiskManager(cfg.risk, 0.1), recorder: new Recorder("", cfg.runtime, { enabled: false }), rpc: null, clock: () => 1000 });
+  const f = tr.features("W", 1000);
+  eng.buy(f, 0.03, 1000);
+  // A whale bought just before us: our real fill is 20% above what the last (older) poll shows.
+  fill({ ok: true, tokens: 1000, solSpent: 0.0326, fillPrice: f.price * 1.2, slot: 105 });
+  await eng.settle();
+  assert.deepEqual(sells, [], "no stop-loss from comparing the fill with an older price");
+  tr.ingest([{ key: "c#W", mint: "W", kind: "curve", account: fakeAccount(5), slot: 106 }], 2000); // a real drop, after the fill
+  eng.manageExits(2000);
+  await eng.settle();
+  assert.equal(sells.length, 1);
+});
+
+test("risk: the buy overhead follows the real priority fee", () => {
+  const cfg = cfgFor();
+  const cheap = new RiskManager({ ...cfg.risk, keepPct: 0 }, 0.1);
+  const pricey = new RiskManager({ ...cfg.risk, keepPct: 0 }, 0.1, { buyOverheadSol: C.TOKEN_ACCOUNT_RENT_SOL + 0.005 + C.BASE_FEE_SOL });
+  near(cheap.roomSol(0.05) - pricey.roomSol(0.05), (0.005 + C.BASE_FEE_SOL - 0.0002) / 1.2, 1e-12);
+});
+
+test("solana: batches of a big poll go out together", async () => {
+  let inFlight = 0, most = 0;
+  const conn = {
+    getMultipleAccountsInfoAndContext: async (keys) => {
+      inFlight++;
+      most = Math.max(most, inFlight);
+      await new Promise((r) => setTimeout(r, 5));
+      inFlight--;
+      return { context: { slot: 100 + keys.length }, value: keys.map(() => null) };
+    },
+  };
+  const keys = Array.from({ length: 150 }, () => web3.Keypair.generate().publicKey.toBase58());
+  const r = await sol.getAccountsAt(conn, keys);
+  assert.equal(most, 2);
+  assert.equal(r.accounts.length, 150);
+  assert.equal(r.slot, 150); // the older of the two answers
 });
 
 test("engine: a failing trade log never crashes the bot", async () => {
@@ -1053,8 +1539,8 @@ test("paper broker: a sell that gaps past its slippage fills a poll later, like 
   pb.onTick(1500);
   assert.ok((await pBuy).ok);
   let done = false;
-  const pSell = pb.sell({ mint: "M", fraction: 1, nowMs: 1500, decisionPrice: tr.features("M", 1500).price }).then((r) => { done = true; return r; });
-  at(3000, 8); // price collapses ~60%: beyond 25% slippage
+  const pSell = pb.sell({ mint: "M", fraction: 0.5, nowMs: 1500, decisionPrice: tr.features("M", 1500).price }).then((r) => { done = true; return r; });
+  at(3000, 8); // price collapses ~42%: beyond a take-profit's 25% slippage
   pb.onTick(3000);
   await new Promise((r) => setImmediate(r));
   assert.equal(done, false, "first attempt failed on slippage");
@@ -1065,6 +1551,15 @@ test("paper broker: a sell that gaps past its slippage fills a poll later, like 
   at(6000, 8);
   pb.onTick(6000);
   assert.ok((await pSell).ok, "third attempt fills");
+  // A full exit takes the wide bound at once, like live: the same crash fills at the first try.
+  at(7500, 20);
+  let full = false;
+  const pExit = pb.sell({ mint: "M", fraction: 1, nowMs: 7500, decisionPrice: tr.features("M", 7500).price }).then((r) => { full = true; return r; });
+  at(9000, 8);
+  pb.onTick(9000);
+  await new Promise((r) => setImmediate(r));
+  assert.equal(full, true);
+  assert.ok((await pExit).ok);
 });
 
 test("config: stop files and data folder are anchored to the repo root", () => {
