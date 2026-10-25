@@ -242,6 +242,28 @@ test("risk: sizing, reserve, loss-streak pause and daily loss limit", () => {
   assert.ok(r.canEnter(t0 + 24 * 3600000, 0, 0.1).ok, "limit resets the next UTC day");
 });
 
+test("risk: winnings grow the trade size; the keep-floor stops buys below half the best balance", () => {
+  const r = new RiskManager(cfgFor().risk, 0.1);
+  const t0 = Date.UTC(2026, 9, 25, 12);
+  near(r.sizeFor(0.2), 0.03);
+  r.onTradeClosed(0.05, t0); // account 0.15: +50%
+  near(r.sizeFor(0.2), 0.045); // the size limit grew by the same 50%
+  r.onTradeClosed(-0.03, t0); // 0.12: still above half of the 0.15 best
+  near(r.sizeFor(0.2), 0.036);
+  assert.ok(r.canEnter(t0, 0, 0.12).ok);
+  r.onTradeClosed(0.02, t0 + 86400000); // a new day: daily limit fresh
+  r.onTradeClosed(-0.03, t0 + 86400000);
+  r.onTradeClosed(-0.039, t0 + 2 * 86400000); // 0.071 < half of 0.15, daily limit not hit
+  assert.equal(r.canEnter(t0 + 2 * 86400000, 0, 0.07).reason, "keep-floor");
+  assert.ok(r.belowFloor());
+  near(r.sizeFor(0.07), 0.0232); // after losses the size never grows above the base
+  const off = new RiskManager({ ...cfgFor().risk, keepPct: 0, compound: 0 }, 0.1);
+  off.onTradeClosed(0.05, t0);
+  near(off.sizeFor(0.2), 0.03);
+  off.onTradeClosed(-0.1, t0 + 86400000);
+  assert.ok(off.canEnter(t0 + 86400000 + 3600000, 0, 0.1).reason !== "keep-floor");
+});
+
 // ---------------------------------------------------------------- end to end on a synthetic market
 
 const SHAPES = {

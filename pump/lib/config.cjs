@@ -55,6 +55,8 @@ const DEFAULT_RISK = {
   dailyLossLimitPct: 40,
   lossStreak: 3,
   lossStreakPauseMin: 10,
+  keepPct: 50, // no new buys once the account is below this % of its best value this run (0 = off)
+  compound: 1, // 1 = the trade size limit grows with profits (and shrinks back if they are lost)
 };
 
 const DEFAULT_RUNTIME = {
@@ -105,6 +107,7 @@ function validate(cfg) {
   if (!(s.trailPct > 0 && s.trailPct < 100)) fail("trailPct must be between 0 and 100");
   if (!(r.minTradeSol > 0 && r.minTradeSol <= r.maxTradeSol)) fail("need 0 < minTradeSol <= maxTradeSol");
   if (!(r.maxOpenPositions >= 1)) fail("maxOpenPositions must be >= 1");
+  if (!(r.keepPct >= 0 && r.keepPct < 100)) fail("keepPct must be between 0 and 99");
   if (!(c.priorityFeeSol >= 0 && c.priorityFeeSol <= 0.01)) fail("priorityFeeSol must be between 0 and 0.01");
   if (!(c.buySlippagePct > 0 && c.sellSlippagePct > 0)) fail("slippage must be > 0");
   if (cfg.runtime.watchSecActive < s.entryMaxAgeSec + s.maxHoldSec) fail("watchSecActive must be >= entryMaxAgeSec + maxHoldSec");

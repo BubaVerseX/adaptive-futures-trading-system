@@ -2,8 +2,9 @@
 
 /**
  * Position sizing and the hard stops: max open positions, a cash reserve for
- * rent/fees, a daily loss limit (trading halts for the rest of the UTC day), and a
- * pause after a losing streak.
+ * rent/fees, a daily loss limit (trading halts for the rest of the UTC day), a
+ * pause after a losing streak, and a keep-floor (no new buys once the account is
+ * below keepPct of its best value this run). Account values count closed trades only.
  */
 class RiskManager {
   constructor(risk, startSol) {
@@ -19,6 +20,19 @@ class RiskManager {
     this.trades = 0;
     this.wins = 0;
     this.losses = 0;
+    this.peakSol = startSol;
+  }
+
+  equitySol() {
+    return this.startSol + this.realizedTotal;
+  }
+
+  floorSol() {
+    return (this.peakSol * this.r.keepPct) / 100;
+  }
+
+  belowFloor() {
+    return this.r.keepPct > 0 && this.equitySol() < this.floorSol();
   }
 
   rollDay(nowMs) {
@@ -37,6 +51,7 @@ class RiskManager {
   canEnter(nowMs, openCount, availableSol) {
     this.rollDay(nowMs);
     if (this.halted) return { ok: false, reason: "daily-loss-limit" };
+    if (this.belowFloor()) return { ok: false, reason: "keep-floor" };
     if (nowMs < this.pausedUntil) return { ok: false, reason: "loss-streak-pause" };
     if (openCount >= this.r.maxOpenPositions) return { ok: false, reason: "max-open" };
     if (this.sizeFor(availableSol) <= 0) return { ok: false, reason: "insufficient-funds" };
@@ -46,7 +61,9 @@ class RiskManager {
   sizeFor(availableSol) {
     const free = availableSol - this.r.reserveSol;
     if (free < this.r.minTradeSol) return 0;
-    const size = Math.min(this.r.maxTradeSol, Math.max(this.r.minTradeSol, free * this.r.tradeFractionOfFree));
+    // Compounding: the size limit grows with the account, never below its base value.
+    const growth = this.r.compound ? Math.max(1, this.equitySol() / this.startSol) : 1;
+    const size = Math.min(this.r.maxTradeSol * growth, Math.max(this.r.minTradeSol, free * this.r.tradeFractionOfFree));
     return Math.min(size, free);
   }
 
@@ -54,6 +71,7 @@ class RiskManager {
     this.rollDay(nowMs);
     this.realizedToday += netSol;
     this.realizedTotal += netSol;
+    this.peakSol = Math.max(this.peakSol, this.equitySol());
     if (this.realizedToday <= -this.dailyLimitSol()) this.halted = true;
   }
 

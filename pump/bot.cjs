@@ -122,7 +122,9 @@ function status(engine, broker, risk, tracker, price, startEquity, feed) {
   const cash = broker.mode === "paper" ? broker.cash : broker.balanceSol;
   const equity = cash + engine.openValueSol();
   const pnl = equity - startEquity;
-  const gate = risk.halted ? " | DAILY LOSS LIMIT HIT: no buys until 00:00 UTC" : Date.now() < risk.pausedUntil ? " | paused after a losing streak" : "";
+  const gate = risk.halted ? " | DAILY LOSS LIMIT HIT: no buys until 00:00 UTC"
+    : risk.belowFloor() ? ` | KEEP-FLOOR HIT: no new buys, ${risk.r.keepPct}% of the best balance is kept`
+    : Date.now() < risk.pausedUntil ? " | paused after a losing streak" : "";
   log(
     "info",
     `${broker.mode.toUpperCase()} | equity ${equity.toFixed(4)} SOL${price.fmt(equity)} | P&L ${signed(pnl)} SOL${price.fmt(pnl)} | open ${engine.positions.size} | ` +
@@ -163,7 +165,8 @@ async function run(cfg, args) {
     startEquity = startSol;
     log("info", `PAPER TRADING with ${startSol} SOL${price.fmt(startSol)} of fake money on real live data`);
   }
-  log("info", `daily loss limit ${cfg.risk.dailyLossLimitPct}% (${((startSol * cfg.risk.dailyLossLimitPct) / 100).toFixed(4)} SOL) | research log: ${cfg.dataDir}`);
+  log("info", `daily loss limit ${cfg.risk.dailyLossLimitPct}% (${((startSol * cfg.risk.dailyLossLimitPct) / 100).toFixed(4)} SOL)` +
+    `${cfg.risk.keepPct ? ` | keeps at least ${cfg.risk.keepPct}% of the best balance` : ""}${cfg.risk.compound ? " | trade size grows with profits" : ""} | research log: ${cfg.dataDir}`);
 
   const risk = new RiskManager(cfg.risk, startSol);
   const recorder = new Recorder(cfg.dataDir, cfg.runtime);

@@ -135,6 +135,11 @@ each buy and refunded when the bot closes the account after selling.
 - `PUMP_MAX_BUDGET_SOL` caps what the bot may use even if the wallet holds more.
 - Daily loss limit (default 40% of the budget): no new buys until 00:00 UTC.
 - After 3 losses in a row it pauses 10 minutes.
+- Keep-floor (default 50%): no new buys once the account is below half of its
+  best value this run, so a bad night can't take everything (`PUMP_KEEP_PCT=0`
+  turns it off).
+- Profits are reinvested: the trade size limit grows with the account and
+  shrinks back if the gains are lost (`PUMP_COMPOUND=0` keeps it fixed).
 - Only dependencies: `@solana/web3.js`, `ws`, `dotenv`. No downloaded "bot" code.
   Free pump.fun bots from GitHub or Telegram are a known way wallets get emptied.
 
