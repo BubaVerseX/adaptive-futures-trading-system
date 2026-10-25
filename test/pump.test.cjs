@@ -13,7 +13,7 @@ const { Tracker, summarizeHolders, curveTokenBalance } = require("../pump/lib/tr
 const { PaperBroker } = require("../pump/lib/paperBroker.cjs");
 const { RiskManager } = require("../pump/lib/risk.cjs");
 const { replay, metrics, splitByTime } = require("../pump/lib/replay.cjs");
-const { normalizeCreate } = require("../pump/lib/feed.cjs");
+const { normalizeCreate, parseCreateLogs, RpcLogsFeed, CREATE_EVENT, TRADE_EVENT } = require("../pump/lib/feed.cjs");
 const sol = require("../pump/lib/solana.cjs");
 const { LiveBroker } = require("../pump/lib/liveBroker.cjs");
 const { createWallet, loadWallet } = require("../pump/lib/wallet.cjs");
@@ -379,6 +379,141 @@ test("feed: PumpPortal create messages are normalized, other pools ignored", () 
   assert.equal(normalizeCreate({ txType: "buy", mint: "M" }, 0), null);
 });
 
+// Borsh-encodes an Anchor event the way the pump.fun program logs it.
+function anchorEventLine(disc, fields) {
+  const parts = [Buffer.from(disc)];
+  for (const [type, v] of fields) {
+    if (type === "str") {
+      const b = Buffer.from(v, "utf8");
+      const len = Buffer.alloc(4);
+      len.writeUInt32LE(b.length);
+      parts.push(len, b);
+    } else if (type === "key") parts.push(new web3.PublicKey(v).toBuffer());
+    else if (type === "u64") {
+      const b = Buffer.alloc(8);
+      b.writeBigUInt64LE(BigInt(v));
+      parts.push(b);
+    } else parts.push(Buffer.from([Number(v)])); // bool / u8
+  }
+  return `Program data: ${Buffer.concat(parts).toString("base64")}`;
+}
+
+// A launch transaction's logs: create + the creator's buy + someone else's buy, with the
+// events laid out as in pump.fun's current IDL (newer fields appended at the end).
+function launchLogs({ mint, dev, other, name = "Moon Cat", symbol = "MCAT", curveOf = (m) => sol.bondingCurveAddress(m) }) {
+  const P = C.PUMP_PROGRAM_ID;
+  const createEvent = anchorEventLine(CREATE_EVENT, [
+    ["str", name], ["str", symbol], ["str", "https://ipfs.io/ipfs/QmExample"],
+    ["key", mint], ["key", curveOf(mint)], ["key", dev], ["key", dev], ["u64", 1761400000],
+    ["u64", 1.073e15], ["u64", 30e9], ["u64", 7.931e14], ["u64", 1e15], ["key", C.TOKEN_PROGRAM_ID],
+    ["bool", 0], ["bool", 0], ["key", "So11111111111111111111111111111111111111112"], ["u64", 30e9], ["u64", 30], ["bool", 0], ["u8", 0],
+  ]);
+  const trade = (user, sol, tokens) => anchorEventLine(TRADE_EVENT, [
+    ["key", mint], ["u64", sol * 1e9], ["u64", tokens * 1e6], ["bool", 1], ["key", user], ["u64", 1761400000],
+    ["u64", 31.5e9], ["u64", 1.022e15], ["u64", 1.5e9], ["u64", 7.42e14], ["key", other], ["u64", 95], ["u64", 1e7],
+    ["key", dev], ["u64", 30], ["u64", 4e6], ["bool", 1], ["u64", 0], ["u64", 0], ["u64", 0], ["u64", 1761400000], ["str", "buy"],
+  ]);
+  return [
+    "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+    "Program ComputeBudget111111111111111111111111111111 success",
+    `Program ${P} invoke [1]`,
+    "Program log: Instruction: Create",
+    "Program 11111111111111111111111111111111 invoke [2]",
+    "Program 11111111111111111111111111111111 success",
+    `Program ${C.TOKEN_PROGRAM_ID} invoke [2]`,
+    "Program log: Instruction: InitializeMint2",
+    `Program ${C.TOKEN_PROGRAM_ID} consumed 2780 of 230000 compute units`,
+    `Program ${C.TOKEN_PROGRAM_ID} success`,
+    createEvent,
+    `Program ${P} invoke [2]`,
+    `Program ${P} consumed 2003 of 21877 compute units`,
+    `Program ${P} success`,
+    `Program ${P} consumed 120000 of 250000 compute units`,
+    `Program ${P} success`,
+    `Program ${P} invoke [1]`,
+    "Program log: Instruction: Buy",
+    trade(dev, 1.5, 52e6),
+    `Program ${P} success`,
+    `Program ${P} invoke [1]`,
+    "Program log: Instruction: Buy",
+    trade(other, 0.5, 15e6),
+    `Program ${P} success`,
+  ];
+}
+
+test("feed: launches are read from pump.fun's own log events; fakes are ignored", () => {
+  // The discriminators pump.fun's published IDL lists for these events.
+  assert.deepEqual([...CREATE_EVENT], [27, 114, 169, 77, 222, 235, 99, 118]);
+  assert.deepEqual([...TRADE_EVENT], [189, 219, 127, 211, 78, 230, 97, 238]);
+  const key = () => web3.Keypair.generate().publicKey.toBase58();
+  const mint = key(), dev = key(), other = key();
+  const logs = launchLogs({ mint, dev, other, name: "Moon\u001b[2J Cat" });
+  const [e, ...rest] = parseCreateLogs(logs, 1234, sol.bondingCurveAddress);
+  assert.equal(rest.length, 0);
+  assert.equal(e.mint, mint);
+  assert.equal(e.creator, dev);
+  assert.equal(e.bondingCurve, sol.bondingCurveAddress(mint));
+  assert.equal(e.name, "Moon[2J Cat"); // no terminal control characters
+  assert.equal(e.symbol, "MCAT");
+  near(e.devBuySol, 1.5); // the creator's own buy only
+  near(e.devTokens, 52e6);
+  assert.equal(e.createdAtMs, 1234);
+  // An event whose curve isn't the coin's real pump.fun curve is not trusted.
+  assert.deepEqual(parseCreateLogs(logs, 0, () => "SomeOtherAddress"), []);
+  // The same event logged by another program is a fake.
+  const fake = logs.map((l) => l.replace(`Program ${C.PUMP_PROGRAM_ID} invoke [1]`, `Program ${other} invoke [1]`).replace(`Program ${C.PUMP_PROGRAM_ID} success`, `Program ${other} success`));
+  assert.deepEqual(parseCreateLogs(fake, 0, sol.bondingCurveAddress), []);
+  // Truncated or cut-short logs: nothing to read (the feed then fetches the transaction).
+  assert.deepEqual(parseCreateLogs(logs.slice(0, 6).concat(["Log truncated"]), 0), []);
+  const cut = logs.map((l) => (l.startsWith("Program data: ") ? l.slice(0, 60) : l));
+  assert.deepEqual(parseCreateLogs(cut, 0), []);
+  // No buy in the launch: the creator bought nothing.
+  const noBuy = parseCreateLogs(logs.slice(0, 16), 0, sol.bondingCurveAddress)[0];
+  assert.equal(noBuy.devBuySol, 0);
+});
+
+test("feed: the RPC feed needs no lookups for readable launches and retries the rest", async () => {
+  const key = () => web3.Keypair.generate().publicKey.toBase58();
+  let now = 0;
+  const lookups = [];
+  let answer = null;
+  const conn = { getTransaction: async (sig) => { lookups.push(sig); return answer; } };
+  const feed = new RpcLogsFeed({ conn, derive: sol.derive, clock: () => now, maxWaitMs: 30000 });
+  const got = [];
+  feed.on("create", (e) => got.push(e));
+  const a = { mint: key(), dev: key(), other: key() };
+  feed.onLogs({ err: null, signature: "A", logs: launchLogs(a) });
+  feed.onLogs({ err: { InstructionError: [0, "x"] }, signature: "F", logs: launchLogs({ mint: key(), dev: key(), other: key() }) });
+  feed.onLogs({ err: null, signature: "T", logs: ["Program log: Instruction: Buy"] });
+  assert.equal(got.length, 1);
+  assert.equal(got[0].mint, a.mint);
+  assert.equal(lookups.length, 0); // read from the logs alone
+  // Unreadable launch: looked up, backed off while the node doesn't have it yet.
+  const b = { mint: key(), dev: key(), other: key() };
+  feed.onLogs({ err: null, signature: "B", logs: [`Program ${C.PUMP_PROGRAM_ID} invoke [1]`, "Program log: Instruction: CreateV2", "Log truncated"] });
+  await feed.drain();
+  assert.deepEqual(lookups, ["B"]);
+  now = 100;
+  await feed.drain();
+  assert.equal(lookups.length, 1); // still backing off
+  now = 600;
+  answer = { meta: { logMessages: launchLogs(b), postTokenBalances: [] }, transaction: { message: { staticAccountKeys: [] } } };
+  await feed.drain();
+  assert.equal(lookups.length, 2);
+  assert.equal(got.length, 2);
+  assert.equal(got[1].mint, b.mint);
+  assert.equal(got[1].createdAtMs, 0); // age counts from when the launch was seen
+  // A launch the RPC never returns is given up after maxWaitMs and counted.
+  answer = null;
+  feed.onLogs({ err: null, signature: "C", logs: [`Program ${C.PUMP_PROGRAM_ID} invoke [1]`, "Program log: Instruction: Create"] });
+  for (now = 1000; now <= 40000; now += 500) await feed.drain();
+  assert.equal(feed.missed, 1);
+  assert.equal(feed.queue.length, 0);
+  assert.ok(lookups.length < 15, `${lookups.length} lookups`); // backoff, not a hammer
+  assert.equal(feed.fromLogs, 1);
+  assert.equal(feed.launches, 3);
+});
+
 // ---------------------------------------------------------------- solana helpers, wallet, live broker (mocked network)
 
 test("solana: PDA/ATA derivation and close-account instruction", () => {
@@ -557,7 +692,7 @@ test("live broker: an unknown program that never sees the wallet does not block 
   assert.ok(r.ok, r.error);
 });
 
-test("curve: non-standard curves are detected, recorded and skipped by the strategy", async () => {
+test("curve: non-standard curves are detected, dropped from watching and skipped by the strategy", async () => {
   const cfg = cfgFor();
   const tr = new Tracker(cfg, { bondingCurve: (m) => `c#${m}`, ata: () => "x" });
   tr.add({ mint: "ODD", createdAtMs: 0 }, 0);
@@ -574,6 +709,15 @@ test("curve: non-standard curves are detected, recorded and skipped by the strat
   tr.add({ mint: "STD", createdAtMs: 0 }, 0);
   tr.ingest([{ key: "c#STD", mint: "STD", kind: "curve", account: fakeAccount(2) }], 1000);
   assert.equal(tr.tokens.get("STD").curve.standard, true);
+  // Odd coins are never traded, so they stop being polled (and aren't recorded).
+  assert.deepEqual(tr.expire(1000), []);
+  assert.equal(tr.tokens.has("ODD"), false);
+  assert.equal(tr.tokens.has("STD"), true);
+  const keep = new Tracker(cfgFor({ PUMP_REQUIRE_STANDARD_CURVE: "0" }), { bondingCurve: (m) => `c#${m}`, ata: () => "x" });
+  keep.add({ mint: "ODD", createdAtMs: 0 }, 0);
+  keep.ingest([{ key: "c#ODD", mint: "ODD", kind: "curve", account: { data: curve.encodeBondingCurve({ vSol, vTok, realSol: 0, realTok: 793.1e6 }), owner: C.PUMP_PROGRAM_ID } }], 1000);
+  keep.expire(1000);
+  assert.equal(keep.tokens.has("ODD"), true); // kept when odd curves are allowed
   // Replay rebuilds a recorded coin's reserves from its own curve parameters.
   const { RecordedMarket } = require("../pump/lib/recordedMarket.cjs");
   const m = new RecordedMarket([{ mint: "ODD", createdAtMs: 0, path: [[1000, 5]], curve: { base: 782.6, k: 782.6 * 1.073e9, totalSupply: 1e9 } }], { clock: () => 2000 });

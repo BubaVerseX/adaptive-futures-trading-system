@@ -115,7 +115,7 @@ function requireLive(cfg) {
 }
 
 function makeFeed(cfg, conn) {
-  return cfg.discovery === "rpc" ? new RpcLogsFeed({ conn }) : new PumpPortalFeed({ url: cfg.wsUrl, apiKey: cfg.pumpPortalApiKey });
+  return cfg.discovery === "rpc" ? new RpcLogsFeed({ conn, derive: sol.derive }) : new PumpPortalFeed({ url: cfg.wsUrl, apiKey: cfg.pumpPortalApiKey });
 }
 
 function status(engine, broker, risk, tracker, price, startEquity, feed) {
@@ -298,6 +298,11 @@ async function check(cfg) {
   feed.stop();
   if (!coins.length) fail("no new coin within 45s (try PUMP_DISCOVERY=rpc or set PUMPPORTAL_API_KEY)");
   else pass(`${coins.length} new coin(s) seen`);
+  if (feed.launches) {
+    const slow = feed.launches - feed.fromLogs;
+    if (!slow) pass(`all ${feed.launches} launches read straight from the pump.fun logs (no extra RPC calls)`);
+    else console.log(`        ${slow} of ${feed.launches} launches needed a slower transaction lookup`);
+  }
 
   let first = null, firstVTok = null;
   if (coins.length) {

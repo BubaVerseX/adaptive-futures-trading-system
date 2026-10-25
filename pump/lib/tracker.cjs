@@ -257,6 +257,10 @@ class Tracker {
     const out = [];
     for (const t of this.tokens.values()) {
       if (held.has(t.mint)) continue;
+      if (t.curve && !t.curve.standard && this.s.requireStandardCurve) {
+        this.tokens.delete(t.mint); // never traded: stop polling it, nothing to record
+        continue;
+      }
       const ageSec = (nowMs - t.createdAtMs) / 1000;
       const dead = ageSec >= this.rt.deadAfterSec && t.maxRealSol < this.rt.deadBelowRealSol;
       // Coins that could have been traded are followed long enough to cover any

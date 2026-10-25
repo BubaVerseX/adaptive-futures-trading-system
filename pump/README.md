@@ -34,6 +34,7 @@ node pump/bot.cjs --set-rpc
 
 If PumpPortal's coin feed is down, find new coins straight from Solana instead:
 `echo 'PUMP_DISCOVERY=rpc' >> .env`
+(it reads each launch from pump.fun's own log events, so it costs no extra RPC calls).
 
 Then test everything (spends nothing):
 
