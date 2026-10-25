@@ -79,6 +79,13 @@ loosens the entry filters (earlier, smaller inflows, up to 5 minutes old) and le
 more of each winner ride. Same money rules. Expect more trades, more fees and more
 bad coins; `replay --compare` shows whether looser rules pay on your data.
 
+## Classic mode
+
+`--params pump/presets/classic.json` uses the money rules of the first live day:
+fixed 0.03 SOL bets (no 2x), at most 2 coins at once, a 10-minute pause after 3
+losses in a row and no new buys after -40% in a day. The buy/sell rules, every
+fix since, and the keep-half floor are the same as the default.
+
 ## Max mode
 
 `--params pump/presets/max.json` is the default without the keep-floor: it never

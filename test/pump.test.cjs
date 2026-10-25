@@ -129,6 +129,22 @@ test("config: by default it holds as many coins as it can pay for, never pauses,
   assert.equal(r.canEnter(1030, 0, 0.048).reason, "keep-floor");
 });
 
+test("config: classic preset brings back the first day's money rules, keeps the floor", () => {
+  const cfg = loadConfig({ env: { PUMP_CONVICTION_MAX: "2" }, cwd: os.tmpdir(), paramsFile: path.join(__dirname, "..", "pump", "presets", "classic.json") });
+  assert.deepEqual(cfg.strategy, cfgFor().strategy, "same buy/sell rules");
+  assert.equal(cfg.risk.maxOpenPositions, 2);
+  assert.equal(cfg.risk.convictionMax, 1, "the preset wins over .env");
+  assert.equal(cfg.risk.keepPct, 50);
+  const r = new RiskManager(cfg.risk, 0.15);
+  const sure = strategy.conviction({ inflow30: 50, inflow15: 50 }, cfg.strategy, cfg.risk.convictionMax);
+  assert.equal(sure, 1, "no 2x bets");
+  near(r.sizeFor(0.15, sure), 0.03); // fixed size
+  const t0 = Date.UTC(2026, 9, 26, 1);
+  for (let i = 0; i < 3; i++) r.onTradeClosed(-0.005, t0);
+  assert.equal(r.canEnter(t0 + 1000, 0, 0.13).reason, "loss-streak-pause");
+  assert.ok(r.canEnter(t0 + 11 * 60000, 0, 0.13).ok);
+});
+
 test("config: max preset is the default without the keep-floor", () => {
   const cfg = loadConfig({ env: {}, cwd: os.tmpdir(), paramsFile: path.join(__dirname, "..", "pump", "presets", "max.json") });
   assert.deepEqual(cfg.strategy, cfgFor().strategy);
