@@ -262,7 +262,7 @@ class RpcLogsFeed extends EventEmitter {
 
   subscribe(address, note) {
     if (this.subId !== undefined) this.conn.removeOnLogsListener(this.subId).catch(() => {});
-    this.subId = this.conn.onLogs(address, (l) => this.onLogs(l), "confirmed");
+    this.subId = this.conn.onLogs(address, (l, ctx) => this.onLogs(l, ctx), "confirmed");
     this.emit("status", note);
   }
 
@@ -272,7 +272,8 @@ class RpcLogsFeed extends EventEmitter {
     this.subscribe(program, "no launches through the narrow subscription; listening to all pump.fun logs instead (more RPC data)");
   }
 
-  onLogs(l) {
+  onLogs(l, ctx) {
+    if (ctx && ctx.slot) this.emit("slot", ctx.slot);
     if (!l || l.err || !l.logs || !l.logs.some((x) => /Instruction: Create(V2)?$/.test(x))) return;
     const now = this.clock();
     this.launches++;

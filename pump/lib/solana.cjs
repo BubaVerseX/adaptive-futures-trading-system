@@ -176,21 +176,76 @@ function instructionAccounts(vtx, programId) {
   return out;
 }
 
-function connection(rpcUrl) {
-  return new web3.Connection(rpcUrl, { commitment: "confirmed", disableRetryOnRateLimit: false });
+function connection(rpcUrl, { retryOnRateLimit = true } = {}) {
+  return new web3.Connection(rpcUrl, { commitment: "confirmed", disableRetryOnRateLimit: !retryOnRateLimit });
 }
 
-// Batched getMultipleAccountsInfo: keys -> [{ data: Buffer, owner: string } | null].
-async function getAccounts(conn, keys, { batch = 100, commitment = "processed" } = {}) {
-  const out = new Array(keys.length).fill(null);
+// Batched getMultipleAccountsInfo: keys -> { accounts: [{ data: Buffer, owner: string } | null], slot }.
+async function getAccountsAt(conn, keys, { batch = 100, commitment = "processed" } = {}) {
+  const accounts = new Array(keys.length).fill(null);
+  let slot = Infinity;
   for (let i = 0; i < keys.length; i += batch) {
     const slice = keys.slice(i, i + batch);
-    const infos = await conn.getMultipleAccountsInfo(slice.map(pk), commitment);
-    infos.forEach((info, j) => {
-      out[i + j] = info ? { data: info.data, owner: info.owner.toBase58() } : null;
+    const res = await conn.getMultipleAccountsInfoAndContext(slice.map(pk), commitment);
+    slot = Math.min(slot, res.context.slot);
+    res.value.forEach((info, j) => {
+      accounts[i + j] = info ? { data: info.data, owner: info.owner.toBase58() } : null;
     });
   }
-  return out;
+  return { accounts, slot: slot === Infinity ? 0 : slot };
+}
+
+async function getAccounts(conn, keys, opts) {
+  return (await getAccountsAt(conn, keys, opts)).accounts;
+}
+
+/**
+ * Account polling is the bot's main RPC use (a call every tick), so it goes to a free
+ * endpoint (the public Solana RPC by default) and doesn't spend the main RPC's credits.
+ * The main RPC answers instead whenever the free one fails or takes over timeoutMs (it
+ * then rests for restMs) or answers from more than maxLagSlots behind the newest slot seen.
+ */
+class AccountPoller {
+  constructor({ main, free = null, maxLagSlots = 10, restMs = 60000, timeoutMs = 2500, clock = Date.now, fetch = getAccountsAt }) {
+    Object.assign(this, { main, free, maxLagSlots, restMs, timeoutMs, clock, fetch });
+    this.bestSlot = 0;
+    this.restUntil = 0;
+    this.stats = { free: 0, main: 0, freeErrors: 0, stale: 0 };
+  }
+
+  seen(slot) {
+    if (slot > this.bestSlot) this.bestSlot = slot;
+  }
+
+  resting() {
+    return !!this.free && this.clock() < this.restUntil;
+  }
+
+  async getAccounts(keys) {
+    if (this.free && !this.resting()) {
+      let timer;
+      try {
+        const late = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("timeout")), this.timeoutMs); });
+        const r = await Promise.race([this.fetch(this.free, keys), late]);
+        if (r.slot >= this.bestSlot - this.maxLagSlots) {
+          this.seen(r.slot);
+          this.stats.free++;
+          return r.accounts;
+        }
+        this.stats.stale++;
+        this.restUntil = this.clock() + this.restMs / 6;
+      } catch (_) {
+        this.stats.freeErrors++;
+        this.restUntil = this.clock() + this.restMs;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    const r = await this.fetch(this.main, keys);
+    this.seen(r.slot);
+    this.stats.main++;
+    return r.accounts;
+  }
 }
 
 async function getLargestHolders(conn, mint) {
@@ -211,5 +266,7 @@ module.exports = {
   instructionAccounts,
   connection,
   getAccounts,
+  getAccountsAt,
+  AccountPoller,
   getLargestHolders,
 };

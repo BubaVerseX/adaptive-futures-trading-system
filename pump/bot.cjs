@@ -118,7 +118,7 @@ function makeFeed(cfg, conn) {
   return cfg.discovery === "rpc" ? new RpcLogsFeed({ conn, derive: sol.derive }) : new PumpPortalFeed({ url: cfg.wsUrl, apiKey: cfg.pumpPortalApiKey });
 }
 
-function status(engine, broker, risk, tracker, price, startEquity, feed) {
+function status(engine, broker, risk, tracker, price, startEquity, feed, poller) {
   const cash = broker.mode === "paper" ? broker.cash : broker.balanceSol;
   const equity = cash + engine.openValueSol();
   const pnl = equity - startEquity;
@@ -130,7 +130,8 @@ function status(engine, broker, risk, tracker, price, startEquity, feed) {
     `${broker.mode.toUpperCase()} | equity ${equity.toFixed(4)} SOL${price.fmt(equity)} | P&L ${signed(pnl)} SOL${price.fmt(pnl)} | open ${engine.positions.size} | ` +
       `trades ${risk.trades} (W${risk.wins}/L${risk.losses}) | watching ${tracker.tokens.size} of ${tracker.stats.seen} coins seen` +
       `${tracker.stats.nonStandard ? ` (${tracker.stats.nonStandard} odd-curve skipped)` : ""}` +
-      `${rpcRetries ? ` | RPC busy, ${rpcRetries} retries` : ""}${feed && feed.missed ? ` | feed missed ${feed.missed}` : ""}${gate}`
+      `${rpcRetries ? ` | RPC busy, ${rpcRetries} retries` : ""}${feed && feed.missed ? ` | feed missed ${feed.missed}` : ""}` +
+      `${poller && poller.resting() ? " | public RPC busy: price checks on your RPC for now" : ""}${gate}`
   );
   rpcRetries = 0;
 }
@@ -139,7 +140,8 @@ async function run(cfg, args) {
   const live = !!args.live;
   if (live) requireLive(cfg);
   const conn = sol.connection(cfg.rpcUrl);
-  const rpc = { getAccounts: (keys) => sol.getAccounts(conn, keys), getLargestHolders: (mint) => sol.getLargestHolders(conn, mint) };
+  const poller = new sol.AccountPoller({ main: conn, free: cfg.pollRpcUrl ? sol.connection(cfg.pollRpcUrl, { retryOnRateLimit: false }) : null });
+  const rpc = { getAccounts: (keys) => poller.getAccounts(keys), getLargestHolders: (mint) => sol.getLargestHolders(conn, mint) };
   const tracker = new Tracker(cfg, sol.derive);
   const price = new SolPrice(cfg.solUsdOverride);
   await price.refresh();
@@ -174,7 +176,9 @@ async function run(cfg, args) {
   const feed = makeFeed(cfg, conn);
   feed.on("create", (e) => engine.onCreate(e));
   feed.on("status", (s) => log("info", `[feed] ${s}`));
+  feed.on("slot", (s) => poller.seen(s));
   feed.start();
+  if (cfg.pollRpcUrl) log("info", `price checks every ${cfg.runtime.pollMs / 1000}s via ${cfg.pollRpcUrl} (free); your RPC only when that one is busy`);
 
   let stop = null;
   process.on("SIGINT", () => {
@@ -219,7 +223,7 @@ async function run(cfg, args) {
       lastBalance = now;
     }
     if (now - lastStatus >= cfg.runtime.statusEverySec * 1000) {
-      status(engine, broker, risk, tracker, price, startEquity, feed);
+      status(engine, broker, risk, tracker, price, startEquity, feed, poller);
       lastStatus = now;
     }
     await sleep(Math.max(50, cfg.runtime.pollMs - (Date.now() - now)));
@@ -228,7 +232,7 @@ async function run(cfg, args) {
   price.stop();
   await engine.settle();
   if (live) await broker.refreshBalance().catch(() => {});
-  status(engine, broker, risk, tracker, price, startEquity, feed);
+  status(engine, broker, risk, tracker, price, startEquity, feed, poller);
   const net = engine.closedTrades.reduce((a, t) => a + t.netSol, 0);
   console.log(`\nSession: ${engine.closedTrades.length} trades, ${risk.wins} wins / ${risk.losses} losses, net ${signed(net)} SOL${price.fmt(net)}`);
   console.log(`Trades log + research data: ${cfg.dataDir}   |   measure the strategy: node pump/replay.cjs`);
@@ -284,6 +288,14 @@ async function check(cfg) {
     pass(`connected, slot ${await conn.getSlot()}, solana-core ${v["solana-core"]}`);
   } catch (e) {
     fail(`cannot reach the RPC: ${e.message} (set SOLANA_RPC_URL in .env, e.g. a free Helius endpoint)`);
+  }
+  if (cfg.pollRpcUrl) {
+    try {
+      const r = await sol.getAccountsAt(sol.connection(cfg.pollRpcUrl, { retryOnRateLimit: false }), [C.PUMP_PROGRAM_ID]);
+      pass(`price checks go to ${cfg.pollRpcUrl} (free, slot ${r.slot}), saving your RPC's credits`);
+    } catch (e) {
+      console.log(`        ${cfg.pollRpcUrl} not reachable (${e.message}): price checks will use your RPC's credits`);
+    }
   }
 
   console.log(`2) New-coin feed (${cfg.discovery})`);

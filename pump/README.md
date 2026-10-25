@@ -37,6 +37,10 @@ If PumpPortal's coin feed is down, find new coins straight from Solana instead:
 (it listens to launch transactions only and reads each launch from pump.fun's own
 log events, so it costs no extra RPC calls and little websocket data).
 
+Price checks (one call per second) go to the free public Solana RPC so they don't
+use your Helius credits; Helius covers whenever the public one is busy
+(`PUMP_POLL_RPC_URL=off` sends everything to Helius).
+
 Then test everything (spends nothing):
 
 ```bash

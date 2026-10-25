@@ -537,6 +537,53 @@ test("feed: launches are read from pump.fun's own log events; fakes are ignored"
   assert.equal(noBuy.devBuySol, 0);
 });
 
+test("poller: price checks use the free RPC, the main one only when it fails or lags", async () => {
+  let now = 0;
+  const calls = [];
+  const answers = { free: { slot: 100 }, main: { slot: 100 } };
+  const fetch = async (conn, keys) => {
+    calls.push(conn);
+    const a = answers[conn];
+    if (a.error) throw new Error(a.error);
+    return { accounts: keys.map((k) => ({ k, from: conn })), slot: a.slot };
+  };
+  const p = new sol.AccountPoller({ main: "main", free: "free", fetch, clock: () => now, maxLagSlots: 10, restMs: 60000 });
+  assert.equal((await p.getAccounts(["A"]))[0].from, "free");
+  // Lagging free node (the feed has seen slot 150): the main RPC answers, the free one rests briefly.
+  p.seen(150);
+  answers.main.slot = 151;
+  assert.equal((await p.getAccounts(["A"]))[0].from, "main");
+  assert.ok(p.resting());
+  now = 11000;
+  answers.free.slot = 152;
+  assert.equal((await p.getAccounts(["A"]))[0].from, "free");
+  // Errors (e.g. 429): main answers, the free one rests a minute.
+  answers.free.error = "429 Too Many Requests";
+  assert.equal((await p.getAccounts(["A"]))[0].from, "main");
+  now = 30000;
+  calls.length = 0;
+  assert.equal((await p.getAccounts(["A"]))[0].from, "main");
+  assert.deepEqual(calls, ["main"], "no calls to a resting endpoint");
+  delete answers.free.error;
+  now = 72000;
+  assert.equal((await p.getAccounts(["A"]))[0].from, "free");
+  assert.deepEqual(p.stats, { free: 3, main: 3, freeErrors: 1, stale: 1 });
+  // A free endpoint that hangs never stalls the bot.
+  const hang = new sol.AccountPoller({ main: "main", free: "free", timeoutMs: 20, fetch: (conn, keys) => (conn === "free" ? new Promise(() => {}) : fetch(conn, keys)) });
+  assert.equal((await hang.getAccounts(["A"]))[0].from, "main");
+  assert.ok(hang.resting());
+  // Without a free endpoint everything goes to the main RPC.
+  const solo = new sol.AccountPoller({ main: "main", fetch });
+  assert.equal((await solo.getAccounts(["A"]))[0].from, "main");
+});
+
+test("config: price checks go to the public RPC unless switched off or already the main RPC", () => {
+  assert.equal(cfgFor({ SOLANA_RPC_URL: "https://mainnet.helius-rpc.com/?api-key=x" }).pollRpcUrl, C.DEFAULT_RPC_URL);
+  assert.equal(cfgFor({ SOLANA_RPC_URL: "https://mainnet.helius-rpc.com/?api-key=x", PUMP_POLL_RPC_URL: "off" }).pollRpcUrl, null);
+  assert.equal(cfgFor({}).pollRpcUrl, null); // main RPC is the public one already
+  assert.equal(cfgFor({ PUMP_POLL_RPC_URL: "https://other.example" }).pollRpcUrl, "https://other.example");
+});
+
 test("feed: subscribes to launches only, widens to all pump.fun logs if none arrive", () => {
   const subs = [];
   const removed = [];
@@ -564,9 +611,12 @@ test("feed: the RPC feed needs no lookups for readable launches and retries the 
   const conn = { getTransaction: async (sig) => { lookups.push(sig); return answer; } };
   const feed = new RpcLogsFeed({ conn, derive: sol.derive, clock: () => now, maxWaitMs: 30000 });
   const got = [];
+  const slots = [];
   feed.on("create", (e) => got.push(e));
+  feed.on("slot", (s) => slots.push(s));
   const a = { mint: key(), dev: key(), other: key() };
-  feed.onLogs({ err: null, signature: "A", logs: launchLogs(a) });
+  feed.onLogs({ err: null, signature: "A", logs: launchLogs(a) }, { slot: 777 });
+  assert.deepEqual(slots, [777]); // the chain tip, for the poller's lag check
   feed.onLogs({ err: { InstructionError: [0, "x"] }, signature: "F", logs: launchLogs({ mint: key(), dev: key(), other: key() }) });
   feed.onLogs({ err: null, signature: "T", logs: ["Program log: Instruction: Buy"] });
   assert.equal(got.length, 1);

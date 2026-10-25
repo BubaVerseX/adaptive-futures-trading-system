@@ -61,7 +61,7 @@ const DEFAULT_RISK = {
 };
 
 const DEFAULT_RUNTIME = {
-  pollMs: 1500,
+  pollMs: 1000,
   slowEvery: 3, // tokens outside the entry window are polled every Nth tick
   watchSec: 360,
   watchSecActive: 630, // coins that reached holdersCheckMinRealSol: >= entryMaxAgeSec + maxHoldSec
@@ -138,6 +138,9 @@ function loadConfig({ env = process.env, paramsFile = null, cwd = REPO_ROOT } = 
     }
   }
   cfg.rpcUrl = env.SOLANA_RPC_URL || C.DEFAULT_RPC_URL;
+  // Price checks (account polling) go here so they don't spend the main RPC's credits.
+  const pollUrl = env.PUMP_POLL_RPC_URL === undefined ? C.DEFAULT_RPC_URL : env.PUMP_POLL_RPC_URL.trim();
+  cfg.pollRpcUrl = !pollUrl || pollUrl.toLowerCase() === "off" || pollUrl === cfg.rpcUrl ? null : pollUrl;
   cfg.wsUrl = env.PUMPPORTAL_WS_URL || C.PUMPPORTAL_WS_URL;
   cfg.pumpPortalApiKey = env.PUMPPORTAL_API_KEY || "";
   cfg.discovery = (env.PUMP_DISCOVERY || "pumpportal").toLowerCase();
