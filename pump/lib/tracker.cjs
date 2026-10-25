@@ -16,20 +16,28 @@ const curveTokenBalance = (vTok) => vTok - (C.INITIAL_VIRTUAL_TOKENS - C.TOTAL_S
 /**
  * Top-holder concentration, excluding the bonding curve's token account.
  * largest: [{ address, uiAmount }] as returned by getTokenLargestAccounts.
+ * curveAtas: candidate addresses of the curve's token account.
  */
-function summarizeHolders(largest, { curveAta = null, curveBalance = null } = {}) {
+function summarizeHolders(largest, { curveAtas = [], curveAta = null, curveBalance = null } = {}) {
+  const exclude = new Set([...(curveAtas || []), ...(curveAta ? [curveAta] : [])]);
   let rows = (largest || []).filter((r) => r && Number.isFinite(r.uiAmount) && r.uiAmount > 0);
   const before = rows.length;
-  if (curveAta) rows = rows.filter((r) => r.address !== curveAta);
-  if (rows.length === before && curveBalance !== null && curveBalance > 0) {
-    let idx = -1, best = Infinity;
-    rows.forEach((r, i) => {
-      const d = Math.abs(r.uiAmount - curveBalance) / curveBalance;
-      if (d < best) { best = d; idx = i; }
-    });
-    if (idx >= 0 && best < 0.005) rows.splice(idx, 1);
-  }
+  rows = rows.filter((r) => !exclude.has(r.address));
   rows.sort((a, b) => b.uiAmount - a.uiAmount);
+  if (rows.length === before && rows.length) {
+    // Not recognised by address: the curve holds (close to) its expected balance and,
+    // since it starts with the whole supply, is by far the largest holder early on.
+    let idx = -1, best = Infinity;
+    if (curveBalance !== null && curveBalance > 0) {
+      rows.forEach((r, i) => {
+        const d = Math.abs(r.uiAmount - curveBalance) / curveBalance;
+        if (d < best) { best = d; idx = i; }
+      });
+      if (best > 0.05) idx = -1;
+    }
+    if (idx < 0 && rows[0].uiAmount >= 0.4 * C.TOTAL_SUPPLY_TOKENS) idx = 0;
+    if (idx >= 0) rows.splice(idx, 1);
+  }
   const pct = (x) => (x / C.TOTAL_SUPPLY_TOKENS) * 100;
   return {
     top1Pct: round(rows[0] ? pct(rows[0].uiAmount) : 0, 2),
@@ -237,7 +245,10 @@ class Tracker {
       if (held.has(t.mint)) continue;
       const ageSec = (nowMs - t.createdAtMs) / 1000;
       const dead = ageSec >= this.rt.deadAfterSec && t.maxRealSol < this.rt.deadBelowRealSol;
-      if (ageSec >= this.rt.watchSec || dead) {
+      // Coins that could have been traded are followed long enough to cover any
+      // possible hold, so replay never has to guess what happened after the recording.
+      const limit = t.maxRealSol >= this.rt.holdersCheckMinRealSol ? this.rt.watchSecActive : this.rt.watchSec;
+      if (ageSec >= limit || dead) {
         this.tokens.delete(t.mint);
         this.stats.expired++;
         out.push(t);

@@ -34,30 +34,70 @@ function closeAccountInstruction(account, destination, owner, tokenProgram) {
   });
 }
 
-const SYSTEM_PROGRAM_ID = web3.SystemProgram.programId.toBase58();
+const BASE_ALLOWED_PROGRAMS = [
+  C.COMPUTE_BUDGET_PROGRAM_ID,
+  C.SYSTEM_PROGRAM_ID,
+  C.ASSOCIATED_TOKEN_PROGRAM_ID,
+  C.TOKEN_PROGRAM_ID,
+  C.TOKEN_2022_PROGRAM_ID,
+  C.PUMP_PROGRAM_ID,
+  C.PUMPSWAP_PROGRAM_ID,
+  C.PUMP_FEE_PROGRAM_ID,
+  ...C.MEMO_PROGRAM_IDS,
+];
+const TOKEN_PROGRAMS = new Set([C.TOKEN_PROGRAM_ID, C.TOKEN_2022_PROGRAM_ID]);
+// SPL Token: Transfer 3, Approve 4, SetAuthority 6, TransferChecked 12, ApproveChecked 13.
+const TOKEN_GIVEAWAY = new Set([3, 4, 6, 12, 13]);
 
 /**
- * Sums lamports that top-level System Program instructions move out of `wallet`
- * (Transfer, CreateAccount, ...). Signers are always static keys, so this works
- * without resolving address lookup tables. Used to refuse a third-party-built
- * transaction that tries to send our SOL somewhere it shouldn't.
+ * Static look at a third-party-built transaction before signing it. Only top-level
+ * instructions are visible here (anything a program does internally is caught by the
+ * simulation check instead). Signers are always static keys, so no lookup tables needed.
+ *   outflowSol       SOL that System transfers / account creations take from the wallet
+ *   unknownPrograms  programs outside the pump.fun / token / system set
+ *   risky            anything else that touches the wallet (assign, seeds, token approvals...)
  */
-function systemOutflowLamports(vtx, wallet) {
-  const msg = vtx.message;
-  const keys = msg.staticAccountKeys.map((k) => k.toBase58());
+function inspectTransaction(vtx, wallet, extraAllowed = []) {
+  const allowed = new Set([...BASE_ALLOWED_PROGRAMS, ...extraAllowed]);
+  const keys = vtx.message.staticAccountKeys.map((k) => k.toBase58());
   const me = pk(wallet).toBase58();
-  let total = 0n;
-  for (const ix of msg.compiledInstructions) {
-    if (keys[ix.programIdIndex] !== SYSTEM_PROGRAM_ID) continue;
+  const unknown = new Set();
+  const risky = [];
+  let outflow = 0n;
+  for (const ix of vtx.message.compiledInstructions) {
+    const program = keys[ix.programIdIndex];
+    if (!allowed.has(program)) unknown.add(program);
     const data = Buffer.from(ix.data);
-    if (data.length < 12) continue;
-    const kind = data.readUInt32LE(0);
-    const from = keys[ix.accountKeyIndexes[0]];
-    if (from !== me) continue;
-    // 0 CreateAccount, 2 Transfer, 11 TransferWithSeed: lamports u64 right after the index.
-    if (kind === 0 || kind === 2 || kind === 11) total += data.readBigUInt64LE(4);
+    const accounts = ix.accountKeyIndexes.map((i) => keys[i]);
+    if (!accounts.includes(me)) continue;
+    if (program === C.SYSTEM_PROGRAM_ID) {
+      const kind = data.length >= 4 ? data.readUInt32LE(0) : -1;
+      if (kind === 2 && accounts[0] !== me) continue; // incoming transfer
+      if ((kind === 0 || kind === 2) && accounts[0] === me && data.length >= 12) outflow += data.readBigUInt64LE(4);
+      else risky.push(`system instruction #${kind} on the wallet`);
+    } else if (TOKEN_PROGRAMS.has(program) && data.length >= 1) {
+      if (TOKEN_GIVEAWAY.has(data[0])) risky.push(`token instruction #${data[0]} signed by the wallet`);
+      else if (data[0] === 9 && accounts[1] !== me) risky.push("closes a token account into someone else's wallet");
+    }
   }
-  return Number(total);
+  return { outflowSol: Number(outflow) / C.LAMPORTS_PER_SOL, unknownPrograms: [...unknown], risky };
+}
+
+/**
+ * Simulates the transaction and reports how much SOL the wallet would lose and who
+ * would own it afterwards. Catches drains hidden inside program calls.
+ */
+async function simulateWalletChange(conn, vtx, wallet) {
+  const addr = pk(wallet).toBase58();
+  const [pre, sim] = await Promise.all([
+    conn.getBalance(pk(wallet), "processed"),
+    conn.simulateTransaction(vtx, { sigVerify: false, commitment: "processed", accounts: { encoding: "base64", addresses: [addr] } }),
+  ]);
+  const v = sim.value;
+  if (v.err) return { ok: false, simErr: JSON.stringify(v.err), logs: (v.logs || []).slice(-4) };
+  const acc = v.accounts && v.accounts[0];
+  if (!acc) return { ok: true, lossSol: pre / C.LAMPORTS_PER_SOL, owner: null }; // wallet would be emptied/closed
+  return { ok: true, lossSol: (pre - acc.lamports) / C.LAMPORTS_PER_SOL, owner: acc.owner };
 }
 
 function connection(rpcUrl) {
@@ -89,7 +129,8 @@ module.exports = {
   bondingCurveAddress,
   ataAddress,
   closeAccountInstruction,
-  systemOutflowLamports,
+  inspectTransaction,
+  simulateWalletChange,
   connection,
   getAccounts,
   getLargestHolders,

@@ -79,7 +79,7 @@ node pump/bot.cjs --live
 ```
 
 Stop: Ctrl+C (it sells open positions first), or create a file `STOP_PUMP.txt`
-in this folder. Other commands:
+in the repo folder. Live mode also stops on the repo-wide `STOP_BOT.txt`. Other commands:
 
 ```bash
 node pump/bot.cjs --wallet                       # balance and coins held
@@ -99,9 +99,18 @@ each buy and refunded when the bot closes the account after selling.
 
 - The bot uses its own wallet (`~/.pump-bot/wallet.json`, never inside the repo).
   It only ever holds what you send it. Never put your main wallet's key here.
-- The key never leaves your computer. PumpPortal only builds the transaction;
-  the bot checks that the fee payer is your wallet and that no SOL is sent out
-  directly beyond fees, then signs and sends it through your own RPC.
+- The key never leaves your computer. PumpPortal only builds the transaction.
+  Before signing, the bot checks it: the fee payer must be your wallet, only
+  known programs (pump.fun, PumpSwap, token, system, compute budget, memo) may
+  appear, nothing may reassign the wallet or approve its coins away, and a
+  simulation must show the wallet losing no more than the trade plus fees.
+  Anything else is refused and nothing is sent. (`--check` shows whether
+  PumpPortal's transactions pass; `PUMP_EXTRA_PROGRAMS` exists only for a program
+  you have checked yourself.)
+- Sells that time out are never blindly repeated: anything that landed late is
+  read from the chain first, and a partial sell is never re-sent (a retry is
+  always a full exit), so the bot can't sell more than it holds or lose track
+  of a position.
 - `PUMP_MAX_BUDGET_SOL` caps what the bot may use even if the wallet holds more.
 - Daily loss limit (default 40% of the budget): no new buys until 00:00 UTC.
 - After 3 losses in a row it pauses 10 minutes.

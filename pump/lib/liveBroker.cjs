@@ -2,6 +2,7 @@
 
 const C = require("./constants.cjs");
 const sol = require("./solana.cjs");
+const { base58Encode } = require("./base58.cjs");
 const { web3 } = sol;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -20,11 +21,16 @@ const tokenDelta = (tx, owner, mint) => tokenAmountFor(tx.meta.postTokenBalances
 
 /**
  * Real orders. PumpPortal's Local Transaction API builds the pump.fun transaction;
- * it is checked, signed on this machine and sent through your own RPC. The private
- * key never leaves the computer.
+ * the bot inspects and simulates it, signs it on this machine and sends it through
+ * your own RPC. The private key never leaves the computer.
+ *
+ * Sells are the dangerous part: a transaction that "timed out" can still land a
+ * minute later. So every sell attempt's signature is kept per coin, anything that
+ * landed is booked from the chain before doing more, and a partial sell is never
+ * re-sent (a retry is always a full exit, which can't oversell).
  */
 class LiveBroker {
-  constructor(cfg, { conn, keypair, budgetSol = null, fetchImpl = globalThis.fetch, sleepFn = sleep }) {
+  constructor(cfg, { conn, keypair, budgetSol = null, fetchImpl = globalThis.fetch, sleepFn = sleep, confirmMs = 30000, extraPrograms = [] }) {
     this.mode = "live";
     this.c = cfg.costs;
     this.conn = conn;
@@ -33,10 +39,17 @@ class LiveBroker {
     this.ownerStr = this.owner.toBase58();
     this.fetch = fetchImpl;
     this.sleep = sleepFn;
+    this.confirmMs = confirmMs;
+    this.extraPrograms = extraPrograms;
     this.budgetSol = budgetSol;
     this.balanceSol = 0;
     this.startBalanceSol = null;
     this.committed = 0;
+    this.sellSigs = new Map(); // mint -> [{ sig, booked }]
+  }
+
+  txFeeSol() {
+    return this.c.priorityFeeSol + C.BASE_FEE_SOL;
   }
 
   async refreshBalance() {
@@ -63,7 +76,15 @@ class LiveBroker {
     }
   }
 
-  async tradeLocal(body, maxDirectOutflowSol) {
+  /**
+   * Gets one transaction from PumpPortal, checks it, signs and sends it.
+   * Throws (nothing sent) if it is refused or would fail; otherwise returns
+   * { sig, sendError } — the signature is computed locally, so even a send that
+   * errored can still be looked up later.
+   *   maxLossSol: the most SOL the wallet may lose to this transaction
+   *   strict: refuse unknown programs even when the simulation looks fine (buys)
+   */
+  async tradeLocal(body, { maxLossSol, strict }) {
     const res = await this.fetchWithTimeout(
       C.PUMPPORTAL_TRADE_LOCAL_URL,
       { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) },
@@ -75,28 +96,50 @@ class LiveBroker {
     }
     const tx = web3.VersionedTransaction.deserialize(new Uint8Array(await res.arrayBuffer()));
     if (!tx.message.staticAccountKeys[0].equals(this.owner)) throw new Error("refused transaction: fee payer is not this wallet");
-    const outflow = sol.systemOutflowLamports(tx, this.owner) / C.LAMPORTS_PER_SOL;
-    if (outflow > maxDirectOutflowSol) {
-      throw new Error(`refused transaction: sends ${outflow.toFixed(6)} SOL directly out of the wallet (limit ${maxDirectOutflowSol})`);
+    const ins = sol.inspectTransaction(tx, this.owner, this.extraPrograms);
+    const odd = [...ins.risky, ...ins.unknownPrograms.map((p) => `unknown program ${p}`)];
+    if (ins.outflowSol > maxLossSol) throw new Error(`refused transaction: sends ${ins.outflowSol.toFixed(6)} SOL straight out (limit ${maxLossSol.toFixed(6)})`);
+    if (strict && odd.length) throw new Error(`refused transaction: ${odd.join("; ")} (allow a program with PUMP_EXTRA_PROGRAMS only after checking it)`);
+
+    let sim;
+    try {
+      sim = await sol.simulateWalletChange(this.conn, tx, this.owner);
+    } catch (e) {
+      sim = { ok: false, error: e.message };
     }
+    if (sim.simErr) throw new Error(`would fail on-chain: ${sim.simErr}`);
+    if (sim.ok) {
+      if (sim.owner !== C.SYSTEM_PROGRAM_ID) throw new Error("refused transaction: it would take over or close the wallet");
+      if (sim.lossSol > maxLossSol) throw new Error(`refused transaction: wallet would lose ${sim.lossSol.toFixed(6)} SOL (limit ${maxLossSol.toFixed(6)})`);
+    } else if (strict || odd.length) {
+      throw new Error(`refused transaction: could not simulate it (${sim.error})`);
+    }
+
     tx.sign([this.kp]);
-    return this.conn.sendRawTransaction(tx.serialize(), { skipPreflight: true, maxRetries: 3 });
+    const sig = base58Encode(tx.signatures[0]);
+    let sendError = null;
+    try {
+      await this.conn.sendRawTransaction(tx.serialize(), { skipPreflight: true, maxRetries: 3 });
+    } catch (e) {
+      sendError = e.message;
+    }
+    return { sig, sendError };
   }
 
-  async confirm(sig, timeoutMs = 30000) {
+  async confirm(sig, timeoutMs = this.confirmMs) {
     const start = Date.now();
-    while (Date.now() - start < timeoutMs) {
+    for (;;) {
       try {
         const { value } = await this.conn.getSignatureStatuses([sig]);
         const st = value && value[0];
-        if (st && st.err) return { ok: false, error: `on-chain error ${JSON.stringify(st.err)}` };
+        if (st && st.err) return { ok: false, onChainError: true, error: `failed on-chain: ${JSON.stringify(st.err)}` };
         if (st && (st.confirmationStatus === "confirmed" || st.confirmationStatus === "finalized")) return { ok: true };
       } catch (_) {
         // transient RPC error: keep polling until the timeout
       }
+      if (Date.now() - start >= timeoutMs) return { ok: false, timeout: true, error: "not confirmed in time" };
       await this.sleep(600);
     }
-    return { ok: false, error: "not confirmed in time", timeout: true };
   }
 
   async getTx(sig) {
@@ -126,89 +169,144 @@ class LiveBroker {
         priorityFee: this.c.priorityFeeSol,
         pool: "pump",
       };
-      // The coin's SOL moves through the pump.fun program; only fees should be direct transfers.
-      let sig;
+      let sent;
       try {
-        sig = await this.tradeLocal(body, amountSol * 0.03 + 0.01);
+        // Cost + pump.fun/PumpPortal fees + token-account rent + priority fee, with room to spare.
+        sent = await this.tradeLocal(body, { maxLossSol: amountSol * 1.03 + 0.006, strict: true });
       } catch (e) {
         return { ok: false, error: e.message, feesSol: 0 };
       }
-      const conf = await this.confirm(sig);
+      const conf = await this.confirm(sent.sig, sent.sendError ? Math.min(12000, this.confirmMs) : this.confirmMs);
       if (!conf.ok) {
         // Timed out is not the same as failed: check whether the coins arrived anyway.
         const held = await this.tokenBalance(mint).catch(() => 0);
         if (held > 0) {
-          return { ok: true, tokens: held, solSpent: amountSol + this.c.priorityFeeSol + C.TOKEN_ACCOUNT_RENT_SOL, estimated: true, sig };
+          return { ok: true, tokens: held, solSpent: this.estimateBuyCost(amountSol), estimated: true, sig: sent.sig };
         }
-        return { ok: false, error: conf.error, sig, feesSol: conf.timeout ? 0 : this.c.priorityFeeSol + C.BASE_FEE_SOL };
+        const error = sent.sendError && !conf.onChainError ? `send failed: ${sent.sendError}` : conf.error;
+        return { ok: false, error, sig: sent.sig, feesSol: conf.onChainError ? this.txFeeSol() : 0 };
       }
-      const tx = await this.getTx(sig);
+      const tx = await this.getTx(sent.sig);
       if (!tx) {
         const held = await this.tokenBalance(mint).catch(() => 0);
-        return { ok: held > 0, tokens: held, solSpent: amountSol + this.c.priorityFeeSol + C.TOKEN_ACCOUNT_RENT_SOL, estimated: true, sig, error: held > 0 ? null : "no tokens received" };
+        if (held > 0) return { ok: true, tokens: held, solSpent: this.estimateBuyCost(amountSol), estimated: true, sig: sent.sig };
+        return { ok: false, error: "confirmed but no coins received", sig: sent.sig, feesSol: this.txFeeSol() };
       }
-      return { ok: true, tokens: tokenDelta(tx, this.ownerStr, mint), solSpent: -payerDeltaSol(tx), sig };
+      return { ok: true, tokens: tokenDelta(tx, this.ownerStr, mint), solSpent: -payerDeltaSol(tx), sig: sent.sig };
     } finally {
       this.committed -= amountSol;
       await this.refreshBalance().catch(() => {});
     }
   }
 
-  // estimateSol: fallback proceeds if the transaction can't be read back.
+  estimateBuyCost(amountSol) {
+    return amountSol * (1 + (this.c.pumpFeePct + this.c.portalFeePct) / 100) + C.TOKEN_ACCOUNT_RENT_SOL + this.txFeeSol();
+  }
+
+  // Books every earlier sell attempt for `mint` that has landed: SOL received, coins sold.
+  async bookLanded(mint) {
+    const list = this.sellSigs.get(mint) || [];
+    const open = list.filter((x) => !x.booked);
+    const out = { any: false, sol: 0, tokens: 0 };
+    if (!open.length) return out;
+    const { value } = await this.conn.getSignatureStatuses(open.map((x) => x.sig), { searchTransactionHistory: true });
+    for (let i = 0; i < open.length; i++) {
+      const st = value && value[i];
+      if (!st) continue;
+      if (st.err) { open[i].booked = true; continue; } // failed on-chain: nothing moved
+      if (st.confirmationStatus !== "confirmed" && st.confirmationStatus !== "finalized") continue;
+      const tx = await this.getTx(open[i].sig);
+      if (!tx) continue;
+      out.sol += payerDeltaSol(tx);
+      out.tokens += -tokenDelta(tx, this.ownerStr, mint);
+      out.any = true;
+      open[i].booked = true;
+    }
+    return out;
+  }
+
+  /**
+   * estimateSol: what the requested fraction is worth now; used only when coins left
+   * the wallet through a transaction that can't be read back yet.
+   * Returns { ok, solReceived, tokensSold, closed, rentRefund, feesSol, estimated }.
+   * `closed` is the truth from the chain (wallet holds none of this coin).
+   */
   async sell({ mint, fraction, estimateSol = 0 }) {
-    const full = fraction >= 0.999;
-    const amount = full ? "100%" : `${Math.min(99, Math.max(1, Math.round(fraction * 100)))}%`;
+    if (!this.sellSigs.has(mint)) this.sellSigs.set(mint, []);
+    const list = this.sellSigs.get(mint);
+    let received = 0, sold = 0, feesSol = 0, acted = false, estimated = false, lastErr = null;
+
+    // 1. Something from an earlier attempt landed after we stopped waiting: book it, don't sell again.
+    const early = await this.bookLanded(mint).catch(() => ({ any: false }));
+    if (early.any) { received += early.sol; sold += early.tokens; acted = true; }
+    const startTokens = await this.tokenBalance(mint).catch(() => null);
+    // Attempts that might still land make any partial sell unsafe: exit fully instead.
+    let full = fraction >= 0.999 || list.some((x) => !x.booked);
+    if (startTokens === 0) acted = true;
+
+    // 2. Sell, escalating slippage. A partial is attempted at most once.
     const slips = [this.c.sellSlippagePct, Math.min(50, this.c.sellSlippagePct * 1.6), Math.min(70, this.c.sellSlippagePct * 2.4)];
-    let received = 0, tokensSold = 0, sig = null, done = false, lastErr = null;
-    for (const slippage of slips) {
+    for (let i = 0; !acted && i < slips.length; i++) {
+      const amount = full ? "100%" : `${Math.min(99, Math.max(1, Math.round(fraction * 100)))}%`;
+      let sent;
       try {
-        sig = await this.tradeLocal(
-          { publicKey: this.ownerStr, action: "sell", mint, amount, denominatedInSol: "false", slippage, priorityFee: this.c.priorityFeeSol, pool: "auto" },
-          0.015
+        sent = await this.tradeLocal(
+          { publicKey: this.ownerStr, action: "sell", mint, amount, denominatedInSol: "false", slippage: slips[i], priorityFee: this.c.priorityFeeSol, pool: "auto" },
+          { maxLossSol: 0.006, strict: false }
         );
-        const conf = await this.confirm(sig);
-        if (conf.ok) {
-          const tx = await this.getTx(sig);
-          received = tx ? payerDeltaSol(tx) : estimateSol;
-          tokensSold = tx ? -tokenDelta(tx, this.ownerStr, mint) : 0;
-          done = true;
-          break;
-        }
-        lastErr = conf.error;
-        if (conf.timeout && full && (await this.tokenBalance(mint).catch(() => null)) === 0) {
-          received = estimateSol;
-          done = true;
-          break;
-        }
       } catch (e) {
-        lastErr = e.message;
+        lastErr = e.message; // refused or would fail: nothing was sent
+        await this.sleep(400);
+        continue;
       }
+      list.push({ sig: sent.sig, booked: false });
+      const conf = await this.confirm(sent.sig, sent.sendError ? Math.min(12000, this.confirmMs) : this.confirmMs);
+      if (conf.onChainError) feesSol += this.txFeeSol();
+      const b = await this.bookLanded(mint).catch(() => ({ any: false }));
+      if (b.any) { received += b.sol; sold += b.tokens; acted = true; break; }
+      lastErr = sent.sendError && !conf.onChainError ? `send failed: ${sent.sendError}` : conf.error;
+      // Coins left the wallet through an attempt we can't read yet: count it, estimated.
+      const left = await this.tokenBalance(mint).catch(() => null);
+      if (left !== null && startTokens !== null && left < startTokens * 0.999) {
+        const gone = startTokens - left;
+        received += estimateSol * (gone / Math.max(1e-12, startTokens * fraction));
+        sold += gone;
+        acted = true;
+        estimated = true;
+        break;
+      }
+      full = true;
       await this.sleep(400);
     }
-    if (!done) return { ok: false, error: lastErr, feesSol: 0 };
+    if (!acted) return { ok: false, error: lastErr, feesSol };
 
-    let rentRefund = 0;
-    if (full) {
-      const left = await this.tokenBalance(mint).catch(() => 0);
-      if (left > 0) {
-        try {
-          const s2 = await this.tradeLocal(
-            { publicKey: this.ownerStr, action: "sell", mint, amount: "100%", denominatedInSol: "false", slippage: 60, priorityFee: this.c.priorityFeeSol, pool: "auto" },
-            0.015
-          );
-          if ((await this.confirm(s2)).ok) {
-            const tx2 = await this.getTx(s2);
-            if (tx2) { received += payerDeltaSol(tx2); tokensSold += -tokenDelta(tx2, this.ownerStr, mint); }
-          }
-        } catch (_) {
-          // dust stays; the account just can't be closed this time
+    // 3. Tidy up: after a full exit sweep any dust, then close the empty account for its rent.
+    let left = await this.tokenBalance(mint).catch(() => null);
+    if (full && left > 0) {
+      try {
+        const sent = await this.tradeLocal(
+          { publicKey: this.ownerStr, action: "sell", mint, amount: "100%", denominatedInSol: "false", slippage: 60, priorityFee: this.c.priorityFeeSol, pool: "auto" },
+          { maxLossSol: 0.006, strict: false }
+        );
+        list.push({ sig: sent.sig, booked: false });
+        if ((await this.confirm(sent.sig)).ok) {
+          const b = await this.bookLanded(mint).catch(() => ({ any: false }));
+          if (b.any) { received += b.sol; sold += b.tokens; }
         }
+      } catch (_) {
+        // dust stays; the next exit attempt or --sell-all picks it up
       }
-      const closed = await this.closeEmptyAccounts(mint).catch(() => ({ refundSol: 0 }));
-      rentRefund = closed.refundSol || 0;
+      left = await this.tokenBalance(mint).catch(() => null);
+    }
+    let rentRefund = 0;
+    const closed = left === 0;
+    if (closed) {
+      const c = await this.closeEmptyAccounts(mint).catch(() => ({ refundSol: 0 }));
+      rentRefund = c.refundSol || 0;
+      this.sellSigs.delete(mint); // nothing left that a late attempt could sell
     }
     await this.refreshBalance().catch(() => {});
-    return { ok: true, solReceived: received + rentRefund, tokensSold, rentRefund, closed: full, sig };
+    return { ok: true, solReceived: received + rentRefund, tokensSold: sold, rentRefund, closed, feesSol, estimated };
   }
 
   async sendLegacy(tx) {
@@ -235,11 +333,12 @@ class LiveBroker {
     if (!empties.length) return { closed: 0, refundSol: 0 };
     let refundSol = 0;
     for (let i = 0; i < empties.length; i += 10) {
+      const batch = empties.slice(i, i + 10);
       const tx = new web3.Transaction();
-      for (const v of empties.slice(i, i + 10)) tx.add(sol.closeAccountInstruction(v.pubkey, this.owner, this.owner, v.account.owner));
+      for (const v of batch) tx.add(sol.closeAccountInstruction(v.pubkey, this.owner, this.owner, v.account.owner));
       const sig = await this.sendLegacy(tx);
       const t = await this.getTx(sig);
-      refundSol += t ? payerDeltaSol(t) : Math.min(10, empties.length - i) * C.TOKEN_ACCOUNT_RENT_SOL;
+      refundSol += t ? payerDeltaSol(t) : batch.length * C.TOKEN_ACCOUNT_RENT_SOL - C.BASE_FEE_SOL;
     }
     return { closed: empties.length, refundSol };
   }
@@ -256,9 +355,9 @@ class LiveBroker {
     return out;
   }
 
+  // Sends the exact lamport balance minus the fee, so nothing below the rent minimum is left behind.
   async withdrawAll(to) {
-    await this.refreshBalance();
-    const lamports = Math.floor(this.balanceSol * C.LAMPORTS_PER_SOL) - 5000;
+    const lamports = (await this.conn.getBalance(this.owner, "confirmed")) - 5000;
     if (lamports <= 0) throw new Error("nothing to withdraw");
     const tx = new web3.Transaction().add(web3.SystemProgram.transfer({ fromPubkey: this.owner, toPubkey: sol.pk(to), lamports }));
     return this.sendLegacy(tx);

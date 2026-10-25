@@ -30,7 +30,7 @@ async function replay(records, baseCfg, { mode = "edge", sizeSol = 0.03, startSo
   const risk = new RiskManager(cfg.risk, bankroll);
   const engine = new Engine({ cfg, tracker, broker, risk, recorder: new Recorder("", cfg.runtime, { enabled: false }), rpc: market, clock: () => now });
   const lastLaunch = market.records.length ? market.records[market.records.length - 1].createdAtMs : 0;
-  const end = lastLaunch + (cfg.runtime.watchSec + cfg.strategy.maxHoldSec) * 1000;
+  const end = lastLaunch + (Math.max(cfg.runtime.watchSec, cfg.runtime.watchSecActive) + cfg.strategy.maxHoldSec) * 1000;
   while (now <= end) {
     for (const e of market.newEvents(now)) engine.onCreate(e);
     if (tracker.tokens.size === 0 && engine.positions.size === 0 && broker.pending.length === 0) {

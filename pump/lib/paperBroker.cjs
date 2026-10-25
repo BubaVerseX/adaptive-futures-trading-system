@@ -37,8 +37,8 @@ class PaperBroker {
     return new Promise((resolve) => this.pending.push({ type: "buy", mint, sol, decisionPrice, at: nowMs, resolve }));
   }
 
-  sell({ mint, fraction, nowMs }) {
-    return new Promise((resolve) => this.pending.push({ type: "sell", mint, fraction, at: nowMs, resolve }));
+  sell({ mint, fraction, nowMs, decisionPrice = null }) {
+    return new Promise((resolve) => this.pending.push({ type: "sell", mint, fraction, decisionPrice, attempt: 0, at: nowMs, resolve }));
   }
 
   onTick(nowMs) {
@@ -50,7 +50,9 @@ class PaperBroker {
       // A token that vanished from the tracker can't be priced; fail buys, keep sells waiting.
       if (!t && o.type === "buy") { o.resolve({ ok: false, error: "token-gone", feesSol: 0 }); continue; }
       if (!ready) { still.push(o); continue; }
-      o.resolve(o.type === "buy" ? this.fillBuy(o, last) : this.fillSell(o, last));
+      const res = o.type === "buy" ? this.fillBuy(o, last) : this.fillSell(o, last);
+      if (res === null) { o.at = nowMs; still.push(o); continue; } // retried, like the live bot would
+      o.resolve(res);
     }
     this.pending = still;
   }
@@ -72,13 +74,24 @@ class PaperBroker {
     const tokens = curve.quoteBuyTokens(last.vSol, last.vTok, intoCurve);
     this.cash -= o.sol + tx + rent;
     this.holdings.set(o.mint, (this.holdings.get(o.mint) || 0) + tokens);
-    return { ok: true, tokens, solSpent: o.sol + tx + rent, rentSol: rent, fillPrice: mark, feesSol: o.sol - intoCurve + tx };
+    // feesSol is reserved for fees of failed attempts; trading fees are already inside solSpent.
+    return { ok: true, tokens, solSpent: o.sol + tx + rent, rentSol: rent, fillPrice: mark, tradingFeesSol: o.sol - intoCurve + tx };
   }
 
   fillSell(o, last) {
     const tx = this.txCostSol();
     const held = this.holdings.get(o.mint) || 0;
     if (held <= 0) return { ok: false, error: "nothing-to-sell", feesSol: 0 };
+    // A sell whose price fell past its slippage limit fails and is retried with more
+    // slippage a moment later (the live bot does the same: 1x, 1.6x, 2.4x).
+    if (o.decisionPrice && !last.complete && o.attempt < 2) {
+      const s = this.c.sellSlippagePct;
+      const allowed = [s, Math.min(50, s * 1.6), Math.min(70, s * 2.4)][o.attempt];
+      if ((1 - curve.price(last.vSol, last.vTok) / o.decisionPrice) * 100 > allowed) {
+        o.attempt++;
+        return null;
+      }
+    }
     const full = o.fraction >= 0.999;
     const tokens = full ? held : held * o.fraction;
     const fee = this.feeFraction();
@@ -100,7 +113,7 @@ class PaperBroker {
       this.holdings.set(o.mint, held - tokens);
     }
     this.cash += received;
-    return { ok: true, tokensSold: tokens, solReceived: received, rentRefund, closed: full, feesSol: gross - out + tx * (full ? 2 : 1) };
+    return { ok: true, tokensSold: tokens, solReceived: received, rentRefund, closed: full, tradingFeesSol: gross - out + tx * (full ? 2 : 1) };
   }
 
   // Value of everything held right now, if sold at the current curve price.

@@ -1,5 +1,6 @@
 "use strict";
 
+const C = require("./constants.cjs");
 const curve = require("./curve.cjs");
 const strategy = require("./strategy.cjs");
 const { summarizeHolders, curveTokenBalance } = require("./tracker.cjs");
@@ -47,10 +48,17 @@ class Engine {
     this.tracker.add(evt, this.clock());
   }
 
+  // Every async broker/RPC chain goes through here: errors are logged, never left
+  // as unhandled rejections (which would kill the process with positions open).
   track(promise) {
-    this.inflight.add(promise);
-    promise.finally(() => this.inflight.delete(promise));
-    return promise;
+    const p = promise.catch((e) => this.log("warn", `internal error: ${e && e.message}`));
+    this.inflight.add(p);
+    p.finally(() => this.inflight.delete(p));
+    return p;
+  }
+
+  busy() {
+    return this.positions.size > 0 || this.lateFillChecks.length > 0;
   }
 
   async settle() {
@@ -88,6 +96,11 @@ class Engine {
     for (const pos of this.positions.values()) {
       if (pos.state !== "open" || nowMs < pos.nextSellAtMs) continue;
       const f = this.tracker.features(pos.mint, nowMs);
+      if (pos.forceExit) {
+        // A full exit left coins behind (dust, or the chain couldn't be read): finish it.
+        this.sell(pos, { action: "sell", fraction: 1, reason: "finish-exit", gainPct: f ? (f.price / pos.entryPrice - 1) * 100 : 0 }, f, nowMs);
+        continue;
+      }
       if (!f) {
         // No price data for something we hold (e.g. a late fill): get out rather than hold blind.
         this.sell(pos, { action: "sell", fraction: 1, reason: "no-data", gainPct: 0 }, null, nowMs);
@@ -131,11 +144,18 @@ class Engine {
     this.stats.holdersChecks++;
     const ageMs = nowMs - t.createdAtMs;
     const vTok = t.last ? t.last.vTok : null;
+    // The curve's own token account is excluded by address. Its token program may not be
+    // known yet, so derive it for both programs.
+    const curveAtas = t.curveAta
+      ? [t.curveAta]
+      : this.tracker.derive
+        ? [C.TOKEN_PROGRAM_ID, C.TOKEN_2022_PROGRAM_ID].map((p) => this.tracker.derive.ata(t.bondingCurve, t.mint, p))
+        : [];
     this.track(
       this.rpc
         .getLargestHolders(t.mint)
         .then((rows) => {
-          const h = summarizeHolders(rows, { curveAta: t.curveAta, curveBalance: vTok ? curveTokenBalance(vTok) : null });
+          const h = summarizeHolders(rows, { curveAtas, curveBalance: vTok ? curveTokenBalance(vTok) : null });
           this.tracker.setHolders(t.mint, { ...h, ageMs });
         })
         .catch((e) => {
@@ -215,21 +235,29 @@ class Engine {
     this.lateFillChecks = this.lateFillChecks.filter((c) => nowMs - c.atMs < 45000);
     for (const c of due) {
       this.track(
-        this.broker.tokenBalance(c.mint).then((tokens) => {
-          if (!(tokens > 0) || this.positions.has(c.mint)) return;
-          this.stats.lateFills++;
-          const f = this.tracker.features(c.mint, this.clock());
-          const price = f ? f.price : 0;
-          const pos = {
-            mint: c.mint, symbol: c.symbol, state: "open", decidedAtMs: c.atMs, openedAtMs: c.atMs, sizeSol: c.sizeSol,
-            decisionPrice: price, entryPrice: price, tokens, costSol: c.sizeSol + this.cfg.costs.priorityFeeSol, proceedsSol: 0,
-            peakPrice: price, peakRealSol: f ? f.realSol : 0, tp1Done: true, exits: [], sellFailures: 0, nextSellAtMs: 0,
-            entry: c.entry, estimated: true,
-          };
-          this.positions.set(c.mint, pos);
-          this.log("warn", `late fill: ${label(pos)} arrived after the buy timed out; selling it now`);
-          this.sell(pos, { action: "sell", fraction: 1, reason: "late-fill", gainPct: 0 }, f, this.clock());
-        }).catch(() => {})
+        this.broker.tokenBalance(c.mint).then(
+          (tokens) => {
+            if (!(tokens > 0) || this.positions.has(c.mint)) return;
+            this.stats.lateFills++;
+            const f = this.tracker.features(c.mint, this.clock());
+            const price = f ? f.price : 0;
+            const cost = this.broker.estimateBuyCost ? this.broker.estimateBuyCost(c.sizeSol) : c.sizeSol;
+            const pos = {
+              mint: c.mint, symbol: c.symbol, state: "open", decidedAtMs: c.atMs, openedAtMs: c.atMs, sizeSol: c.sizeSol,
+              decisionPrice: price, entryPrice: price, tokens, costSol: cost, proceedsSol: 0,
+              peakPrice: price, peakRealSol: f ? f.realSol : 0, tp1Done: true, exits: [], sellFailures: 0, nextSellAtMs: 0,
+              entry: c.entry, estimated: true,
+            };
+            this.positions.set(c.mint, pos);
+            this.log("warn", `late fill: ${label(pos)} arrived after the buy timed out; selling it now`);
+            this.sell(pos, { action: "sell", fraction: 1, reason: "late-fill", gainPct: 0 }, f, this.clock());
+          },
+          () => {
+            // RPC hiccup: look again in ~15s, up to 5 times.
+            c.tries = (c.tries || 0) + 1;
+            if (c.tries < 5) this.lateFillChecks.push({ ...c, atMs: this.clock() - 30000 });
+          }
+        )
       );
     }
   }
@@ -240,7 +268,7 @@ class Engine {
     this.log("trade", `SELL   ${label(pos)}  ${(d.fraction * 100).toFixed(0)}% | ${d.reason} | ${signed(d.gainPct, 1)}%`);
     this.track(
       this.broker
-        .sell({ mint: pos.mint, fraction: d.fraction, nowMs, estimateSol })
+        .sell({ mint: pos.mint, fraction: d.fraction, nowMs, estimateSol, decisionPrice: f ? f.price : null })
         .catch((e) => ({ ok: false, error: e.message }))
         .then((res) => this.onSold(pos, d, res))
     );
@@ -248,6 +276,7 @@ class Engine {
 
   onSold(pos, d, res) {
     const now = this.clock();
+    pos.costSol += res.feesSol || 0; // fees of attempts that failed on-chain
     if (!res.ok) {
       pos.state = "open";
       pos.sellFailures++;
@@ -259,9 +288,12 @@ class Engine {
     this.stats.sells++;
     pos.proceedsSol += res.solReceived;
     pos.tokens = Math.max(0, pos.tokens - (res.tokensSold || 0));
+    if (res.estimated) pos.estimated = true;
     pos.exits.push({ reason: d.reason, fraction: d.fraction, gainPct: r2(d.gainPct), sol: r6(res.solReceived), atMs: now });
-    if (d.fraction < 0.999 && !res.closed) {
-      if (d.reason === "take-profit-1") pos.tp1Done = true;
+    // `closed` comes from the chain (paper: from the simulation), not from what was asked for.
+    if (!res.closed) {
+      if (d.reason === "take-profit-1" && res.tokensSold > 0) pos.tp1Done = true;
+      if (d.fraction >= 0.999) pos.forceExit = true;
       pos.state = "open";
       this.log("trade", `  sold part of ${label(pos)}  +${res.solReceived.toFixed(4)} SOL`);
       return;
@@ -291,8 +323,8 @@ class Engine {
       estimated: pos.estimated || undefined,
     };
     this.closedTrades.push(trade);
-    this.recorder.recordTrade(this.broker.mode, trade);
     this.positions.delete(pos.mint);
+    this.recorder.recordTrade(this.broker.mode, trade);
     this.log("trade", `CLOSED ${label(pos)}  net ${signed(net)} SOL (${signed(trade.netPct, 1)}%) after ${trade.holdSec.toFixed(0)}s`);
   }
 

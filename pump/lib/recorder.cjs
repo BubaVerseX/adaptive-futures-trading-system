@@ -21,9 +21,15 @@ class Recorder {
     if (enabled) fs.mkdirSync(dir, { recursive: true });
   }
 
+  // Logging must never take the bot down (full disk, deleted folder...).
   append(name, obj) {
     if (!this.enabled) return;
-    fs.appendFileSync(path.join(this.dir, name), JSON.stringify(obj) + "\n");
+    try {
+      fs.appendFileSync(path.join(this.dir, name), JSON.stringify(obj) + "\n");
+    } catch (e) {
+      this.counts.writeErrors = (this.counts.writeErrors || 0) + 1;
+      if (this.counts.writeErrors === 1) console.error(`! could not write ${name}: ${e.message}`);
+    }
   }
 
   static researchRecord(t) {

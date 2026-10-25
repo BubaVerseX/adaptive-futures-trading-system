@@ -46,7 +46,7 @@ class RecordedMarket {
         symbol: r.symbol,
         name: r.name,
         devBuySol: r.devBuySol === null || r.devBuySol === undefined ? NaN : r.devBuySol,
-        devTokens: NaN,
+        devTokens: r.devTokensInitial === null || r.devTokensInitial === undefined ? NaN : r.devTokensInitial,
         vSol: NaN,
         vTok: NaN,
         createdAtMs: r.createdAtMs,

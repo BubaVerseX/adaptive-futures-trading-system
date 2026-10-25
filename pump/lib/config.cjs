@@ -56,6 +56,7 @@ const DEFAULT_RUNTIME = {
   pollMs: 1500,
   slowEvery: 3, // tokens outside the entry window are polled every Nth tick
   watchSec: 360,
+  watchSecActive: 630, // coins that reached holdersCheckMinRealSol: >= entryMaxAgeSec + maxHoldSec
   deadAfterSec: 60,
   deadBelowRealSol: 0.3,
   devTrackMinRealSol: 1,
@@ -63,6 +64,9 @@ const DEFAULT_RUNTIME = {
   recordMinRealSol: 0.5,
   statusEverySec: 15,
 };
+
+// Repo root: stop files and the data folder live here no matter where the bot is started.
+const REPO_ROOT = path.resolve(__dirname, "..", "..");
 
 const envKey = (k) => "PUMP_" + k.replace(/[A-Z]/g, (m) => "_" + m).toUpperCase();
 
@@ -98,6 +102,7 @@ function validate(cfg) {
   if (!(r.maxOpenPositions >= 1)) fail("maxOpenPositions must be >= 1");
   if (!(c.priorityFeeSol >= 0 && c.priorityFeeSol <= 0.01)) fail("priorityFeeSol must be between 0 and 0.01");
   if (!(c.buySlippagePct > 0 && c.sellSlippagePct > 0)) fail("slippage must be > 0");
+  if (cfg.runtime.watchSecActive < s.entryMaxAgeSec + s.maxHoldSec) fail("watchSecActive must be >= entryMaxAgeSec + maxHoldSec");
 }
 
 /**
@@ -105,7 +110,7 @@ function validate(cfg) {
  * and an optional JSON params file ({ "strategy": {...}, "risk": {...}, "costs": {...} }
  * or a flat object of strategy keys, as written by replay.cjs).
  */
-function loadConfig({ env = process.env, paramsFile = null, cwd = process.cwd() } = {}) {
+function loadConfig({ env = process.env, paramsFile = null, cwd = REPO_ROOT } = {}) {
   const cfg = {
     strategy: applyEnv(DEFAULT_STRATEGY, env),
     costs: applyEnv(DEFAULT_COSTS, env),
@@ -131,10 +136,11 @@ function loadConfig({ env = process.env, paramsFile = null, cwd = process.cwd() 
   cfg.maxBudgetSol = env.PUMP_MAX_BUDGET_SOL ? Number(env.PUMP_MAX_BUDGET_SOL) : null;
   cfg.paperStartSol = env.PAPER_START_SOL ? Number(env.PAPER_START_SOL) : 0.1;
   cfg.solUsdOverride = env.PUMP_SOL_USD ? Number(env.PUMP_SOL_USD) : null;
+  cfg.extraPrograms = (env.PUMP_EXTRA_PROGRAMS || "").split(",").map((x) => x.trim()).filter(Boolean);
   cfg.dataDir = path.resolve(cwd, env.PUMP_DATA_DIR || "data/pump");
   cfg.stopFiles = [path.resolve(cwd, "STOP_PUMP.txt"), path.resolve(cwd, "STOP_BOT.txt")];
   validate(cfg);
   return cfg;
 }
 
-module.exports = { DEFAULT_STRATEGY, DEFAULT_COSTS, DEFAULT_RISK, DEFAULT_RUNTIME, loadConfig, envKey, validate };
+module.exports = { DEFAULT_STRATEGY, DEFAULT_COSTS, DEFAULT_RISK, DEFAULT_RUNTIME, REPO_ROOT, loadConfig, envKey, validate };

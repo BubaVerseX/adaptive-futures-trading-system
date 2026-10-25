@@ -129,7 +129,7 @@ async function run(cfg, args) {
 
   let broker, startSol, startEquity;
   if (live) {
-    broker = new LiveBroker(cfg, { conn, keypair: loadWallet(cfg.walletFile), budgetSol: cfg.maxBudgetSol });
+    broker = new LiveBroker(cfg, { conn, keypair: loadWallet(cfg.walletFile), budgetSol: cfg.maxBudgetSol, extraPrograms: cfg.extraPrograms });
     await broker.refreshBalance();
     startSol = Math.min(broker.balanceSol, cfg.maxBudgetSol);
     startEquity = broker.balanceSol;
@@ -168,19 +168,25 @@ async function run(cfg, args) {
   process.on("SIGTERM", () => { stop = stop || "SIGTERM"; });
 
   const endAt = args.minutes > 0 ? Date.now() + args.minutes * 60000 : Infinity;
+  // Live honours the repo-wide kill switch (STOP_BOT.txt) as well as its own, at every tick.
+  const watchStopFiles = live ? cfg.stopFiles : [cfg.stopFiles[0]];
   let lastStatus = 0, lastBalance = Date.now(), stopAt = 0, haltedLogged = false;
   for (;;) {
     const now = Date.now();
     if (!stop && now >= endAt) stop = `${args.minutes} minutes are up`;
-    if (!stop && fs.existsSync(cfg.stopFiles[0])) stop = "STOP_PUMP.txt found";
+    if (!stop) {
+      const hit = watchStopFiles.find((f) => fs.existsSync(f));
+      if (hit) stop = `${path.basename(hit)} found`;
+    }
     if (stop && !engine.stopping) {
       engine.stopping = true;
       stopAt = now;
       log("info", `stopping (${stop}): no new buys, closing ${engine.positions.size} open position(s)... press Ctrl+C again to quit at once`);
     }
-    if (engine.stopping && engine.positions.size === 0) break;
+    // Wait for open positions and for any buy that might still land after a timeout.
+    if (engine.stopping && !engine.busy()) break;
     if (engine.stopping && now - stopAt > 180000) {
-      log("warn", "positions still open after 3 minutes; quitting. Sell them with --sell-all");
+      log("warn", "positions still open after 3 minutes; quitting. Check with --wallet and sell with --sell-all");
       break;
     }
     if (risk.halted && !haltedLogged) {
@@ -210,7 +216,7 @@ async function run(cfg, args) {
   process.exit(0);
 }
 
-async function tradeApiCheck(cfg, mint, publicKey) {
+async function tradeApiCheck(cfg, mint, publicKey, conn) {
   const res = await fetch(C.PUMPPORTAL_TRADE_LOCAL_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -220,7 +226,10 @@ async function tradeApiCheck(cfg, mint, publicKey) {
   if (res.status !== 200) throw new Error(`HTTP ${res.status}: ${(await res.text()).slice(0, 160)}`);
   const tx = sol.web3.VersionedTransaction.deserialize(new Uint8Array(await res.arrayBuffer()));
   if (!tx.message.staticAccountKeys[0].equals(publicKey)) throw new Error("fee payer is not the requested wallet");
-  return { outflow: sol.systemOutflowLamports(tx, publicKey) / C.LAMPORTS_PER_SOL, instructions: tx.message.compiledInstructions.length };
+  const ins = sol.inspectTransaction(tx, publicKey, cfg.extraPrograms);
+  let sim = null;
+  try { sim = await sol.simulateWalletChange(conn, tx, publicKey); } catch (e) { sim = { error: e.message }; }
+  return { ins, sim, instructions: tx.message.compiledInstructions.length };
 }
 
 async function check(cfg) {
@@ -279,9 +288,13 @@ async function check(cfg) {
     console.log("4) PumpPortal trade API (builds a transaction; nothing is signed or sent)");
     const who = fs.existsSync(cfg.walletFile) ? loadWallet(cfg.walletFile).publicKey : sol.web3.Keypair.generate().publicKey;
     try {
-      const r = await tradeApiCheck(cfg, first.mint, who);
-      if (r.outflow > 0.001 * 0.03 + 0.01) fail(`trade API transaction moves ${r.outflow} SOL directly; the bot would refuse it`);
-      else pass(`transaction built (${r.instructions} instructions, direct SOL outflow ${r.outflow.toFixed(6)})`);
+      const r = await tradeApiCheck(cfg, first.mint, who, conn);
+      const odd = [...r.ins.risky, ...r.ins.unknownPrograms.map((p) => `unknown program ${p}`)];
+      if (r.ins.outflowSol > 0.001 * 1.03 + 0.006) fail(`the transaction sends ${r.ins.outflowSol} SOL straight out; the bot would refuse it`);
+      else if (odd.length) fail(`the bot would refuse buys: ${odd.join("; ")}. Tell Claude; a program is only added after checking it`);
+      else pass(`transaction built and inspected (${r.instructions} instructions, only known programs)`);
+      if (r.sim && r.sim.ok) pass(`simulated: the wallet would spend ${r.sim.lossSol.toFixed(6)} SOL for a 0.001 SOL buy`);
+      else console.log(`        simulation skipped (${r.sim && (r.sim.simErr || r.sim.error)}); normal before the wallet is funded`);
     } catch (e) {
       fail(`trade API: ${e.message}`);
     }
@@ -305,7 +318,7 @@ async function check(cfg) {
 async function selfTest(cfg) {
   requireLive(cfg);
   const conn = sol.connection(cfg.rpcUrl);
-  const broker = new LiveBroker(cfg, { conn, keypair: loadWallet(cfg.walletFile), budgetSol: cfg.maxBudgetSol });
+  const broker = new LiveBroker(cfg, { conn, keypair: loadWallet(cfg.walletFile), budgetSol: cfg.maxBudgetSol, extraPrograms: cfg.extraPrograms });
   const before = await broker.refreshBalance();
   const amount = 0.003;
   if (before < amount + 0.01) { console.log(`need at least ${amount + 0.01} SOL in ${broker.ownerStr}`); process.exit(1); }
@@ -354,7 +367,7 @@ async function walletInfo(cfg) {
 
 async function sellAll(cfg) {
   const conn = sol.connection(cfg.rpcUrl);
-  const broker = new LiveBroker(cfg, { conn, keypair: loadWallet(cfg.walletFile) });
+  const broker = new LiveBroker(cfg, { conn, keypair: loadWallet(cfg.walletFile), extraPrograms: cfg.extraPrograms });
   await broker.refreshBalance();
   const held = (await broker.holdings()).filter((x) => x.amount > 0);
   for (const h of held) {

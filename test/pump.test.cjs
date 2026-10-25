@@ -16,7 +16,8 @@ const { replay, metrics, splitByTime } = require("../pump/lib/replay.cjs");
 const { normalizeCreate } = require("../pump/lib/feed.cjs");
 const sol = require("../pump/lib/solana.cjs");
 const { LiveBroker } = require("../pump/lib/liveBroker.cjs");
-const { createWallet, loadWallet, base58Decode } = require("../pump/lib/wallet.cjs");
+const { createWallet, loadWallet } = require("../pump/lib/wallet.cjs");
+const { base58Encode, base58Decode } = require("../pump/lib/base58.cjs");
 
 const { web3 } = sol;
 const near = (a, b, eps = 1e-9) => assert.ok(Math.abs(a - b) <= eps, `${a} != ${b} (eps ${eps})`);
@@ -297,6 +298,7 @@ test("engine: a timed-out buy that lands later is adopted and sold", async () =>
     availableSol: () => 0.1,
     buy: async () => ({ ok: false, error: "not confirmed in time", sig: "S1", feesSol: 0 }),
     tokenBalance: async () => 1234,
+    estimateBuyCost: (s) => s * 1.0175 + 0.0021,
     sell: async (o) => { sold.push(o); return { ok: true, solReceived: 0.025, tokensSold: 1234, closed: true }; },
   };
   let now = 1000;
@@ -311,7 +313,7 @@ test("engine: a timed-out buy that lands later is adopted and sold", async () =>
   assert.equal(sold.length, 1);
   assert.equal(eng.stats.lateFills, 1);
   assert.equal(eng.closedTrades[0].exits[0].reason, "late-fill");
-  near(eng.closedTrades[0].netSol, 0.025 - 0.03 - cfg.costs.priorityFeeSol, 1e-6);
+  near(eng.closedTrades[0].netSol, 0.025 - (0.03 * 1.0175 + 0.0021), 1e-6); // cost estimated incl. fees + rent
 });
 
 test("feed: PumpPortal create messages are normalized, other pools ignored", () => {
@@ -354,88 +356,285 @@ test("wallet: create, load (JSON and base58), never overwrite", () => {
   assert.deepEqual([...base58Decode(kp.publicKey.toBase58())], [...pkBytes]);
 });
 
-function buildTx(payer, transferLamports = 0) {
+// Builds a transaction like PumpPortal would return. extra: [TransactionInstruction] appended.
+function buildTx(payer, { transferLamports = 0, extra = [] } = {}) {
   const ixs = [web3.ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 1000 })];
   if (transferLamports) ixs.push(web3.SystemProgram.transfer({ fromPubkey: payer, toPubkey: web3.Keypair.generate().publicKey, lamports: transferLamports }));
+  ixs.push(...extra);
   const msg = new web3.TransactionMessage({ payerKey: payer, recentBlockhash: web3.Keypair.generate().publicKey.toBase58(), instructions: ixs }).compileToV0Message();
-  return new web3.VersionedTransaction(msg).serialize();
+  return new web3.VersionedTransaction(msg);
 }
 
-function mockNet(kp, mint, metas) {
-  const bodies = [];
+/**
+ * A tiny fake Solana + PumpPortal. Every sent transaction gets the next scripted outcome:
+ *   { status: "confirmed" | "failed" | "late" | "dropped", meta, tokensAfter }
+ * "late" = not visible while the bot waits, visible on the next status lookup.
+ */
+function mockNet(kp, mint, outcomes = []) {
+  const me = kp.publicKey.toBase58();
+  const state = { tokens: 0, preLamports: 1e8, simLoss: 0.001, simOwner: C.SYSTEM_PROGRAM_ID, simErr: null };
+  const sent = [], bodies = [], bySig = new Map(), lookups = new Map();
+  let nextBuild = {};
   const conn = {
-    sent: [],
-    async sendRawTransaction(raw) { this.sent.push(raw); return `SIG${this.sent.length}`; },
-    async getSignatureStatuses() { return { value: [{ confirmationStatus: "confirmed", err: null }] }; },
-    async getTransaction() { return { meta: metas.shift() }; },
-    async getBalance() { return 1e8; },
-    accounts: [],
-    async getParsedTokenAccountsByOwner() { return { value: this.accounts }; },
+    sent,
+    async sendRawTransaction(raw) {
+      const tx = raw.length && web3.VersionedTransaction.deserialize(raw);
+      const sig = base58Encode(tx.signatures[0]);
+      sent.push({ raw, sig });
+      bySig.set(sig, outcomes.shift() || { status: "confirmed", meta: { preBalances: [0], postBalances: [0], preTokenBalances: [], postTokenBalances: [] } });
+      return sig;
+    },
+    async getSignatureStatuses(sigs) {
+      return {
+        value: sigs.map((sig) => {
+          const o = bySig.get(sig);
+          if (!o) return null;
+          const n = (lookups.get(sig) || 0) + 1;
+          lookups.set(sig, n);
+          if (o.status === "dropped") return null;
+          if (o.status === "late" && !o.visible) return null;
+          if (o.status === "failed") return { confirmationStatus: "confirmed", err: { InstructionError: [0, "Custom"] } };
+          if (o.tokensAfter !== undefined && !o.applied) { state.tokens = o.tokensAfter; o.applied = true; }
+          return { confirmationStatus: "confirmed", err: null };
+        }),
+      };
+    },
+    async getTransaction(sig) {
+      const o = bySig.get(sig);
+      return o && o.status !== "dropped" && o.status !== "failed" ? { meta: o.meta } : null;
+    },
+    async getBalance() { return state.preLamports; },
+    async simulateTransaction() {
+      if (state.simErr) return { value: { err: state.simErr, logs: [] } };
+      return { value: { err: null, accounts: [{ lamports: state.preLamports - state.simLoss * 1e9, owner: state.simOwner }] } };
+    },
+    async getParsedTokenAccountsByOwner() {
+      const raw = Math.round(state.tokens * 1e6);
+      return { value: [{ pubkey: web3.Keypair.generate().publicKey, account: { owner: new web3.PublicKey(C.TOKEN_PROGRAM_ID), data: { parsed: { info: { mint, tokenAmount: { amount: String(raw), uiAmount: state.tokens } } } } } }] };
+    },
     async getLatestBlockhash() { return { blockhash: web3.Keypair.generate().publicKey.toBase58(), lastValidBlockHeight: 1 }; },
   };
-  let nextTransfer = 0;
   const fetchImpl = async (url, opts) => {
     bodies.push(JSON.parse(opts.body));
-    const bytes = buildTx(kp.publicKey, nextTransfer);
+    const bytes = buildTx(kp.publicKey, nextBuild).serialize();
     return { status: 200, arrayBuffer: async () => bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), text: async () => "" };
   };
-  return { conn, fetchImpl, bodies, setTransfer: (l) => { nextTransfer = l; } };
+  // Make every "late" transaction visible (it landed after the bot stopped waiting).
+  const landLate = () => { for (const o of bySig.values()) if (o.status === "late") o.visible = true; };
+  return { conn, fetchImpl, bodies, state, me, landLate, build: (b) => { nextBuild = b; } };
 }
 
-test("live broker: buy is checked, signed locally and accounted from the chain", async () => {
+const tb = (me, mint, amt) => [{ owner: me, mint, uiTokenAmount: { amount: String(Math.round(amt * 1e6)), decimals: 6 } }];
+const meta = (me, mint, solDelta, tokPre, tokPost) => ({
+  preBalances: [1e8], postBalances: [1e8 + Math.round(solDelta * 1e9)], preTokenBalances: tb(me, mint, tokPre), postTokenBalances: tb(me, mint, tokPost),
+});
+const newBroker = (cfg, kp, net, extra = {}) =>
+  new LiveBroker(cfg, { conn: net.conn, keypair: kp, fetchImpl: net.fetchImpl, sleepFn: async () => {}, confirmMs: 30, ...extra });
+
+test("inspect: flags drains that are not plain transfers", () => {
+  const kp = web3.Keypair.generate();
+  const me = kp.publicKey;
+  const other = web3.Keypair.generate().publicKey;
+  const ok = sol.inspectTransaction(buildTx(me, { transferLamports: 2_000_000 }), me);
+  near(ok.outflowSol, 0.002);
+  assert.deepEqual(ok.risky, []);
+  assert.deepEqual(ok.unknownPrograms, []);
+  const assign = sol.inspectTransaction(buildTx(me, { extra: [web3.SystemProgram.assign({ accountPubkey: me, programId: other })] }), me);
+  assert.equal(assign.risky.length, 1);
+  const seeded = sol.inspectTransaction(buildTx(me, { extra: [web3.SystemProgram.createAccountWithSeed({ fromPubkey: me, newAccountPubkey: other, basePubkey: me, seed: "x", lamports: 5e9, space: 0, programId: other })] }), me);
+  assert.equal(seeded.risky.length, 1, "createAccountWithSeed from the wallet is refused");
+  const unknown = sol.inspectTransaction(buildTx(me, { extra: [new web3.TransactionInstruction({ programId: other, keys: [{ pubkey: me, isSigner: true, isWritable: true }], data: Buffer.from([1]) })] }), me);
+  assert.deepEqual(unknown.unknownPrograms, [other.toBase58()]);
+  assert.deepEqual(sol.inspectTransaction(buildTx(me, { extra: [new web3.TransactionInstruction({ programId: other, keys: [], data: Buffer.alloc(0) })] }), me, [other.toBase58()]).unknownPrograms, []);
+});
+
+test("live broker: buy is inspected, simulated, signed locally and booked from the chain", async () => {
   const cfg = cfgFor();
   const kp = web3.Keypair.generate();
-  const me = kp.publicKey.toBase58();
   const mint = web3.Keypair.generate().publicKey.toBase58();
-  const tb = (amt) => [{ owner: me, mint, uiTokenAmount: { amount: String(amt), decimals: 6 } }];
-  const net = mockNet(kp, mint, [{ preBalances: [1e8], postBalances: [1e8 - 32_144_280], preTokenBalances: [], postTokenBalances: tb(1_000_000_000) }]);
-  const lb = new LiveBroker(cfg, { conn: net.conn, keypair: kp, budgetSol: 0.05, fetchImpl: net.fetchImpl, sleepFn: async () => {} });
+  const net = mockNet(kp, mint, [{ status: "confirmed", meta: meta(kp.publicKey.toBase58(), mint, -0.03214428, 0, 1000) }]);
+  const lb = newBroker(cfg, kp, net, { budgetSol: 0.05 });
   await lb.refreshBalance();
   near(lb.availableSol(), 0.05);
   const r = await lb.buy({ mint, sol: 0.03 });
   assert.ok(r.ok, r.error);
   near(r.tokens, 1000);
   near(r.solSpent, 0.03214428);
-  assert.equal(net.bodies[0].action, "buy");
-  assert.equal(net.bodies[0].denominatedInSol, "true");
-  assert.equal(net.bodies[0].pool, "pump");
-  const signed = web3.VersionedTransaction.deserialize(net.conn.sent[0]);
-  assert.ok(signed.signatures[0].some((b) => b !== 0), "transaction was signed");
+  assert.equal(r.sig, net.conn.sent[0].sig, "signature computed locally");
+  assert.deepEqual([net.bodies[0].action, net.bodies[0].denominatedInSol, net.bodies[0].pool], ["buy", "true", "pump"]);
+  assert.ok(web3.VersionedTransaction.deserialize(net.conn.sent[0].raw).signatures[0].some((b) => b !== 0), "signed");
 });
 
-test("live broker: refuses a transaction that sends SOL out directly", async () => {
+test("live broker: refuses direct outflow, simulated drains, owner changes and unknown programs", async () => {
   const cfg = cfgFor();
   const kp = web3.Keypair.generate();
   const mint = web3.Keypair.generate().publicKey.toBase58();
-  const net = mockNet(kp, mint, []);
-  net.setTransfer(0.5 * 1e9);
-  const lb = new LiveBroker(cfg, { conn: net.conn, keypair: kp, fetchImpl: net.fetchImpl, sleepFn: async () => {} });
-  const r = await lb.buy({ mint, sol: 0.03 });
-  assert.equal(r.ok, false);
-  assert.match(r.error, /refused transaction/);
-  assert.equal(net.conn.sent.length, 0, "nothing was sent");
+  const cases = [
+    [(n) => n.build({ transferLamports: 0.5e9 }), /straight out/],
+    [(n) => { n.state.simLoss = 0.5; }, /wallet would lose/],
+    [(n) => { n.state.simOwner = web3.Keypair.generate().publicKey.toBase58(); }, /take over or close the wallet/],
+    [(n) => n.build({ extra: [new web3.TransactionInstruction({ programId: web3.Keypair.generate().publicKey, keys: [], data: Buffer.alloc(0) })] }), /unknown program/],
+    [(n) => { n.state.simErr = { InstructionError: [2, { Custom: 6002 }] }; }, /would fail on-chain/],
+  ];
+  for (const [setup, msg] of cases) {
+    const net = mockNet(kp, mint);
+    setup(net);
+    const r = await newBroker(cfg, kp, net).buy({ mint, sol: 0.03 });
+    assert.equal(r.ok, false);
+    assert.match(r.error, msg);
+    assert.equal(net.conn.sent.length, 0, `nothing sent for ${msg}`);
+  }
 });
 
-test("live broker: full sell reads proceeds and closes the empty account for the rent", async () => {
+test("live broker: full sell books proceeds and closes the empty account for the rent", async () => {
   const cfg = cfgFor();
   const kp = web3.Keypair.generate();
   const me = kp.publicKey.toBase58();
   const mint = web3.Keypair.generate().publicKey.toBase58();
-  const tb = (amt) => [{ owner: me, mint, uiTokenAmount: { amount: String(amt), decimals: 6 } }];
   const net = mockNet(kp, mint, [
-    { preBalances: [5e7], postBalances: [5e7 + 40_000_000], preTokenBalances: tb(1_000_000_000), postTokenBalances: tb(0) },
-    { preBalances: [9e7], postBalances: [9e7 + 2_034_280], preTokenBalances: [], postTokenBalances: [] },
+    { status: "confirmed", meta: meta(me, mint, 0.04, 1000, 0), tokensAfter: 0 },
+    { status: "confirmed", meta: meta(me, mint, 0.00203428, 0, 0) },
   ]);
-  net.conn.accounts = [{ pubkey: web3.Keypair.generate().publicKey, account: { owner: new web3.PublicKey(C.TOKEN_PROGRAM_ID), data: { parsed: { info: { mint, tokenAmount: { amount: "0", uiAmount: 0 } } } } } }];
-  const lb = new LiveBroker(cfg, { conn: net.conn, keypair: kp, fetchImpl: net.fetchImpl, sleepFn: async () => {} });
-  const r = await lb.sell({ mint, fraction: 1 });
+  net.state.tokens = 1000;
+  const r = await newBroker(cfg, kp, net).sell({ mint, fraction: 1 });
   assert.ok(r.ok, r.error);
+  assert.equal(r.closed, true);
   near(r.tokensSold, 1000);
   near(r.rentRefund, 0.00203428);
   near(r.solReceived, 0.04 + 0.00203428);
-  assert.equal(net.bodies[0].amount, "100%");
-  assert.equal(net.bodies[0].pool, "auto");
+  assert.deepEqual([net.bodies[0].amount, net.bodies[0].pool], ["100%", "auto"]);
   assert.equal(net.conn.sent.length, 2, "sell + close account");
+});
+
+test("live broker: a partial sell that times out is never re-sent as a partial", async () => {
+  const cfg = cfgFor();
+  const kp = web3.Keypair.generate();
+  const me = kp.publicKey.toBase58();
+  const mint = web3.Keypair.generate().publicKey.toBase58();
+  const net = mockNet(kp, mint, [
+    { status: "late", meta: meta(me, mint, 0.02, 1000, 500) }, // the 50% lands after the bot gave up on it
+    { status: "confirmed", meta: meta(me, mint, 0.019, 500, 0), tokensAfter: 0 },
+    { status: "confirmed", meta: meta(me, mint, 0.002, 0, 0) },
+  ]);
+  net.state.tokens = 1000;
+  const lb = newBroker(cfg, kp, net);
+  const r = await lb.sell({ mint, fraction: 0.5, estimateSol: 0.02 });
+  assert.ok(r.ok, r.error);
+  assert.deepEqual(net.bodies.map((b) => b.amount), ["50%", "100%"], "retry is a full exit, never a second 50%");
+  assert.equal(r.closed, true);
+  // The late 50% landing afterwards can't oversell: the wallet is already empty.
+});
+
+test("live broker: an earlier sell that landed late is booked instead of selling again", async () => {
+  const cfg = cfgFor();
+  const kp = web3.Keypair.generate();
+  const me = kp.publicKey.toBase58();
+  const mint = web3.Keypair.generate().publicKey.toBase58();
+  const net = mockNet(kp, mint, [
+    { status: "late", meta: meta(me, mint, 0.041, 1000, 0), tokensAfter: 0 },
+    { status: "dropped" }, { status: "dropped" },
+    { status: "confirmed", meta: meta(me, mint, 0.002, 0, 0) },
+  ]);
+  net.state.tokens = 1000;
+  const lb = newBroker(cfg, kp, net);
+  const first = await lb.sell({ mint, fraction: 1, estimateSol: 0.04 });
+  assert.equal(first.ok, false, "nothing confirmed while waiting");
+  assert.equal(net.conn.sent.length, 3);
+  net.landLate();
+  const again = await lb.sell({ mint, fraction: 1, estimateSol: 0.04 });
+  assert.ok(again.ok, again.error);
+  assert.equal(again.closed, true);
+  near(again.tokensSold, 1000);
+  near(again.solReceived, 0.041 + 0.002);
+  assert.equal(net.conn.sent.length, 4, "only the close-account transaction was added");
+});
+
+test("live broker: withdraw sends the exact lamport balance minus the fee", async () => {
+  const cfg = cfgFor();
+  const kp = web3.Keypair.generate();
+  const net = mockNet(kp, "x");
+  net.state.preLamports = 123456789;
+  await newBroker(cfg, kp, net).withdrawAll(web3.Keypair.generate().publicKey.toBase58());
+  const tx = web3.Transaction.from(net.conn.sent[0].raw);
+  assert.equal(tx.instructions[0].data.readBigUInt64LE(4), 123456789n - 5000n);
+});
+
+test("engine: a failing trade log never crashes the bot", async () => {
+  const { Engine } = require("../pump/lib/engine.cjs");
+  const cfg = cfgFor();
+  const tr = new Tracker(cfg, { bondingCurve: (m) => `c#${m}`, ata: () => "x" });
+  tr.add({ mint: "Q", symbol: "Q", createdAtMs: 0 }, 0);
+  tr.ingest([{ key: "c#Q", mint: "Q", kind: "curve", account: fakeAccount(8) }], 0);
+  const broker = {
+    mode: "paper",
+    availableSol: () => 0.1,
+    buy: async () => ({ ok: true, tokens: 10, solSpent: 0.03 }),
+    sell: async () => ({ ok: true, solReceived: 0.02, tokensSold: 10, closed: true }),
+  };
+  const recorder = { recordTrade: () => { throw new Error("disk full"); }, recordToken: () => {} };
+  let unhandled = 0;
+  const onUnhandled = () => unhandled++;
+  process.on("unhandledRejection", onUnhandled);
+  const logs = [];
+  const eng = new Engine({ cfg, tracker: tr, broker, risk: new RiskManager(cfg.risk, 0.1), recorder, rpc: { getAccounts: async (k) => k.map(() => fakeAccount(8)), getLargestHolders: async () => [] }, log: (l, m) => logs.push(m), clock: () => 1000 });
+  eng.buy(tr.features("Q", 1000), 0.03, 1000);
+  await eng.settle();
+  eng.sell(eng.positions.get("Q"), { action: "sell", fraction: 1, reason: "test", gainPct: 0 }, tr.features("Q", 1000), 1000);
+  await eng.settle();
+  await new Promise((r) => setImmediate(r));
+  process.off("unhandledRejection", onUnhandled);
+  assert.equal(unhandled, 0);
+  assert.equal(eng.positions.size, 0, "position closed even though logging failed");
+  assert.ok(logs.some((m) => /internal error: disk full/.test(m)));
+});
+
+test("holders: curve account excluded by derived address or by being the giant holder", () => {
+  const rows = [{ address: "CURVE22", uiAmount: 8.8e8 }, { address: "a", uiAmount: 3e7 }];
+  assert.equal(summarizeHolders(rows, { curveAtas: ["CURVE1", "CURVE22"] }).top1Pct, 3);
+  // Unknown address and a stale expected balance: still recognised as the curve.
+  assert.equal(summarizeHolders(rows, { curveBalance: 9.5e8 }).top1Pct, 3);
+});
+
+test("replay: a dev sale before the first dev-wallet read still blocks the trade", async () => {
+  const cfg = cfgFor();
+  const rec = synth("runner", 0, Date.UTC(2026, 9, 25, 10));
+  rec.devSoldAgeMs = 3000;
+  const res = await replay([rec], cfg, { mode: "edge", sizeSol: 0.03 });
+  assert.equal(res.trades.length, 0);
+});
+
+test("paper broker: a sell that gaps past its slippage fills a poll later, like a live retry", async () => {
+  const cfg = cfgFor();
+  const tr = new Tracker(cfg, { bondingCurve: (m) => `c#${m}`, ata: () => "x" });
+  tr.add({ mint: "M", createdAtMs: 0 }, 0);
+  const at = (t, rs) => tr.ingest([{ key: "c#M", mint: "M", kind: "curve", account: fakeAccount(rs) }], t);
+  at(0, 20);
+  const pb = new PaperBroker(cfg, tr, 1);
+  const pBuy = pb.buy({ mint: "M", sol: 0.03, decisionPrice: tr.features("M", 0).price, nowMs: 0 });
+  at(1500, 20);
+  pb.onTick(1500);
+  assert.ok((await pBuy).ok);
+  let done = false;
+  const pSell = pb.sell({ mint: "M", fraction: 1, nowMs: 1500, decisionPrice: tr.features("M", 1500).price }).then((r) => { done = true; return r; });
+  at(3000, 8); // price collapses ~60%: beyond 25% slippage
+  pb.onTick(3000);
+  await new Promise((r) => setImmediate(r));
+  assert.equal(done, false, "first attempt failed on slippage");
+  at(4500, 8);
+  pb.onTick(4500);
+  await new Promise((r) => setImmediate(r));
+  assert.equal(done, false, "second attempt (40%) also failed");
+  at(6000, 8);
+  pb.onTick(6000);
+  assert.ok((await pSell).ok, "third attempt fills");
+});
+
+test("config: stop files and data folder are anchored to the repo root", () => {
+  const { REPO_ROOT } = require("../pump/lib/config.cjs");
+  const cfg = loadConfig({ env: {} });
+  assert.equal(cfg.stopFiles[0], path.join(REPO_ROOT, "STOP_PUMP.txt"));
+  assert.equal(cfg.stopFiles[1], path.join(REPO_ROOT, "STOP_BOT.txt"));
+  assert.equal(cfg.dataDir, path.join(REPO_ROOT, "data", "pump"));
 });
 
 // ---------------------------------------------------------------- run
