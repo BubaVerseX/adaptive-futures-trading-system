@@ -18,6 +18,14 @@ const { PumpPortalFeed, RpcLogsFeed } = require("./lib/feed.cjs");
 const { createWallet, loadWallet } = require("./lib/wallet.cjs");
 
 const LIVE_ACK = "I_ACCEPT_LOSING_THIS_MONEY";
+
+// web3.js prints a line for every rate-limited RPC retry; count them for the status line instead.
+let rpcRetries = 0;
+const consoleError = console.error.bind(console);
+console.error = (...a) => {
+  if (typeof a[0] === "string" && a[0].startsWith("Server responded with 429")) { rpcRetries++; return; }
+  consoleError(...a);
+};
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const ts = () => new Date().toTimeString().slice(0, 8);
 const signed = (x, d = 4) => (x >= 0 ? "+" : "") + x.toFixed(d);
@@ -110,7 +118,7 @@ function makeFeed(cfg, conn) {
   return cfg.discovery === "rpc" ? new RpcLogsFeed({ conn }) : new PumpPortalFeed({ url: cfg.wsUrl, apiKey: cfg.pumpPortalApiKey });
 }
 
-function status(engine, broker, risk, tracker, price, startEquity) {
+function status(engine, broker, risk, tracker, price, startEquity, feed) {
   const cash = broker.mode === "paper" ? broker.cash : broker.balanceSol;
   const equity = cash + engine.openValueSol();
   const pnl = equity - startEquity;
@@ -119,8 +127,10 @@ function status(engine, broker, risk, tracker, price, startEquity) {
     "info",
     `${broker.mode.toUpperCase()} | equity ${equity.toFixed(4)} SOL${price.fmt(equity)} | P&L ${signed(pnl)} SOL${price.fmt(pnl)} | open ${engine.positions.size} | ` +
       `trades ${risk.trades} (W${risk.wins}/L${risk.losses}) | watching ${tracker.tokens.size} of ${tracker.stats.seen} coins seen` +
-      `${tracker.stats.nonStandard ? ` (${tracker.stats.nonStandard} odd-curve skipped)` : ""}${gate}`
+      `${tracker.stats.nonStandard ? ` (${tracker.stats.nonStandard} odd-curve skipped)` : ""}` +
+      `${rpcRetries ? ` | RPC busy, ${rpcRetries} retries` : ""}${feed && feed.missed ? ` | feed missed ${feed.missed}` : ""}${gate}`
   );
+  rpcRetries = 0;
 }
 
 async function run(cfg, args) {
@@ -206,7 +216,7 @@ async function run(cfg, args) {
       lastBalance = now;
     }
     if (now - lastStatus >= cfg.runtime.statusEverySec * 1000) {
-      status(engine, broker, risk, tracker, price, startEquity);
+      status(engine, broker, risk, tracker, price, startEquity, feed);
       lastStatus = now;
     }
     await sleep(Math.max(50, cfg.runtime.pollMs - (Date.now() - now)));
@@ -215,7 +225,7 @@ async function run(cfg, args) {
   price.stop();
   await engine.settle();
   if (live) await broker.refreshBalance().catch(() => {});
-  status(engine, broker, risk, tracker, price, startEquity);
+  status(engine, broker, risk, tracker, price, startEquity, feed);
   const net = engine.closedTrades.reduce((a, t) => a + t.netSol, 0);
   console.log(`\nSession: ${engine.closedTrades.length} trades, ${risk.wins} wins / ${risk.losses} losses, net ${signed(net)} SOL${price.fmt(net)}`);
   console.log(`Trades log + research data: ${cfg.dataDir}   |   measure the strategy: node pump/replay.cjs`);

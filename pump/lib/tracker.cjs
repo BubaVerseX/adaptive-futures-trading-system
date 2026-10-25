@@ -136,8 +136,12 @@ class Tracker {
   ingestCurve(t, account, nowMs) {
     if (!account) return; // not visible to this RPC node yet
     const dec = curve.decodeBondingCurve(account.data);
-    if (!dec || !dec.discriminatorOk || !(dec.vSol > 0) || !(dec.vTok > 0)) {
-      this.stats.badLayout++; // pump.fun changed its account format: never trade on garbage
+    if (!dec || !dec.discriminatorOk) {
+      this.stats.badLayout++; // not a pump.fun bonding curve as we know it: never trade on it
+      return;
+    }
+    if (!(dec.vSol > 0) || !(dec.vTok > 0)) {
+      t.complete = true; // emptied curve: the coin graduated to PumpSwap
       return;
     }
     if (!t.curve) {

@@ -166,6 +166,7 @@ class RpcLogsFeed extends EventEmitter {
         const tx = await this.conn.getTransaction(job.sig, { maxSupportedTransactionVersion: 0, commitment: "confirmed" }).catch(() => null);
         if (!tx) {
           if (Date.now() - job.at < 8000) retry.push(job);
+          else this.missed = (this.missed || 0) + 1;
           continue;
         }
         const evt = parseCreateTx(tx, job.at);

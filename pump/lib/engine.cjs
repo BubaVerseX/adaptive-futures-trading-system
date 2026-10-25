@@ -79,9 +79,11 @@ class Engine {
         }
       }
     }
-    if (this.tracker.stats.badLayout > 0 && !this.layoutWarned) {
+    // A stray odd account is harmless (it is skipped); many would mean pump.fun changed its format.
+    const st = this.tracker.stats;
+    if (!this.layoutWarned && st.badLayout >= 5 && st.badLayout >= 0.2 * st.seen) {
       this.layoutWarned = true;
-      this.log("warn", "bonding-curve accounts no longer match the expected layout; those coins are ignored. Run --check and update the bot.");
+      this.log("warn", `${st.badLayout} of ${st.seen} coins have an unrecognised curve account; they are skipped. If this keeps growing, pump.fun changed something: tell Claude.`);
     }
     if (this.broker.onTick) this.broker.onTick(nowMs);
     this.checkLateFills(nowMs);
