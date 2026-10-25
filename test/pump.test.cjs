@@ -115,6 +115,25 @@ test("config: the active preset loads and stays inside the safety rules", () => 
   assert.equal(cfg.risk.dailyLossLimitPct, 40, "loss limit unchanged");
 });
 
+test("config: max preset buys every signal it can pay for and never pauses", () => {
+  const cfg = loadConfig({ env: {}, cwd: os.tmpdir(), paramsFile: path.join(__dirname, "..", "pump", "presets", "max.json") });
+  assert.deepEqual(cfg.strategy, cfgFor().strategy, "buy/sell rules unchanged");
+  const risk = new RiskManager(cfg.risk, 0.1);
+  // ~$11 wallet: 0.02 SOL trades (plus token-account rent) until only the fee reserve is left.
+  let cash = 0.11, open = 0;
+  while (risk.canEnter(0, open, cash).ok) {
+    const size = risk.sizeFor(cash);
+    assert.ok(size >= cfg.risk.minTradeSol && size <= 0.02);
+    cash -= size + 0.00204;
+    open++;
+  }
+  assert.equal(open, 4);
+  assert.ok(cash >= cfg.risk.reserveSol);
+  // A long losing streak doesn't pause it, and a bad day doesn't halt it before the budget is gone.
+  for (let i = 0; i < 10; i++) risk.onTradeClosed(-0.009, 1000 + i);
+  assert.ok(risk.canEnter(2000, 0, 0.05).ok);
+});
+
 // ---------------------------------------------------------------- tracker
 
 function fakeAccount(realSol) {

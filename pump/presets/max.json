@@ -1,0 +1,11 @@
+{
+  "_about": "Max mode: no brakes. Buys every signal it can pay for (0.02 SOL each, as many coins at once as the money allows), no pause after a losing streak, no daily loss limit. Same buy/sell rules and the same transaction safety checks. Can lose the whole budget fast. The smallest trade stays 0.01 SOL: below that, the fixed network fees eat the trade.",
+  "risk": {
+    "maxOpenPositions": 10,
+    "maxTradeSol": 0.02,
+    "minTradeSol": 0.01,
+    "tradeFractionOfFree": 1,
+    "dailyLossLimitPct": 100,
+    "lossStreakPauseMin": 0
+  }
+}

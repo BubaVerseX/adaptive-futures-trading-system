@@ -71,6 +71,15 @@ size with up to 3 coins at once, and lets more of each winner ride. Same budget,
 daily loss limit and loss-streak pause. Expect more trades, more fees and more
 bad coins; replay shows afterwards whether it was worth it.
 
+## Max mode
+
+`--params pump/presets/max.json` takes the brakes off: it buys every signal it
+can pay for (0.02 SOL each, as many coins at once as the money allows), never
+pauses after a losing streak and has no daily loss limit. The buy/sell rules and
+the transaction safety checks stay the same. It can lose the whole budget fast.
+The smallest trade stays 0.01 SOL: each buy + sell costs about 0.0002 SOL in
+network fees whatever the size, so a 0.001 SOL trade would lose ~25% to fees.
+
 ## 3. Live, with a small fixed budget
 
 ```bash

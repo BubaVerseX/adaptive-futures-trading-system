@@ -19,6 +19,19 @@ Options: --params file.json, --size SOL (edge-test trade size, default 0.03)`;
 const GRID_FULL = { minRealSol: [4, 6, 10], minInflow30: [1.5, 2.5, 4], stopLossPct: [10, 15, 25], tp1Pct: [25, 35, 60] };
 const GRID_QUICK = { minRealSol: [4, 8], minInflow30: [1.5, 3], stopLossPct: [12, 20], tp1Pct: [30, 60] };
 
+const COMPARE_VARIANTS = [
+  ["current settings", {}],
+  ["patience (no outflow exit in the first 20s)", { outflowGraceSec: 20 }],
+  ["second chance (one re-buy, 60s after selling)", { reentryCooldownSec: 60 }],
+  ["both", { outflowGraceSec: 20, reentryCooldownSec: 60 }],
+  ["creator small bag (skip if creator holds > 3%)", { maxDevHoldPct: 3 }],
+  ["creator gone OK (buy coins whose creator already sold)", { allowDevSold: 1 }],
+  ["both creator rules", { maxDevHoldPct: 3, allowDevSold: 1 }],
+  // Active mode's entry filters (its 5-minute age limit is left out: recordings end before such holds would).
+  ["looser buy rules (more trades; holder data partly assumed, so a bit flattering)",
+    { entryMinAgeSec: 10, minRealSol: 3, maxRealSol: 40, minInflow30: 1.2, minInflow15: 0.4, maxDrawdownFromPeakPct: 18, maxTop1Pct: 12, maxTop10Pct: 45 }],
+];
+
 function parseArgs(argv) {
   const a = { size: 0.03 };
   for (let i = 0; i < argv.length; i++) {
@@ -95,7 +108,11 @@ async function main() {
     return;
   }
   const grid = args.quick ? GRID_QUICK : GRID_FULL;
-  const minReal = args.sweep ? Math.min(cfg.strategy.minRealSol, ...grid.minRealSol) : cfg.strategy.minRealSol;
+  const minReal = Math.min(
+    cfg.strategy.minRealSol,
+    ...(args.sweep ? grid.minRealSol : []),
+    ...(args.compare ? COMPARE_VARIANTS.map(([, v]) => v.minRealSol ?? Infinity) : [])
+  );
   // Coins that never reached the entry threshold can't trade; leaving them out only saves time.
   const usable = records.filter((r) => r.maxRealSol >= minReal);
   const t0 = Math.min(...records.map((r) => r.createdAtMs));
@@ -104,17 +121,8 @@ async function main() {
   console.log(`Edge test: every signal taken at ${args.size} SOL, real fees, fills ~${cfg.costs.latencyMs}ms after the decision.\n`);
 
   if (args.compare) {
-    const variants = [
-      ["current settings", {}],
-      ["patience (no outflow exit in the first 20s)", { outflowGraceSec: 20 }],
-      ["second chance (one re-buy, 60s after selling)", { reentryCooldownSec: 60 }],
-      ["both", { outflowGraceSec: 20, reentryCooldownSec: 60 }],
-      ["creator small bag (skip if creator holds > 3%)", { maxDevHoldPct: 3 }],
-      ["creator gone OK (buy coins whose creator already sold)", { allowDevSold: 1 }],
-      ["both creator rules", { maxDevHoldPct: 3, allowDevSold: 1 }],
-    ];
     const [, h2] = splitByTime(usable);
-    for (const [name, change] of variants) {
+    for (const [name, change] of COMPARE_VARIANTS) {
       const c = withStrategy(cfg, change);
       const all = metrics((await replay(usable, c, { mode: "edge", sizeSol: args.size })).trades);
       const late = metrics((await replay(h2, c, { mode: "edge", sizeSol: args.size })).trades);
