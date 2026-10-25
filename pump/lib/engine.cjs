@@ -286,6 +286,7 @@ class Engine {
       return;
     }
     this.stats.sells++;
+    if (res.closeError) this.log("warn", `  sold, but closing the empty token account failed (${res.closeError}); --sell-all reclaims that rent later`);
     pos.proceedsSol += res.solReceived;
     pos.tokens = Math.max(0, pos.tokens - (res.tokensSold || 0));
     if (res.estimated) pos.estimated = true;

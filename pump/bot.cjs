@@ -403,10 +403,15 @@ async function selfTest(cfg) {
   if (b.ok) {
     await sleep(3000);
     const s = await broker.sell({ mint: pick.mint, fraction: 1 });
-    console.log(s.ok ? `  sold for ${s.solReceived.toFixed(6)} SOL incl. ${s.rentRefund.toFixed(6)} rent back (tx ${s.sig})` : `  SELL FAILED: ${s.error} -> run --sell-all`);
+    if (!s.ok) console.log(`  SELL FAILED: ${s.error} -> run --sell-all`);
+    else {
+      console.log(`  sold ${s.tokensSold.toFixed(0)} tokens for ${(s.solReceived - s.rentRefund).toFixed(6)} SOL (tx ${s.sig || "an earlier attempt"})`);
+      console.log(s.rentRefund ? `  closed the token account: ${s.rentRefund.toFixed(6)} SOL deposit back` : `  token account not closed yet (${s.closeError || "coins left"}); run --sell-all to get the deposit back`);
+    }
   }
   const after = await broker.refreshBalance();
-  console.log(`Wallet ${before.toFixed(6)} -> ${after.toFixed(6)} SOL: the round trip cost ${(before - after).toFixed(6)} SOL.`);
+  console.log(`Wallet ${before.toFixed(6)} -> ${after.toFixed(6)} SOL: the round trip cost ${(before - after).toFixed(6)} SOL` +
+    " (the very first trade also pays a one-time pump.fun account setup).");
   process.exit(b.ok ? 0 : 1);
 }
 

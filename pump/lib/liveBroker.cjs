@@ -159,6 +159,17 @@ class LiveBroker {
     return res.value.reduce((a, v) => a + Number(v.account.data.parsed.info.tokenAmount.uiAmount || 0), 0);
   }
 
+  // Right after a sale some RPC nodes still show the old balance for a moment; wait for 0.
+  async balanceAfterExit(mint) {
+    let left = null;
+    for (let i = 0; i < 5; i++) {
+      left = await this.tokenBalance(mint).catch(() => null);
+      if (left === 0) return 0;
+      await this.sleep(800);
+    }
+    return left;
+  }
+
   async buy({ mint, sol: amountSol }) {
     this.committed += amountSol;
     try {
@@ -237,7 +248,7 @@ class LiveBroker {
   async sell({ mint, fraction, estimateSol = 0 }) {
     if (!this.sellSigs.has(mint)) this.sellSigs.set(mint, []);
     const list = this.sellSigs.get(mint);
-    let received = 0, sold = 0, feesSol = 0, acted = false, estimated = false, lastErr = null;
+    let received = 0, sold = 0, feesSol = 0, acted = false, estimated = false, lastErr = null, lastSig = null;
 
     // 1. Something from an earlier attempt landed after we stopped waiting: book it, don't sell again.
     const early = await this.bookLanded(mint).catch(() => ({ any: false }));
@@ -266,7 +277,7 @@ class LiveBroker {
       const conf = await this.confirm(sent.sig, sent.sendError ? Math.min(12000, this.confirmMs) : this.confirmMs);
       if (conf.onChainError) feesSol += this.txFeeSol();
       const b = await this.bookLanded(mint).catch(() => ({ any: false }));
-      if (b.any) { received += b.sol; sold += b.tokens; acted = true; break; }
+      if (b.any) { received += b.sol; sold += b.tokens; acted = true; lastSig = sent.sig; break; }
       lastErr = sent.sendError && !conf.onChainError ? `send failed: ${sent.sendError}` : conf.error;
       // Coins left the wallet through an attempt we can't read yet: count it, estimated.
       const left = await this.tokenBalance(mint).catch(() => null);
@@ -284,7 +295,7 @@ class LiveBroker {
     if (!acted) return { ok: false, error: lastErr, feesSol };
 
     // 3. Tidy up: after a full exit sweep any dust, then close the empty account for its rent.
-    let left = await this.tokenBalance(mint).catch(() => null);
+    let left = full ? await this.balanceAfterExit(mint) : await this.tokenBalance(mint).catch(() => null);
     if (full && left > 0) {
       try {
         const sent = await this.tradeLocal(
@@ -299,17 +310,22 @@ class LiveBroker {
       } catch (_) {
         // dust stays; the next exit attempt or --sell-all picks it up
       }
-      left = await this.tokenBalance(mint).catch(() => null);
+      left = await this.balanceAfterExit(mint);
     }
-    let rentRefund = 0;
+    let rentRefund = 0, closeError = null;
     const closed = left === 0;
     if (closed) {
-      const c = await this.closeEmptyAccounts(mint).catch(() => ({ refundSol: 0 }));
-      rentRefund = c.refundSol || 0;
+      // Two tries: the account can still look non-empty to the RPC for a moment.
+      for (let i = 0; i < 2 && !rentRefund; i++) {
+        if (i) await this.sleep(1500);
+        const c = await this.closeEmptyAccounts(mint).catch((e) => ({ refundSol: 0, error: e.message }));
+        rentRefund = c.refundSol || 0;
+        closeError = rentRefund ? null : c.error || "account not empty yet";
+      }
       this.sellSigs.delete(mint); // nothing left that a late attempt could sell
     }
     await this.refreshBalance().catch(() => {});
-    return { ok: true, solReceived: received + rentRefund, tokensSold: sold, rentRefund, closed, feesSol, estimated };
+    return { ok: true, solReceived: received + rentRefund, tokensSold: sold, rentRefund, closed, feesSol, estimated, sig: lastSig, closeError };
   }
 
   async sendLegacy(tx) {
