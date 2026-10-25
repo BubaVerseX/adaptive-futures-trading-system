@@ -452,6 +452,42 @@ test("inspect: flags drains that are not plain transfers", () => {
   assert.deepEqual(blind.harmlessPrograms, [other.toBase58()]);
 });
 
+test("diagnostics: unknown program report (authority, usage, accounts)", async () => {
+  const kp = web3.Keypair.generate();
+  const prog = web3.Keypair.generate().publicKey;
+  const programData = web3.Keypair.generate().publicKey;
+  const authority = web3.Keypair.generate().publicKey;
+  const pdData = Buffer.alloc(45);
+  pdData.writeUInt32LE(3, 0);
+  pdData.writeBigUInt64LE(12345n, 4);
+  pdData[12] = 1;
+  authority.toBuffer().copy(pdData, 13);
+  const progData = Buffer.alloc(36);
+  progData.writeUInt32LE(2, 0);
+  programData.toBuffer().copy(progData, 4);
+  const pumpTx = (payer) => ({ transaction: { message: { staticAccountKeys: [payer, new web3.PublicKey(C.PUMP_PROGRAM_ID)], compiledInstructions: [{ programIdIndex: 1 }] } } });
+  const conn = {
+    async getAccountInfo(k) {
+      if (k.equals(prog)) return { executable: true, owner: new web3.PublicKey("BPFLoaderUpgradeab1e11111111111111111111111"), data: progData };
+      if (k.equals(programData)) return { executable: false, owner: new web3.PublicKey("BPFLoaderUpgradeab1e11111111111111111111111"), data: pdData };
+      return null;
+    },
+    async getSignaturesForAddress() { return [{ signature: "a", blockTime: 1000 }, { signature: "b", blockTime: 990 }, { signature: "c", blockTime: 980 }]; },
+    async getTransaction() { return pumpTx(web3.Keypair.generate().publicKey); },
+  };
+  const e = await sol.explainProgram(conn, prog.toBase58());
+  assert.equal(e.executable, true);
+  assert.equal(e.upgradeAuthority, authority.toBase58());
+  assert.equal(e.lastDeploySlot, 12345);
+  assert.deepEqual([e.recentTx, e.spanSec, e.sampled, e.withPump, e.distinctPayers], [3, 20, 3, 3, 3]);
+  const tx = buildTx(kp.publicKey, { extra: [new web3.TransactionInstruction({ programId: prog, keys: [{ pubkey: kp.publicKey, isSigner: true, isWritable: true }, { pubkey: authority, isSigner: false, isWritable: false }], data: Buffer.from([1, 2]) })] });
+  const ixs = sol.instructionAccounts(tx, prog.toBase58());
+  assert.equal(ixs.length, 1);
+  assert.equal(ixs[0].dataLen, 2);
+  assert.deepEqual(ixs[0].accounts[0], { address: kp.publicKey.toBase58(), signer: true, writable: true });
+  assert.equal(ixs[0].accounts[1].signer, false);
+});
+
 test("live broker: an unknown program that never sees the wallet does not block a buy", async () => {
   const cfg = cfgFor();
   const kp = web3.Keypair.generate();

@@ -235,7 +235,27 @@ async function tradeApiCheck(cfg, mint, publicKey, conn) {
   const ins = sol.inspectTransaction(tx, publicKey, cfg.extraPrograms);
   let sim = null;
   try { sim = await sol.simulateWalletChange(conn, tx, publicKey); } catch (e) { sim = { error: e.message }; }
-  return { ins, sim, instructions: tx.message.compiledInstructions.length };
+  return { tx, ins, sim, instructions: tx.message.compiledInstructions.length };
+}
+
+// Prints what the chain says about a program the bot doesn't know.
+async function reportUnknownProgram(conn, r, id, labels) {
+  console.log(`        --- about ${id} ---`);
+  try {
+    const e = await sol.explainProgram(conn, id);
+    console.log(`        program: ${e.executable ? "yes" : "NO (not a program?)"}, upgrade authority: ${e.upgradeAuthority || "?"}`);
+    console.log(`        recent use: ${e.recentTx} transactions${e.spanSec !== null ? ` in the last ${e.spanSec}s` : ""}; of ${e.sampled} sampled, ${e.withPump} are pump.fun trades by ${e.distinctPayers} different wallets`);
+  } catch (err) {
+    console.log(`        could not look it up: ${err.message}`);
+  }
+  for (const ix of sol.instructionAccounts(r.tx, id)) {
+    console.log(`        in this buy it gets ${ix.accounts.length} accounts (${ix.dataLen} bytes of data):`);
+    for (const a of ix.accounts) console.log(`          ${a.address}${labels[a.address] ? ` = ${labels[a.address]}` : ""}${a.signer ? " [signer]" : ""}${a.writable ? " [writable]" : ""}`);
+  }
+  if (r.sim && r.sim.ok) {
+    const lines = r.sim.logs.filter((l) => l.includes(id) || /Program log:/.test(l)).slice(0, 12);
+    if (lines.length) console.log(`        simulation log:\n${lines.map((l) => `          ${l}`).join("\n")}`);
+  }
 }
 
 async function check(cfg) {
@@ -309,6 +329,17 @@ async function check(cfg) {
     const who = fs.existsSync(cfg.walletFile) ? loadWallet(cfg.walletFile).publicKey : sol.web3.Keypair.generate().publicKey;
     try {
       const r = await tradeApiCheck(cfg, first.mint, who, conn);
+      const labels = {
+        [who.toBase58()]: "your bot wallet",
+        [first.mint]: "the coin",
+        [sol.bondingCurveAddress(first.mint)]: "the coin's bonding curve",
+        [C.SYSTEM_PROGRAM_ID]: "System Program",
+        [C.TOKEN_PROGRAM_ID]: "Token Program",
+        [C.TOKEN_2022_PROGRAM_ID]: "Token-2022 Program",
+        [C.PUMP_PROGRAM_ID]: "pump.fun program",
+      };
+      for (const p of [C.TOKEN_PROGRAM_ID, C.TOKEN_2022_PROGRAM_ID]) labels[sol.ataAddress(who, first.mint, p)] = "your token account for the coin";
+      for (const id of r.ins.unknownPrograms) await reportUnknownProgram(conn, r, id, labels);
       const odd = [...r.ins.risky, ...r.ins.unknownPrograms.map((p) => `unknown program ${p} is given the wallet's signature`)];
       if (r.ins.outflowSol > 0.001 * 1.03 + 0.006) fail(`the transaction sends ${r.ins.outflowSol} SOL straight out; the bot would refuse it`);
       else if (odd.length) fail(`the bot would refuse buys: ${odd.join("; ")}. Tell Claude; a program is only added after checking it`);

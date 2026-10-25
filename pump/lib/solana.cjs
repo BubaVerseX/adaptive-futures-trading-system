@@ -99,8 +99,65 @@ async function simulateWalletChange(conn, vtx, wallet) {
   const v = sim.value;
   if (v.err) return { ok: false, simErr: JSON.stringify(v.err), logs: (v.logs || []).slice(-4) };
   const acc = v.accounts && v.accounts[0];
-  if (!acc) return { ok: true, lossSol: pre / C.LAMPORTS_PER_SOL, owner: null }; // wallet would be emptied/closed
-  return { ok: true, lossSol: (pre - acc.lamports) / C.LAMPORTS_PER_SOL, owner: acc.owner };
+  if (!acc) return { ok: true, lossSol: pre / C.LAMPORTS_PER_SOL, owner: null, logs: v.logs || [] }; // wallet would be emptied/closed
+  return { ok: true, lossSol: (pre - acc.lamports) / C.LAMPORTS_PER_SOL, owner: acc.owner, logs: v.logs || [] };
+}
+
+const UPGRADEABLE_LOADER = "BPFLoaderUpgradeab1e11111111111111111111111";
+
+/**
+ * Evidence about an unfamiliar program, from the chain: who can change it, and
+ * whether many different wallets use it alongside pump.fun right now.
+ */
+async function explainProgram(conn, id) {
+  const out = { id };
+  const info = await conn.getAccountInfo(pk(id));
+  out.executable = !!(info && info.executable);
+  out.loader = info ? info.owner.toBase58() : null;
+  if (info && out.loader === UPGRADEABLE_LOADER && info.data.length >= 36) {
+    const pd = await conn.getAccountInfo(new web3.PublicKey(info.data.subarray(4, 36)));
+    // ProgramData: u32 tag, u64 last-deploy slot, Option<Pubkey> upgrade authority.
+    if (pd && pd.data.length >= 13) {
+      out.lastDeploySlot = Number(pd.data.readBigUInt64LE(4));
+      out.upgradeAuthority = pd.data[12] === 1 && pd.data.length >= 45 ? new web3.PublicKey(pd.data.subarray(13, 45)).toBase58() : "none (can never be changed)";
+    }
+  }
+  const sigs = await conn.getSignaturesForAddress(pk(id), { limit: 40 });
+  out.recentTx = sigs.length;
+  out.spanSec = sigs.length > 1 && sigs[0].blockTime && sigs[sigs.length - 1].blockTime ? sigs[0].blockTime - sigs[sigs.length - 1].blockTime : null;
+  const payers = new Set();
+  let sampled = 0, withPump = 0;
+  for (const s of sigs.slice(0, 8)) {
+    const tx = await conn.getTransaction(s.signature, { maxSupportedTransactionVersion: 0, commitment: "confirmed" }).catch(() => null);
+    if (!tx) continue;
+    sampled++;
+    const msg = tx.transaction.message;
+    const keys = (msg.staticAccountKeys || msg.accountKeys).map((k) => k.toBase58());
+    payers.add(keys[0]);
+    const progs = (msg.compiledInstructions || msg.instructions).map((ix) => keys[ix.programIdIndex]);
+    if (progs.includes(C.PUMP_PROGRAM_ID) || progs.includes(C.PUMPSWAP_PROGRAM_ID)) withPump++;
+  }
+  Object.assign(out, { sampled, distinctPayers: payers.size, withPump });
+  return out;
+}
+
+// Accounts a given program receives in a transaction, with signer/writable flags.
+function instructionAccounts(vtx, programId) {
+  const msg = vtx.message;
+  const keys = msg.staticAccountKeys.map((k) => k.toBase58());
+  const out = [];
+  for (const ix of msg.compiledInstructions) {
+    if (keys[ix.programIdIndex] !== programId) continue;
+    out.push({
+      dataLen: ix.data.length,
+      accounts: ix.accountKeyIndexes.map((i) => ({
+        address: keys[i] || `(lookup table #${i})`,
+        signer: i < keys.length && msg.isAccountSigner(i),
+        writable: i < keys.length && msg.isAccountWritable(i),
+      })),
+    });
+  }
+  return out;
 }
 
 function connection(rpcUrl) {
@@ -134,6 +191,8 @@ module.exports = {
   closeAccountInstruction,
   inspectTransaction,
   simulateWalletChange,
+  explainProgram,
+  instructionAccounts,
   connection,
   getAccounts,
   getLargestHolders,
