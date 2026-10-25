@@ -58,12 +58,15 @@ class RiskManager {
     return { ok: true };
   }
 
-  sizeFor(availableSol) {
+  // conviction (1..convictionMax): a stronger signal buys proportionally more.
+  sizeFor(availableSol, conviction = 1) {
     const free = availableSol - this.r.reserveSol;
     if (free < this.r.minTradeSol) return 0;
     // Compounding: the size limit grows with the account, never below its base value.
     const growth = this.r.compound ? Math.max(1, this.equitySol() / this.startSol) : 1;
-    const size = Math.min(this.r.maxTradeSol * growth, Math.max(this.r.minTradeSol, free * this.r.tradeFractionOfFree));
+    // A strong signal may also take a bigger share of the free cash, up to half of it.
+    const share = Math.max(this.r.tradeFractionOfFree, Math.min(0.5, this.r.tradeFractionOfFree * conviction));
+    const size = Math.min(this.r.maxTradeSol * growth * conviction, Math.max(this.r.minTradeSol, free * share));
     return Math.min(size, free);
   }
 

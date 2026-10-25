@@ -38,6 +38,16 @@ function entryDecision(f, s) {
   return { go: true, reasons: [] };
 }
 
+// How sure a buy signal is: buying pressure against the entry minimums (both windows).
+// 1 = just enough, rising to maxMult at three times the minimums.
+function conviction(f, s, maxMult) {
+  if (!(maxMult > 1)) return 1;
+  const ratio = (x, min) => (min > 0 ? x / min : Infinity);
+  const r = Math.min(ratio(f.inflow30, s.minInflow30), ratio(f.inflow15, s.minInflow15));
+  if (!Number.isFinite(r) || r <= 1) return 1;
+  return Math.min(maxMult, 1 + (r - 1) / 2);
+}
+
 function updatePeaks(pos, f) {
   if (f.price > pos.peakPrice) pos.peakPrice = f.price;
   if (f.realSol > pos.peakRealSol) pos.peakRealSol = f.realSol;
@@ -68,4 +78,4 @@ function exitDecision(pos, f, s, nowMs) {
   return { action: "hold", gainPct };
 }
 
-module.exports = { preEntry, holdersOk, entryDecision, updatePeaks, exitDecision };
+module.exports = { preEntry, holdersOk, entryDecision, conviction, updatePeaks, exitDecision };

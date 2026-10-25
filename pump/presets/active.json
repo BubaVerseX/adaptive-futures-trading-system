@@ -1,5 +1,5 @@
 {
-  "_about": "Active mode: looser entry filters so the bot trades more often, smaller size per trade, more of each winner left to ride. Same hard limits (budget, daily loss limit, loss-streak pause). More trades = more fees and more bad coins too.",
+  "_about": "Active mode: looser entry filters so the bot trades more often, more of each winner left to ride. Same money rules as the default. More trades = more fees and more bad coins too.",
   "strategy": {
     "entryMinAgeSec": 10,
     "entryMaxAgeSec": 300,
@@ -13,10 +13,6 @@
     "tp1Pct": 40,
     "tp1Fraction": 0.4,
     "trailPct": 22
-  },
-  "risk": {
-    "maxOpenPositions": 3,
-    "maxTradeSol": 0.025
   },
   "runtime": {
     "watchSecActive": 750

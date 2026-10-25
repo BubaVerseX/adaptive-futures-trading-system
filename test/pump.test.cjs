@@ -105,33 +105,52 @@ test("config: env overrides, params file and validation", () => {
   assert.equal(loadConfig({ env: {}, paramsFile: f }).strategy.stopLossPct, 22);
 });
 
-test("config: the active preset loads and stays inside the safety rules", () => {
+test("config: the active preset loads and only loosens the buy/sell rules", () => {
   const cfg = loadConfig({ env: {}, cwd: os.tmpdir(), paramsFile: path.join(__dirname, "..", "pump", "presets", "active.json") });
   assert.equal(cfg.strategy.minRealSol, 3);
-  assert.equal(cfg.risk.maxOpenPositions, 3);
   assert.equal(cfg.runtime.watchSecActive, 750);
-  // Three positions plus the reserve fit in a ~$10 (0.097 SOL) wallet.
-  assert.ok(cfg.risk.maxOpenPositions * cfg.risk.maxTradeSol + cfg.risk.reserveSol <= 0.097);
-  assert.equal(cfg.risk.dailyLossLimitPct, 40, "loss limit unchanged");
+  assert.deepEqual(cfg.risk, cfgFor().risk, "same money rules as the default");
 });
 
-test("config: max preset buys every signal it can pay for and never pauses", () => {
-  const cfg = loadConfig({ env: {}, cwd: os.tmpdir(), paramsFile: path.join(__dirname, "..", "pump", "presets", "max.json") });
-  assert.deepEqual(cfg.strategy, cfgFor().strategy, "buy/sell rules unchanged");
-  const risk = new RiskManager(cfg.risk, 0.1);
-  // ~$11 wallet: 0.02 SOL trades (plus token-account rent) until only the fee reserve is left.
+test("config: by default it holds as many coins as it can pay for, never pauses, keeps half", () => {
+  const cfg = cfgFor();
+  const risk = new RiskManager(cfg.risk, 0.11);
   let cash = 0.11, open = 0;
   while (risk.canEnter(0, open, cash).ok) {
-    const size = risk.sizeFor(cash);
-    assert.ok(size >= cfg.risk.minTradeSol && size <= 0.02);
-    cash -= size + 0.00204;
+    cash -= risk.sizeFor(cash) + 0.00204; // + token-account rent
     open++;
   }
-  assert.equal(open, 4);
+  assert.equal(open, 5);
   assert.ok(cash >= cfg.risk.reserveSol);
-  // A long losing streak doesn't pause it, and a bad day doesn't halt it before the budget is gone.
+  const r = new RiskManager(cfg.risk, 0.1);
+  for (let i = 0; i < 8; i++) r.onTradeClosed(-0.004, 1000 + i); // 8 losses in a row
+  assert.ok(r.canEnter(1010, 0, 0.068).ok, "no pause, no daily stop");
+  r.onTradeClosed(-0.02, 1020); // 0.048: below half of the best (0.1)
+  assert.equal(r.canEnter(1030, 0, 0.048).reason, "keep-floor");
+});
+
+test("config: max preset is the default without the keep-floor", () => {
+  const cfg = loadConfig({ env: {}, cwd: os.tmpdir(), paramsFile: path.join(__dirname, "..", "pump", "presets", "max.json") });
+  assert.deepEqual(cfg.strategy, cfgFor().strategy);
+  assert.deepEqual({ ...cfg.risk, keepPct: 50 }, cfgFor().risk);
+  const risk = new RiskManager(cfg.risk, 0.1);
   for (let i = 0; i < 10; i++) risk.onTradeClosed(-0.009, 1000 + i);
-  assert.ok(risk.canEnter(2000, 0, 0.05).ok);
+  assert.ok(risk.canEnter(2000, 0, 0.05).ok, "never stops on losses");
+});
+
+test("conviction: stronger buying pressure buys more, within the free cash", () => {
+  const s = cfgFor().strategy; // minimums: 2.5 SOL per 30s, 0.8 SOL per 15s
+  assert.equal(strategy.conviction({ inflow30: 2.5, inflow15: 0.8 }, s, 2), 1);
+  near(strategy.conviction({ inflow30: 5, inflow15: 1.6 }, s, 2), 1.5);
+  near(strategy.conviction({ inflow30: 50, inflow15: 1.6 }, s, 2), 1.5, 1e-12); // both windows must be strong
+  assert.equal(strategy.conviction({ inflow30: 50, inflow15: 50 }, s, 2), 2);
+  assert.equal(strategy.conviction({ inflow30: 50, inflow15: 50 }, s, 1), 1); // switched off
+  assert.equal(strategy.conviction({ inflow30: NaN, inflow15: 1 }, s, 2), 1);
+  const r = new RiskManager(cfgFor().risk, 0.11);
+  near(r.sizeFor(0.11), 0.025);
+  near(r.sizeFor(0.11, 2), 0.049); // never more than half of the free cash: (0.11 - 0.012) / 2
+  near(r.sizeFor(0.3, 2), 0.05); // twice the base size
+  near(r.sizeFor(0.3, 1.5), 0.0375);
 });
 
 // ---------------------------------------------------------------- tracker
@@ -224,8 +243,8 @@ test("paper broker: buys fail on slippage and still pay the network fee", async 
   near(1 - pb.cash, cfg.costs.priorityFeeSol + C.BASE_FEE_SOL);
 });
 
-test("risk: sizing, reserve, loss-streak pause and daily loss limit", () => {
-  const r = new RiskManager(cfgFor().risk, 0.1);
+test("risk: sizing, reserve, loss-streak pause and daily loss limit (when switched on)", () => {
+  const r = new RiskManager({ ...cfgFor().risk, maxOpenPositions: 2, maxTradeSol: 0.03, dailyLossLimitPct: 40, lossStreakPauseMin: 10 }, 0.1);
   near(r.sizeFor(0.1), 0.03);
   near(r.sizeFor(0.04), 0.0112, 1e-12);
   assert.equal(r.sizeFor(0.02), 0);
@@ -243,7 +262,8 @@ test("risk: sizing, reserve, loss-streak pause and daily loss limit", () => {
 });
 
 test("risk: winnings grow the trade size; the keep-floor stops buys below half the best balance", () => {
-  const r = new RiskManager(cfgFor().risk, 0.1);
+  const base = { ...cfgFor().risk, maxTradeSol: 0.03 };
+  const r = new RiskManager(base, 0.1);
   const t0 = Date.UTC(2026, 9, 25, 12);
   near(r.sizeFor(0.2), 0.03);
   r.onTradeClosed(0.05, t0); // account 0.15: +50%
@@ -257,7 +277,7 @@ test("risk: winnings grow the trade size; the keep-floor stops buys below half t
   assert.equal(r.canEnter(t0 + 2 * 86400000, 0, 0.07).reason, "keep-floor");
   assert.ok(r.belowFloor());
   near(r.sizeFor(0.07), 0.0232); // after losses the size never grows above the base
-  const off = new RiskManager({ ...cfgFor().risk, keepPct: 0, compound: 0 }, 0.1);
+  const off = new RiskManager({ ...base, keepPct: 0, compound: 0 }, 0.1);
   off.onTradeClosed(0.05, t0);
   near(off.sizeFor(0.2), 0.03);
   off.onTradeClosed(-0.1, t0 + 86400000);
@@ -316,15 +336,19 @@ test("end to end: replay trades the synthetic market and the books balance", asy
 });
 
 test("end to end: account mode respects the bankroll and max open positions", async () => {
-  const cfg = cfgFor();
   const t0 = Date.UTC(2026, 9, 25, 10);
-  // Five runners launched together: only maxOpenPositions can be held at once.
+  // Five runners launched together.
   const records = [0, 1, 2, 3, 4].map((i) => ({ ...synth("runner", i, t0), createdAtMs: t0 + i * 100 }));
-  const res = await replay(records, cfg, { mode: "account" });
-  assert.equal(res.bankroll, cfg.paperStartSol);
-  assert.ok(res.trades.length <= cfg.risk.maxOpenPositions, `took ${res.trades.length}`);
-  assert.ok(res.trades.every((t) => t.sizeSol <= cfg.risk.maxTradeSol + 1e-12));
-  near(res.trades.reduce((a, t) => a + t.netSol, 0), res.finalCash - res.bankroll, 1e-5); // trade logs round to 6 decimals
+  const capped = cfgFor({ PUMP_MAX_OPEN_POSITIONS: "2" });
+  const res = await replay(records, capped, { mode: "account" });
+  assert.equal(res.bankroll, capped.paperStartSol);
+  assert.ok(res.trades.length <= 2, `took ${res.trades.length}`);
+  // Default: no position cap, the money is the limit; strong signals buy up to 2x.
+  const cfg = cfgFor();
+  const all = await replay(records, cfg, { mode: "account" });
+  assert.ok(all.trades.length >= res.trades.length);
+  assert.ok(all.trades.every((t) => t.sizeSol <= cfg.risk.maxTradeSol * cfg.risk.convictionMax + 1e-12));
+  for (const r of [res, all]) near(r.trades.reduce((a, t) => a + t.netSol, 0), r.finalCash - r.bankroll, 1e-5); // logs round to 6 decimals
 });
 
 test("switches: outflow grace period and one re-buy of the same coin", async () => {
@@ -511,6 +535,25 @@ test("feed: launches are read from pump.fun's own log events; fakes are ignored"
   // No buy in the launch: the creator bought nothing.
   const noBuy = parseCreateLogs(logs.slice(0, 16), 0, sol.bondingCurveAddress)[0];
   assert.equal(noBuy.devBuySol, 0);
+});
+
+test("feed: subscribes to launches only, widens to all pump.fun logs if none arrive", () => {
+  const subs = [];
+  const removed = [];
+  const conn = { onLogs: (addr) => { subs.push(addr.toBase58()); return subs.length; }, removeOnLogsListener: async (id) => { removed.push(id); } };
+  const feed = new RpcLogsFeed({ conn, derive: sol.derive, widenAfterMs: 1e9 });
+  feed.start();
+  assert.deepEqual(subs, ["TSLvdd1pWpHVjahSpsvCXUbgwsL3JAcvokwaKt1eokM"]); // pump.fun's mint authority: create/create_v2 only
+  const program = new web3.PublicKey(C.PUMP_PROGRAM_ID);
+  feed.launches = 1;
+  feed.widen(program);
+  assert.equal(subs.length, 1, "launches arrive: stays narrow");
+  feed.launches = 0;
+  feed.widen(program);
+  assert.deepEqual(subs, ["TSLvdd1pWpHVjahSpsvCXUbgwsL3JAcvokwaKt1eokM", C.PUMP_PROGRAM_ID]);
+  assert.deepEqual(removed, [1]);
+  feed.stop();
+  assert.deepEqual(removed, [1, 2]);
 });
 
 test("feed: the RPC feed needs no lookups for readable launches and retries the rest", async () => {

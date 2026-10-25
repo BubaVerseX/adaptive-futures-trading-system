@@ -34,7 +34,8 @@ node pump/bot.cjs --set-rpc
 
 If PumpPortal's coin feed is down, find new coins straight from Solana instead:
 `echo 'PUMP_DISCOVERY=rpc' >> .env`
-(it reads each launch from pump.fun's own log events, so it costs no extra RPC calls).
+(it listens to launch transactions only and reads each launch from pump.fun's own
+log events, so it costs no extra RPC calls and little websocket data).
 
 Then test everything (spends nothing):
 
@@ -65,20 +66,17 @@ profit factor above 1.3, profitable in both halves, still profitable at 1.5x fee
 
 ## Active mode
 
-The default is deliberately picky. `--params pump/presets/active.json` loosens
-the entry filters (earlier, smaller inflows, up to 5 minutes old), trades smaller
-size with up to 3 coins at once, and lets more of each winner ride. Same budget,
-daily loss limit and loss-streak pause. Expect more trades, more fees and more
-bad coins; replay shows afterwards whether it was worth it.
+The default buy rules are deliberately picky. `--params pump/presets/active.json`
+loosens the entry filters (earlier, smaller inflows, up to 5 minutes old) and lets
+more of each winner ride. Same money rules. Expect more trades, more fees and more
+bad coins; `replay --compare` shows whether looser rules pay on your data.
 
 ## Max mode
 
-`--params pump/presets/max.json` takes the brakes off: it buys every signal it
-can pay for (0.02 SOL each, as many coins at once as the money allows), never
-pauses after a losing streak and has no daily loss limit. The buy/sell rules and
-the transaction safety checks stay the same. It can lose the whole budget fast.
-The smallest trade stays 0.01 SOL: each buy + sell costs about 0.0002 SOL in
-network fees whatever the size, so a 0.001 SOL trade would lose ~25% to fees.
+`--params pump/presets/max.json` is the default without the keep-floor: it never
+stops buying while it has money, so it can lose the whole budget. The smallest
+trade stays 0.01 SOL either way: each buy + sell costs about 0.0002 SOL in network
+fees whatever the size, so a 0.001 SOL trade would lose ~25% to fees.
 
 ## 3. Live, with a small fixed budget
 
@@ -133,13 +131,17 @@ each buy and refunded when the bot closes the account after selling.
   always a full exit), so the bot can't sell more than it holds or lose track
   of a position.
 - `PUMP_MAX_BUDGET_SOL` caps what the bot may use even if the wallet holds more.
-- Daily loss limit (default 40% of the budget): no new buys until 00:00 UTC.
-- After 3 losses in a row it pauses 10 minutes.
+- No cap on coins held at once (the money is the limit), no pause after losing
+  streaks and no daily loss limit by default (`PUMP_MAX_OPEN_POSITIONS`,
+  `PUMP_LOSS_STREAK_PAUSE_MIN`, `PUMP_DAILY_LOSS_LIMIT_PCT` switch them on).
 - Keep-floor (default 50%): no new buys once the account is below half of its
   best value this run, so a bad night can't take everything (`PUMP_KEEP_PCT=0`
   turns it off).
-- Profits are reinvested: the trade size limit grows with the account and
-  shrinks back if the gains are lost (`PUMP_COMPOUND=0` keeps it fixed).
+- Trade size: 0.025 SOL base. Strong buying pressure (inflow well above the entry
+  minimums) buys up to 2x, never more than half of the free cash
+  (`PUMP_CONVICTION_MAX=1` turns that off). Profits are reinvested: the size limit
+  grows with the account and shrinks back if the gains are lost (`PUMP_COMPOUND=0`
+  keeps it fixed).
 - Only dependencies: `@solana/web3.js`, `ws`, `dotenv`. No downloaded "bot" code.
   Free pump.fun bots from GitHub or Telegram are a known way wallets get emptied.
 

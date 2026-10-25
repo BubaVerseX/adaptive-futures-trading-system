@@ -14,12 +14,13 @@ const clone = (o) => JSON.parse(JSON.stringify(o));
  * mode "edge": fixed trade size, no position/loss caps -> measures the rules themselves.
  * mode "account": the configured risk limits and bankroll -> what the account would have done.
  */
-async function replay(records, baseCfg, { mode = "edge", sizeSol = 0.03, startSol = null } = {}) {
+async function replay(records, baseCfg, { mode = "edge", sizeSol = 0.03, startSol = null, conviction = false } = {}) {
   const cfg = clone(baseCfg);
   if (mode === "edge") {
     Object.assign(cfg.risk, {
       maxOpenPositions: 1000, maxTradeSol: sizeSol, minTradeSol: sizeSol, tradeFractionOfFree: 1,
       reserveSol: 0, dailyLossLimitPct: 1e9, lossStreak: 1e9, keepPct: 0, compound: 0,
+      convictionMax: conviction ? cfg.risk.convictionMax : 1,
     });
   }
   const bankroll = startSol !== null ? startSol : mode === "edge" ? 1e6 : cfg.paperStartSol;

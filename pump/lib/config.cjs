@@ -47,16 +47,17 @@ const DEFAULT_COSTS = {
 };
 
 const DEFAULT_RISK = {
-  maxOpenPositions: 2,
-  maxTradeSol: 0.03,
+  maxOpenPositions: 20, // in practice: as many coins at once as the money allows
+  maxTradeSol: 0.025, // base size; the strongest signals buy up to convictionMax times this
   minTradeSol: 0.01,
   tradeFractionOfFree: 0.4,
   reserveSol: 0.012, // kept back for token-account rent and transaction fees
-  dailyLossLimitPct: 40,
+  dailyLossLimitPct: 100, // 100 = off (keepPct is the stop); e.g. 40 halts buys until 00:00 UTC after -40%
   lossStreak: 3,
-  lossStreakPauseMin: 10,
+  lossStreakPauseMin: 0, // pause after lossStreak losses in a row, in minutes (0 = never pause)
   keepPct: 50, // no new buys once the account is below this % of its best value this run (0 = off)
   compound: 1, // 1 = the trade size limit grows with profits (and shrinks back if they are lost)
+  convictionMax: 2, // strong buying pressure buys up to 2x the base size (1 = always the base size)
 };
 
 const DEFAULT_RUNTIME = {
@@ -108,6 +109,7 @@ function validate(cfg) {
   if (!(r.minTradeSol > 0 && r.minTradeSol <= r.maxTradeSol)) fail("need 0 < minTradeSol <= maxTradeSol");
   if (!(r.maxOpenPositions >= 1)) fail("maxOpenPositions must be >= 1");
   if (!(r.keepPct >= 0 && r.keepPct < 100)) fail("keepPct must be between 0 and 99");
+  if (!(r.convictionMax >= 1 && r.convictionMax <= 5)) fail("convictionMax must be between 1 and 5");
   if (!(c.priorityFeeSol >= 0 && c.priorityFeeSol <= 0.01)) fail("priorityFeeSol must be between 0 and 0.01");
   if (!(c.buySlippagePct > 0 && c.sellSlippagePct > 0)) fail("slippage must be > 0");
   if (cfg.runtime.watchSecActive < s.entryMaxAgeSec + s.maxHoldSec) fail("watchSecActive must be >= entryMaxAgeSec + maxHoldSec");

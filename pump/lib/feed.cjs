@@ -226,17 +226,23 @@ function parseCreateTx(tx, nowMs, bondingCurveOf = null) {
 }
 
 /**
- * Discovery straight from Solana: subscribe to pump.fun program logs and read each
- * launch from the events in them. Only launches whose logs can't be read cost an RPC
- * call (getTransaction, a few at a time, retried for up to maxWaitMs).
+ * Discovery straight from Solana: subscribe to the logs of launch transactions and
+ * read each launch from the events in them. Only launches whose logs can't be read
+ * cost an RPC call (getTransaction, a few at a time, retried for up to maxWaitMs).
+ *
+ * The subscription is narrowed to transactions that mention pump.fun's mint authority,
+ * which only create/create_v2 use: launches only, not every trade on pump.fun (RPC
+ * providers bill websocket data by volume). If no launch arrives within widenAfterMs,
+ * it falls back to all pump.fun program logs.
  */
 class RpcLogsFeed extends EventEmitter {
-  constructor({ conn, derive = null, maxWaitMs = 30000, concurrency = 3, clock = Date.now }) {
+  constructor({ conn, derive = null, maxWaitMs = 30000, concurrency = 3, widenAfterMs = 180000, clock = Date.now }) {
     super();
     this.conn = conn;
     this.bondingCurveOf = derive && derive.bondingCurve;
     this.maxWaitMs = maxWaitMs;
     this.concurrency = concurrency;
+    this.widenAfterMs = widenAfterMs;
     this.clock = clock;
     this.queue = [];
     this.creates = 0;
@@ -247,9 +253,23 @@ class RpcLogsFeed extends EventEmitter {
 
   start() {
     const { PublicKey } = require("@solana/web3.js");
-    this.subId = this.conn.onLogs(new PublicKey(C.PUMP_PROGRAM_ID), (l) => this.onLogs(l), "confirmed");
+    const program = new PublicKey(C.PUMP_PROGRAM_ID);
+    const mintAuthority = PublicKey.findProgramAddressSync([Buffer.from("mint-authority")], program)[0];
+    this.subscribe(mintAuthority, "listening to pump.fun launches via RPC");
+    this.widenTimer = setTimeout(() => this.widen(program), this.widenAfterMs);
     this.timer = setInterval(() => this.drain(), 400);
-    this.emit("status", "listening to pump.fun program logs via RPC");
+  }
+
+  subscribe(address, note) {
+    if (this.subId !== undefined) this.conn.removeOnLogsListener(this.subId).catch(() => {});
+    this.subId = this.conn.onLogs(address, (l) => this.onLogs(l), "confirmed");
+    this.emit("status", note);
+  }
+
+  // No launch seen through the narrow subscription: this RPC doesn't support it, use the wide one.
+  widen(program) {
+    if (this.launches || this.stopped) return;
+    this.subscribe(program, "no launches through the narrow subscription; listening to all pump.fun logs instead (more RPC data)");
   }
 
   onLogs(l) {
@@ -304,7 +324,9 @@ class RpcLogsFeed extends EventEmitter {
   }
 
   stop() {
+    this.stopped = true;
     clearInterval(this.timer);
+    clearTimeout(this.widenTimer);
     if (this.subId !== undefined) this.conn.removeOnLogsListener(this.subId).catch(() => {});
   }
 }

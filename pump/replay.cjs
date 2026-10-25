@@ -30,7 +30,14 @@ const COMPARE_VARIANTS = [
   // Active mode's entry filters (its 5-minute age limit is left out: recordings end before such holds would).
   ["looser buy rules (more trades; holder data partly assumed, so a bit flattering)",
     { entryMinAgeSec: 10, minRealSol: 3, maxRealSol: 40, minInflow30: 1.2, minInflow15: 0.4, maxDrawdownFromPeakPct: 18, maxTop1Pct: 12, maxTop10Pct: 45 }],
+  // Same trades, sized by conviction: worth it only if it earns more per SOL bought.
+  ["bigger buys when sure (strong buying gets up to 2x)", {}, { conviction: true }],
 ];
+
+const perSol = (trades) => {
+  const cost = trades.reduce((a, t) => a + t.costSol, 0);
+  return cost > 0 ? (trades.reduce((a, t) => a + t.netSol, 0) / cost) * 100 : 0;
+};
 
 function parseArgs(argv) {
   const a = { size: 0.03 };
@@ -122,11 +129,13 @@ async function main() {
 
   if (args.compare) {
     const [, h2] = splitByTime(usable);
-    for (const [name, change] of COMPARE_VARIANTS) {
+    for (const [name, change, opts = {}] of COMPARE_VARIANTS) {
       const c = withStrategy(cfg, change);
-      const all = metrics((await replay(usable, c, { mode: "edge", sizeSol: args.size })).trades);
-      const late = metrics((await replay(h2, c, { mode: "edge", sizeSol: args.size })).trades);
+      const allTrades = (await replay(usable, c, { mode: "edge", sizeSol: args.size, ...opts })).trades;
+      const lateTrades = (await replay(h2, c, { mode: "edge", sizeSol: args.size, ...opts })).trades;
+      const all = metrics(allTrades), late = metrics(lateTrades);
       console.log(`${name}\n   all data     ${fmt(all)}\n   second half  ${fmt(late)}`);
+      if (opts.conviction) console.log(`   earned per SOL bought: ${perSol(allTrades).toFixed(1)}% all data, ${perSol(lateTrades).toFixed(1)}% second half (compare with "current settings")`);
     }
     console.log("\nTurn a switch on only if it wins on all data AND on the second half; with few trades, differences can be luck.");
     return;

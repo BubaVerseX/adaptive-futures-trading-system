@@ -143,7 +143,8 @@ class Engine {
       const gate = this.risk.canEnter(nowMs, this.positions.size, this.broker.availableSol());
       this.lastGate = gate.ok ? null : gate.reason;
       if (!gate.ok) break;
-      this.buy(f, this.risk.sizeFor(this.broker.availableSol()), nowMs);
+      const sure = strategy.conviction(f, this.s, this.risk.r.convictionMax);
+      this.buy(f, this.risk.sizeFor(this.broker.availableSol(), sure), nowMs, sure);
     }
   }
 
@@ -178,7 +179,7 @@ class Engine {
     );
   }
 
-  buy(f, sizeSol, nowMs) {
+  buy(f, sizeSol, nowMs, sure = 1) {
     const prev = this.entered.get(f.mint);
     this.entered.set(f.mint, { count: (prev ? prev.count : 0) + 1, closedAtMs: null });
     const pos = {
@@ -202,11 +203,11 @@ class Engine {
       entry: {
         ageSec: r2(f.ageSec), mcapSol: r2(f.mcapSol), realSol: r2(f.realSol), inflow15: r2(f.inflow15),
         inflow30: r2(f.inflow30), inflow60: r2(f.inflow60), drawdownFromPeakPct: r2(f.drawdownFromPeakPct),
-        devBuySol: f.devBuySol, holders: f.holders,
+        devBuySol: f.devBuySol, holders: f.holders, conviction: r2(sure),
       },
     };
     this.positions.set(f.mint, pos);
-    this.log("trade", `BUY    ${label(pos)}  ${sizeSol.toFixed(4)} SOL | mcap ${f.mcapSol.toFixed(0)} SOL | +${f.inflow30.toFixed(1)} SOL/30s | age ${f.ageSec.toFixed(0)}s`);
+    this.log("trade", `BUY    ${label(pos)}  ${sizeSol.toFixed(4)} SOL${sure > 1.05 ? ` (sure x${sure.toFixed(1)})` : ""} | mcap ${f.mcapSol.toFixed(0)} SOL | +${f.inflow30.toFixed(1)} SOL/30s | age ${f.ageSec.toFixed(0)}s`);
     this.track(
       this.broker
         .buy({ mint: f.mint, sol: sizeSol, decisionPrice: f.price, nowMs })
