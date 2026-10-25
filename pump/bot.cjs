@@ -391,7 +391,8 @@ async function selfTest(cfg) {
     const accs = await sol.getAccounts(conn, fresh.map((e) => sol.bondingCurveAddress(e.mint))).catch(() => []);
     fresh.forEach((e, i) => {
       const d = accs[i] && curve.decodeBondingCurve(accs[i].data);
-      if (!pick && d && d.discriminatorOk && !d.complete && d.realSol >= 3) pick = e;
+      const standard = d && curve.isStandardCurve(d.vSol - d.realSol, d.vSol * d.vTok, d.totalSupply);
+      if (!pick && d && d.discriminatorOk && standard && !d.complete && d.realSol >= 3) pick = e;
     });
   }
   feed.stop();
