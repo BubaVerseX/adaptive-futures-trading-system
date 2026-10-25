@@ -120,11 +120,12 @@ function loadConfig({ env = process.env, paramsFile = null, cwd = REPO_ROOT } = 
   };
   if (paramsFile) {
     const parsed = JSON.parse(fs.readFileSync(paramsFile, "utf8"));
-    const nested = parsed.strategy || parsed.risk || parsed.costs;
+    const nested = parsed.strategy || parsed.risk || parsed.costs || parsed.runtime;
     applyOverrides(cfg.strategy, nested ? parsed.strategy : parsed, "strategy");
     if (nested) {
       applyOverrides(cfg.risk, parsed.risk, "risk");
       applyOverrides(cfg.costs, parsed.costs, "costs");
+      applyOverrides(cfg.runtime, parsed.runtime, "runtime");
     }
   }
   cfg.rpcUrl = env.SOLANA_RPC_URL || C.DEFAULT_RPC_URL;

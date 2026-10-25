@@ -105,6 +105,16 @@ test("config: env overrides, params file and validation", () => {
   assert.equal(loadConfig({ env: {}, paramsFile: f }).strategy.stopLossPct, 22);
 });
 
+test("config: the active preset loads and stays inside the safety rules", () => {
+  const cfg = loadConfig({ env: {}, cwd: os.tmpdir(), paramsFile: path.join(__dirname, "..", "pump", "presets", "active.json") });
+  assert.equal(cfg.strategy.minRealSol, 3);
+  assert.equal(cfg.risk.maxOpenPositions, 3);
+  assert.equal(cfg.runtime.watchSecActive, 750);
+  // Three positions plus the reserve fit in a ~$10 (0.097 SOL) wallet.
+  assert.ok(cfg.risk.maxOpenPositions * cfg.risk.maxTradeSol + cfg.risk.reserveSol <= 0.097);
+  assert.equal(cfg.risk.dailyLossLimitPct, 40, "loss limit unchanged");
+});
+
 // ---------------------------------------------------------------- tracker
 
 function fakeAccount(realSol) {

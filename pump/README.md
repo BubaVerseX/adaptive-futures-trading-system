@@ -62,6 +62,14 @@ profit factor above 1.3, profitable in both halves, still profitable at 1.5x fee
 `--sweep` writes `data/pump/best-params.json`; run the bot with
 `--params data/pump/best-params.json` to use it.
 
+## Active mode
+
+The default is deliberately picky. `--params pump/presets/active.json` loosens
+the entry filters (earlier, smaller inflows, up to 5 minutes old), trades smaller
+size with up to 3 coins at once, and lets more of each winner ride. Same budget,
+daily loss limit and loss-streak pause. Expect more trades, more fees and more
+bad coins; replay shows afterwards whether it was worth it.
+
 ## 3. Live, with a small fixed budget
 
 ```bash
