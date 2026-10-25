@@ -30,7 +30,9 @@ const tokenDelta = (tx, owner, mint) => tokenAmountFor(tx.meta.postTokenBalances
  * re-sent (a retry is always a full exit, which can't oversell).
  */
 class LiveBroker {
-  constructor(cfg, { conn, keypair, budgetSol = null, fetchImpl = globalThis.fetch, sleepFn = sleep, confirmMs = 30000, extraPrograms = [] }) {
+  // rebroadcastConn: a second endpoint the same signed bytes are re-sent through while a
+  // transaction is unconfirmed (never the main RPC: its rate-limit retries would stall sends).
+  constructor(cfg, { conn, keypair, budgetSol = null, fetchImpl = globalThis.fetch, sleepFn = sleep, confirmMs = 30000, extraPrograms = [], rebroadcastConn = null }) {
     this.mode = "live";
     this.c = cfg.costs;
     this.conn = conn;
@@ -41,6 +43,7 @@ class LiveBroker {
     this.sleep = sleepFn;
     this.confirmMs = confirmMs;
     this.extraPrograms = extraPrograms;
+    this.rebroadcast = rebroadcastConn;
     this.budgetSol = budgetSol;
     this.balanceSol = 0;
     this.startBalanceSol = null;
@@ -131,18 +134,29 @@ class LiveBroker {
 
     tx.sign([this.kp]);
     const sig = base58Encode(tx.signatures[0]);
+    const raw = tx.serialize();
     let sendError = null;
     try {
-      await this.conn.sendRawTransaction(tx.serialize(), { skipPreflight: true, maxRetries: 3 });
+      await this.conn.sendRawTransaction(raw, { skipPreflight: true, maxRetries: 3 });
     } catch (e) {
       sendError = e.message;
     }
-    return { sig, sendError };
+    return { sig, sendError, raw };
   }
 
-  async confirm(sig, timeoutMs = this.confirmMs) {
+  // Polls the status every 300ms. While waiting, the same signed bytes are re-sent through
+  // the rebroadcast endpoint every 2s (at once if the first send errored); identical bytes
+  // can only ever execute once.
+  async confirm(sig, timeoutMs = this.confirmMs, raw = null, sendErrored = false) {
     const start = Date.now();
+    let lastPush = sendErrored ? 0 : start;
     for (;;) {
+      if (raw && this.rebroadcast && Date.now() - lastPush >= 2000) {
+        lastPush = Date.now();
+        Promise.resolve()
+          .then(() => this.rebroadcast.sendRawTransaction(raw, { skipPreflight: true, maxRetries: 0 }))
+          .catch(() => {});
+      }
       try {
         const { value } = await this.conn.getSignatureStatuses([sig]);
         const st = value && value[0];
@@ -152,7 +166,7 @@ class LiveBroker {
         // transient RPC error: keep polling until the timeout
       }
       if (Date.now() - start >= timeoutMs) return { ok: false, timeout: true, error: "not confirmed in time" };
-      await this.sleep(600);
+      await this.sleep(300);
     }
   }
 
@@ -221,7 +235,7 @@ class LiveBroker {
     } catch (e) {
       return { ok: false, error: e.message, feesSol: 0 };
     }
-    const conf = await this.confirm(sent.sig, sent.sendError ? Math.min(12000, this.confirmMs) : this.confirmMs);
+    const conf = await this.confirm(sent.sig, sent.sendError ? Math.min(12000, this.confirmMs) : this.confirmMs, sent.raw, !!sent.sendError);
     if (!conf.ok) {
       // Timed out is not the same as failed: check whether the coins arrived anyway.
       const held = await this.tokenBalance(mint).catch(() => 0);
@@ -303,15 +317,19 @@ class LiveBroker {
     let full = fraction >= 0.999 || list.some((x) => !x.booked);
     if (startTokens === 0) acted = true;
 
-    // 2. Sell, escalating slippage. A partial is attempted at most once.
-    const slips = [this.c.sellSlippagePct, Math.min(50, this.c.sellSlippagePct * 1.6), Math.min(70, this.c.sellSlippagePct * 2.4)];
+    // 2. Sell. A partial escalates its slippage step by step; a full exit is an exit, so it
+    // takes a wide bound at once (the minimum is fixed when PumpPortal builds the transaction,
+    // so it only costs anything if the price falls during the transaction's own flight).
+    const s = this.c.sellSlippagePct;
+    const partialSlips = [s, Math.min(50, s * 1.6), Math.min(70, s * 2.4)];
+    const fullSlips = [Math.min(70, s * 2.4), 70, 70];
     const firstNew = list.length;
-    for (let i = 0; !acted && i < slips.length; i++) {
+    for (let i = 0; !acted && i < partialSlips.length; i++) {
       const amount = full ? "100%" : `${Math.min(99, Math.max(1, Math.round(fraction * 100)))}%`;
       let sent;
       try {
         sent = await this.tradeLocal(
-          { publicKey: this.ownerStr, action: "sell", mint, amount, denominatedInSol: "false", slippage: slips[i], priorityFee: this.c.priorityFeeSol, pool: "auto" },
+          { publicKey: this.ownerStr, action: "sell", mint, amount, denominatedInSol: "false", slippage: (full ? fullSlips : partialSlips)[i], priorityFee: this.c.priorityFeeSol, pool: "auto" },
           { maxLossSol: 0.006, strict: false }
         );
       } catch (e) {
@@ -319,9 +337,18 @@ class LiveBroker {
         await this.sleep(400);
         continue;
       }
-      list.push({ sig: sent.sig, booked: false });
-      const conf = await this.confirm(sent.sig, sent.sendError ? Math.min(12000, this.confirmMs) : this.confirmMs);
-      if (conf.onChainError) feesSol += this.txFeeSol();
+      const entry = { sig: sent.sig, booked: false };
+      list.push(entry);
+      // A full exit doesn't wait 30s on one attempt: after 10s the next one is built (the
+      // unconfirmed one stays on the list and is booked if it lands after all).
+      const limit = full && i < 2 ? Math.min(10000, this.confirmMs) : this.confirmMs;
+      const conf = await this.confirm(sent.sig, sent.sendError ? Math.min(12000, limit) : limit, sent.raw, !!sent.sendError);
+      if (conf.onChainError) {
+        feesSol += this.txFeeSol();
+        entry.booked = true; // failed on-chain: nothing moved
+        lastErr = conf.error;
+        if (!list.some((x) => !x.booked)) continue; // nothing else in flight: try again at once
+      }
       const b = await this.bookLanded(mint).catch(() => ({ any: false }));
       if (b.any) { received += b.sol; sold += b.tokens; acted = true; lastSig = sent.sig; break; }
       lastErr = sent.sendError && !conf.onChainError ? `send failed: ${sent.sendError}` : conf.error;

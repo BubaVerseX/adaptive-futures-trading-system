@@ -97,27 +97,29 @@ class Engine {
   }
 
   manageExits(nowMs) {
-    for (const pos of this.positions.values()) {
-      if (pos.state !== "open" || nowMs < pos.nextSellAtMs) continue;
-      const f = this.tracker.features(pos.mint, nowMs);
-      if (pos.forceExit) {
-        // A full exit left coins behind (dust, or the chain couldn't be read): finish it.
-        this.sell(pos, { action: "sell", fraction: 1, reason: "finish-exit", gainPct: f ? (f.price / pos.entryPrice - 1) * 100 : 0 }, f, nowMs);
-        continue;
-      }
-      if (!f) {
-        // No price data for something we hold (e.g. a late fill): get out rather than hold blind.
-        this.sell(pos, { action: "sell", fraction: 1, reason: "no-data", gainPct: 0 }, null, nowMs);
-        continue;
-      }
-      strategy.updatePeaks(pos, f);
-      pos.lastPrice = f.price;
-      pos.lastF = f;
-      const d = this.stopping
-        ? { action: "sell", fraction: 1, reason: "shutdown", gainPct: (f.price / pos.entryPrice - 1) * 100 }
-        : strategy.exitDecision(pos, f, this.s, nowMs);
-      if (d.action === "sell") this.sell(pos, d, f, nowMs);
+    for (const pos of this.positions.values()) this.checkExit(pos, nowMs);
+  }
+
+  checkExit(pos, nowMs) {
+    if (pos.state !== "open" || nowMs < pos.nextSellAtMs) return;
+    const f = this.tracker.features(pos.mint, nowMs);
+    if (pos.forceExit) {
+      // A full exit left coins behind (dust, or the chain couldn't be read): finish it.
+      this.sell(pos, { action: "sell", fraction: 1, reason: "finish-exit", gainPct: f ? (f.price / pos.entryPrice - 1) * 100 : 0 }, f, nowMs);
+      return;
     }
+    if (!f) {
+      // No price data for something we hold (e.g. a late fill): get out rather than hold blind.
+      this.sell(pos, { action: "sell", fraction: 1, reason: "no-data", gainPct: 0 }, null, nowMs);
+      return;
+    }
+    strategy.updatePeaks(pos, f);
+    pos.lastPrice = f.price;
+    pos.lastF = f;
+    const d = this.stopping
+      ? { action: "sell", fraction: 1, reason: "shutdown", gainPct: (f.price / pos.entryPrice - 1) * 100 }
+      : strategy.exitDecision(pos, f, this.s, nowMs);
+    if (d.action === "sell") this.sell(pos, d, f, nowMs);
   }
 
   // A coin is bought once, unless re-entry is switched on: then one more time, after a cooldown.
@@ -245,6 +247,8 @@ class Engine {
     pos.estimated = !!res.estimated;
     const slip = (pos.entryPrice / pos.decisionPrice - 1) * 100;
     this.log("trade", `  filled ${label(pos)}  cost ${res.solSpent.toFixed(4)} SOL | slippage ${signed(slip, 1)}%${res.sig ? " | tx " + res.sig : ""}`);
+    // Something may have happened while the buy was in flight (creator sold, price crashed): act now.
+    this.checkExit(pos, now);
   }
 
   // If coins from a "failed" buy show up after all, adopt them and sell at once.
@@ -289,7 +293,7 @@ class Engine {
     this.log("trade", `SELL   ${label(pos)}  ${(d.fraction * 100).toFixed(0)}% | ${d.reason} | ${signed(d.gainPct, 1)}%`);
     this.track(
       this.broker
-        .sell({ mint: pos.mint, fraction: d.fraction, nowMs, estimateSol, decisionPrice: f ? f.price : null })
+        .sell({ mint: pos.mint, fraction: d.fraction, nowMs, estimateSol, decisionPrice: f ? f.price : null, reason: d.reason })
         .catch((e) => ({ ok: false, error: e.message }))
         .then((res) => this.onSold(pos, d, res))
     );
@@ -331,6 +335,7 @@ class Engine {
       if (d.fraction >= 0.999) pos.forceExit = true;
       pos.state = "open";
       this.log("trade", `  sold part of ${label(pos)}  +${res.solReceived.toFixed(4)} SOL`);
+      this.checkExit(pos, now); // the rest is managed from now, not from the next tick
       return;
     }
     this.closePosition(pos, now);

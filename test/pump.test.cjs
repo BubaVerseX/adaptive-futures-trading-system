@@ -755,6 +755,7 @@ function mockNet(kp, mint, outcomes = []) {
   const conn = {
     sent,
     async sendRawTransaction(raw) {
+      if (state.sendThrows > 0) { state.sendThrows--; throw new Error("503 Service Unavailable"); }
       const tx = raw.length && web3.VersionedTransaction.deserialize(raw);
       const sig = base58Encode(tx.signatures[0]);
       sent.push({ raw, sig });
@@ -1180,6 +1181,44 @@ test("engine: P&L counts closed trades and open coins, not the wallet balance", 
   near(eng.unrealizedSol(), back - 0.0326, 1e-12);
 });
 
+test("live broker: full exits use a wide bound at once and retry an on-chain failure without idling", async () => {
+  const cfg = cfgFor();
+  const kp = web3.Keypair.generate();
+  const me = kp.publicKey.toBase58();
+  const mint = web3.Keypair.generate().publicKey.toBase58();
+  const net = mockNet(kp, mint, [
+    { status: "failed" },
+    { status: "confirmed", meta: meta(me, mint, 0.04, 1000, 0), tokensAfter: 0 },
+    { status: "confirmed", meta: meta(me, mint, 0.00203928, 0, 0) },
+  ]);
+  net.state.tokens = 1000;
+  const lb = newBroker(cfg, kp, net);
+  let balanceReads = 0;
+  const realBalance = lb.tokenBalance.bind(lb);
+  lb.tokenBalance = (m) => { balanceReads++; return realBalance(m); };
+  const r = await lb.sell({ mint, fraction: 1, estimateSol: 0.04 });
+  assert.ok(r.ok, r.error);
+  assert.deepEqual(net.bodies.map((b) => b.slippage), [60, 70], "a full exit doesn't climb 25 -> 40 -> 60");
+  assert.equal(balanceReads, 2, "one read before selling, one after the exit; none between the attempts");
+  near(r.feesSol, lb.txFeeSol());
+});
+
+test("live broker: a send that errored is re-sent through the second endpoint (same bytes)", async () => {
+  const cfg = cfgFor();
+  const kp = web3.Keypair.generate();
+  const me = kp.publicKey.toBase58();
+  const mint = web3.Keypair.generate().publicKey.toBase58();
+  const net = mockNet(kp, mint, [{ status: "confirmed", meta: meta(me, mint, -0.0306, 0, 1000), tokensAfter: 1000 }]);
+  net.state.sendThrows = 1; // the main RPC refuses the first send
+  const pushed = [];
+  const rebroadcastConn = { sendRawTransaction: (raw, o) => { pushed.push(Buffer.from(raw).toString("base64")); return net.conn.sendRawTransaction(raw, o); } };
+  const r = await newBroker(cfg, kp, net, { rebroadcastConn }).buy({ mint, sol: 0.03 });
+  assert.ok(r.ok, r.error);
+  assert.equal(pushed.length >= 1, true);
+  assert.equal(net.conn.sent.length, 1, "the same transaction landed once");
+  assert.equal(Buffer.from(net.conn.sent[0].raw).toString("base64"), pushed[0]);
+});
+
 test("live broker: withdraw sends the exact lamport balance minus the fee", async () => {
   const cfg = cfgFor();
   const kp = web3.Keypair.generate();
@@ -1222,6 +1261,49 @@ test("engine: shutdown waits for a sale started by a late-fill check; failed-on-
   await eng.settle();
   assert.equal(eng.closedTrades.length, 1, "the sale it started finished before settle returned");
   assert.equal(eng.busy(), false);
+});
+
+test("engine: a creator sale during the buy is acted on as soon as the buy fills", async () => {
+  const { Engine } = require("../pump/lib/engine.cjs");
+  const { Recorder } = require("../pump/lib/recorder.cjs");
+  const cfg = cfgFor();
+  const tr = new Tracker(cfg, { bondingCurve: (m) => `c#${m}`, ata: () => "x" });
+  tr.add({ mint: "RUG", symbol: "RUG", createdAtMs: 0 }, 0);
+  tr.ingest([{ key: "c#RUG", mint: "RUG", kind: "curve", account: fakeAccount(8) }], 0);
+  const sells = [];
+  let fill;
+  const broker = {
+    mode: "live",
+    availableSol: () => 0.1,
+    buy: () => new Promise((r) => { fill = r; }),
+    sell: async (o) => { sells.push(o.reason); return { ok: true, solReceived: 0.02, tokensSold: 1000, closed: true }; },
+  };
+  let now = 1000;
+  const eng = new Engine({ cfg, tracker: tr, broker, risk: new RiskManager(cfg.risk, 0.1), recorder: new Recorder("", cfg.runtime, { enabled: false }), rpc: null, clock: () => now });
+  eng.buy(tr.features("RUG", now), 0.03, now);
+  now = 2500;
+  tr.tokens.get("RUG").devSoldAtMs = 2000; // the creator dumps while our buy is in flight
+  fill({ ok: true, tokens: 1000, solSpent: 0.0326 });
+  await eng.settle();
+  assert.deepEqual(sells, ["dev-sold"], "sold in the same step as the fill, not a tick later");
+});
+
+test("solana: batches of a big poll go out together", async () => {
+  let inFlight = 0, most = 0;
+  const conn = {
+    getMultipleAccountsInfoAndContext: async (keys) => {
+      inFlight++;
+      most = Math.max(most, inFlight);
+      await new Promise((r) => setTimeout(r, 5));
+      inFlight--;
+      return { context: { slot: 100 + keys.length }, value: keys.map(() => null) };
+    },
+  };
+  const keys = Array.from({ length: 150 }, () => web3.Keypair.generate().publicKey.toBase58());
+  const r = await sol.getAccountsAt(conn, keys);
+  assert.equal(most, 2);
+  assert.equal(r.accounts.length, 150);
+  assert.equal(r.slot, 150); // the older of the two answers
 });
 
 test("engine: a failing trade log never crashes the bot", async () => {

@@ -165,7 +165,10 @@ async function run(cfg, args) {
 
   let broker, startSol, startEquity;
   if (live) {
-    broker = new LiveBroker(cfg, { conn, keypair: loadWallet(cfg.walletFile), budgetSol: cfg.maxBudgetSol, extraPrograms: cfg.extraPrograms });
+    broker = new LiveBroker(cfg, {
+      conn, keypair: loadWallet(cfg.walletFile), budgetSol: cfg.maxBudgetSol, extraPrograms: cfg.extraPrograms,
+      rebroadcastConn: cfg.pollRpcUrl ? sol.connection(cfg.pollRpcUrl, { retryOnRateLimit: false }) : null,
+    });
     // Empty token accounts left by earlier sales still hold ~0.002 SOL rent each: take it back.
     const swept = await broker.closeEmptyAccounts().catch(() => null);
     if (swept && swept.closed) log("info", `reclaimed ${swept.refundSol.toFixed(4)} SOL of rent from ${swept.closed} empty token account(s) left by earlier trades`);
