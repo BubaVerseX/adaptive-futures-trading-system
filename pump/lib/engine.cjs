@@ -28,7 +28,7 @@ class Engine {
     this.log = log;
     this.clock = clock;
     this.positions = new Map();
-    this.entered = new Set();
+    this.entered = new Map(); // mint -> { count, closedAtMs }
     this.inflight = new Set();
     this.holdersInFlight = 0;
     this.stopping = false;
@@ -118,8 +118,17 @@ class Engine {
     }
   }
 
+  // A coin is bought once, unless re-entry is switched on: then one more time, after a cooldown.
+  blockedCoin(mint, nowMs) {
+    const e = this.entered.get(mint);
+    if (!e) return false;
+    if (!this.s.reentryCooldownSec || e.count >= 2 || e.closedAtMs === null) return true;
+    return nowMs - e.closedAtMs < this.s.reentryCooldownSec * 1000;
+  }
+
   considerEntries(nowMs) {
-    const exclude = new Set([...this.positions.keys(), ...this.entered]);
+    const exclude = new Set(this.positions.keys());
+    for (const mint of this.entered.keys()) if (this.blockedCoin(mint, nowMs)) exclude.add(mint);
     const maxStale = (this.rt.pollMs / 1000) * 2 + 0.5;
     const ready = [];
     for (const f of this.tracker.candidates(nowMs, exclude, maxStale)) {
@@ -170,7 +179,8 @@ class Engine {
   }
 
   buy(f, sizeSol, nowMs) {
-    this.entered.add(f.mint);
+    const prev = this.entered.get(f.mint);
+    this.entered.set(f.mint, { count: (prev ? prev.count : 0) + 1, closedAtMs: null });
     const pos = {
       mint: f.mint,
       symbol: f.symbol,
@@ -306,6 +316,8 @@ class Engine {
 
   closePosition(pos, now) {
     pos.state = "closed";
+    const e = this.entered.get(pos.mint);
+    if (e) e.closedAtMs = now;
     const net = pos.proceedsSol - pos.costSol;
     this.risk.onTradeClosed(net, now);
     const trade = {

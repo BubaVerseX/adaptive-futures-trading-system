@@ -55,7 +55,7 @@ function exitDecision(pos, f, s, nowMs) {
   if (f.complete || f.progress >= s.exitProgress) return all("near-graduation");
   if (f.devSold) return all("dev-sold");
   if (gainPct <= -s.stopLossPct) return all("stop-loss");
-  if (pos.peakRealSol > 0 && f.realSol <= pos.peakRealSol * (1 - s.outflowExitPct / 100)) return all("outflow");
+  if (heldSec >= (s.outflowGraceSec || 0) && pos.peakRealSol > 0 && f.realSol <= pos.peakRealSol * (1 - s.outflowExitPct / 100)) return all("outflow");
   if (!pos.tp1Done && gainPct >= s.tp1Pct) {
     return { action: "sell", fraction: s.tp1Fraction, reason: "take-profit-1", gainPct };
   }

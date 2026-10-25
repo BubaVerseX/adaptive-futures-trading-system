@@ -29,6 +29,8 @@ const DEFAULT_STRATEGY = {
   timeStopMinGainPct: 8,
   maxHoldSec: 420,
   outflowExitPct: 20, // real SOL in the curve fell this far from its peak since entry
+  outflowGraceSec: 0, // ignore the outflow exit for this long after buying (stop-loss still applies)
+  reentryCooldownSec: 0, // 0 = never buy the same coin twice; else allow one re-buy this long after selling
   exitProgress: 0.9, // sell before graduation to PumpSwap
   requireStandardCurve: 1, // 1 = only coins on pump.fun's standard curve (30 SOL / 1.073B virtual)
 };

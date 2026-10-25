@@ -12,6 +12,7 @@ const HELP = `Measure the strategy on coins the bot recorded (data/pump/research
   node pump/replay.cjs              default (or --params) strategy: edge test, halves, 1.5x fees, $10 account
   node pump/replay.cjs --sweep      search parameters on the first half, judge them on the second half
   node pump/replay.cjs --sweep --quick   smaller search
+  node pump/replay.cjs --compare    current settings vs. "patience" and "second chance" switches
 
 Options: --params file.json, --size SOL (edge-test trade size, default 0.03)`;
 
@@ -23,6 +24,7 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i++) {
     const k = argv[i];
     if (k === "--sweep") a.sweep = true;
+    else if (k === "--compare") a.compare = true;
     else if (k === "--quick") a.quick = true;
     else if (k === "--params") a.params = argv[++i];
     else if (k === "--size") a.size = Number(argv[++i]);
@@ -100,6 +102,24 @@ async function main() {
   const t1 = Math.max(...records.map((r) => r.createdAtMs));
   console.log(`Data: ${files.length} file(s), ${records.length} active coins over ${((t1 - t0) / 3600000).toFixed(1)} hours; ${usable.length} ever reached ${minReal} SOL.`);
   console.log(`Edge test: every signal taken at ${args.size} SOL, real fees, fills ~${cfg.costs.latencyMs}ms after the decision.\n`);
+
+  if (args.compare) {
+    const variants = [
+      ["current settings", {}],
+      ["patience (no outflow exit in the first 20s)", { outflowGraceSec: 20 }],
+      ["second chance (one re-buy, 60s after selling)", { reentryCooldownSec: 60 }],
+      ["both", { outflowGraceSec: 20, reentryCooldownSec: 60 }],
+    ];
+    const [, h2] = splitByTime(usable);
+    for (const [name, change] of variants) {
+      const c = withStrategy(cfg, change);
+      const all = metrics((await replay(usable, c, { mode: "edge", sizeSol: args.size })).trades);
+      const late = metrics((await replay(h2, c, { mode: "edge", sizeSol: args.size })).trades);
+      console.log(`${name}\n   all data     ${fmt(all)}\n   second half  ${fmt(late)}`);
+    }
+    console.log("\nTurn a switch on only if it wins on all data AND on the second half; with few trades, differences can be luck.");
+    return;
+  }
 
   if (!args.sweep) {
     const e = await evaluate(usable, cfg, args.size);

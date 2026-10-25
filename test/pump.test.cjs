@@ -286,6 +286,30 @@ test("end to end: account mode respects the bankroll and max open positions", as
   near(res.trades.reduce((a, t) => a + t.netSol, 0), res.finalCash - res.bankroll, 1e-5); // trade logs round to 6 decimals
 });
 
+test("switches: outflow grace period and one re-buy of the same coin", async () => {
+  const s = cfgFor().strategy;
+  const pos = { entryPrice: 1, openedAtMs: 0, peakPrice: 1, peakRealSol: 10, tp1Done: false };
+  const dip = baseFeatures({ price: 0.95, realSol: 7.5 });
+  assert.equal(strategy.exitDecision(pos, dip, s, 10000).reason, "outflow");
+  assert.equal(strategy.exitDecision(pos, dip, { ...s, outflowGraceSec: 20 }, 10000).action, "hold");
+  assert.equal(strategy.exitDecision(pos, dip, { ...s, outflowGraceSec: 20 }, 25000).reason, "outflow");
+
+  // A coin that surges, dumps (we sell), then surges again later.
+  const t0 = Date.UTC(2026, 9, 25, 10);
+  const pts = [];
+  for (let a = 1500; a <= 360000; a += 1500) {
+    const v = a < 40000 ? (a / 40000) * 10 : a < 55000 ? 10 - ((a - 40000) / 15000) * 4 : a < 120000 ? 6 : Math.min(28, 6 + ((a - 120000) / 60000) * 22);
+    pts.push([a, Math.round(v * 1e4) / 1e4]);
+  }
+  const rec = { ...synth("runner", 0, t0), symbol: "TWICE", path: pts, maxRealSol: 28 };
+  const once = await replay([rec], cfgFor(), { mode: "edge", sizeSol: 0.03 });
+  const cfg2 = cfgFor({ PUMP_REENTRY_COOLDOWN_SEC: "30", PUMP_ENTRY_MAX_AGE_SEC: "180" });
+  const twice = await replay([rec], cfg2, { mode: "edge", sizeSol: 0.03 });
+  assert.equal(once.trades.length, 1, "default: one trade per coin");
+  assert.equal(twice.trades.length, 2, "re-entry: bought again on the second surge");
+  assert.ok(twice.trades[1].openedAtMs > twice.trades[0].closedAtMs + 30000);
+});
+
 test("replay: time split puts earlier launches in the first half", () => {
   const recs = [1, 2, 3, 4].map((i) => ({ createdAtMs: i * 1000 }));
   const [a, b] = splitByTime(recs);
