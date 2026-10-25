@@ -42,6 +42,8 @@ class Recorder {
       devBuySol: t.devBuySol,
       devTokensInitial: t.devTokensInitial,
       devSoldAgeMs: t.devSoldAtMs === null ? null : t.devSoldAtMs - t.createdAtMs,
+      devNullReads: t.devNullReads || 0,
+      mintTries: t.mintTries || 0,
       holders: t.holders,
       complete: t.complete,
       curve: t.curve || null,

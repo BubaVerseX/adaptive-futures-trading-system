@@ -29,7 +29,7 @@ class PaperBroker {
   }
 
   availableSol() {
-    const committed = this.pending.filter((o) => o.type === "buy").reduce((a, o) => a + o.sol, 0);
+    const committed = this.pending.filter((o) => o.type === "buy").reduce((a, o) => a + o.sol + this.txCostSol() + C.TOKEN_ACCOUNT_RENT_SOL, 0);
     return this.cash - committed;
   }
 

@@ -28,7 +28,7 @@ async function replay(records, baseCfg, { mode = "edge", sizeSol = 0.03, startSo
   let now = market.records.length ? market.records[0].createdAtMs : 0;
   const tracker = new Tracker(cfg, market.derive);
   const broker = new PaperBroker(cfg, tracker, bankroll);
-  const risk = new RiskManager(cfg.risk, bankroll);
+  const risk = new RiskManager(cfg.risk, bankroll, { buySlippagePct: cfg.costs.buySlippagePct });
   const engine = new Engine({ cfg, tracker, broker, risk, recorder: new Recorder("", cfg.runtime, { enabled: false }), rpc: market, clock: () => now });
   const lastLaunch = market.records.length ? market.records[market.records.length - 1].createdAtMs : 0;
   const end = lastLaunch + (Math.max(cfg.runtime.watchSec, cfg.runtime.watchSecActive) + cfg.strategy.maxHoldSec) * 1000;

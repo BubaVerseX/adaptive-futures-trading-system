@@ -11,7 +11,7 @@ const { loadConfig } = require("../pump/lib/config.cjs");
 const strategy = require("../pump/lib/strategy.cjs");
 const { Tracker, summarizeHolders, curveTokenBalance } = require("../pump/lib/tracker.cjs");
 const { PaperBroker } = require("../pump/lib/paperBroker.cjs");
-const { RiskManager } = require("../pump/lib/risk.cjs");
+const { RiskManager, carryPeak } = require("../pump/lib/risk.cjs");
 const { replay, metrics, splitByTime } = require("../pump/lib/replay.cjs");
 const { normalizeCreate, parseCreateLogs, RpcLogsFeed, CREATE_EVENT, TRADE_EVENT } = require("../pump/lib/feed.cjs");
 const sol = require("../pump/lib/solana.cjs");
@@ -117,11 +117,11 @@ test("config: by default it holds as many coins as it can pay for, never pauses,
   const risk = new RiskManager(cfg.risk, 0.11);
   let cash = 0.11, open = 0;
   while (risk.canEnter(0, open, cash).ok) {
-    cash -= risk.sizeFor(cash) + 0.00204; // + token-account rent
+    cash -= risk.sizeFor(cash) * 1.2 + C.TOKEN_ACCOUNT_RENT_SOL + 0.0002; // worst-case fill: +20% slippage, rent and fees
     open++;
   }
-  assert.equal(open, 5);
-  assert.ok(cash >= cfg.risk.reserveSol);
+  assert.equal(open, 2); // the rest stays above the keep-floor (half) even if both coins went to zero
+  assert.ok(cash >= 0.055 - 1e-9);
   const r = new RiskManager(cfg.risk, 0.1);
   for (let i = 0; i < 8; i++) r.onTradeClosed(-0.004, 1000 + i); // 8 losses in a row
   assert.ok(r.canEnter(1010, 0, 0.068).ok, "no pause, no daily stop");
@@ -138,6 +138,27 @@ test("config: max preset is the default without the keep-floor", () => {
   assert.ok(risk.canEnter(2000, 0, 0.05).ok, "never stops on losses");
 });
 
+test("risk: the keep-floor carries over restarts (same wallet), clamped to the budget", () => {
+  const saved = { wallet: "W", peakSol: 0.22 };
+  assert.equal(carryPeak({ saved, owner: "W", startSol: 0.12, budgetSol: 0.25 }), 0.22); // restart after losses
+  assert.equal(carryPeak({ saved, owner: "OTHER", startSol: 0.12, budgetSol: 0.25 }), 0.12);
+  assert.equal(carryPeak({ saved, owner: "W", startSol: 0.12, budgetSol: 0.25, reset: true }), 0.12);
+  assert.equal(carryPeak({ saved, owner: "W", startSol: 0.1, budgetSol: 0.15 }), 0.15); // lowered budget
+  assert.equal(carryPeak({ saved, owner: "W", startSol: 0.25, budgetSol: 0.25 }), 0.25); // deposit since
+  assert.equal(carryPeak({ saved: null, owner: "W", startSol: 0.12, budgetSol: 0.25 }), 0.12);
+  const r = new RiskManager(cfgFor().risk, 0.12);
+  r.peakSol = 0.22;
+  const peaks = [];
+  r.onPeak = (p) => peaks.push(p);
+  r.savedPeak = 0.22;
+  r.onTradeClosed(0.05, 0); // 0.17: below the carried best, nothing to save
+  r.onTradeClosed(0.07, 0); // 0.24: a new best
+  assert.deepEqual(peaks.map((p) => Math.round(p * 1000) / 1000), [0.24]);
+  const low = new RiskManager(cfgFor().risk, 0.1);
+  low.peakSol = 0.22; // carried: half is 0.11, this run starts below it
+  assert.equal(low.canEnter(Date.UTC(2026, 9, 26), 0, 0.1).reason, "keep-floor");
+});
+
 test("conviction: stronger buying pressure buys more, within the free cash", () => {
   const s = cfgFor().strategy; // minimums: 2.5 SOL per 30s, 0.8 SOL per 15s
   assert.equal(strategy.conviction({ inflow30: 2.5, inflow15: 0.8 }, s, 2), 1);
@@ -148,7 +169,7 @@ test("conviction: stronger buying pressure buys more, within the free cash", () 
   assert.equal(strategy.conviction({ inflow30: NaN, inflow15: 1 }, s, 2), 1);
   const r = new RiskManager(cfgFor().risk, 0.11);
   near(r.sizeFor(0.11), 0.025);
-  near(r.sizeFor(0.11, 2), 0.049); // never more than half of the free cash: (0.11 - 0.012) / 2
+  near(r.sizeFor(0.11, 2), 0.0439673, 1e-6); // what still fits above the keep-floor at a worst-case fill
   near(r.sizeFor(0.3, 2), 0.05); // twice the base size
   near(r.sizeFor(0.3, 1.5), 0.0375);
 });
@@ -192,6 +213,45 @@ test("tracker: inflow windows, peaks, dev sell detection and holder summary", ()
   assert.equal(h2.top1Pct, 5);
 });
 
+test("tracker: a creator account a lagging node can't show yet is not a sale; mint reads are retried", () => {
+  const cfg = cfgFor();
+  const derive = { bondingCurve: (m) => `curve#${m}`, ata: (o, m) => `ata#${o}#${m}` };
+  const devAcct = (amt) => { const d = Buffer.alloc(165); d.writeBigUInt64LE(BigInt(amt * C.TOKEN_UNIT), 64); return { data: d, owner: C.TOKEN_PROGRAM_ID }; };
+  const tr = new Tracker(cfg, derive);
+  tr.add({ mint: "M", creator: "DEV", devBuySol: 0.4, devTokens: 1e7, createdAtMs: 0 }, 0);
+  tr.ingest([{ key: "curve#M", mint: "M", kind: "curve", account: fakeAccount(2) }], 1000);
+  tr.ingest([{ key: "M", mint: "M", kind: "mint", account: { owner: C.TOKEN_PROGRAM_ID } }], 1000);
+  tr.ingest([{ key: "ata#DEV#M", mint: "M", kind: "devAta", account: null }], 2000); // node behind: null
+  assert.equal(tr.features("M", 2000).devSold, false);
+  tr.ingest([{ key: "ata#DEV#M", mint: "M", kind: "devAta", account: devAcct(1e7) }], 3000);
+  assert.equal(tr.features("M", 3000).devSold, false);
+  assert.equal(tr.stats.devNullIgnored, 1);
+  // Seen once, then gone: the creator closed the account after selling out.
+  tr.ingest([{ key: "ata#DEV#M", mint: "M", kind: "devAta", account: null }], 4000);
+  assert.equal(tr.features("M", 4000).devSold, true);
+  // Never seen, three nulls in a row: treated as no tokens (sold out if the launch buy had some).
+  const t2 = new Tracker(cfg, derive);
+  t2.add({ mint: "N", creator: "DEV", devBuySol: 0.4, devTokens: 1e7, createdAtMs: 0 }, 0);
+  t2.ingest([{ key: "curve#N", mint: "N", kind: "curve", account: fakeAccount(2) }], 1000);
+  for (const ms of [2000, 3000, 4000]) t2.ingest([{ key: "ata#DEV#N", mint: "N", kind: "devAta", account: null }], ms);
+  assert.equal(t2.features("N", 4000).devSold, true);
+  // A mint the RPC can't show three times is asked for again 10 ticks later, then derives the dev account.
+  const t3 = new Tracker(cfg, derive);
+  t3.add({ mint: "Q", creator: "DEV", createdAtMs: 0 }, 0);
+  t3.ingest([{ key: "curve#Q", mint: "Q", kind: "curve", account: fakeAccount(2) }], 1000);
+  const mintAsked = () => t3.pollTargets(2000).some((x) => x.kind === "mint");
+  for (let i = 0; i < 3; i++) {
+    assert.ok(mintAsked());
+    t3.ingest([{ key: "Q", mint: "Q", kind: "mint", account: null }], 2000);
+  }
+  assert.equal(t3.stats.mintGiveUps, 1);
+  let ticks = 1;
+  while (!mintAsked() && ticks < 50) ticks++;
+  assert.equal(ticks, 10, "asked again after a 10-tick pause");
+  t3.ingest([{ key: "Q", mint: "Q", kind: "mint", account: { owner: C.TOKEN_PROGRAM_ID } }], 2000);
+  assert.equal(t3.tokens.get("Q").devAta, "ata#DEV#Q");
+});
+
 test("tracker: dead coins expire early, held coins never expire", () => {
   const cfg = cfgFor();
   const tr = new Tracker(cfg, { bondingCurve: (m) => `c#${m}`, ata: () => "x" });
@@ -211,7 +271,7 @@ test("paper broker: a round trip at unchanged price costs exactly fees + tx cost
   at(0);
   const pb = new PaperBroker(cfg, tr, 1);
   const pBuy = pb.buy({ mint: "M", sol: 0.03, decisionPrice: tr.features("M", 0).price, nowMs: 0 });
-  near(pb.availableSol(), 0.97, 1e-12);
+  near(pb.availableSol(), 1 - 0.03 - pb.txCostSol() - C.TOKEN_ACCOUNT_RENT_SOL, 1e-12); // a pending buy holds its whole cost
   at(1500);
   pb.onTick(1500);
   const b = await pBuy;
@@ -244,7 +304,7 @@ test("paper broker: buys fail on slippage and still pay the network fee", async 
 });
 
 test("risk: sizing, reserve, loss-streak pause and daily loss limit (when switched on)", () => {
-  const r = new RiskManager({ ...cfgFor().risk, maxOpenPositions: 2, maxTradeSol: 0.03, dailyLossLimitPct: 40, lossStreakPauseMin: 10 }, 0.1);
+  const r = new RiskManager({ ...cfgFor().risk, maxOpenPositions: 2, maxTradeSol: 0.03, dailyLossLimitPct: 40, lossStreakPauseMin: 10, keepPct: 0 }, 0.1);
   near(r.sizeFor(0.1), 0.03);
   near(r.sizeFor(0.04), 0.0112, 1e-12);
   assert.equal(r.sizeFor(0.02), 0);
@@ -276,7 +336,7 @@ test("risk: winnings grow the trade size; the keep-floor stops buys below half t
   r.onTradeClosed(-0.039, t0 + 2 * 86400000); // 0.071 < half of 0.15, daily limit not hit
   assert.equal(r.canEnter(t0 + 2 * 86400000, 0, 0.07).reason, "keep-floor");
   assert.ok(r.belowFloor());
-  near(r.sizeFor(0.07), 0.0232); // after losses the size never grows above the base
+  assert.equal(r.sizeFor(0.07), 0); // below the floor: nothing fits
   const off = new RiskManager({ ...base, keepPct: 0, compound: 0 }, 0.1);
   off.onTradeClosed(0.05, t0);
   near(off.sizeFor(0.2), 0.03);
@@ -698,7 +758,10 @@ function mockNet(kp, mint, outcomes = []) {
       const tx = raw.length && web3.VersionedTransaction.deserialize(raw);
       const sig = base58Encode(tx.signatures[0]);
       sent.push({ raw, sig });
-      bySig.set(sig, outcomes.shift() || { status: "confirmed", meta: { preBalances: [0], postBalances: [0], preTokenBalances: [], postTokenBalances: [] } });
+      const o = outcomes.shift() || { status: "confirmed", meta: { preBalances: [0], postBalances: [0], preTokenBalances: [], postTokenBalances: [] } };
+      bySig.set(sig, o);
+      if (o.tokensOnSend !== undefined) state.tokens = o.tokensOnSend; // coins leave before the status is visible
+      if (o.closesOnSend) state.ataGone = true;
       return sig;
     },
     async getSignatureStatuses(sigs) {
@@ -718,6 +781,7 @@ function mockNet(kp, mint, outcomes = []) {
     },
     async getTransaction(sig) {
       const o = bySig.get(sig);
+      if (o && o.unreadable) return null; // landed, but the RPC can't return it yet
       return o && o.status !== "dropped" && o.status !== "failed" ? { meta: o.meta } : null;
     },
     async getBalance() { return state.preLamports; },
@@ -736,6 +800,7 @@ function mockNet(kp, mint, outcomes = []) {
       const ata = sol.ataAddress(me, mint, C.TOKEN_PROGRAM_ID);
       return keys.map((k) => {
         if (state.ataGone || String(k.toBase58 ? k.toBase58() : k) !== ata) return null;
+        if (state.hideReads > 0) { state.hideReads--; return null; } // a node that hasn't applied our buy yet
         const d = Buffer.alloc(165);
         d.writeBigUInt64LE(BigInt(Math.round(state.tokens * 1e6)), 64);
         return { data: d, owner: new web3.PublicKey(C.TOKEN_PROGRAM_ID), lamports: 2039280 };
@@ -755,7 +820,8 @@ function mockNet(kp, mint, outcomes = []) {
   };
   // Make every "late" transaction visible (it landed after the bot stopped waiting).
   const landLate = () => { for (const o of bySig.values()) if (o.status === "late") o.visible = true; };
-  return { conn, fetchImpl, bodies, state, me, landLate, build: (b) => { nextBuild = b; } };
+  const markUnreadable = (sig) => { const o = bySig.get(sig); if (o) o.unreadable = true; };
+  return { conn, fetchImpl, bodies, state, me, landLate, markUnreadable, build: (b) => { nextBuild = b; } };
 }
 
 const tb = (me, mint, amt) => [{ owner: me, mint, uiTokenAmount: { amount: String(Math.round(amt * 1e6)), decimals: 6 } }];
@@ -987,6 +1053,133 @@ test("live broker: an earlier sell that landed late is booked instead of selling
   assert.equal(net.conn.sent.length, 4, "only the close-account transaction was added");
 });
 
+test("live broker: a take-profit that timed out but landed is booked once, not twice", async () => {
+  const cfg = cfgFor();
+  const kp = web3.Keypair.generate();
+  const me = kp.publicKey.toBase58();
+  const mint = web3.Keypair.generate().publicKey.toBase58();
+  const net = mockNet(kp, mint, [
+    { status: "late", meta: meta(me, mint, 0.02, 1000, 500), tokensOnSend: 500 }, // lands, status not visible yet
+    { status: "confirmed", meta: meta(me, mint, 0.022, 500, 0), tokensAfter: 0 },
+    { status: "confirmed", meta: meta(me, mint, 0.00203928, 0, 0) },
+  ]);
+  net.state.tokens = 1000;
+  const lb = newBroker(cfg, kp, net);
+  const tp = await lb.sell({ mint, fraction: 0.5, estimateSol: 0.02 });
+  assert.ok(tp.ok && tp.estimated && !tp.closed);
+  near(tp.solReceived, 0.02);
+  net.landLate();
+  const rest = await lb.sell({ mint, fraction: 1, estimateSol: 0.022 });
+  assert.ok(rest.ok, rest.error);
+  assert.equal(rest.closed, true);
+  near(tp.solReceived + rest.solReceived, 0.02 + 0.022 + 0.00203928); // the late 50% is not counted again
+  assert.deepEqual(net.bodies.map((b) => b.amount), ["50%", "100%"]);
+});
+
+test("live broker: a sale that landed but can't be read back is booked as an estimate plus rent", async () => {
+  const cfg = cfgFor();
+  const kp = web3.Keypair.generate();
+  const me = kp.publicKey.toBase58();
+  const mint = web3.Keypair.generate().publicKey.toBase58();
+  const net = mockNet(kp, mint, [
+    { status: "late", meta: meta(me, mint, 0.04, 1000, 0) }, // still in flight when we stop waiting
+    { status: "dropped" }, { status: "dropped" },
+  ]);
+  net.state.tokens = 1000;
+  const lb = newBroker(cfg, kp, net);
+  assert.equal((await lb.sell({ mint, fraction: 1, estimateSol: 0.04 })).ok, false);
+  // It lands (closing the account) but the RPC can't return the transaction yet.
+  const first = [...net.conn.sent][0].sig;
+  net.landLate();
+  net.state.tokens = 0;
+  net.state.ataGone = true;
+  net.markUnreadable(first);
+  const r = await lb.sell({ mint, fraction: 1, estimateSol: 0.04 });
+  assert.ok(r.ok, r.error);
+  assert.equal(r.estimated, true);
+  assert.equal(r.closed, true);
+  near(r.solReceived, 0.04 + C.TOKEN_ACCOUNT_RENT_SOL);
+  assert.equal(net.conn.sent.length, 3, "nothing new was sent");
+});
+
+test("live broker: zero coins on the first read is checked again, never booked as a free sale", async () => {
+  const cfg = cfgFor();
+  const kp = web3.Keypair.generate();
+  const me = kp.publicKey.toBase58();
+  const mint = web3.Keypair.generate().publicKey.toBase58();
+  const net = mockNet(kp, mint, [
+    { status: "confirmed", meta: meta(me, mint, 0.04, 1000, 0), tokensAfter: 0 },
+    { status: "confirmed", meta: meta(me, mint, 0.00203928, 0, 0) },
+  ]);
+  net.state.tokens = 1000;
+  net.state.hideReads = 1; // the first read comes from a node that hasn't applied our buy yet
+  const r = await newBroker(cfg, kp, net).sell({ mint, fraction: 1, estimateSol: 0.04 });
+  assert.ok(r.ok, r.error);
+  near(r.tokensSold, 1000);
+  near(r.solReceived, 0.04 + 0.00203928);
+  assert.deepEqual(net.bodies.map((b) => b.amount), ["100%"]);
+  // No coins and no sale of ours anywhere: say so instead of booking a sale.
+  const empty = mockNet(kp, mint, []);
+  const g = await newBroker(cfg, kp, empty).sell({ mint, fraction: 1, estimateSol: 0.04 });
+  assert.equal(g.ok, false);
+  assert.equal(g.goneWithoutSale, true);
+});
+
+test("live broker: a take-profit that failed on-chain is retried as a take-profit, not a full exit", async () => {
+  const cfg = cfgFor();
+  const kp = web3.Keypair.generate();
+  const me = kp.publicKey.toBase58();
+  const mint = web3.Keypair.generate().publicKey.toBase58();
+  const net = mockNet(kp, mint, [
+    { status: "failed" },
+    { status: "confirmed", meta: meta(me, mint, 0.02, 1000, 500), tokensAfter: 500 },
+  ]);
+  net.state.tokens = 1000;
+  const r = await newBroker(cfg, kp, net).sell({ mint, fraction: 0.5, estimateSol: 0.02 });
+  assert.ok(r.ok, r.error);
+  assert.deepEqual(net.bodies.map((b) => b.amount), ["50%", "50%"], "the runner is kept");
+  assert.equal(r.closed, false);
+  near(r.tokensSold, 500);
+});
+
+test("live broker: a deposit is not profit and doesn't raise the budget; a buy holds its worst case", async () => {
+  const cfg = cfgFor();
+  const kp = web3.Keypair.generate();
+  const me = kp.publicKey.toBase58();
+  const mint = web3.Keypair.generate().publicKey.toBase58();
+  const buyMeta = { preBalances: [2e8], postBalances: [2e8 - 0.0306e9], preTokenBalances: tb(me, mint, 0), postTokenBalances: tb(me, mint, 1000) };
+  const net = mockNet(kp, mint, [{ status: "confirmed", meta: buyMeta, tokensAfter: 1000 }]);
+  net.state.preLamports = 1e8; // 0.1 SOL
+  const lb = newBroker(cfg, kp, net, { budgetSol: 0.1 });
+  await lb.refreshBalance();
+  near(lb.availableSol(), 0.1);
+  net.state.preLamports = 2e8; // the owner sends 0.1 SOL while the bot runs
+  await lb.refreshBalance();
+  near(lb.availableSol(), 0.1, 1e-9);
+  near(lb.externalSol(), 0.1, 1e-9);
+  const p = lb.buy({ mint, sol: 0.03 });
+  near(lb.committed, 0.03 * 1.2 + C.TOKEN_ACCOUNT_RENT_SOL + lb.txFeeSol(), 1e-12); // held while in flight
+  net.state.preLamports = 2e8 - 0.0306e9;
+  const r = await p;
+  assert.ok(r.ok, r.error);
+  near(lb.committed, 0, 1e-12);
+  near(lb.flowSol, -0.0306, 1e-9);
+  near(lb.availableSol(), 0.1 - 0.0306, 1e-9); // the budget minus what trading spent
+  near(lb.externalSol(), 0.1, 1e-9); // still just the deposit
+});
+
+test("engine: P&L counts closed trades and open coins, not the wallet balance", () => {
+  const { Engine } = require("../pump/lib/engine.cjs");
+  const cfg = cfgFor();
+  const eng = new Engine({ cfg, tracker: new Tracker(cfg, null), broker: { mode: "live" }, risk: new RiskManager(cfg.risk, 0.1), recorder: null, rpc: null });
+  const { vSol, vTok } = curve.reservesFromRealSol(10);
+  const tokens = curve.quoteBuyTokens(vSol, vTok, 0.03);
+  eng.positions.set("M", { mint: "M", state: "open", tokens, costSol: 0.0326, proceedsSol: 0, lastF: { vSol: vSol + 0.03, vTok: vTok - tokens } });
+  eng.positions.set("B", { mint: "B", state: "buying", tokens: 0, costSol: 0, proceedsSol: 0 }); // not filled yet
+  const back = curve.liquidationValueSol(vSol + 0.03, vTok - tokens, tokens, eng.feeFraction()) + C.TOKEN_ACCOUNT_RENT_SOL;
+  near(eng.unrealizedSol(), back - 0.0326, 1e-12);
+});
+
 test("live broker: withdraw sends the exact lamport balance minus the fee", async () => {
   const cfg = cfgFor();
   const kp = web3.Keypair.generate();
@@ -995,6 +1188,40 @@ test("live broker: withdraw sends the exact lamport balance minus the fee", asyn
   await newBroker(cfg, kp, net).withdrawAll(web3.Keypair.generate().publicKey.toBase58());
   const tx = web3.Transaction.from(net.conn.sent[0].raw);
   assert.equal(tx.instructions[0].data.readBigUInt64LE(4), 123456789n - 5000n);
+});
+
+test("engine: shutdown waits for a sale started by a late-fill check; failed-on-chain buys aren't re-checked", async () => {
+  const { Engine } = require("../pump/lib/engine.cjs");
+  const { Recorder } = require("../pump/lib/recorder.cjs");
+  const cfg = cfgFor();
+  const tr = new Tracker(cfg, { bondingCurve: (m) => `c#${m}`, ata: () => "x" });
+  for (const m of ["LATE", "FAIL"]) {
+    tr.add({ mint: m, symbol: m, createdAtMs: 0 }, 0);
+    tr.ingest([{ key: `c#${m}`, mint: m, kind: "curve", account: fakeAccount(8) }], 0);
+  }
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const broker = {
+    mode: "live",
+    availableSol: () => 0.1,
+    buy: async ({ mint }) => (mint === "FAIL" ? { ok: false, error: "failed on-chain", sig: "S2", feesSol: 0.0001, final: true } : { ok: false, error: "not confirmed in time", sig: "S1", feesSol: 0 }),
+    tokenBalance: async () => { await wait(20); return 1234; },
+    estimateBuyCost: (s) => s * 1.0175 + 0.0021,
+    sell: async () => { await wait(20); return { ok: true, solReceived: 0.025, tokensSold: 1234, closed: true }; },
+  };
+  let now = 1000;
+  const rpc = { getAccounts: async (keys) => keys.map(() => fakeAccount(8)), getLargestHolders: async () => [] };
+  const eng = new Engine({ cfg, tracker: tr, broker, risk: new RiskManager(cfg.risk, 0.1), recorder: new Recorder("", cfg.runtime, { enabled: false }), rpc, clock: () => now });
+  eng.buy(tr.features("LATE", now), 0.03, now);
+  eng.buy(tr.features("FAIL", now), 0.03, now);
+  await eng.settle();
+  assert.deepEqual(eng.lateFillChecks.map((c) => c.mint), ["LATE"]);
+  now = 50000;
+  eng.stopping = true;
+  eng.checkLateFills(now);
+  assert.equal(eng.busy(), true, "a lookup in flight keeps the bot from quitting");
+  await eng.settle();
+  assert.equal(eng.closedTrades.length, 1, "the sale it started finished before settle returned");
+  assert.equal(eng.busy(), false);
 });
 
 test("engine: a failing trade log never crashes the bot", async () => {

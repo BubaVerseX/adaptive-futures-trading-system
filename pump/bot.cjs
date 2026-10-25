@@ -11,7 +11,7 @@ const sol = require("./lib/solana.cjs");
 const { Tracker, summarizeHolders, curveTokenBalance } = require("./lib/tracker.cjs");
 const { PaperBroker } = require("./lib/paperBroker.cjs");
 const { LiveBroker } = require("./lib/liveBroker.cjs");
-const { RiskManager } = require("./lib/risk.cjs");
+const { RiskManager, carryPeak } = require("./lib/risk.cjs");
 const { Recorder } = require("./lib/recorder.cjs");
 const { Engine } = require("./lib/engine.cjs");
 const { PumpPortalFeed, RpcLogsFeed } = require("./lib/feed.cjs");
@@ -118,20 +118,36 @@ function makeFeed(cfg, conn) {
   return cfg.discovery === "rpc" ? new RpcLogsFeed({ conn, derive: sol.derive }) : new PumpPortalFeed({ url: cfg.wsUrl, apiKey: cfg.pumpPortalApiKey });
 }
 
+const GATE_WORDS = {
+  "keep-floor-room": "the rest is in open coins (keep-half rule)",
+  "insufficient-funds": "all money is in open coins",
+  "max-open": "max coins open",
+  "loss-streak-pause": "paused after a losing streak",
+};
+
 function status(engine, broker, risk, tracker, price, startEquity, feed, poller) {
-  const cash = broker.mode === "paper" ? broker.cash : broker.balanceSol;
-  const equity = cash + engine.openValueSol();
-  const pnl = equity - startEquity;
-  const gate = risk.halted ? " | DAILY LOSS LIMIT HIT: no buys until 00:00 UTC"
+  // P&L is what trading made: closed trades plus open coins at today's price. Money sent to
+  // or taken from the wallet by hand is not in it.
+  const pnl = risk.realizedTotal + engine.unrealizedSol();
+  const equity = startEquity + pnl;
+  const trading = [...engine.positions.values()].some((p) => p.state === "buying" || p.state === "selling");
+  const ext = broker.externalSol && !trading ? broker.externalSol() : 0;
+  let gate = risk.halted ? " | DAILY LOSS LIMIT HIT: no buys until 00:00 UTC"
     : risk.belowFloor() ? ` | KEEP-FLOOR HIT: no new buys, ${risk.r.keepPct}% of the best balance is kept`
     : Date.now() < risk.pausedUntil ? " | paused after a losing streak" : "";
+  if (!gate && !engine.stopping) {
+    const g = risk.canEnter(Date.now(), engine.positions.size, broker.availableSol());
+    if (!g.ok) gate = ` | no new buys: ${GATE_WORDS[g.reason] || g.reason}`;
+  }
+  const wallet = broker.mode === "live" ? ` | wallet ${broker.balanceSol.toFixed(4)} SOL` : "";
   log(
     "info",
-    `${broker.mode.toUpperCase()} | equity ${equity.toFixed(4)} SOL${price.fmt(equity)} | P&L ${signed(pnl)} SOL${price.fmt(pnl)} | open ${engine.positions.size} | ` +
+    `${broker.mode.toUpperCase()} | equity ${equity.toFixed(4)} SOL${price.fmt(equity)} | P&L ${signed(pnl)} SOL${price.fmt(pnl)}${wallet} | open ${engine.positions.size} | ` +
       `trades ${risk.trades} (W${risk.wins}/L${risk.losses}) | watching ${tracker.tokens.size} of ${tracker.stats.seen} coins seen` +
       `${tracker.stats.nonStandard ? ` (${tracker.stats.nonStandard} odd-curve skipped)` : ""}` +
       `${rpcRetries ? ` | RPC busy, ${rpcRetries} retries` : ""}${feed && feed.missed ? ` | feed missed ${feed.missed}` : ""}` +
-      `${poller && poller.resting() ? " | public RPC busy: price checks on your RPC for now" : ""}${gate}`
+      `${poller && poller.resting() ? " | public RPC busy: price checks on your RPC for now" : ""}` +
+      `${Math.abs(ext) > 0.001 ? ` | ${ext > 0 ? "deposited" : "withdrew"} ${Math.abs(ext).toFixed(4)} SOL by hand (not P&L, used after a restart)` : ""}${gate}`
   );
   rpcRetries = 0;
 }
@@ -170,10 +186,11 @@ async function run(cfg, args) {
     startEquity = startSol;
     log("info", `PAPER TRADING with ${startSol} SOL${price.fmt(startSol)} of fake money on real live data`);
   }
+  const risk = new RiskManager(cfg.risk, startSol, { buySlippagePct: cfg.costs.buySlippagePct });
+  if (live) carryFloor(cfg, risk, broker, startSol);
   log("info", `daily loss limit ${cfg.risk.dailyLossLimitPct}% (${((startSol * cfg.risk.dailyLossLimitPct) / 100).toFixed(4)} SOL)` +
-    `${cfg.risk.keepPct ? ` | keeps at least ${cfg.risk.keepPct}% of the best balance` : ""}${cfg.risk.compound ? " | trade size grows with profits" : ""} | research log: ${cfg.dataDir}`);
-
-  const risk = new RiskManager(cfg.risk, startSol);
+    `${cfg.risk.keepPct ? ` | no new buys below ${risk.floorSol().toFixed(4)} SOL (${cfg.risk.keepPct}% of the best balance)` : ""}` +
+    `${cfg.risk.compound ? " | trade size grows with profits" : ""} | research log: ${cfg.dataDir}`);
   const recorder = new Recorder(cfg.dataDir, cfg.runtime);
   const engine = new Engine({ cfg, tracker, broker, risk, recorder, rpc, log });
   const feed = makeFeed(cfg, conn);
@@ -477,6 +494,30 @@ async function sellAll(cfg) {
   console.log(`balance now ${(await broker.refreshBalance()).toFixed(6)} SOL`);
 }
 
+const floorFile = (cfg) => path.join(path.dirname(cfg.walletFile), "live-risk.json");
+
+// The keep-floor follows the best balance across live runs (saved next to the wallet), so
+// restarting after a loss doesn't lower it.
+function carryFloor(cfg, risk, broker, startSol) {
+  const file = floorFile(cfg);
+  let saved = null;
+  try { saved = JSON.parse(fs.readFileSync(file, "utf8")); } catch (_) { /* first run */ }
+  risk.peakSol = carryPeak({ saved, owner: broker.ownerStr, startSol, budgetSol: cfg.maxBudgetSol, reset: process.env.PUMP_RESET_FLOOR === "1" });
+  const save = (peakSol) => {
+    try {
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(`${file}.tmp`, JSON.stringify({ wallet: broker.ownerStr, peakSol, at: new Date().toISOString() }));
+      fs.renameSync(`${file}.tmp`, file);
+    } catch (_) { /* not fatal: the floor then only covers this run */ }
+  };
+  risk.onPeak = save;
+  risk.savedPeak = risk.peakSol;
+  save(risk.peakSol);
+  if (risk.peakSol > startSol + 1e-9 && cfg.risk.keepPct) {
+    log("info", `keep-floor carried over: best balance so far ${risk.peakSol.toFixed(4)} SOL (after a withdrawal, start once with PUMP_RESET_FLOOR=1)`);
+  }
+}
+
 async function withdraw(cfg, to, yes) {
   try { sol.pk(to); } catch (_) { throw new Error(`not a valid Solana address: ${to}`); }
   const conn = sol.connection(cfg.rpcUrl);
@@ -487,6 +528,7 @@ async function withdraw(cfg, to, yes) {
     return;
   }
   console.log(`sent: ${await broker.withdrawAll(to)}`);
+  try { fs.unlinkSync(floorFile(cfg)); } catch (_) { /* no saved floor */ }
 }
 
 // Asks for the RPC link at a prompt (no shell quoting to get wrong), tests it, saves it to .env.
