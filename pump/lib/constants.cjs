@@ -18,6 +18,10 @@ const GRADUATION_REAL_SOL = CURVE_K / (INITIAL_VIRTUAL_TOKENS - INITIAL_REAL_TOK
 const PUMP_PROGRAM_ID = "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P";
 const PUMPSWAP_PROGRAM_ID = "pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA"; // where coins trade after graduating
 const PUMP_FEE_PROGRAM_ID = "pfeeUxB6jkeY1Hxd7CsFCAjcbHA9rWtchMGdZ6VojVZ";
+// Program PumpPortal's trade-local transactions route the pump.fun buy/sell through
+// (seen 2026-10-25: it receives exactly the pump.fun buy accounts and CPIs into it).
+// Owner unverified, so every trade through it is also simulated and must deliver the coins.
+const PUMPPORTAL_ROUTER_PROGRAM_ID = "FAdo9NCw1ssek6Z6yeWzWjhLVsr8uiCwcWNUnKgzTnHe";
 const SYSTEM_PROGRAM_ID = "11111111111111111111111111111111";
 const COMPUTE_BUDGET_PROGRAM_ID = "ComputeBudget111111111111111111111111111111";
 const MEMO_PROGRAM_IDS = ["MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr", "Memo1UhkJRfHyvLMcVucJwxXeuD728EqVDDwQDxFMNo"];
@@ -47,6 +51,7 @@ module.exports = {
   PUMP_PROGRAM_ID,
   PUMPSWAP_PROGRAM_ID,
   PUMP_FEE_PROGRAM_ID,
+  PUMPPORTAL_ROUTER_PROGRAM_ID,
   SYSTEM_PROGRAM_ID,
   COMPUTE_BUDGET_PROGRAM_ID,
   MEMO_PROGRAM_IDS,

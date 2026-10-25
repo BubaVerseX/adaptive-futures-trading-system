@@ -43,6 +43,7 @@ const BASE_ALLOWED_PROGRAMS = [
   C.PUMP_PROGRAM_ID,
   C.PUMPSWAP_PROGRAM_ID,
   C.PUMP_FEE_PROGRAM_ID,
+  C.PUMPPORTAL_ROUTER_PROGRAM_ID,
   ...C.MEMO_PROGRAM_IDS,
 ];
 const TOKEN_PROGRAMS = new Set([C.TOKEN_PROGRAM_ID, C.TOKEN_2022_PROGRAM_ID]);
@@ -90,17 +91,32 @@ function inspectTransaction(vtx, wallet, extraAllowed = []) {
  * Simulates the transaction and reports how much SOL the wallet would lose and who
  * would own it afterwards. Catches drains hidden inside program calls.
  */
-async function simulateWalletChange(conn, vtx, wallet) {
+const tokenAmountRaw = (data) => (data && data.length >= 72 ? data.readBigUInt64LE(64) : 0n);
+
+/**
+ * tokenAccounts: optional token-account addresses whose balance change is reported
+ * (tokensGained, whole tokens) so a buy can be required to actually deliver coins.
+ */
+async function simulateWalletChange(conn, vtx, wallet, tokenAccounts = []) {
   const addr = pk(wallet).toBase58();
-  const [pre, sim] = await Promise.all([
+  const [pre, preTok, sim] = await Promise.all([
     conn.getBalance(pk(wallet), "processed"),
-    conn.simulateTransaction(vtx, { sigVerify: false, commitment: "processed", accounts: { encoding: "base64", addresses: [addr] } }),
+    tokenAccounts.length ? conn.getMultipleAccountsInfo(tokenAccounts.map(pk), "processed") : Promise.resolve([]),
+    conn.simulateTransaction(vtx, { sigVerify: false, commitment: "processed", accounts: { encoding: "base64", addresses: [addr, ...tokenAccounts] } }),
   ]);
   const v = sim.value;
   if (v.err) return { ok: false, simErr: JSON.stringify(v.err), logs: (v.logs || []).slice(-4) };
-  const acc = v.accounts && v.accounts[0];
-  if (!acc) return { ok: true, lossSol: pre / C.LAMPORTS_PER_SOL, owner: null, logs: v.logs || [] }; // wallet would be emptied/closed
-  return { ok: true, lossSol: (pre - acc.lamports) / C.LAMPORTS_PER_SOL, owner: acc.owner, logs: v.logs || [] };
+  const accs = v.accounts || [];
+  let gained = 0n;
+  tokenAccounts.forEach((_, i) => {
+    const post = accs[i + 1];
+    const postAmt = post && post.data ? tokenAmountRaw(Buffer.from(post.data[0], "base64")) : 0n;
+    gained += postAmt - tokenAmountRaw(preTok[i] && preTok[i].data);
+  });
+  const tokensGained = Number(gained) / C.TOKEN_UNIT;
+  const acc = accs[0];
+  if (!acc) return { ok: true, lossSol: pre / C.LAMPORTS_PER_SOL, owner: null, tokensGained, logs: v.logs || [] }; // wallet would be emptied/closed
+  return { ok: true, lossSol: (pre - acc.lamports) / C.LAMPORTS_PER_SOL, owner: acc.owner, tokensGained, logs: v.logs || [] };
 }
 
 const UPGRADEABLE_LOADER = "BPFLoaderUpgradeab1e11111111111111111111111";
@@ -134,8 +150,8 @@ async function explainProgram(conn, id) {
     const msg = tx.transaction.message;
     const keys = (msg.staticAccountKeys || msg.accountKeys).map((k) => k.toBase58());
     payers.add(keys[0]);
-    const progs = (msg.compiledInstructions || msg.instructions).map((ix) => keys[ix.programIdIndex]);
-    if (progs.includes(C.PUMP_PROGRAM_ID) || progs.includes(C.PUMPSWAP_PROGRAM_ID)) withPump++;
+    const logs = (tx.meta && tx.meta.logMessages) || [];
+    if (logs.some((l) => l.includes(C.PUMP_PROGRAM_ID) || l.includes(C.PUMPSWAP_PROGRAM_ID))) withPump++; // incl. calls made inside the program
   }
   Object.assign(out, { sampled, distinctPayers: payers.size, withPump });
   return out;

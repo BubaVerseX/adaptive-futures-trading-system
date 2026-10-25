@@ -84,7 +84,7 @@ class LiveBroker {
    *   maxLossSol: the most SOL the wallet may lose to this transaction
    *   strict: refuse unknown programs even when the simulation looks fine (buys)
    */
-  async tradeLocal(body, { maxLossSol, strict }) {
+  async tradeLocal(body, { maxLossSol, strict, expectCoinsOf = null }) {
     const res = await this.fetchWithTimeout(
       C.PUMPPORTAL_TRADE_LOCAL_URL,
       { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) },
@@ -101,9 +101,11 @@ class LiveBroker {
     if (ins.outflowSol > maxLossSol) throw new Error(`refused transaction: sends ${ins.outflowSol.toFixed(6)} SOL straight out (limit ${maxLossSol.toFixed(6)})`);
     if (strict && odd.length) throw new Error(`refused transaction: ${odd.join("; ")} (allow a program with PUMP_EXTRA_PROGRAMS only after checking it)`);
 
+    // A buy must put the coins in this wallet's own token account (either token program).
+    const tokenAccounts = expectCoinsOf ? [C.TOKEN_PROGRAM_ID, C.TOKEN_2022_PROGRAM_ID].map((p) => sol.ataAddress(this.owner, expectCoinsOf, p)) : [];
     let sim;
     try {
-      sim = await sol.simulateWalletChange(this.conn, tx, this.owner);
+      sim = await sol.simulateWalletChange(this.conn, tx, this.owner, tokenAccounts);
     } catch (e) {
       sim = { ok: false, error: e.message };
     }
@@ -111,7 +113,8 @@ class LiveBroker {
     if (sim.ok) {
       if (sim.owner !== C.SYSTEM_PROGRAM_ID) throw new Error("refused transaction: it would take over or close the wallet");
       if (sim.lossSol > maxLossSol) throw new Error(`refused transaction: wallet would lose ${sim.lossSol.toFixed(6)} SOL (limit ${maxLossSol.toFixed(6)})`);
-    } else if (strict || odd.length) {
+      if (expectCoinsOf && !(sim.tokensGained > 0)) throw new Error("refused transaction: the simulation shows no coins arriving in this wallet");
+    } else if (strict || odd.length || expectCoinsOf) {
       throw new Error(`refused transaction: could not simulate it (${sim.error})`);
     }
 
@@ -172,7 +175,7 @@ class LiveBroker {
       let sent;
       try {
         // Cost + pump.fun/PumpPortal fees + token-account rent + priority fee, with room to spare.
-        sent = await this.tradeLocal(body, { maxLossSol: amountSol * 1.03 + 0.006, strict: true });
+        sent = await this.tradeLocal(body, { maxLossSol: amountSol * 1.03 + 0.006, strict: true, expectCoinsOf: mint });
       } catch (e) {
         return { ok: false, error: e.message, feesSol: 0 };
       }

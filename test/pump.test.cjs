@@ -372,7 +372,7 @@ function buildTx(payer, { transferLamports = 0, extra = [] } = {}) {
  */
 function mockNet(kp, mint, outcomes = []) {
   const me = kp.publicKey.toBase58();
-  const state = { tokens: 0, preLamports: 1e8, simLoss: 0.001, simOwner: C.SYSTEM_PROGRAM_ID, simErr: null };
+  const state = { tokens: 0, preLamports: 1e8, simLoss: 0.001, simOwner: C.SYSTEM_PROGRAM_ID, simErr: null, simTokens: 1000 };
   const sent = [], bodies = [], bySig = new Map(), lookups = new Map();
   let nextBuild = {};
   const conn = {
@@ -404,10 +404,17 @@ function mockNet(kp, mint, outcomes = []) {
       return o && o.status !== "dropped" && o.status !== "failed" ? { meta: o.meta } : null;
     },
     async getBalance() { return state.preLamports; },
-    async simulateTransaction() {
+    async simulateTransaction(vtx, cfg) {
       if (state.simErr) return { value: { err: state.simErr, logs: [] } };
-      return { value: { err: null, accounts: [{ lamports: state.preLamports - state.simLoss * 1e9, owner: state.simOwner }] } };
+      const tokenAcc = () => {
+        const d = Buffer.alloc(165);
+        d.writeBigUInt64LE(BigInt(Math.round(state.simTokens * 1e6)), 64);
+        return { data: [d.toString("base64"), "base64"], owner: C.TOKEN_PROGRAM_ID, lamports: 2039280 };
+      };
+      const extra = cfg.accounts.addresses.slice(1).map((_, i) => (i === 0 ? tokenAcc() : null));
+      return { value: { err: null, logs: [], accounts: [{ lamports: state.preLamports - state.simLoss * 1e9, owner: state.simOwner }, ...extra] } };
     },
+    async getMultipleAccountsInfo(keys) { return keys.map(() => null); },
     async getParsedTokenAccountsByOwner() {
       const raw = Math.round(state.tokens * 1e6);
       return { value: [{ pubkey: web3.Keypair.generate().publicKey, account: { owner: new web3.PublicKey(C.TOKEN_PROGRAM_ID), data: { parsed: { info: { mint, tokenAmount: { amount: String(raw), uiAmount: state.tokens } } } } } }] };
@@ -465,7 +472,11 @@ test("diagnostics: unknown program report (authority, usage, accounts)", async (
   const progData = Buffer.alloc(36);
   progData.writeUInt32LE(2, 0);
   programData.toBuffer().copy(progData, 4);
-  const pumpTx = (payer) => ({ transaction: { message: { staticAccountKeys: [payer, new web3.PublicKey(C.PUMP_PROGRAM_ID)], compiledInstructions: [{ programIdIndex: 1 }] } } });
+  // Calls into pump.fun from inside the program only show up in the logs.
+  const pumpTx = (payer) => ({
+    meta: { logMessages: [`Program ${prog.toBase58()} invoke [1]`, `Program ${C.PUMP_PROGRAM_ID} invoke [2]`] },
+    transaction: { message: { staticAccountKeys: [payer, prog], compiledInstructions: [{ programIdIndex: 1 }] } },
+  });
   const conn = {
     async getAccountInfo(k) {
       if (k.equals(prog)) return { executable: true, owner: new web3.PublicKey("BPFLoaderUpgradeab1e11111111111111111111111"), data: progData };
@@ -549,6 +560,7 @@ test("live broker: refuses direct outflow, simulated drains, owner changes and u
     [(n) => { n.state.simOwner = web3.Keypair.generate().publicKey.toBase58(); }, /take over or close the wallet/],
     [(n) => n.build({ extra: [new web3.TransactionInstruction({ programId: web3.Keypair.generate().publicKey, keys: [{ pubkey: kp.publicKey, isSigner: true, isWritable: true }], data: Buffer.alloc(0) })] }), /unknown program/],
     [(n) => { n.state.simErr = { InstructionError: [2, { Custom: 6002 }] }; }, /would fail on-chain/],
+    [(n) => { n.state.simTokens = 0; }, /no coins arriving/],
   ];
   for (const [setup, msg] of cases) {
     const net = mockNet(kp, mint);

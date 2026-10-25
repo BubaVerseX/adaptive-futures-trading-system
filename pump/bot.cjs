@@ -234,7 +234,8 @@ async function tradeApiCheck(cfg, mint, publicKey, conn) {
   if (!tx.message.staticAccountKeys[0].equals(publicKey)) throw new Error("fee payer is not the requested wallet");
   const ins = sol.inspectTransaction(tx, publicKey, cfg.extraPrograms);
   let sim = null;
-  try { sim = await sol.simulateWalletChange(conn, tx, publicKey); } catch (e) { sim = { error: e.message }; }
+  const tokenAccounts = [C.TOKEN_PROGRAM_ID, C.TOKEN_2022_PROGRAM_ID].map((p) => sol.ataAddress(publicKey, mint, p));
+  try { sim = await sol.simulateWalletChange(conn, tx, publicKey, tokenAccounts); } catch (e) { sim = { error: e.message }; }
   return { tx, ins, sim, instructions: tx.message.compiledInstructions.length };
 }
 
@@ -253,7 +254,7 @@ async function reportUnknownProgram(conn, r, id, labels) {
     for (const a of ix.accounts) console.log(`          ${a.address}${labels[a.address] ? ` = ${labels[a.address]}` : ""}${a.signer ? " [signer]" : ""}${a.writable ? " [writable]" : ""}`);
   }
   if (r.sim && r.sim.ok) {
-    const lines = r.sim.logs.filter((l) => l.includes(id) || /Program log:/.test(l)).slice(0, 12);
+    const lines = r.sim.logs.filter((l) => !/consumed|return:/.test(l)).slice(0, 24);
     if (lines.length) console.log(`        simulation log:\n${lines.map((l) => `          ${l}`).join("\n")}`);
   }
 }
@@ -345,7 +346,10 @@ async function check(cfg) {
       else if (odd.length) fail(`the bot would refuse buys: ${odd.join("; ")}. Tell Claude; a program is only added after checking it`);
       else pass(`transaction built and inspected (${r.instructions} instructions)`);
       for (const p of r.ins.harmlessPrograms) console.log(`        note: also calls ${p}, which never gets the wallet, so it can't move your SOL or coins`);
-      if (r.sim && r.sim.ok) pass(`simulated: the wallet would spend ${r.sim.lossSol.toFixed(6)} SOL for a 0.001 SOL buy`);
+      if (r.sim && r.sim.ok) {
+        if (r.sim.tokensGained > 0) pass(`simulated: the wallet would spend ${r.sim.lossSol.toFixed(6)} SOL for a 0.001 SOL buy and receive ${r.sim.tokensGained.toFixed(0)} coins (first buys also open accounts; that rent comes back on sell)`);
+        else fail(`simulated: ${r.sim.lossSol.toFixed(6)} SOL spent but no coins arrive; the bot would refuse this`);
+      }
       else console.log(`        simulation skipped (${r.sim && (r.sim.simErr || r.sim.error)}); normal before the wallet is funded`);
     } catch (e) {
       fail(`trade API: ${e.message}`);
