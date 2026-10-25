@@ -109,6 +109,9 @@ async function main() {
       ["patience (no outflow exit in the first 20s)", { outflowGraceSec: 20 }],
       ["second chance (one re-buy, 60s after selling)", { reentryCooldownSec: 60 }],
       ["both", { outflowGraceSec: 20, reentryCooldownSec: 60 }],
+      ["creator small bag (skip if creator holds > 3%)", { maxDevHoldPct: 3 }],
+      ["creator gone OK (buy coins whose creator already sold)", { allowDevSold: 1 }],
+      ["both creator rules", { maxDevHoldPct: 3, allowDevSold: 1 }],
     ];
     const [, h2] = splitByTime(usable);
     for (const [name, change] of variants) {

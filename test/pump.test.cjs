@@ -310,6 +310,20 @@ test("switches: outflow grace period and one re-buy of the same coin", async () 
   assert.ok(twice.trades[1].openedAtMs > twice.trades[0].closedAtMs + 30000);
 });
 
+test("switches: creator bag size and coins whose creator already left", () => {
+  const s = cfgFor().strategy;
+  assert.ok(!strategy.preEntry(baseFeatures({ devHoldPct: 8 }), s).reasons.includes("dev-big-bag"), "off by default");
+  assert.ok(strategy.preEntry(baseFeatures({ devHoldPct: 8 }), { ...s, maxDevHoldPct: 3 }).reasons.includes("dev-big-bag"));
+  assert.ok(!strategy.preEntry(baseFeatures({ devHoldPct: 2 }), { ...s, maxDevHoldPct: 3 }).reasons.includes("dev-big-bag"));
+  assert.ok(strategy.preEntry(baseFeatures({ devSold: true, devSoldAtMs: 1000 }), s).reasons.includes("dev-sold"));
+  assert.ok(!strategy.preEntry(baseFeatures({ devSold: true, devSoldAtMs: 1000 }), { ...s, allowDevSold: 1 }).reasons.includes("dev-sold"));
+  const pos = { entryPrice: 1, openedAtMs: 6000, decidedAtMs: 5000, peakPrice: 1, peakRealSol: 10, tp1Done: false };
+  // Sold before we decided: already known, not a reason to run.
+  assert.equal(strategy.exitDecision(pos, baseFeatures({ price: 1, devSold: true, devSoldAtMs: 1000 }), s, 9000).action, "hold");
+  // Sold after we decided (even before the fill landed): get out.
+  assert.equal(strategy.exitDecision(pos, baseFeatures({ price: 1, devSold: true, devSoldAtMs: 5500 }), s, 9000).reason, "dev-sold");
+});
+
 test("replay: time split puts earlier launches in the first half", () => {
   const recs = [1, 2, 3, 4].map((i) => ({ createdAtMs: i * 1000 }));
   const [a, b] = splitByTime(recs);

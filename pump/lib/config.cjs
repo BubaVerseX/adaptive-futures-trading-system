@@ -17,6 +17,8 @@ const DEFAULT_STRATEGY = {
   minInflow15: 0.8, // still accelerating over the last 15s
   maxDrawdownFromPeakPct: 12,
   maxDevBuySol: 3,
+  maxDevHoldPct: 100, // skip coins whose creator still holds more than this % of the supply (100 = off)
+  allowDevSold: 0, // 1 = coins whose creator already sold out may be bought (nobody left to dump)
   maxTop1Pct: 10, // largest holder, excluding the curve itself
   maxTop10Pct: 35,
   // Exit

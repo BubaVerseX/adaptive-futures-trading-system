@@ -228,6 +228,8 @@ class Tracker {
       inflow60: realSol - this.realSolAt(t, nowMs - 60000),
       devBuySol: t.devBuySol,
       devSold: t.devSoldAtMs !== null,
+      devSoldAtMs: t.devSoldAtMs,
+      devHoldPct: t.devTokensNow === null ? null : (t.devTokensNow / (t.curve ? t.curve.totalSupply : C.TOTAL_SUPPLY_TOKENS)) * 100,
       holders: t.holders,
     };
   }

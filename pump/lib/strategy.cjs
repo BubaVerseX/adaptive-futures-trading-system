@@ -15,7 +15,8 @@ function preEntry(f, s) {
   if (f.inflow15 < s.minInflow15) reasons.push("fading-inflow15");
   if (f.drawdownFromPeakPct > s.maxDrawdownFromPeakPct) reasons.push("off-peak");
   if (f.devBuySol !== null && f.devBuySol !== undefined && f.devBuySol > s.maxDevBuySol) reasons.push("big-dev-buy");
-  if (f.devSold) reasons.push("dev-sold");
+  if (f.devSold && !s.allowDevSold) reasons.push("dev-sold");
+  if (s.maxDevHoldPct < 100 && f.devHoldPct !== null && f.devHoldPct !== undefined && f.devHoldPct > s.maxDevHoldPct) reasons.push("dev-big-bag");
   // Thresholds are calibrated for pump.fun's standard curve; anything else is skipped.
   if (s.requireStandardCurve && f.standardCurve === false) reasons.push("non-standard-curve");
   return { ok: reasons.length === 0, reasons };
@@ -53,7 +54,8 @@ function exitDecision(pos, f, s, nowMs) {
   const all = (reason) => ({ action: "sell", fraction: 1, reason, gainPct });
 
   if (f.complete || f.progress >= s.exitProgress) return all("near-graduation");
-  if (f.devSold) return all("dev-sold");
+  // Only a creator sale after we decided to buy is news; one before it was known (allowDevSold).
+  if (f.devSold && (!f.devSoldAtMs || !pos.decidedAtMs || f.devSoldAtMs >= pos.decidedAtMs)) return all("dev-sold");
   if (gainPct <= -s.stopLossPct) return all("stop-loss");
   if (heldSec >= (s.outflowGraceSec || 0) && pos.peakRealSol > 0 && f.realSol <= pos.peakRealSol * (1 - s.outflowExitPct / 100)) return all("outflow");
   if (!pos.tp1Done && gainPct >= s.tp1Pct) {
