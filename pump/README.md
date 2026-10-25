@@ -15,6 +15,10 @@ The same engine runs three ways:
 | `replay` | none | re-runs the strategy on recorded coins; measures and tunes it |
 
 Every run records each coin that showed any life to `data/pump/research-*.jsonl`.
+Live trades (with the real fill prices, every sale attempt and its timing) go to
+`trades-live-*.jsonl`, buys that failed to `buyfails-live-*.jsonl`. The status
+line's P&L counts trading only; money you send to or take from the wallet is
+shown separately.
 `replay.cjs` uses that data to tell you, with an honest out-of-sample test, whether
 the rules actually make money. **Nothing here has been proven profitable yet.**
 
@@ -139,8 +143,11 @@ each buy and refunded when the bot closes the account after selling.
   streaks and no daily loss limit by default (`PUMP_MAX_OPEN_POSITIONS`,
   `PUMP_LOSS_STREAK_PAUSE_MIN`, `PUMP_DAILY_LOSS_LIMIT_PCT` switch them on).
 - Keep-floor (default 50%): no new buys once the account is below half of its
-  best value this run, so a bad night can't take everything (`PUMP_KEEP_PCT=0`
-  turns it off).
+  best value, so a bad night can't take everything (`PUMP_KEEP_PCT=0` turns it
+  off). New buys are sized so the cash left stays above that line even if every
+  open coin went to zero. The best value is remembered across restarts in
+  `~/.pump-bot/live-risk.json`; `--withdraw` clears it, or start once with
+  `PUMP_RESET_FLOOR=1`.
 - Trade size: 0.025 SOL base. Strong buying pressure (inflow well above the entry
   minimums) buys up to 2x, never more than half of the free cash
   (`PUMP_CONVICTION_MAX=1` turns that off). Profits are reinvested: the size limit
