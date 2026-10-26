@@ -19,17 +19,16 @@ Options: --params file.json, --size SOL (edge-test trade size, default 0.03)`;
 const GRID_FULL = { minRealSol: [4, 6, 10], minInflow30: [1.5, 2.5, 4], stopLossPct: [10, 15, 25], tp1Pct: [25, 35, 60] };
 const GRID_QUICK = { minRealSol: [4, 8], minInflow30: [1.5, 3], stopLossPct: [12, 20], tp1Pct: [30, 60] };
 
+// What the live trades and the recordings pointed at (Oct 26): coins whose creator bought at
+// launch lost in both; coins bought older did better in replay; stop-loss exits fill ~30% down.
 const COMPARE_VARIANTS = [
   ["current settings", {}],
-  ["patience (no outflow exit in the first 20s)", { outflowGraceSec: 20 }],
-  ["second chance (one re-buy, 60s after selling)", { reentryCooldownSec: 60 }],
-  ["both", { outflowGraceSec: 20, reentryCooldownSec: 60 }],
-  ["creator small bag (skip if creator holds > 3%)", { maxDevHoldPct: 3 }],
-  ["creator gone OK (buy coins whose creator already sold)", { allowDevSold: 1 }],
-  ["both creator rules", { maxDevHoldPct: 3, allowDevSold: 1 }],
-  // Active mode's entry filters (its 5-minute age limit is left out: recordings end before such holds would).
-  ["looser buy rules (more trades; holder data partly assumed, so a bit flattering)",
-    { entryMinAgeSec: 10, minRealSol: 3, maxRealSol: 40, minInflow30: 1.2, minInflow15: 0.4, maxDrawdownFromPeakPct: 18, maxTop1Pct: 12, maxTop10Pct: 45 }],
+  ["creator bought nothing (skip if the creator bought > 0.01 SOL at launch)", { maxDevBuySol: 0.01 }],
+  ["older coins (buy at 90-180s old)", { entryMinAgeSec: 90 }],
+  ["creator bought nothing + older coins", { maxDevBuySol: 0.01, entryMinAgeSec: 90 }],
+  ["tighter stop-loss (8%)", { stopLossPct: 8 }],
+  ["creator bought nothing + tighter stop-loss", { maxDevBuySol: 0.01, stopLossPct: 8 }],
+  ["creator holds a small bag only (skip if > 3% of supply)", { maxDevHoldPct: 3 }],
   // Same trades, sized by conviction: worth it only if it earns more per SOL bought.
   ["bigger buys when sure (strong buying gets up to 2x)", {}, { conviction: true }],
 ];
@@ -134,10 +133,10 @@ async function main() {
       const allTrades = (await replay(usable, c, { mode: "edge", sizeSol: args.size, ...opts })).trades;
       const lateTrades = (await replay(h2, c, { mode: "edge", sizeSol: args.size, ...opts })).trades;
       const all = metrics(allTrades), late = metrics(lateTrades);
-      console.log(`${name}\n   all data     ${fmt(all)}\n   second half  ${fmt(late)}`);
-      if (opts.conviction) console.log(`   earned per SOL bought: ${perSol(allTrades).toFixed(1)}% all data, ${perSol(lateTrades).toFixed(1)}% second half (compare with "current settings")`);
+      console.log(`${name}\n   all data     ${fmt(all)}\n   second half  ${fmt(late)}\n   per SOL      ${perSol(allTrades).toFixed(1)}% all data, ${perSol(lateTrades).toFixed(1)}% second half`);
     }
-    console.log("\nTurn a switch on only if it wins on all data AND on the second half; with few trades, differences can be luck.");
+    console.log("\nA switch is worth turning on only if its per-SOL result beats \"current settings\" on all data AND on the second half,");
+    console.log("is above 0 in both, and still has a decent number of trades. With few trades, differences can be luck.");
     return;
   }
 

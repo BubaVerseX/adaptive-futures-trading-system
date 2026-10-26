@@ -82,9 +82,9 @@ bad coins; `replay --compare` shows whether looser rules pay on your data.
 ## Classic mode
 
 `--params pump/presets/classic.json` uses the money rules of the first live day:
-fixed 0.03 SOL bets (no 2x), at most 2 coins at once, a 10-minute pause after 3
-losses in a row and no new buys after -40% in a day. The buy/sell rules, every
-fix since, and the keep-half floor are the same as the default.
+fixed 0.03 SOL bets (no 2x), at most 2 coins at once and a 10-minute pause after 3
+losses in a row. It never stops for good: no keep-half floor, no daily stop. The
+buy/sell rules and every fix since are the same as the default.
 
 ## Max mode
 

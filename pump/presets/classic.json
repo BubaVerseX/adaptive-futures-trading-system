@@ -1,11 +1,12 @@
 {
-  "_about": "Classic: the money rules of the first live day (fixed 0.03 SOL bets, at most 2 coins at once, a 10-minute pause after 3 losses in a row, no new buys after -40% in a day), plus every later fix (correct bookkeeping, faster exits, more coins seen, free price checks). The keep-half floor stays on.",
+  "_about": "Classic: the first live day's money rules. Fixed 0.03 SOL bets, at most 2 coins at once, a 10-minute pause after 3 losses in a row, and it never stops for good (no keep-half floor, no daily stop). Plus every later fix (correct bookkeeping, faster exits, more coins seen, free price checks).",
   "risk": {
     "maxOpenPositions": 2,
     "maxTradeSol": 0.03,
     "convictionMax": 1,
     "compound": 0,
-    "dailyLossLimitPct": 40,
-    "lossStreakPauseMin": 10
+    "dailyLossLimitPct": 100,
+    "lossStreakPauseMin": 10,
+    "keepPct": 0
   }
 }

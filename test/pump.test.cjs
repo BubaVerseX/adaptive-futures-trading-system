@@ -129,12 +129,12 @@ test("config: by default it holds as many coins as it can pay for, never pauses,
   assert.equal(r.canEnter(1030, 0, 0.048).reason, "keep-floor");
 });
 
-test("config: classic preset brings back the first day's money rules, keeps the floor", () => {
+test("config: classic preset brings back the first day's money rules and never stops for good", () => {
   const cfg = loadConfig({ env: { PUMP_CONVICTION_MAX: "2" }, cwd: os.tmpdir(), paramsFile: path.join(__dirname, "..", "pump", "presets", "classic.json") });
   assert.deepEqual(cfg.strategy, cfgFor().strategy, "same buy/sell rules");
   assert.equal(cfg.risk.maxOpenPositions, 2);
   assert.equal(cfg.risk.convictionMax, 1, "the preset wins over .env");
-  assert.equal(cfg.risk.keepPct, 50);
+  assert.equal(cfg.risk.keepPct, 0, "no keep-half floor");
   const r = new RiskManager(cfg.risk, 0.15);
   const sure = strategy.conviction({ inflow30: 50, inflow15: 50 }, cfg.strategy, cfg.risk.convictionMax);
   assert.equal(sure, 1, "no 2x bets");
@@ -143,6 +143,9 @@ test("config: classic preset brings back the first day's money rules, keeps the 
   for (let i = 0; i < 3; i++) r.onTradeClosed(-0.005, t0);
   assert.equal(r.canEnter(t0 + 1000, 0, 0.13).reason, "loss-streak-pause");
   assert.ok(r.canEnter(t0 + 11 * 60000, 0, 0.13).ok);
+  // Even after losing most of the money it keeps trading small, never stops for good.
+  for (let i = 0; i < 12; i++) r.onTradeClosed(-0.008, t0 + 20 * 60000 + i * 11 * 60000);
+  assert.ok(r.canEnter(t0 + 24 * 3600000, 0, 0.04).ok);
 });
 
 test("config: max preset is the default without the keep-floor", () => {
