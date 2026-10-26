@@ -119,7 +119,7 @@ function makeFeed(cfg, conn) {
 }
 
 const GATE_WORDS = {
-  "keep-floor-room": "the rest is in open coins (keep-half rule)",
+  "keep-floor-room": "too close to the keep-half line for another trade",
   "insufficient-funds": "all money is in open coins",
   "max-open": "max coins open",
   "loss-streak-pause": "paused after a losing streak",
@@ -490,7 +490,8 @@ async function sellAll(cfg) {
   for (const h of held) {
     process.stdout.write(`selling ${h.mint} ... `);
     const r = await broker.sell({ mint: h.mint, fraction: 1 });
-    console.log(r.ok ? `+${r.solReceived.toFixed(6)} SOL` : `failed: ${r.error}`);
+    if (r.goneWithoutSale) console.log(`skipped: the coins are not in this wallet's own token account for it (account ${h.account}); see it on solscan.io`);
+    else console.log(r.ok ? `+${r.solReceived.toFixed(6)} SOL` : `failed: ${r.error}`);
   }
   const c = await broker.closeEmptyAccounts().catch((e) => ({ closed: 0, refundSol: 0, error: e.message }));
   if (c.closed) console.log(`closed ${c.closed} empty account(s): +${c.refundSol.toFixed(6)} SOL rent`);
