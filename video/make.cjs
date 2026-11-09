@@ -1,24 +1,29 @@
 #!/usr/bin/env node
 "use strict";
 
-const HELP = `Make a 30-second vertical video (1080×1920 MP4) of what both bots really did.
+const HELP = `Make a short vertical film (1080×1920 MP4) of what both bots really did:
+pump.fun and Bybit merged into one story, from the first trade to today.
 
-  node video/make.cjs              pump.fun (left) + Bybit (right), whole history
+  node video/make.cjs              the whole history, 30 seconds
+  node video/make.cjs --seconds 45 a longer cut
   node video/make.cjs --days 1     only the last day (good for a daily clip)
   node video/make.cjs --demo       preview with SAMPLE numbers (marked on screen)
 
-Where the numbers come from:
-  pump.fun  data/pump/trades-live-*.jsonl and data/pump/research-*.jsonl
+Where the numbers come from (nothing is made up; a missing source stays empty):
+  pump.fun  data/pump/trades-live-*.jsonl, research-*.jsonl, buyfails-live-*.jsonl
   Bybit     your closed positions, read from Bybit with the keys in .env
             (read-only; saved to data/video/bybit-closed-pnl.json, so later
-            runs only fetch what is new)
+            runs only fetch what is new) + the bot's logs in data/v*/*.log
+            (which strategy opened each trade, market checks, fee-gate skips)
+  SOL/USD   Bybit's public daily SOL price, to show both bots in dollars
 
 The video is drawn and encoded in your browser (Chrome or Safari), then saved
 to video/out/. Keep the tab open until it says done (about 1-2 minutes).
 
 Options:
   --days N              only the last N days
-  --bybit-from DATE     first day to read from Bybit (default 2026-06-01)
+  --seconds N           length of the film (20-90, default 30)
+  --bybit-from DATE     first day to read from Bybit (default 2026-05-01)
   --no-bybit / --no-pump   leave one bot out
   --chrome              open in Google Chrome instead of the default browser
   --no-open             just print the link
@@ -41,6 +46,7 @@ function parseArgs(argv) {
     if (k === "--help" || k === "-h") a.help = true;
     else if (k === "--demo") a.demo = true;
     else if (k === "--days") a.days = Number(argv[++i]);
+    else if (k === "--seconds") a.seconds = Number(argv[++i]);
     else if (k === "--bybit-from") a.bybitFrom = argv[++i];
     else if (k === "--no-bybit") a.noBybit = true;
     else if (k === "--no-pump") a.noPump = true;
@@ -60,34 +66,46 @@ function openUrl(url, chrome) {
 }
 
 async function collect(args) {
-  if (args.demo) return { demo: true, bots: data.demoBots() };
+  if (args.demo) {
+    const { bots, solUsd } = data.demoBots();
+    return { demo: true, bots, story: data.buildStory(bots, solUsd) };
+  }
   const fromMs = Number.isFinite(args.days) ? Date.now() - args.days * DAY : 0;
   const bots = [];
   if (!args.noPump) {
     const pump = data.loadPump(ROOT, { fromMs, mode: args.paper ? "paper" : "live" });
     const seen = pump.watched === null ? "no watched-coin files" : `${pump.watched.toLocaleString("en-US")} coins watched`;
-    console.log(`pump.fun: ${pump.trades.length} trades, ${seen}, status ${pump.status}`);
+    console.log(`pump.fun: ${pump.trades.length} trades, ${pump.fails.length} failed buys, ${seen}, status ${pump.status}`);
     bots.push(pump);
   }
   if (!args.noBybit) {
-    const from = Date.parse(`${args.bybitFrom || "2026-06-01"}T00:00:00Z`);
+    const from = Date.parse(`${args.bybitFrom || "2026-05-01"}T00:00:00Z`);
+    const logs = data.loadBybitLogs(ROOT);
+    if (logs) console.log(`Bybit logs: ${logs.entries.length} entries, ${logs.checks.toLocaleString("en-US")} market checks, ${logs.feeRejects} fee-gate skips`);
     try {
       const { rows, note } = await data.fetchBybitClosedPnl(ROOT, { fromMs: from, log: (m) => console.log(m) });
-      const bybit = data.bybitTimeline(rows, { fromMs });
+      const bybit = data.bybitTimeline(rows, { fromMs, logs });
       console.log(`Bybit: ${bybit.trades.length} closed trades${note ? ` (${note})` : ""}, status ${bybit.status}`);
-      bots.push(bybit);
+      if (bybit.trades.length || !note) bots.push(bybit);
     } catch (e) {
       console.log(`Bybit: could not read your trades — ${e.message}`);
-      console.log("       (run with --no-bybit to make the video without it)");
-      const empty = data.bybitTimeline([]);
-      bots.push(empty);
+      console.log("       (the film is made without Bybit; fix the keys and run again)");
     }
   }
-  if (!bots.length) throw new Error("nothing to show: both bots were left out");
-  return { demo: false, bots };
+  if (!bots.length || bots.every((b) => !b.trades.length && !b.lines.length)) throw new Error("no trades found to show");
+  let solUsd = null;
+  const pump = bots.find((b) => b.key === "pump");
+  if (pump && pump.trades.length) {
+    try {
+      solUsd = await data.fetchSolUsd(ROOT, pump.trades.map((t) => data.dayKey(t.close)), { log: (m) => console.log(m) });
+    } catch (e) {
+      console.log(`SOL price: not available (${e.message}) — pump.fun stays in SOL, no combined dollar total`);
+    }
+  }
+  return { demo: false, bots, story: data.buildStory(bots, solUsd) };
 }
 
-const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8" };
+const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".woff2": "font/woff2" };
 
 function serve(payload, args) {
   const outDir = path.join(__dirname, "out");
@@ -100,7 +118,15 @@ function serve(payload, args) {
           return res.end(JSON.stringify(payload));
         }
         const file = url.pathname === "/" ? "render.html" : url.pathname.slice(1);
-        const allowed = ["render.html", "render.js", "vendor/mp4-muxer.js"];
+        const allowed = [
+          "render.html",
+          "render.js",
+          "vendor/mp4-muxer.js",
+          "vendor/fonts/space-grotesk-latin-500-normal.woff2",
+          "vendor/fonts/space-grotesk-latin-700-normal.woff2",
+          "vendor/fonts/jetbrains-mono-latin-400-normal.woff2",
+          "vendor/fonts/jetbrains-mono-latin-700-normal.woff2",
+        ];
         if (!allowed.includes(file)) {
           res.writeHead(404);
           return res.end();
@@ -122,7 +148,7 @@ function serve(payload, args) {
         } else if (url.pathname === "/upload") {
           fs.mkdirSync(outDir, { recursive: true });
           const d = new Date();
-          const name = `bot-video-${d.toISOString().slice(0, 10)}-${String(d.getHours()).padStart(2, "0")}${String(d.getMinutes()).padStart(2, "0")}${payload.demo ? "-PREVIEW" : ""}.mp4`;
+          const name = `bot-film-${d.toISOString().slice(0, 10)}-${String(d.getHours()).padStart(2, "0")}${String(d.getMinutes()).padStart(2, "0")}${payload.demo ? "-PREVIEW" : ""}.mp4`;
           const file = path.join(outDir, name);
           fs.writeFileSync(file, body);
           res.end("ok");
@@ -148,8 +174,9 @@ function serve(payload, args) {
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) return console.log(HELP);
-  const { demo, bots } = await collect(args);
-  const payload = { demo, generatedAt: Date.now(), bots };
+  const { demo, bots, story } = await collect(args);
+  const seconds = Number.isFinite(args.seconds) ? Math.min(90, Math.max(20, args.seconds)) : 30;
+  const payload = { demo, generatedAt: Date.now(), seconds, bots, story };
   const file = await serve(payload, args);
   if (args.open && process.platform === "darwin") execFile("open", ["-R", file]);
 }

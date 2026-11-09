@@ -23,8 +23,8 @@ test("pump: trades sorted by close and tied to the line of the coin they bought"
   assert.deepEqual(bot.trades.map((t) => t.label), ["AY", "CEE"]);
   assert.equal(bot.trades[0].line, 0);
   assert.equal(bot.trades[1].line, 2);
-  assert.equal(bot.trades[0].why, "STOP");
-  assert.equal(bot.trades[1].why, "TP");
+  assert.equal(bot.trades[0].why, "STOP LOSS");
+  assert.equal(bot.trades[1].why, "TAKE PROFIT");
   assert.equal(bot.watched, 3);
   assert.equal(bot.lines[1].w, 1); // a coin that pumped hard draws brighter
 });
@@ -77,12 +77,72 @@ test(".env reader handles quotes and ignores comments", () => {
 });
 
 test("make.cjs options", () => {
-  assert.deepEqual(parseArgs(["--days", "1", "--chrome", "--no-bybit"]), { open: true, days: 1, chrome: true, noBybit: true });
+  assert.deepEqual(parseArgs(["--days", "1", "--chrome", "--no-bybit", "--seconds", "45"]), { open: true, days: 1, chrome: true, noBybit: true, seconds: 45 });
   assert.equal(parseArgs(["--no-open"]).open, false);
   assert.throws(() => parseArgs(["--nope"]), /unknown option/);
 });
 
-test("sample data is marked as a preview", () => {
-  const [pump, bybit] = data.demoBots();
-  assert.ok(pump.trades.length > 0 && bybit.trades.length > 0);
+test("pump: failed buys are kept with what they cost", () => {
+  const bot = data.pumpTimeline([], [], { buyFails: [{ atMs: 5, symbol: "x", feesSol: 0.00001 }, { atMs: 1, mint: "abcdefgh" }] });
+  assert.deepEqual(bot.fails.map((f) => f.label), ["ABCDEF", "X"]);
+  assert.equal(bot.fails[1].feesSol, 0.00001);
+});
+
+test("bybit logs: strategy per entry, market checks and fee-gate skips", () => {
+  const log = [
+    "[v33] [ETHUSDT/supertrend] 2026-07-14T10:00:00.000Z no entry signal, waiting.",
+    "[v33] [SOLUSDT/pullback] entry REJECTED by fee gate: target=3bps",
+    "[v33] ENTRY LONG ETHUSDT qty=0.01",
+    "[v33] [ETHUSDT/breakout] ENTRY recorded: { ok: true }",
+    "[v33] [ETHUSDT/supertrend] 2026-07-14T12:00:00.000Z no entry signal, waiting.",
+  ].join("\n");
+  const logs = data.parseBybitLogs([log]);
+  assert.equal(logs.checks, 2);
+  assert.equal(logs.feeRejects, 1);
+  assert.deepEqual(logs.byStrategy, { breakout: 1 });
+  assert.deepEqual(logs.entries, [{ symbol: "ETHUSDT", strategy: "breakout", t: Date.parse("2026-07-14T10:00:00Z") }]);
+  const close = Date.parse("2026-07-14T11:30:00Z");
+  const bot = data.bybitTimeline([
+    { orderId: "1", symbol: "ETHUSDT", side: "Sell", closedPnl: "1", updatedTime: String(close) },
+    { orderId: "2", symbol: "SOLUSDT", side: "Sell", closedPnl: "1", updatedTime: String(close) },
+  ], { logs });
+  assert.deepEqual(bot.trades.map((t) => t.why).sort(), ["", "breakout"]);
+  assert.equal(bot.logs.checks, 2);
+});
+
+test("story: one timeline, intermission for a long pause, highlights from real trades", () => {
+  const D = data.DAY;
+  const pump = data.pumpTimeline([trade("A", "aa", 100 * D, 100 * D + 60e3, 0.01, "take-profit-1"), trade("B", "bb", 101 * D, 101 * D + 60e3, -0.02)], []);
+  const row = (id, pnl, t) => ({ orderId: id, symbol: "ETHUSDT", side: "Sell", closedPnl: String(pnl), openFee: "0.1", closeFee: "0.1", updatedTime: String(t) });
+  const bybit = data.bybitTimeline([row("1", 2, 10 * D), row("2", -1, 11 * D)]);
+  const sol = { [data.dayKey(100 * D)]: 100, [data.dayKey(101 * D)]: 200 };
+  const st = data.buildStory([pump, bybit], sol);
+  assert.equal(st.gaps.length, 1);
+  assert.equal(st.gaps[0].days, 89);
+  assert.deepEqual(st.chapters.map((c) => c.title), ["BYBIT", "PUMP.FUN"]);
+  const kinds = st.highlights.map((h) => `${h.bot || "-"}:${h.kind}`);
+  for (const k of ["bybit:start", "bybit:best", "bybit:worst", "bybit:stop", "-:gap", "pump:start", "pump:best", "pump:worst"]) assert.ok(kinds.includes(k), k);
+  const stop = st.highlights.find((h) => h.kind === "stop");
+  assert.equal(stop.value, "net +$1.00");
+  assert.equal(stop.sub, "fees paid $0.40");
+  assert.equal(st.priced, true);
+  const p = st.totals.find((t) => t.key === "pump");
+  assert.ok(Math.abs(p.usd - (0.01 * 100 - 0.02 * 200)) < 1e-9); // SOL priced on each trade's own day
+  assert.equal(p.trades, 2);
+  assert.equal(p.wins, 1);
+});
+
+test("story: without a SOL price there is no dollar total for pump.fun (never guessed)", () => {
+  const pump = data.pumpTimeline([trade("A", "aa", 1, 2, 0.01)], []);
+  const st = data.buildStory([pump], null);
+  assert.equal(st.priced, false);
+  assert.equal(st.totals[0].usd, null);
+  assert.equal(pump.trades[0].usd, null);
+});
+
+test("sample data is a full story", () => {
+  const { bots, solUsd } = data.demoBots();
+  const st = data.buildStory(bots, solUsd);
+  assert.ok(bots.every((b) => b.trades.length > 0));
+  assert.ok(st.highlights.length >= 8);
 });
