@@ -40,3 +40,6 @@ gitleaks-public-report.json
 pump/wallet*.json
 *.wallet.json
 STOP_PUMP.txt
+
+# bot videos
+video/out/

@@ -1,0 +1,25 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bot Video</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #020308; color: #cfe3f2; font: 15px Menlo, "SF Mono", "DejaVu Sans Mono", monospace; }
+  #wrap { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 12px; }
+  #status { min-height: 20px; }
+  #bar { width: 360px; height: 6px; background: #10202c; border-radius: 3px; overflow: hidden; }
+  #bar i { display: block; height: 100%; width: 0; background: #5fd4ff; }
+  canvas { height: calc(100vh - 80px); width: auto; aspect-ratio: 9 / 16; border: 1px solid #1b2a3a; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="status">loading…</div>
+  <div id="bar"><i></i></div>
+  <canvas id="c" width="1080" height="1920"></canvas>
+</div>
+<script src="vendor/mp4-muxer.js"></script>
+<script src="render.js"></script>
+</body>
+</html>
