@@ -117,6 +117,7 @@ function pumpTimeline(trades, research, { fromMs = 0, toMs = Infinity, live = fa
       label: String(t.symbol || t.mint.slice(0, 6)).slice(0, 10).toUpperCase(),
       side: "BUY",
       size: Number(t.sizeSol) || 0,
+      stake: Number(t.costSol) || Number(t.sizeSol) || 0, // what the trade put in
       pnl: t.netSol,
       pct: Number.isFinite(t.netPct) ? t.netPct : null,
       peak: Number.isFinite(t.peakGainPct) ? t.peakGainPct : null,
@@ -236,6 +237,7 @@ function bybitTimeline(rows, { fromMs = 0, toMs = Infinity, logs = null } = {}) 
   const trades = list.map((r, i) => {
     const entry = Number(r.cumEntryValue) || 0;
     const pnl = Number(r.closedPnl);
+    const stake = entry > 0 ? entry / (Number(r.leverage) || 1) : 0; // margin put in
     const fee = Number(r.openFee || 0) + Number(r.closeFee || 0);
     const close = Number(r.updatedTime);
     return {
@@ -245,8 +247,9 @@ function bybitTimeline(rows, { fromMs = 0, toMs = Infinity, logs = null } = {}) 
       // closed-pnl's side is the closing order: a Sell closes a long.
       side: r.side === "Sell" ? "LONG" : "SHORT",
       size: entry,
+      stake,
       pnl,
-      pct: null,
+      pct: stake > 0 ? (pnl / stake) * 100 : null, // ROI on margin, as Bybit shows it
       fee: Number.isFinite(fee) ? fee : 0,
       why: strategyFor(r.symbol, close) || "",
       line: i,
@@ -418,8 +421,12 @@ function buildStory(bots, solUsd = null) {
       if (bot.unit === "SOL") {
         const p = solPrice(t.close);
         t.usd = p === null ? null : t.pnl * p;
+        t.usdStake = p === null ? null : (t.stake || 0) * p;
         if (p === null) priced = false;
-      } else t.usd = t.pnl;
+      } else {
+        t.usd = t.pnl;
+        t.usdStake = t.stake || 0;
+      }
     }
   }
 
@@ -452,20 +459,22 @@ function buildStory(bots, solUsd = null) {
 
   // Highlight candidates; the renderer keeps the ones that fit without crowding.
   const H = [];
-  const money = (bot, v) => (bot.unit === "SOL" ? `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toFixed(4)} SOL` : `${v > 0 ? "+" : v < 0 ? "−" : ""}$${Math.abs(v).toFixed(2)}`);
-  const tradeText = (bot, t) => `${t.label}${bot.key === "bybit" ? ` ${t.side}` : t.pct !== null ? ` ${t.pct > 0 ? "+" : "−"}${Math.abs(t.pct).toFixed(0)}%` : ""}`;
+  // Percentages only: no dollar or SOL amounts on screen.
+  const pctText = (v) => (v === null || !Number.isFinite(v) ? "—" : `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toFixed(1)}%`);
+  const tradeText = (bot, t) => `${t.label}${bot.key === "bybit" ? ` ${t.side}` : ""}`;
+  const score = (t) => (t.pct !== null ? t.pct : t.pnl);
   for (const bot of bots) {
     const T = bot.trades;
     if (!T.length) continue;
-    H.push({ t: T[0].close, kind: "start", bot: bot.key, trade: 0, priority: 9, title: `${bot.title} BOT GOES LIVE`, value: tradeText(bot, T[0]), sub: `first trade · ${money(bot, T[0].pnl)}` });
+    H.push({ t: T[0].close, kind: "start", bot: bot.key, trade: 0, priority: 9, title: `${bot.title} BOT GOES LIVE`, value: tradeText(bot, T[0]), sub: `first trade ${pctText(T[0].pct)}` });
     let bi = 0;
     let wi = 0;
     T.forEach((t, i) => {
-      if (t.pnl > T[bi].pnl) bi = i;
-      if (t.pnl < T[wi].pnl) wi = i;
+      if (score(t) > score(T[bi])) bi = i;
+      if (score(t) < score(T[wi])) wi = i;
     });
-    if (T[bi].pnl > 0) H.push({ t: T[bi].close, kind: "best", bot: bot.key, trade: bi, priority: 10, title: `BEST ${bot.title} TRADE`, value: money(bot, T[bi].pnl), sub: tradeText(bot, T[bi]) + (T[bi].why ? ` · ${T[bi].why}` : "") });
-    if (T[wi].pnl < 0) H.push({ t: T[wi].close, kind: "worst", bot: bot.key, trade: wi, priority: 8, title: `WORST ${bot.title} TRADE`, value: money(bot, T[wi].pnl), sub: tradeText(bot, T[wi]) + (T[wi].why ? ` · ${T[wi].why}` : "") });
+    if (T[bi].pnl > 0) H.push({ t: T[bi].close, kind: "best", bot: bot.key, trade: bi, priority: 10, title: `BEST ${bot.title} TRADE`, value: pctText(T[bi].pct), sub: tradeText(bot, T[bi]) + (T[bi].why ? ` · ${T[bi].why}` : "") });
+    if (T[wi].pnl < 0) H.push({ t: T[wi].close, kind: "worst", bot: bot.key, trade: wi, priority: 8, title: `WORST ${bot.title} TRADE`, value: pctText(T[wi].pct), sub: tradeText(bot, T[wi]) + (T[wi].why ? ` · ${T[wi].why}` : "") });
     // longest run of wins
     let run = 0;
     let bestRun = 0;
@@ -480,8 +489,9 @@ function buildStory(bots, solUsd = null) {
     if (bestRun >= 4) H.push({ t: T[runEnd].close, kind: "streak", bot: bot.key, trade: runEnd, priority: 6, title: `${bestRun} WINS IN A ROW`, value: bot.title, sub: `ended on ${T[runEnd].label}` });
     if (bot.status === "STOPPED") {
       const net = T.reduce((s, t) => s + t.pnl, 0);
-      const fees = T.reduce((s, t) => s + (t.fee || 0), 0);
-      H.push({ t: T[T.length - 1].close, kind: "stop", bot: bot.key, trade: T.length - 1, priority: 9, title: `${bot.title} BOT STOPPED`, value: `net ${money(bot, net)}`, sub: fees > 0 ? `fees paid $${fees.toFixed(2)}` : `${T.length} trades` });
+      const stake = T.reduce((s, t) => s + (t.stake || 0), 0);
+      const won = T.filter((t) => t.pnl > 0).length;
+      H.push({ t: T[T.length - 1].close, kind: "stop", bot: bot.key, trade: T.length - 1, priority: 9, title: `${bot.title} BOT STOPPED`, value: `${pctText(stake > 0 ? (net / stake) * 100 : null)} per trade`, sub: `${T.length} trades · ${Math.round((won / T.length) * 100)}% won` });
     }
     if (bot.watched) {
       for (const m of [1000, 5000, 10000, 50000]) {
@@ -495,7 +505,7 @@ function buildStory(bots, solUsd = null) {
     if (all.length < m) break;
     const x = all[m - 1];
     const bot = bots.find((b) => b.key === x.bot);
-    H.push({ t: x.t.close, kind: "milestone", bot: x.bot, trade: x.i, priority: 5, title: `TRADE #${m}`, value: tradeText(bot, x.t), sub: money(bot, x.t.pnl) });
+    H.push({ t: x.t.close, kind: "milestone", bot: x.bot, trade: x.i, priority: 5, title: `TRADE #${m}`, value: tradeText(bot, x.t), sub: pctText(x.t.pct) });
   }
   for (const g of gaps) H.push({ t: g.from + 1, kind: "gap", priority: 10, title: "INTERMISSION", value: `${g.days} DAYS`, sub: "no trading" });
   H.sort((a, b) => a.t - b.t);
@@ -513,6 +523,12 @@ function buildStory(bots, solUsd = null) {
       wins,
       pnl: T.reduce((s, t) => s + t.pnl, 0),
       usd: priced || bot.unit !== "SOL" ? T.reduce((s, t) => s + (t.usd || 0), 0) : null,
+      stake: T.reduce((s, t) => s + (t.stake || 0), 0),
+      // return per trade, weighted by size: everything won or lost / everything put in
+      ret: (() => {
+        const st = T.reduce((s, t) => s + (t.stake || 0), 0);
+        return st > 0 ? (T.reduce((s, t) => s + t.pnl, 0) / st) * 100 : null;
+      })(),
       fees: T.reduce((s, t) => s + (t.fee || 0), 0),
       best: T.length ? Math.max(...T.map((t) => t.pnl)) : 0,
       worst: T.length ? Math.min(...T.map((t) => t.pnl)) : 0,
@@ -526,7 +542,21 @@ function buildStory(bots, solUsd = null) {
       last: T.length ? T[T.length - 1].close : null,
     };
   });
-  return { start, end, gaps, chapters, highlights: H, totals, priced };
+  // both bots together: everything won or lost / everything put in, in dollars
+  let overallRet = null;
+  if (priced) {
+    let won = 0;
+    let put = 0;
+    for (const bot of bots) {
+      for (const t of bot.trades) {
+        const k = bot.unit === "SOL" ? solPrice(t.close) : 1;
+        won += t.pnl * k;
+        put += (t.stake || 0) * k;
+      }
+    }
+    overallRet = put > 0 ? (won / put) * 100 : null;
+  }
+  return { start, end, gaps, chapters, highlights: H, totals, priced, overallRet };
 }
 
 // ---------------------------------------------------------------- sample data (preview only)
@@ -568,7 +598,7 @@ function demoBots(seed = 7) {
     const size = 0.01 + rnd() * 0.02;
     trades.push({
       mint: c.mint, symbol: names[i % names.length], openedAtMs: open, closedAtMs: open + (30 + rnd() * 400) * 1000,
-      sizeSol: size, netSol: (size * pct) / 100, netPct: pct,
+      sizeSol: size, costSol: size * 1.01, netSol: (size * 1.01 * pct) / 100, netPct: pct, peakGainPct: Math.max(pct, 0) + rnd() * 40,
       exits: [{ reason: win ? (rnd() < 0.5 ? "take-profit-1" : "trailing-stop") : rnd() < 0.5 ? "stop-loss" : "dev-sold" }],
     });
   }

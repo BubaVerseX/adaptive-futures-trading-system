@@ -113,7 +113,7 @@ test("bybit logs: strategy per entry, market checks and fee-gate skips", () => {
 test("story: one timeline, intermission for a long pause, highlights from real trades", () => {
   const D = data.DAY;
   const pump = data.pumpTimeline([trade("A", "aa", 100 * D, 100 * D + 60e3, 0.01, "take-profit-1"), trade("B", "bb", 101 * D, 101 * D + 60e3, -0.02)], []);
-  const row = (id, pnl, t) => ({ orderId: id, symbol: "ETHUSDT", side: "Sell", closedPnl: String(pnl), openFee: "0.1", closeFee: "0.1", updatedTime: String(t) });
+  const row = (id, pnl, t) => ({ orderId: id, symbol: "ETHUSDT", side: "Sell", closedPnl: String(pnl), cumEntryValue: "10", leverage: "2", openFee: "0.1", closeFee: "0.1", updatedTime: String(t) });
   const bybit = data.bybitTimeline([row("1", 2, 10 * D), row("2", -1, 11 * D)]);
   const sol = { [data.dayKey(100 * D)]: 100, [data.dayKey(101 * D)]: 200 };
   const st = data.buildStory([pump, bybit], sol);
@@ -123,8 +123,13 @@ test("story: one timeline, intermission for a long pause, highlights from real t
   const kinds = st.highlights.map((h) => `${h.bot || "-"}:${h.kind}`);
   for (const k of ["bybit:start", "bybit:best", "bybit:worst", "bybit:stop", "-:gap", "pump:start", "pump:best", "pump:worst"]) assert.ok(kinds.includes(k), k);
   const stop = st.highlights.find((h) => h.kind === "stop");
-  assert.equal(stop.value, "net +$1.00");
-  assert.equal(stop.sub, "fees paid $0.40");
+  // percent only: +1 won on 2 trades of 5 margin each = +10% per trade
+  assert.equal(stop.value, "+10.0% per trade");
+  assert.equal(stop.sub, "2 trades · 50% won");
+  assert.ok(st.highlights.every((h) => !/\$|SOL\b/.test(`${h.value} ${h.sub}`)), "no money amounts on screen");
+  const b = st.totals.find((t) => t.key === "bybit");
+  assert.ok(Math.abs(b.ret - 10) < 1e-9);
+  assert.ok(Math.abs(bybit.trades[0].pct - 40) < 1e-9); // +2 on 5 margin
   assert.equal(st.priced, true);
   const p = st.totals.find((t) => t.key === "pump");
   assert.ok(Math.abs(p.usd - (0.01 * 100 - 0.02 * 200)) < 1e-9); // SOL priced on each trade's own day

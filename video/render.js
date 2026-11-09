@@ -1,7 +1,7 @@
 "use strict";
 /* global Mp4Muxer */
 /*
- * The bot film: both bots' real records played back as one story, frame by frame,
+ * The bot film: both bots' real records played back as one dashboard, frame by frame,
  * from /data.json. In record mode it encodes an MP4 in the browser and posts it to
  * make.cjs.
  *
@@ -9,9 +9,10 @@
  *   /?t=12.5     draw one frame at 12.5 s             (stills / checks)
  *   /?play=1     play it live in the page
  *
- * Acts: cold open -> title -> the replay (one big scene: a ring per bot, linked;
- * the clock runs from the first trade to today, slowing down on real highlights) ->
- * the record (final scorecard).
+ * Layout: header and clock on top; the two linked rings (one per bot) in the main
+ * window with instrument panels down the right side; a P&L stream and three panels
+ * along the bottom. Results are shown in percent only, never in dollars or SOL.
+ * The replay runs from the first trade to today and slows down on real highlights.
  */
 
 const W = 1080;
@@ -25,20 +26,27 @@ const COL = {
   text: "#e9f1fb",
   mid: "#9fb3c8",
   dim: "#5d7189",
-  edge: "rgba(120, 180, 240, 0.22)",
+  edge: "rgba(120, 180, 240, 0.20)",
+  edgeHi: "rgba(150, 205, 255, 0.5)",
   green: "#3dff9a",
   red: "#ff4d6d",
   gold: "#ffd36a",
+  orange: "#ff9b3d",
 };
 const LOOK = {
   bybit: { name: "BYBIT FUTURES", short: "BYBIT", color: "#ffad42", win: "#ffd76e", loss: "#ff4f4f", base: [255, 196, 120] },
   pump: { name: "PUMP.FUN", short: "PUMP", color: "#47e1ff", win: "#52ffc6", loss: "#ff4d8d", base: [150, 214, 255] },
 };
 
+// layout
+const RING = { x: 28, y: 322, w: 686, h: 1008 };
+const SIDE = { x: 728, w: 324 };
+const RING_CX = RING.x + RING.w / 2;
+const RING_CY = RING.y + RING.h / 2 + 6;
+
 let DUR = 30;
-const T_COLD = 2.2; // cold open ends
-const T0 = 5.0; // replay starts
-let T1 = 24.5; // replay ends, the record begins
+const T0 = 1.0; // replay starts (after the dashboard fades in)
+let T1 = 26; // replay ends, final result holds
 let R = T1 - T0;
 
 const canvas = document.getElementById("c");
@@ -82,8 +90,8 @@ function num(v, dec = 0) {
   return i.replace(/\B(?=(\d{3})+(?!\d))/g, ",") + (d ? "." + d : "");
 }
 const sign = (v) => (v > 0 ? "+" : v < 0 ? "−" : "");
-const signed = (v, dec) => sign(v) + num(v, dec);
-const usd = (v, dec = 2) => `${sign(v)}$${num(v, dec)}`;
+const pct = (v, dec = 1) => (v === null || v === undefined || !Number.isFinite(v) ? "—" : `${sign(v)}${num(v, dec)}%`);
+const pctPlain = (v, dec = 0) => (v === null || !Number.isFinite(v) ? "—" : `${num(v, dec)}%`);
 const pad2 = (n) => String(n).padStart(2, "0");
 const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
 const dateText = (ms) => {
@@ -94,14 +102,11 @@ const timeText = (ms) => {
   const d = new Date(ms);
   return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 };
-const shortStamp = (ms) => {
-  const d = new Date(ms);
-  return `${pad2(d.getDate())} ${MONTHS[d.getMonth()]} ${timeText(ms)}`;
-};
 function rgba(hex, a) {
   const n = parseInt(hex.slice(1), 16);
   return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
 }
+const signColor = (v) => (v > 0 ? COL.green : v < 0 ? COL.red : COL.text);
 
 function txt(c, s, x, y, o = {}) {
   const { size = 16, weight = 500, font = MONO, color = COL.text, align = "left", alpha = 1, spacing = 0, glow = 0 } = o;
@@ -135,19 +140,30 @@ function txt(c, s, x, y, o = {}) {
   return width;
 }
 
-function glass(c, x, y, w, h, alpha = 1, accent = null, fill = 0.72) {
+// panel: dark glass, hairline border, corner ticks, tiny caps title
+function panel(x, y, w, h, title, alpha = 1, right = "", accent = null, fill = 0.66) {
   if (alpha <= 0.002) return;
-  c.save();
-  c.globalAlpha *= alpha;
-  c.fillStyle = `rgba(5, 10, 21, ${fill})`;
-  c.beginPath();
-  if (c.roundRect) c.roundRect(x, y, w, h, 14);
-  else c.rect(x, y, w, h);
-  c.fill();
-  c.strokeStyle = accent ? rgba(accent, 0.55) : COL.edge;
-  c.lineWidth = 1.2;
-  c.stroke();
-  c.restore();
+  ctx.save();
+  ctx.globalAlpha *= alpha;
+  ctx.fillStyle = `rgba(5, 10, 21, ${fill})`;
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = accent ? rgba(accent, 0.5) : COL.edge;
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+  ctx.strokeStyle = accent ? rgba(accent, 0.9) : COL.edgeHi;
+  ctx.lineWidth = 2;
+  const k = 8;
+  ctx.beginPath();
+  ctx.moveTo(x, y + k);
+  ctx.lineTo(x, y);
+  ctx.lineTo(x + k, y);
+  ctx.moveTo(x + w - k, y + h);
+  ctx.lineTo(x + w, y + h);
+  ctx.lineTo(x + w, y + h - k);
+  ctx.stroke();
+  ctx.restore();
+  if (title) txt(ctx, title, x + 12, y + 20, { size: 11, weight: 700, color: COL.dim, spacing: 1.5, alpha });
+  if (right) txt(ctx, right, x + w - 12, y + 20, { size: 11, weight: 700, color: COL.dim, align: "right", alpha });
 }
 
 // ------------------------------------------------------------------ data prep
@@ -157,7 +173,6 @@ let BOTS;
 let CLOCK;
 let ALL;
 let PLAN;
-let EVENTS;
 
 function buildClock() {
   // Replay position p (0..1) for a moment in time. Mostly "how much has happened by
@@ -188,14 +203,13 @@ function buildClock() {
   const pOf = (ms) => {
     if (ms <= start) return 0;
     if (ms >= end) return 1;
-    const i = upperBound(times, ms); // times[i-1] <= ms < times[i]
+    const i = upperBound(times, ms);
     const before = i > 0 ? cumW[i - 1] : 0;
     const t0 = i > 0 ? times[i - 1] : start;
     const frac = (ms - t0) / Math.max(1, times[i] - t0);
     const q = (before + (cumW[i] - before) * frac) / totalW;
     return LIN * ((ms - start) / span) + (1 - LIN) * q;
   };
-  // inverse, tabulated once
   const K = 4000;
   const tab = new Float64Array(K + 1);
   for (let k = 0; k <= K; k++) {
@@ -249,59 +263,52 @@ function prepBot(bot, index, count) {
   B.trades.forEach((t, i) => {
     if (t.line >= 0 && t.line < L.length) B.tradeOfLine[t.line] = i;
   });
-  // where the ring sits: two rings link through each other, one ring sits alone
   B.mode = count === 1 ? "solo" : bot.key === "bybit" ? "top" : "bottom";
   B.spin = bot.key === "bybit" ? 0.2 : -0.17;
-  // particles on the ring surface
   B.dust = [];
-  for (let k = 0; k < 80; k++) {
+  for (let k = 0; k < 70; k++) {
     const s = index * 1000 + k;
     B.dust.push([hash(s, 11) * Math.PI * 2, hash(s, 12) * Math.PI * 2, 0.3 + 0.75 * hash(s, 13), hash(s, 14)]);
   }
+  // P&L shape in units of this bot's average stake (no money shown, only the shape)
+  const stake = B.trades.reduce((s, t) => s + (t.stake || 0), 0);
+  const avgStake = B.trades.length && stake > 0 ? stake / B.trades.length : 1;
+  let r = 0;
+  B.shape = Float64Array.from(B.trades.map((t) => (r += t.pnl / avgStake)));
+  // fine activity histogram over the replay
+  B.act = new Float32Array(1200);
+  for (const v of B.pClose) B.act[Math.min(1199, Math.floor(v * 1200))]++;
   return B;
 }
 
 function prep() {
   DUR = D.seconds || 30;
-  T1 = DUR - 5.5;
+  T1 = DUR - 4;
   R = T1 - T0;
   CLOCK = buildClock();
   BOTS = D.bots.map((b, i) => prepBot(b, i, D.bots.length));
-  // every closed trade of both bots in one line, for the totals and the chart
   ALL = [];
   BOTS.forEach((B) => B.trades.forEach((t, i) => ALL.push({ B, i, p: B.pClose[i], t })));
   ALL.sort((a, b) => a.p - b.p);
   ALL.p = Float64Array.from(ALL.map((x) => x.p));
+  // P&L shape across both bots, each trade in units of its bot's average stake
+  const avgStake = new Map(
+    BOTS.map((B) => {
+      const s = B.trades.reduce((sum, t) => sum + (t.stake || 0), 0);
+      return [B, B.trades.length && s > 0 ? s / B.trades.length : 1];
+    }),
+  );
   let run = 0;
-  ALL.cum = Float64Array.from(ALL.map((x) => (run += x.t.usd || 0)));
-  ALL.min = Math.min(0, ...ALL.cum);
-  ALL.max = Math.max(0, ...ALL.cum);
-  // per bot running sums (for the unpriced chart) and activity over real time (scrubber)
-  for (const B of BOTS) {
-    let r = 0;
-    B.cum = Float64Array.from(B.trades.map((t) => (r += t.pnl)));
-    B.cumMin = Math.min(0, ...B.cum);
-    B.cumMax = Math.max(0, ...B.cum);
-    B.hist = new Float32Array(240);
-    for (const t of B.trades) B.hist[Math.min(239, Math.floor(((t.close - CLOCK.start) / CLOCK.span) * 240))]++;
-    for (const l of B.lines) B.hist[Math.min(239, Math.floor(((l.t - CLOCK.start) / CLOCK.span) * 240))] += 0.02;
-    B.histMax = Math.max(1e-9, ...B.hist);
-  }
-  // ticker events: closed trades and failed buys
-  EVENTS = [];
-  BOTS.forEach((B) => {
-    B.trades.forEach((t, i) => EVENTS.push({ p: B.pClose[i], B, kind: "close", t }));
-    B.fails.forEach((f) => EVENTS.push({ p: CLOCK.pOf(f.t), B, kind: "fail", f }));
-  });
-  EVENTS.sort((a, b) => a.p - b.p);
-  EVENTS.p = Float64Array.from(EVENTS.map((e) => e.p));
+  ALL.shape = Float64Array.from(ALL.map((x) => (run += x.t.pnl / avgStake.get(x.B))));
+  ALL.min = Math.min(0, ...ALL.shape);
+  ALL.max = Math.max(0, ...ALL.shape);
   PLAN = planStory();
 }
 
 // ------------------------------------------------------------------ story plan: highlights + slow motion
 
 const E_HL = 1.15; // extra seconds of slow motion per highlight
-const E_GAP = 2.9; // seconds an intermission takes (end of a chapter -> pause -> next chapter)
+const E_GAP = 2.6; // seconds an intermission takes
 function buildMap(sel) {
   const K = 4000;
   const extra = sel.reduce((s, h) => s + (h.kind === "gap" ? E_GAP : E_HL), 0);
@@ -343,7 +350,7 @@ function buildMap(sel) {
 }
 
 function windowOf(h, map) {
-  if (h.kind === "gap") return [map.secOf(h.p0) - 0.25, map.secOf(h.p1) + 0.45];
+  if (h.kind === "gap") return [map.secOf(h.p0) - 0.25, map.secOf(h.p1) + 0.4];
   const s = map.secOf(h.p);
   return [s - 0.15, s + 1.95];
 }
@@ -401,14 +408,62 @@ function stateAt(p) {
   const bots = BOTS.map((B) => {
     const n = upperBound(B.pClose, p);
     let wins = 0;
-    for (let i = 0; i < n; i++) if (B.trades[i].pnl > 0) wins++;
-    let open = 0;
-    for (let i = 0; i < B.trades.length; i++) if (B.pOpen[i] <= p && B.pClose[i] > p) open++;
+    let pnl = 0;
+    let stake = 0;
+    let best = null;
+    let worst = null;
+    let peak = 0;
+    let exit = 0;
+    let peakN = 0;
+    const why = {};
+    for (let i = 0; i < n; i++) {
+      const t = B.trades[i];
+      if (t.pnl > 0) wins++;
+      pnl += t.pnl;
+      stake += t.stake || 0;
+      if (t.pct !== null) {
+        best = best === null ? t.pct : Math.max(best, t.pct);
+        worst = worst === null ? t.pct : Math.min(worst, t.pct);
+      }
+      if (t.peak !== null && t.peak !== undefined && t.pct !== null) {
+        peak += t.peak;
+        exit += t.pct;
+        peakN++;
+      }
+      if (t.why) why[t.why] = (why[t.why] || 0) + 1;
+      else if (B.key === "bybit") why["~" + t.side] = (why["~" + t.side] || 0) + 1;
+    }
     const lines = upperBound(B.pAppear, p);
-    return { n, wins, open, lines, pnl: n ? B.cum[n - 1] : 0, watched: B.watched === null ? null : Math.min(B.watched, lines * B.perLine) };
+    return {
+      n,
+      wins,
+      ret: stake > 0 ? (pnl / stake) * 100 : null,
+      best,
+      worst,
+      avgPeak: peakN ? peak / peakN : null,
+      avgExit: peakN ? exit / peakN : null,
+      why,
+      lines,
+      watched: B.watched === null ? null : Math.min(B.watched, lines * B.perLine),
+    };
   });
   const m = upperBound(ALL.p, p);
-  return { bots, total: m ? ALL.cum[m - 1] : 0, trades: m, wins: bots.reduce((s, b) => s + b.wins, 0) };
+  let won = 0;
+  let put = 0;
+  let priced = true;
+  for (let i = 0; i < m; i++) {
+    const t = ALL[i].t;
+    if (t.usdStake === null || t.usdStake === undefined) priced = false;
+    won += t.usd || 0;
+    put += t.usdStake || 0;
+  }
+  return {
+    bots,
+    m,
+    trades: bots.reduce((s, b) => s + b.n, 0),
+    wins: bots.reduce((s, b) => s + b.wins, 0),
+    ret: priced && put > 0 && D.story.priced ? (won / put) * 100 : null,
+  };
 }
 
 // ------------------------------------------------------------------ the scene: rings in 3D
@@ -422,35 +477,32 @@ function baseCamera(sec) {
   return {
     theta: 0.82 + 0.3 * Math.sin(sec * 0.21),
     pitch: 0.2 + 0.06 * Math.sin(sec * 0.15 + 1),
-    scale: BOTS.length === 1 ? 255 : 202,
-    cx: W / 2,
-    cy: 800,
+    scale: BOTS.length === 1 ? 210 : 168,
+    cx: RING_CX,
+    cy: RING_CY,
     sec,
   };
 }
 
 function camera(sec) {
   const cam = baseCamera(sec);
-  let zoom = 1;
-  if (sec < T0) zoom = 0.7 + 0.3 * easeOut((sec - T_COLD) / (T0 - T_COLD));
+  let zoom = 0.86 + 0.14 * easeOut(sec / 1.2);
   let sx = 0;
   let sy = 0;
   for (const h of PLAN.sel) {
     const e = envelope(h, sec);
     if (e <= 0) continue;
     const a = projectPoint(h.B, h.line, N >> 1, cam);
-    zoom += 0.15 * e;
-    sx += (a.x - cam.cx) * 0.28 * e;
-    sy += (a.y - cam.cy) * 0.28 * e;
+    zoom += 0.14 * e;
+    sx += (a.x - cam.cx) * 0.25 * e;
+    sy += (a.y - cam.cy) * 0.25 * e;
   }
-  if (sec > T1) zoom *= 1 - 0.2 * smooth((sec - T1) / 1.2);
   cam.scale *= zoom;
   cam.cx -= sx;
   cam.cy -= sy;
   return cam;
 }
 
-// local torus point (axis z) -> screen, for ring B under camera cam
 function makeProjector(B, cam) {
   const phi = cam.sec * B.spin;
   const cf = Math.cos(phi);
@@ -469,11 +521,11 @@ function makeProjector(B, cam) {
     let wz;
     if (mode === "top") {
       wx = x1;
-      wy = y1 + 0.5;
+      wy = y1 + 0.62;
       wz = z;
     } else if (mode === "bottom") {
       wx = z;
-      wy = y1 - 0.5;
+      wy = y1 - 0.62;
       wz = x1;
     } else {
       wx = x1;
@@ -515,7 +567,7 @@ function drawRing(c, B, cam, sec, p, ignite) {
   c.globalCompositeOperation = "lighter";
 
   // scaffold: faint wireframe so the ring is there before its first line
-  c.strokeStyle = rgba(look.color, 0.05 + 0.1 * ignite);
+  c.strokeStyle = rgba(look.color, 0.04 + 0.08 * ignite);
   c.lineWidth = 1;
   c.beginPath();
   for (let k = 0; k < 9; k++) {
@@ -529,13 +581,12 @@ function drawRing(c, B, cam, sec, p, ignite) {
   }
   c.stroke();
 
-  // dust
   for (const [u, v, r, ph] of B.dust) {
     const rr = 0.42 * r;
     proj((1 + rr * Math.cos(v)) * Math.cos(u), (1 + rr * Math.cos(v)) * Math.sin(u), rr * Math.sin(v), tmp);
     const tw = 0.35 + 0.65 * Math.abs(Math.sin(sec * (1.3 + ph * 2) + ph * 10));
-    c.fillStyle = rgba(look.color, (0.25 + 0.5 * ignite) * tw);
-    c.fillRect(tmp[0] - 1.2, tmp[1] - 1.2, 2.4, 2.4);
+    c.fillStyle = rgba(look.color, (0.2 + 0.45 * ignite) * tw);
+    c.fillRect(tmp[0] - 1.1, tmp[1] - 1.1, 2.2, 2.2);
   }
 
   const vis = upperBound(B.pAppear, p);
@@ -551,7 +602,6 @@ function drawRing(c, B, cam, sec, p, ignite) {
     }
   }
 
-  // Brightness follows how many lines show, so the ring stays see-through.
   const baseAlpha = clamp(0.95 / Math.sqrt(Math.max(1, vis)), 0.009, 0.24);
   const GROW = 0.5;
   const newFrom = upperBound(B.pAppear, p - GROW / R);
@@ -600,8 +650,7 @@ function drawRing(c, B, cam, sec, p, ignite) {
     if (age < 0.9) fresh.push({ line, kind: win ? "win" : "loss", age });
     else settled[win ? "win" : "loss"].push(line);
   }
-  // In a busy stretch dozens of trades close each second: only the newest few flash,
-  // the rest settle straight away (otherwise the ring turns into a white blob).
+  // In a busy stretch dozens of trades close each second: only the newest few flash.
   const opens = fresh.filter((f) => f.kind === "open");
   const closes = fresh.filter((f) => f.kind !== "open").sort((a, b) => a.age - b.age);
   for (const f of closes.slice(6)) settled[f.kind].push(f.line);
@@ -638,28 +687,15 @@ function drawRing(c, B, cam, sec, p, ignite) {
     if (f.kind !== "open") {
       const j = Math.min(N - 1, Math.floor((f.age / 0.9) * N));
       const o = f.line * N * 2 + j * 2;
-      const rg = c.createRadialGradient(s[o], s[o + 1], 0, s[o], s[o + 1], 20);
+      const rg = c.createRadialGradient(s[o], s[o + 1], 0, s[o], s[o + 1], 18);
       rg.addColorStop(0, "rgba(255,255,255,0.95)");
       rg.addColorStop(0.3, rgba(color, 0.7));
       rg.addColorStop(1, rgba(color, 0));
       c.fillStyle = rg;
-      c.fillRect(s[o] - 20, s[o + 1] - 20, 40, 40);
+      c.fillRect(s[o] - 18, s[o + 1] - 18, 36, 36);
     }
   }
   c.restore();
-}
-
-function ringEdge(B, cam, side, nearY) {
-  // the ring's outer edge towards one side of the screen, close to a given height
-  const proj = makeProjector(B, cam);
-  let best = null;
-  for (let k = 0; k < 48; k++) {
-    const u = (k / 48) * Math.PI * 2;
-    proj(1.42 * Math.cos(u), 1.42 * Math.sin(u), 0, tmp);
-    const score = (side === "right" ? tmp[0] : -tmp[0]) - Math.abs(tmp[1] - nearY) * 0.6;
-    if (!best || score > best.score) best = { x: tmp[0], y: tmp[1], score };
-  }
-  return best;
 }
 
 function drawScene(sec, p, alpha) {
@@ -667,17 +703,21 @@ function drawScene(sec, p, alpha) {
   if (alpha <= 0.002) return cam;
   sctx.setTransform(1, 0, 0, 1, 0, 0);
   sctx.clearRect(0, 0, W, H);
-  const g = sctx.createRadialGradient(cam.cx, cam.cy, 20, cam.cx, cam.cy, 620);
+  sctx.save();
+  sctx.beginPath();
+  sctx.rect(RING.x + 1, RING.y + 1, RING.w - 2, RING.h - 2);
+  sctx.clip();
+  const g = sctx.createRadialGradient(cam.cx, cam.cy, 20, cam.cx, cam.cy, 520);
   g.addColorStop(0, "rgba(60, 120, 220, 0.10)");
   g.addColorStop(1, "rgba(0,0,0,0)");
   sctx.fillStyle = g;
-  sctx.fillRect(0, 0, W, H);
-  const ignite = sec < T0 ? smooth((sec - T_COLD) / 1.4) : 1;
+  sctx.fillRect(RING.x, RING.y, RING.w, RING.h);
+  const ignite = smooth(sec / 1.2);
   for (const B of BOTS) drawRing(sctx, B, cam, sec, p, ignite);
+  sctx.restore();
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.drawImage(sceneCv, 0, 0);
-  // bloom: blurred copies added on top
   bctxA.clearRect(0, 0, bloomA.width, bloomA.height);
   bctxA.drawImage(sceneCv, 0, 0, bloomA.width, bloomA.height);
   bctxB.clearRect(0, 0, bloomB.width, bloomB.height);
@@ -692,40 +732,7 @@ function drawScene(sec, p, alpha) {
   return cam;
 }
 
-// ------------------------------------------------------------------ HUD
-
-function emblem(c, x, y, r, alpha) {
-  if (alpha <= 0.002) return;
-  c.save();
-  c.globalAlpha *= alpha;
-  c.lineWidth = 3;
-  c.strokeStyle = LOOK.bybit.color;
-  c.beginPath();
-  c.arc(x - r * 0.45, y, r, 0, Math.PI * 2);
-  c.stroke();
-  c.strokeStyle = LOOK.pump.color;
-  c.beginPath();
-  c.arc(x + r * 0.45, y, r, 0, Math.PI * 2);
-  c.stroke();
-  c.restore();
-}
-
-function topBar(a, sec) {
-  emblem(ctx, 62, 66, 17, a);
-  txt(ctx, D.brand || "BUBAVERSE", 100, 75, { font: SANS, size: 30, weight: 700, spacing: 5, alpha: a });
-  txt(ctx, "TRADE ENGINE // REAL RECORD", 102, 100, { size: 13, weight: 700, color: COL.dim, spacing: 2, alpha: a });
-  if (Math.floor(sec * 2) % 2 === 0) {
-    ctx.save();
-    ctx.globalAlpha = a;
-    ctx.fillStyle = COL.red;
-    ctx.beginPath();
-    ctx.arc(W - 252, 68, 7, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-  }
-  txt(ctx, "REC", W - 238, 75, { size: 18, weight: 700, color: COL.text, alpha: a });
-  txt(ctx, "REAL MONEY", W - 40, 75, { size: 18, weight: 700, color: COL.gold, align: "right", alpha: a });
-}
+// ------------------------------------------------------------------ header
 
 function chapterAt(ms) {
   const chs = D.story.chapters;
@@ -733,239 +740,159 @@ function chapterAt(ms) {
   return null;
 }
 
-function dateBlock(a, p) {
-  const ms = CLOCK.msOf(Math.max(0, p));
-  txt(ctx, dateText(ms), 40, 196, { font: SANS, size: 74, weight: 700, alpha: a });
-  const chap = chapterAt(ms);
-  const color = chap && chap.ch.bots.length === 1 ? (LOOK[chap.ch.bots[0]] || LOOK.pump).color : COL.gold;
-  txt(ctx, timeText(ms), W - 40, 196, { font: MONO, size: 44, weight: 700, color, align: "right", alpha: a });
-  const label = chap ? `CHAPTER ${chap.n} · ${chap.ch.bots.map((k) => (LOOK[k] || LOOK.pump).name).join(" + ")}` : "INTERMISSION";
-  txt(ctx, label, 42, 238, { font: SANS, size: 22, weight: 700, color: chap ? color : COL.mid, spacing: 3, alpha: a });
-  const day = Math.floor((ms - CLOCK.start) / 86400000) + 1;
+function header(a, sec, p, final) {
+  txt(ctx, `| ${D.brand || "BUBAVERSE"} LAB / TRADE ARCHITECTURE`, 28, 44, { size: 15, weight: 700, color: COL.mid, spacing: 1, alpha: a });
+  if (final) txt(ctx, "■ FINAL", W - 28, 44, { size: 15, weight: 700, color: COL.gold, align: "right", alpha: a });
+  else {
+    txt(ctx, D.demo ? "REPLAY · SAMPLE DATA" : "REPLAY · REAL TRADES", W - 52, 44, { size: 15, weight: 700, color: COL.mid, align: "right", alpha: a });
+    if (Math.floor(sec * 2) % 2 === 0) {
+      ctx.save();
+      ctx.globalAlpha = a;
+      ctx.fillStyle = COL.red;
+      ctx.beginPath();
+      ctx.arc(W - 36, 39, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+  const title = BOTS.map((B) => `${B.look.name === "BYBIT FUTURES" ? "BYBIT" : B.look.name} BOT`).join("  +  ");
+  txt(ctx, title, 28, 90, { font: SANS, size: 34, weight: 700, color: COL.orange, alpha: a });
   const days = Math.max(1, Math.ceil(CLOCK.span / 86400000));
-  txt(ctx, `DAY ${day} OF ${days}`, W - 40, 238, { size: 16, weight: 700, color: COL.mid, align: "right", alpha: a });
-  scrubber(a, ms);
+  txt(ctx, `${days} DAYS  ·  ${BOTS.length} ENGINES  ·  ${D.demo ? "PREVIEW" : "NOTHING SIMULATED"}`, W - 28, 88, { size: 13, weight: 700, color: COL.dim, align: "right", alpha: a });
+  chips(a, sec, p);
+  dateBlock(a, p);
 }
 
-function scrubber(a, ms) {
-  const x0 = 40;
-  const w = W - 80;
-  const y = 270;
+function chips(a, sec, p) {
+  // real parts of the bots; a chip lights up when that part just did something
+  const recent = (B, kind) => {
+    const arr = kind === "open" ? B.pOpen : B.pClose;
+    for (let i = 0; i < arr.length; i++) {
+      const d = (p - arr[i]) * R;
+      if (d >= 0 && d < 0.22 && (kind === "close" || B.trades[i].open)) return true;
+    }
+    return false;
+  };
+  const list = [];
+  for (const B of BOTS) {
+    if (B.key === "bybit") {
+      list.push(["v5.closed-pnl", B, recent(B, "close")]);
+      for (const name of ["supertrend", "pullback", "breakout"]) {
+        let on = false;
+        for (let i = 0; i < B.trades.length && !on; i++) {
+          const d = (p - B.pClose[i]) * R;
+          if (d >= 0 && d < 0.25 && B.trades[i].why === name) on = true;
+        }
+        list.push([name, B, on]);
+      }
+    } else {
+      const n = upperBound(B.pAppear, p);
+      const fresh = n > 0 && (p - B.pAppear[n - 1]) * R < 0.12;
+      list.push(["feed.logs", B, fresh], ["tracker.curve", B, fresh], ["broker.buy", B, recent(B, "open")], ["broker.sell", B, recent(B, "close")]);
+    }
+  }
+  let x = 28;
+  const y = 106;
+  ctx.font = `700 12px ${MONO}`;
+  for (const [name, B, on] of list) {
+    const tw = ctx.measureText(name).width + 18;
+    if (x + tw > W - 28) break;
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.fillStyle = on ? rgba(B.look.color, 0.24) : "rgba(16, 26, 44, 0.85)";
+    ctx.fillRect(x, y, tw, 24);
+    ctx.strokeStyle = on ? B.look.color : COL.edge;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x + 0.5, y + 0.5, tw - 1, 23);
+    ctx.restore();
+    txt(ctx, name, x + 9, y + 17, { size: 12, weight: 700, color: on ? COL.text : COL.dim, alpha: a });
+    x += tw + 6;
+  }
+}
+
+function dateBlock(a, p) {
+  const ms = CLOCK.msOf(Math.max(0, p));
+  txt(ctx, dateText(ms), 26, 208, { font: SANS, size: 60, weight: 700, alpha: a });
+  const chap = chapterAt(ms);
+  const color = chap && chap.ch.bots.length === 1 ? (LOOK[chap.ch.bots[0]] || LOOK.pump).color : COL.gold;
+  txt(ctx, timeText(ms), W - 28, 208, { font: MONO, size: 38, weight: 700, color, align: "right", alpha: a });
+  const label = chap ? `CHAPTER ${chap.n} · ${chap.ch.bots.map((k) => (LOOK[k] || LOOK.pump).name).join(" + ")}` : "PAUSE · NO TRADING";
+  txt(ctx, label, 28, 246, { font: SANS, size: 19, weight: 700, color: chap ? color : COL.mid, spacing: 3, alpha: a });
+  const day = Math.floor((ms - CLOCK.start) / 86400000) + 1;
+  const days = Math.max(1, Math.ceil(CLOCK.span / 86400000));
+  txt(ctx, `DAY ${day} / ${days}`, W - 28, 246, { size: 14, weight: 700, color: COL.mid, align: "right", alpha: a });
+  // timeline: real calendar, where each bot was busy, the playhead
+  const x0 = 28;
+  const w = W - 56;
+  const y = 282;
   ctx.save();
   ctx.globalAlpha = a;
   ctx.fillStyle = "rgba(120,170,230,0.14)";
   ctx.fillRect(x0, y, w, 2);
-  // where each bot was busy (real time)
   for (const B of BOTS) {
-    const bw = w / B.hist.length;
-    for (let i = 0; i < B.hist.length; i++) {
-      if (!B.hist[i]) continue;
-      const v = Math.sqrt(B.hist[i] / B.histMax);
+    const bins = new Float32Array(200);
+    for (const t of B.trades) bins[Math.min(199, Math.floor(((t.close - CLOCK.start) / CLOCK.span) * 200))]++;
+    const max = Math.max(1, ...bins);
+    for (let i = 0; i < 200; i++) {
+      if (!bins[i]) continue;
+      const v = Math.sqrt(bins[i] / max);
       ctx.fillStyle = rgba(B.look.color, 0.3 + 0.6 * v);
-      ctx.fillRect(x0 + i * bw, y - 2 - v * 12, Math.max(2, bw), 2 + v * 12);
+      ctx.fillRect(x0 + (i / 200) * w, y - v * 12, Math.max(2, w / 200), v * 12);
     }
   }
-  // month ticks
   const d0 = new Date(CLOCK.start);
   let m = new Date(d0.getFullYear(), d0.getMonth() + 1, 1);
   while (m.getTime() < CLOCK.end) {
     const mx = x0 + ((m.getTime() - CLOCK.start) / CLOCK.span) * w;
     ctx.fillStyle = "rgba(160,190,230,0.35)";
-    ctx.fillRect(mx, y + 4, 1, 7);
-    txt(ctx, MONTHS[m.getMonth()], mx + 4, y + 22, { size: 12, weight: 700, color: COL.dim });
+    ctx.fillRect(mx, y + 4, 1, 6);
+    txt(ctx, MONTHS[m.getMonth()], mx + 4, y + 19, { size: 11, weight: 700, color: COL.dim });
     m = new Date(m.getFullYear(), m.getMonth() + 1, 1);
   }
   const px = x0 + clamp((ms - CLOCK.start) / CLOCK.span, 0, 1) * w;
   ctx.fillStyle = "#ffffff";
   ctx.shadowColor = "#ffffff";
-  ctx.shadowBlur = 12;
-  ctx.fillRect(px - 1.5, y - 18, 3, 28);
+  ctx.shadowBlur = 10;
+  ctx.fillRect(px - 1.5, y - 16, 3, 26);
   ctx.restore();
 }
 
-function ringTags(a, st, cam) {
-  BOTS.forEach((B, k) => {
-    const s = st.bots[k];
-    const right = B.mode !== "bottom";
-    const tw = 330;
-    const th = 108;
-    const tx = right ? W - 40 - tw : 40;
-    const ty = B.mode === "bottom" ? 1150 : 312;
-    const edge = ringEdge(B, cam, right ? "right" : "left", B.mode === "bottom" ? 1100 : 480);
-    ctx.save();
-    ctx.globalAlpha = a * 0.8;
-    ctx.strokeStyle = rgba(B.look.color, 0.6);
-    ctx.lineWidth = 1.2;
-    const lx = right ? tx + tw - 40 : tx + 40;
-    const ly = B.mode === "bottom" ? ty : ty + th;
-    ctx.beginPath();
-    ctx.moveTo(lx, ly);
-    ctx.lineTo(lx, ly + (B.mode === "bottom" ? -18 : 18));
-    ctx.lineTo(edge.x, edge.y);
-    ctx.stroke();
-    ctx.fillStyle = B.look.color;
-    ctx.beginPath();
-    ctx.arc(edge.x, edge.y, 3.5, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-    glass(ctx, tx, ty, tw, th, a, B.look.color, 0.82);
-    txt(ctx, B.look.name, tx + 16, ty + 30, { font: SANS, size: 21, weight: 700, color: B.look.color, spacing: 2, alpha: a });
-    const live = B.status === "LIVE";
-    txt(ctx, live ? "● LIVE" : "■ STOPPED", tx + tw - 14, ty + 30, { size: 13, weight: 700, color: live ? COL.green : COL.mid, align: "right", alpha: a });
-    const pnlText = B.unit === "SOL" ? `${signed(s.pnl, 4)} SOL` : usd(s.pnl);
-    txt(ctx, pnlText, tx + 16, ty + 68, { font: SANS, size: 30, weight: 700, color: s.pnl > 0 ? COL.green : s.pnl < 0 ? COL.red : COL.text, alpha: a });
-    const parts = [`${num(s.n)} trades`];
-    if (s.n) parts.push(`${Math.round((s.wins / s.n) * 100)}% win`);
-    if (B.key === "pump" && s.watched !== null) parts.push(`${num(s.watched)} coins seen`);
-    txt(ctx, parts.join(" · "), tx + 16, ty + 94, { size: 13, weight: 700, color: COL.mid, alpha: a });
-  });
-}
+// ------------------------------------------------------------------ main window (rings)
 
-function totalBlock(a, st) {
-  const y = 1276;
-  const priced = D.story.priced;
-  txt(ctx, priced ? "TOTAL P&L · BOTH BOTS · USD" : "P&L", 40, y + 20, { size: 15, weight: 700, color: COL.dim, spacing: 2, alpha: a });
-  if (priced) {
-    const v = st.total;
-    txt(ctx, usd(v), 36, y + 112, { font: SANS, size: 92, weight: 700, color: v > 0 ? COL.green : v < 0 ? COL.red : COL.text, alpha: a, glow: 18 });
-  } else {
-    const parts = BOTS.map((B, k) => (B.unit === "SOL" ? `${signed(st.bots[k].pnl, 4)} SOL` : usd(st.bots[k].pnl)));
-    txt(ctx, parts.join("  "), 40, y + 100, { font: SANS, size: 52, weight: 700, alpha: a });
-  }
-  txt(ctx, "TRADES", W - 40, y + 20, { size: 15, weight: 700, color: COL.dim, align: "right", spacing: 2, alpha: a });
-  txt(ctx, num(st.trades), W - 40, y + 66, { font: SANS, size: 44, weight: 700, align: "right", alpha: a });
-  txt(ctx, "WIN RATE", W - 40, y + 94, { size: 15, weight: 700, color: COL.dim, align: "right", spacing: 2, alpha: a });
-  txt(ctx, st.trades ? `${((st.wins / st.trades) * 100).toFixed(1)}%` : "—", W - 40, y + 136, { font: SANS, size: 40, weight: 700, align: "right", alpha: a });
-}
-
-function chart(a, p) {
-  const x = 40;
-  const y = 1436;
-  const w = W - 80;
-  const h = 196;
-  glass(ctx, x - 8, y - 8, w + 16, h + 34, a);
+function ringFrame(a, sec, st, cam) {
+  // frame + labels around the rings, like an instrument
   ctx.save();
   ctx.globalAlpha = a;
-  for (const g of D.story.gaps) {
-    const a0 = CLOCK.pOf(g.from);
-    const a1 = CLOCK.pOf(g.to);
-    ctx.fillStyle = "rgba(255,255,255,0.05)";
-    ctx.fillRect(x + a0 * w, y, Math.max(2, (a1 - a0) * w), h);
-    txt(ctx, `${g.days} DAYS OFF`, x + ((a0 + a1) / 2) * w, y + h - 8, { size: 11, weight: 700, color: COL.dim, align: "center" });
-  }
-  const priced = D.story.priced;
-  const series = priced
-    ? [{ p: ALL.p, v: ALL.cum, min: ALL.min, max: ALL.max, color: "#ffffff", who: ALL.map((x2) => x2.B) }]
-    : BOTS.map((B) => ({ p: B.pClose, v: B.cum, min: B.cumMin, max: B.cumMax, color: B.look.color, who: null }));
-  for (const sr of series) {
-    const span = Math.max(1e-12, sr.max - sr.min);
-    const yOf = (v) => y + 26 + (h - 44) * (1 - (v - sr.min) / span);
-    ctx.setLineDash([4, 6]);
-    ctx.strokeStyle = "rgba(160,190,230,0.25)";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(x, yOf(0));
-    ctx.lineTo(x + w, yOf(0));
-    ctx.stroke();
-    ctx.setLineDash([]);
-    const n = upperBound(sr.p, p);
-    if (!n) continue;
-    ctx.beginPath();
-    ctx.moveTo(x, yOf(0));
-    for (let i = 0; i < n; i++) ctx.lineTo(x + sr.p[i] * w, yOf(sr.v[i]));
-    ctx.lineTo(x + p * w, yOf(sr.v[n - 1]));
-    ctx.lineTo(x + p * w, yOf(0));
-    ctx.closePath();
-    const gr = ctx.createLinearGradient(0, y, 0, y + h);
-    gr.addColorStop(0, rgba(sr.color, 0.16));
-    gr.addColorStop(1, rgba(sr.color, 0.01));
-    ctx.fillStyle = gr;
-    ctx.fill();
-    // the line, coloured by which bot moved it
-    ctx.lineWidth = 2.4;
-    let px = x;
-    let py = yOf(0);
-    for (let i = 0; i < n; i++) {
-      const nx = x + sr.p[i] * w;
-      const ny = yOf(sr.v[i]);
-      ctx.strokeStyle = sr.who ? sr.who[i].look.color : sr.color;
-      ctx.beginPath();
-      ctx.moveTo(px, py);
-      ctx.lineTo(nx, ny);
-      ctx.stroke();
-      px = nx;
-      py = ny;
-    }
-    ctx.strokeStyle = sr.who ? sr.who[n - 1].look.color : sr.color;
-    ctx.beginPath();
-    ctx.moveTo(px, py);
-    ctx.lineTo(x + p * w, py);
-    ctx.stroke();
-    const last = sr.v[n - 1];
-    const rg = ctx.createRadialGradient(x + p * w, py, 0, x + p * w, py, 16);
-    rg.addColorStop(0, "rgba(255,255,255,1)");
-    rg.addColorStop(0.35, rgba(last >= 0 ? COL.green : COL.red, 0.8));
-    rg.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = rg;
-    ctx.fillRect(x + p * w - 16, py - 16, 32, 32);
-    txt(ctx, usd(sr.max), x + w - 6, yOf(sr.max) - 4, { size: 11, color: COL.dim, align: "right" });
-    txt(ctx, usd(sr.min), x + w - 6, yOf(sr.min) + 14, { size: 11, color: COL.dim, align: "right" });
-  }
-  // highlight markers along the bottom
-  for (const hl of PLAN.sel) {
-    if (hl.kind === "gap" || hl.p > p) continue;
-    ctx.fillStyle = hl.B.look.color;
-    const mx = x + hl.p * w;
-    ctx.beginPath();
-    ctx.moveTo(mx, y + h + 4);
-    ctx.lineTo(mx + 5, y + h + 10);
-    ctx.lineTo(mx, y + h + 16);
-    ctx.lineTo(mx - 5, y + h + 10);
-    ctx.fill();
-  }
+  ctx.strokeStyle = COL.edge;
+  ctx.lineWidth = 1;
+  ctx.strokeRect(RING.x + 0.5, RING.y + 0.5, RING.w - 1, RING.h - 1);
+  ctx.strokeStyle = COL.edgeHi;
+  ctx.lineWidth = 2;
+  const k = 14;
+  const { x, y, w, h } = RING;
+  ctx.beginPath();
+  ctx.moveTo(x, y + k); ctx.lineTo(x, y); ctx.lineTo(x + k, y);
+  ctx.moveTo(x + w - k, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w, y + k);
+  ctx.moveTo(x, y + h - k); ctx.lineTo(x, y + h); ctx.lineTo(x + k, y + h);
+  ctx.moveTo(x + w - k, y + h); ctx.lineTo(x + w, y + h); ctx.lineTo(x + w, y + h - k);
+  ctx.stroke();
   ctx.restore();
-  txt(ctx, priced ? "CUMULATIVE P&L (USD)" : "CUMULATIVE P&L", x + 8, y + 16, { size: 12, weight: 700, color: COL.dim, spacing: 2, alpha: a });
+  const lines = st.bots.reduce((s, b) => s + b.lines, 0);
+  txt(ctx, `CORE // ${BOTS.length} ENGINES · ${num(lines)} LINES`, RING.x + 14, RING.y + 24, { size: 12, weight: 700, color: COL.mid, spacing: 1, alpha: a });
+  const deg = ((cam.theta * 180) / Math.PI).toFixed(1);
+  txt(ctx, `orbit ${deg}° · tilt ${((cam.pitch * 180) / Math.PI).toFixed(1)}°`, RING.x + RING.w - 14, RING.y + 24, { size: 12, color: COL.dim, align: "right", alpha: a });
+  // which ring is which
+  BOTS.forEach((B) => {
+    const top = B.mode !== "bottom";
+    const tx = top ? RING.x + RING.w - 14 : RING.x + 14;
+    const ty = top ? RING.y + 56 : RING.y + RING.h - 44;
+    const live = B.status === "LIVE";
+    txt(ctx, B.look.name, tx, ty, { font: SANS, size: 18, weight: 700, color: B.look.color, spacing: 2, align: top ? "right" : "left", alpha: a });
+    txt(ctx, live ? "● LIVE" : "■ STOPPED", tx, ty + 18, { size: 11, weight: 700, color: live ? COL.green : COL.dim, align: top ? "right" : "left", alpha: a });
+  });
+  const legend = BOTS.length === 2 ? "1 line = 1 trade (bybit) · 1 coin watched (pump.fun)" : `1 line = 1 ${BOTS[0].lineWord}`;
+  txt(ctx, legend, RING.x + RING.w - 14, RING.y + RING.h - 14, { size: 11, color: COL.dim, align: "right", alpha: a });
 }
-
-function ticker(a, p) {
-  const n = upperBound(EVENTS.p, p);
-  const y0 = 1700;
-  for (let k = 0; k < 4; k++) {
-    const idx = n - 1 - k;
-    if (idx < 0) break;
-    const e = EVENTS[idx];
-    const y = y0 + k * 40;
-    const fade = a * (1 - k * 0.2);
-    const age = (p - e.p) * R;
-    if (k === 0 && age < 0.5) {
-      ctx.save();
-      ctx.globalAlpha = a * 0.18 * (1 - age / 0.5);
-      ctx.fillStyle = e.kind === "fail" ? COL.mid : e.t.pnl > 0 ? COL.green : COL.red;
-      ctx.fillRect(32, y - 27, W - 64, 36);
-      ctx.restore();
-    }
-    txt(ctx, e.B.look.short, 40, y, { size: 16, weight: 700, color: e.B.look.color, alpha: fade });
-    if (e.kind === "fail") {
-      txt(ctx, shortStamp(e.f.t), 124, y, { size: 16, color: COL.dim, alpha: fade });
-      txt(ctx, `${e.f.label} · buy did not fill`, 306, y, { size: 16, weight: 700, color: COL.mid, alpha: fade });
-      txt(ctx, e.f.feesSol ? `fee ${num(e.f.feesSol, 6)} SOL` : "no cost", W - 40, y, { size: 16, weight: 700, color: COL.mid, align: "right", alpha: fade });
-      continue;
-    }
-    const t = e.t;
-    txt(ctx, shortStamp(t.close), 124, y, { size: 16, color: COL.dim, alpha: fade });
-    const what = e.B.key === "bybit" ? `${t.label} ${t.side}${t.why ? ` · ${t.why}` : ""}` : `${t.label}${t.pct !== null ? ` ${signed(t.pct, 0)}%` : ""} · ${t.why}`;
-    txt(ctx, what, 306, y, { size: 16, weight: 700, color: COL.text, alpha: fade });
-    const amount = e.B.unit === "SOL" ? `${signed(t.pnl, 4)} SOL` : usd(t.pnl);
-    txt(ctx, amount, W - 40, y, { size: 16, weight: 700, color: t.pnl > 0 ? COL.green : COL.red, align: "right", alpha: fade });
-  }
-}
-
-function footer(a) {
-  const src = D.demo ? "PREVIEW · SAMPLE NUMBERS · NOT REAL TRADES" : `real records: pump.fun trade logs + Bybit closed P&L · made ${dateText(D.generatedAt)}`;
-  txt(ctx, src, W / 2, 1886, { size: 13, weight: 700, color: D.demo ? LOOK.bybit.color : COL.dim, align: "center", alpha: a });
-}
-
-// ------------------------------------------------------------------ highlight cards
 
 function cards(sec, cam) {
   for (const h of PLAN.sel) {
@@ -975,11 +902,11 @@ function cards(sec, cam) {
     const inA = easeOut((sec - a0) / 0.3);
     const a = inA * (1 - smooth((sec - (a1 - 0.35)) / 0.35));
     const anchor = projectPoint(h.B, h.line, N >> 1, cam);
-    const cw = 430;
-    const chh = 156;
-    const left = anchor.x > W / 2;
-    const cx = left ? 40 : W - 40 - cw;
-    const cy = clamp(anchor.y - chh / 2, 430, 1060);
+    const cw = 300;
+    const chh = 128;
+    const left = anchor.x > RING_CX;
+    const cx = left ? RING.x + 16 : RING.x + RING.w - 16 - cw;
+    const cy = clamp(anchor.y - chh / 2, RING.y + 70, RING.y + RING.h - chh - 60);
     const color = h.kind === "best" || h.kind === "streak" ? COL.green : h.kind === "worst" ? COL.red : h.kind === "stop" ? COL.mid : h.B.look.color;
     ctx.save();
     ctx.globalAlpha = a;
@@ -987,197 +914,511 @@ function cards(sec, cam) {
     const sy = cy + chh / 2;
     const k = easeOut((sec - a0) / 0.4);
     ctx.strokeStyle = rgba(color, 0.9);
-    ctx.lineWidth = 1.6;
+    ctx.lineWidth = 1.4;
     ctx.beginPath();
     ctx.moveTo(sx, sy);
     ctx.lineTo(sx + (anchor.x - sx) * k, sy + (anchor.y - sy) * k);
     ctx.stroke();
     ctx.beginPath();
-    ctx.arc(anchor.x, anchor.y, 6 + 3 * Math.sin(sec * 8), 0, Math.PI * 2);
+    ctx.arc(anchor.x, anchor.y, 5 + 3 * Math.sin(sec * 8), 0, Math.PI * 2);
     ctx.strokeStyle = color;
     ctx.stroke();
     ctx.restore();
-    const slide = (1 - inA) * (left ? -30 : 30);
-    glass(ctx, cx + slide, cy, cw, chh, a, color, 0.9);
-    const tag = h.kind === "start" ? `CHAPTER ${h.chapter}` : h.kind === "stop" ? "END OF THE RUN" : "HIGHLIGHT";
-    txt(ctx, tag, cx + slide + 20, cy + 30, { size: 13, weight: 700, color: COL.dim, spacing: 2, alpha: a });
-    txt(ctx, h.title, cx + slide + 20, cy + 60, { font: SANS, size: 24, weight: 700, color, spacing: 1, alpha: a });
-    txt(ctx, h.value, cx + slide + 20, cy + 110, { font: SANS, size: 42, weight: 700, color: COL.text, alpha: a, glow: 10 });
-    txt(ctx, h.sub, cx + slide + 20, cy + 140, { size: 15, weight: 700, color: COL.mid, alpha: a });
+    const slide = (1 - inA) * (left ? -24 : 24);
+    panel(cx + slide, cy, cw, chh, h.kind === "start" ? `CHAPTER ${h.chapter}` : h.kind === "stop" ? "END OF RUN" : "HIGHLIGHT", a, "", color, 0.9);
+    txt(ctx, h.title, cx + slide + 14, cy + 48, { font: SANS, size: 19, weight: 700, color, spacing: 1, alpha: a });
+    txt(ctx, h.value, cx + slide + 14, cy + 90, { font: SANS, size: 34, weight: 700, color: COL.text, alpha: a });
+    txt(ctx, h.sub, cx + slide + 14, cy + 114, { size: 13, weight: 700, color: COL.mid, alpha: a });
   }
 }
 
-// Three beats: the chapter that ended (and how) -> the pause -> the chapter that starts.
+// pause between chapters: how the chapter ended -> the pause -> the next chapter
 function intermission(sec) {
   for (const h of PLAN.sel) {
     if (h.kind !== "gap") continue;
     const [a0, a1] = h.win;
     if (sec < a0 || sec > a1) continue;
     const f = (sec - a0) / (a1 - a0);
-    const a = smooth((sec - a0) / 0.3) * (1 - smooth((sec - (a1 - 0.35)) / 0.35));
-    ctx.save();
-    ctx.globalAlpha = a * 0.66;
-    ctx.fillStyle = "#000";
-    ctx.fillRect(0, 300, W, 940);
-    ctx.restore();
+    const a = smooth((sec - a0) / 0.3) * (1 - smooth((sec - (a1 - 0.3)) / 0.3));
+    const bw = 520;
+    const bh = 170;
+    const bx = RING_CX - bw / 2;
+    const by = RING_CY - bh / 2;
+    panel(bx, by, bw, bh, "", a, "", COL.gold, 0.9);
     const chs = D.story.chapters;
     const before = chs.findIndex((c) => Math.abs(c.to - h.gap.from) < 2);
     const after = chs.findIndex((c) => Math.abs(c.from - h.gap.to) < 2);
     const names = (c) => c.bots.map((k) => (LOOK[k] || LOOK.pump).name).join(" + ");
     const colorOf = (c) => (c.bots.length === 1 ? (LOOK[c.bots[0]] || LOOK.pump).color : COL.gold);
-    // beat 1: how the chapter ended
-    const b1 = a * (1 - smooth((f - 0.3) / 0.08));
-    if (before >= 0 && b1 > 0.002) {
+    const beat = (x, from, to) => a * smooth((x - from) / 0.06) * (1 - smooth((x - to) / 0.06));
+    const b1 = before >= 0 ? beat(f, -1, 0.3) : 0;
+    if (b1 > 0.002) {
       const c = chs[before];
-      txt(ctx, `END OF CHAPTER ${before + 1}`, W / 2, 720, { font: SANS, size: 30, weight: 700, color: COL.mid, spacing: 6, align: "center", alpha: b1 });
-      txt(ctx, names(c), W / 2, 800, { font: SANS, size: 64, weight: 700, color: colorOf(c), spacing: 6, align: "center", alpha: b1, glow: 18 });
+      txt(ctx, `END OF CHAPTER ${before + 1}`, RING_CX, by + 46, { size: 13, weight: 700, color: COL.dim, spacing: 2, align: "center", alpha: b1 });
+      txt(ctx, names(c), RING_CX, by + 98, { font: SANS, size: 40, weight: 700, color: colorOf(c), spacing: 3, align: "center", alpha: b1 });
       const stop = D.story.highlights.find((x) => x.kind === "stop" && Math.abs(x.t - h.gap.from) < 1000);
-      if (stop) txt(ctx, `${stop.title.replace(/ BOT STOPPED$/, "")} STOPPED · ${stop.value} · ${stop.sub}`, W / 2, 860, { size: 22, weight: 700, color: COL.text, align: "center", alpha: b1 });
+      if (stop) txt(ctx, `stopped · ${stop.value} · ${stop.sub}`, RING_CX, by + 136, { size: 14, weight: 700, color: COL.mid, align: "center", alpha: b1 });
     }
-    // beat 2: the pause
-    const b2 = a * smooth((f - 0.3) / 0.08) * (1 - smooth((f - 0.68) / 0.08));
+    const b2 = beat(f, 0.3, 0.68);
     if (b2 > 0.002) {
-      txt(ctx, "INTERMISSION", W / 2, 760, { font: SANS, size: 76, weight: 700, spacing: 12, align: "center", alpha: b2, glow: 20 });
-      txt(ctx, `${h.value} WITHOUT TRADING`, W / 2, 830, { font: SANS, size: 30, weight: 700, color: COL.gold, spacing: 4, align: "center", alpha: b2 });
-      txt(ctx, `${dateText(h.gap.from)}  →  ${dateText(h.gap.to)}`, W / 2, 880, { size: 20, weight: 700, color: COL.mid, align: "center", alpha: b2 });
+      txt(ctx, "PAUSE", RING_CX, by + 46, { size: 13, weight: 700, color: COL.dim, spacing: 2, align: "center", alpha: b2 });
+      txt(ctx, `${h.value} WITHOUT TRADING`, RING_CX, by + 98, { font: SANS, size: 38, weight: 700, color: COL.gold, spacing: 2, align: "center", alpha: b2 });
+      txt(ctx, `${dateText(h.gap.from)}  →  ${dateText(h.gap.to)}`, RING_CX, by + 136, { size: 14, weight: 700, color: COL.mid, align: "center", alpha: b2 });
     }
-    // beat 3: what comes next
-    const b3 = a * smooth((f - 0.68) / 0.08);
-    if (after >= 0 && b3 > 0.002) {
+    const b3 = after >= 0 ? beat(f, 0.68, 2) : 0;
+    if (b3 > 0.002) {
       const c = chs[after];
-      txt(ctx, `CHAPTER ${after + 1}`, W / 2, 720, { font: SANS, size: 30, weight: 700, color: COL.mid, spacing: 6, align: "center", alpha: b3 });
-      txt(ctx, names(c), W / 2, 800, { font: SANS, size: 64, weight: 700, color: colorOf(c), spacing: 6, align: "center", alpha: b3, glow: 18 });
-      txt(ctx, `from ${dateText(c.from)}`, W / 2, 860, { size: 22, weight: 700, color: COL.text, align: "center", alpha: b3 });
+      txt(ctx, `CHAPTER ${after + 1}`, RING_CX, by + 46, { size: 13, weight: 700, color: COL.dim, spacing: 2, align: "center", alpha: b3 });
+      txt(ctx, names(c), RING_CX, by + 98, { font: SANS, size: 40, weight: 700, color: colorOf(c), spacing: 3, align: "center", alpha: b3 });
+      txt(ctx, `from ${dateText(c.from)}`, RING_CX, by + 136, { size: 14, weight: 700, color: COL.mid, align: "center", alpha: b3 });
     }
   }
 }
 
-// ------------------------------------------------------------------ acts
+// ------------------------------------------------------------------ side column
 
-function coldOpen(sec) {
-  const lines = [
-    [BOTS.length === 2 ? "TWO BOTS." : "ONE BOT.", 0.15, 64],
-    ["REAL MONEY.", 0.7, 64],
-    ["EVERY TRADE, AS IT HAPPENED.", 1.2, 36],
-  ];
-  const fade = 1 - smooth((sec - 1.95) / 0.25);
-  lines.forEach(([s, at, size], i) => {
-    const n = Math.floor(clamp((sec - at) * 34, 0, s.length));
-    if (!n) return;
-    const shown = s.slice(0, n) + (n < s.length && Math.floor(sec * 8) % 2 ? "▌" : "");
-    txt(ctx, shown, W / 2, 860 + i * 84, { font: SANS, size, weight: 700, spacing: size > 40 ? 8 : 4, align: "center", alpha: fade, color: i === 2 ? COL.gold : COL.text, glow: 14 });
+function side(a, st, p, sec) {
+  const x = SIDE.x;
+  const w = SIDE.w;
+  let y = RING.y;
+  const fade = (k) => a * smooth((sec - 0.15 - k * 0.08) / 0.5);
+
+  // 1. activity
+  let h = 140;
+  let al = fade(0);
+  panel(x, y, w, h, "ACTIVITY", al, "trades over time");
+  {
+    const bins = 46;
+    const per = 5; // fine bins per bar
+    const end = Math.floor(clamp(p, 0, 1) * 1200);
+    const bw = (w - 24) / bins;
+    const vals = [];
+    let max = 1;
+    for (let b = 0; b < bins; b++) {
+      const hi = end - (bins - 1 - b) * per;
+      const row = BOTS.map((B) => {
+        let v = 0;
+        for (let i = hi - per; i < hi; i++) if (i >= 0 && i < 1200) v += B.act[i];
+        return v;
+      });
+      vals.push(row);
+      max = Math.max(max, row.reduce((s, v) => s + v, 0));
+    }
+    ctx.save();
+    ctx.globalAlpha = al;
+    vals.forEach((row, b) => {
+      let base = y + h - 12;
+      row.forEach((v, k) => {
+        const hh = (v / max) * (h - 44);
+        ctx.fillStyle = rgba(BOTS[k].look.color, 0.35 + 0.5 * (b / bins));
+        ctx.fillRect(x + 12 + b * bw, base - hh, Math.max(1, bw - 2), hh);
+        base -= hh;
+      });
+    });
+    ctx.restore();
+  }
+  y += h + 12;
+
+  // 2. win rate
+  h = 150;
+  al = fade(1);
+  panel(x, y, w, h, "WIN RATE", al);
+  txt(ctx, st.trades ? pctPlain((st.wins / st.trades) * 100, 1) : "—", x + 12, y + 70, { font: SANS, size: 40, weight: 700, alpha: al });
+  txt(ctx, `of ${num(st.trades)} trades`, x + w - 12, y + 68, { size: 12, weight: 700, color: COL.dim, align: "right", alpha: al });
+  BOTS.forEach((B, k) => {
+    const s = st.bots[k];
+    const ry = y + 96 + k * 26;
+    const v = s.n ? s.wins / s.n : 0;
+    txt(ctx, B.look.short, x + 12, ry + 10, { size: 12, weight: 700, color: B.look.color, alpha: al });
+    ctx.save();
+    ctx.globalAlpha = al;
+    ctx.fillStyle = "rgba(120,170,230,0.14)";
+    ctx.fillRect(x + 70, ry, w - 150, 10);
+    ctx.fillStyle = B.look.color;
+    ctx.fillRect(x + 70, ry, (w - 150) * v, 10);
+    ctx.restore();
+    txt(ctx, s.n ? pctPlain(v * 100) : "—", x + w - 12, ry + 10, { size: 13, weight: 700, align: "right", alpha: al });
   });
+  y += h + 12;
+
+  // 3. return per trade
+  h = 150;
+  al = fade(2);
+  panel(x, y, w, h, "RETURN / TRADE", al, "size-weighted");
+  const big = st.ret !== null ? st.ret : BOTS.length === 1 ? st.bots[0].ret : null;
+  txt(ctx, big === null ? "—" : pct(big, 2), x + 12, y + 70, { font: SANS, size: 40, weight: 700, color: big === null ? COL.dim : signColor(big), alpha: al });
+  txt(ctx, st.ret !== null ? "both bots" : "", x + w - 12, y + 68, { size: 12, weight: 700, color: COL.dim, align: "right", alpha: al });
+  const scale = Math.max(1, ...D.story.totals.map((t) => Math.abs(t.ret || 0))) * 1.25;
+  BOTS.forEach((B, k) => {
+    const s = st.bots[k];
+    const ry = y + 96 + k * 26;
+    txt(ctx, B.look.short, x + 12, ry + 10, { size: 12, weight: 700, color: B.look.color, alpha: al });
+    const cx = x + 70 + (w - 150) / 2;
+    ctx.save();
+    ctx.globalAlpha = al;
+    ctx.fillStyle = "rgba(120,170,230,0.14)";
+    ctx.fillRect(x + 70, ry, w - 150, 10);
+    ctx.fillStyle = "rgba(220,235,255,0.5)";
+    ctx.fillRect(cx - 0.5, ry - 3, 1, 16);
+    if (s.ret !== null) {
+      const len = clamp(s.ret / scale, -1, 1) * ((w - 150) / 2);
+      ctx.fillStyle = signColor(s.ret);
+      ctx.fillRect(Math.min(cx, cx + len), ry, Math.abs(len), 10);
+    }
+    ctx.restore();
+    txt(ctx, s.ret === null ? "—" : pct(s.ret, 2), x + w - 12, ry + 10, { size: 13, weight: 700, color: s.ret === null ? COL.dim : signColor(s.ret), align: "right", alpha: al });
+  });
+  y += h + 12;
+
+  // 4. distribution of trade results
+  h = 176;
+  al = fade(3);
+  panel(x, y, w, h, "TRADE RESULTS", al, "% per trade");
+  {
+    const edges = [-Infinity, -40, -25, -15, -8, -3, 0, 3, 8, 15, 25, 40, Infinity];
+    const counts = new Array(edges.length - 1).fill(0);
+    for (let i = 0; i < st.m; i++) {
+      const v = ALL[i].t.pct;
+      if (v === null) continue;
+      let b = 0;
+      while (b < counts.length - 1 && v >= edges[b + 1]) b++;
+      counts[b]++;
+    }
+    const max = Math.max(1, ...counts);
+    const bw = (w - 24) / counts.length;
+    ctx.save();
+    ctx.globalAlpha = al;
+    counts.forEach((c, b) => {
+      const hh = (c / max) * (h - 66);
+      ctx.fillStyle = b < 6 ? rgba(COL.red, 0.8) : rgba(COL.green, 0.8);
+      ctx.fillRect(x + 12 + b * bw + 1, y + h - 30 - hh, bw - 3, hh);
+    });
+    ctx.fillStyle = "rgba(220,235,255,0.5)";
+    ctx.fillRect(x + 12 + 6 * bw - 1, y + 34, 1, h - 62);
+    ctx.restore();
+    txt(ctx, "−40%", x + 12, y + h - 12, { size: 11, color: COL.dim, alpha: al });
+    txt(ctx, "0", x + 12 + 6 * bw, y + h - 12, { size: 11, color: COL.dim, align: "center", alpha: al });
+    txt(ctx, "+40%", x + w - 12, y + h - 12, { size: 11, color: COL.dim, align: "right", alpha: al });
+  }
+  y += h + 12;
+
+  // 5. how trades ended (for the bot trading right now)
+  h = 176;
+  al = fade(4);
+  const lastBot = st.m ? ALL[st.m - 1].B : BOTS[0];
+  const ls = st.bots[BOTS.indexOf(lastBot)];
+  // Bybit: which strategy opened the trades (from the bot's logs); without logs, long vs short
+  const tagged = Object.entries(ls.why).filter(([k]) => !k.startsWith("~"));
+  const useTags = lastBot.key !== "bybit" || tagged.length > 0;
+  const title = lastBot.key === "bybit" ? (useTags ? "BYBIT · STRATEGY" : "BYBIT · DIRECTION") : "PUMP.FUN · HOW IT ENDED";
+  const taggedN = tagged.reduce((s2, x2) => s2 + x2[1], 0);
+  panel(x, y, w, h, title, al, lastBot.key === "bybit" && useTags && taggedN < ls.n ? `${pctPlain((taggedN / Math.max(1, ls.n)) * 100)} tagged` : "");
+  {
+    const source = useTags ? tagged : Object.entries(ls.why).map(([k, v]) => [k.slice(1), v]);
+    const rows = source.sort((a2, b2) => b2[1] - a2[1]).slice(0, 5);
+    const total = Math.max(1, rows.reduce((s2, x2) => s2 + x2[1], 0));
+    rows.forEach(([name, n], k) => {
+      const ry = y + 40 + k * 26;
+      txt(ctx, name.toLowerCase(), x + 12, ry + 10, { size: 12, weight: 700, color: COL.mid, alpha: al });
+      ctx.save();
+      ctx.globalAlpha = al;
+      ctx.fillStyle = "rgba(120,170,230,0.12)";
+      ctx.fillRect(x + 140, ry, w - 200, 10);
+      ctx.fillStyle = lastBot.look.color;
+      ctx.fillRect(x + 140, ry, (w - 200) * (n / total), 10);
+      ctx.restore();
+      txt(ctx, pctPlain((n / total) * 100), x + w - 12, ry + 10, { size: 12, weight: 700, align: "right", alpha: al });
+    });
+    if (!rows.length) txt(ctx, "waiting for the first trade", x + 12, y + 60, { size: 12, color: COL.dim, alpha: al });
+  }
+  y += h + 12;
+
+  // 6. live feed: the latest trades, percent only
+  h = RING.y + RING.h - y;
+  al = fade(5);
+  panel(x, y, w, h, "LIVE FEED", al);
+  const rows = Math.floor((h - 34) / 27);
+  for (let k = 0; k < rows; k++) {
+    const i = st.m - 1 - k;
+    if (i < 0) break;
+    const e = ALL[i];
+    const ry = y + 50 + k * 27;
+    const age = (p - e.p) * R;
+    if (k === 0 && age < 0.5) {
+      ctx.save();
+      ctx.globalAlpha = al * 0.2 * (1 - age / 0.5);
+      ctx.fillStyle = e.t.pnl > 0 ? COL.green : COL.red;
+      ctx.fillRect(x + 4, ry - 17, w - 8, 24);
+      ctx.restore();
+    }
+    const fa = al * (1 - k * 0.14);
+    txt(ctx, e.B.look.short, x + 12, ry, { size: 12, weight: 700, color: e.B.look.color, alpha: fa });
+    const label = e.B.key === "bybit" ? `${e.t.label.replace(/USDT$/, "")} ${e.t.side}` : e.t.label;
+    txt(ctx, label.slice(0, 16), x + 66, ry, { size: 13, weight: 700, alpha: fa });
+    txt(ctx, pct(e.t.pct), x + w - 12, ry, { size: 13, weight: 700, color: signColor(e.t.pnl), align: "right", alpha: fa });
+  }
 }
 
-function titleCard(sec) {
-  const a = smooth((sec - 2.3) / 0.5) * (1 - smooth((sec - 4.45) / 0.5));
-  if (a <= 0.002) return;
-  const tr = D.story.totals;
-  const trades = tr.reduce((s, t) => s + t.trades, 0);
-  const watched = tr.reduce((s, t) => s + (t.watched || 0), 0);
-  txt(ctx, D.brand || "BUBAVERSE", W / 2, 820, { font: SANS, size: 112, weight: 700, spacing: 14, align: "center", alpha: a, glow: 30 });
-  txt(ctx, BOTS.length === 2 ? "TWO BOTS · ONE STORY" : `${BOTS[0].look.name} · THE STORY`, W / 2, 884, { font: SANS, size: 30, weight: 700, color: COL.gold, spacing: 7, align: "center", alpha: a });
-  const meta = `${dateText(CLOCK.start)} — ${dateText(CLOCK.end)}  ·  ${num(trades)} TRADES${watched ? `  ·  ${num(watched)} COINS WATCHED` : ""}`;
-  txt(ctx, meta, W / 2, 936, { size: 19, weight: 700, color: COL.mid, align: "center", alpha: a });
+// ------------------------------------------------------------------ bottom
+
+function stream(a, p) {
+  const x = 28;
+  const y = 1342;
+  const w = W - 56;
+  const h = 70;
+  panel(x, y, w, h, "P&L STREAM", a, "shape only · both bots");
+  const span = Math.max(1e-9, ALL.max - ALL.min);
+  const yOf = (v) => y + h - 8 - ((v - ALL.min) / span) * (h - 38);
+  ctx.save();
+  ctx.globalAlpha = a;
+  for (const g of D.story.gaps) {
+    const a0 = CLOCK.pOf(g.from);
+    const a1 = CLOCK.pOf(g.to);
+    ctx.fillStyle = "rgba(255,255,255,0.05)";
+    ctx.fillRect(x + a0 * w, y + 24, Math.max(2, (a1 - a0) * w), h - 26);
+  }
+  ctx.setLineDash([3, 5]);
+  ctx.strokeStyle = "rgba(160,190,230,0.25)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(x, yOf(0));
+  ctx.lineTo(x + w, yOf(0));
+  ctx.stroke();
+  ctx.setLineDash([]);
+  const n = upperBound(ALL.p, p);
+  let px = x;
+  let py = yOf(0);
+  ctx.lineWidth = 2;
+  for (let i = 0; i < n; i++) {
+    const nx = x + ALL.p[i] * w;
+    const ny = yOf(ALL.shape[i]);
+    ctx.strokeStyle = ALL[i].B.look.color;
+    ctx.beginPath();
+    ctx.moveTo(px, py);
+    ctx.lineTo(nx, ny);
+    ctx.stroke();
+    px = nx;
+    py = ny;
+  }
+  if (p >= 0) {
+    ctx.fillStyle = "#fff";
+    ctx.shadowColor = "#fff";
+    ctx.shadowBlur = 10;
+    ctx.fillRect(x + clamp(p, 0, 1) * w - 1, y + 22, 2, h - 24);
+  }
+  ctx.restore();
 }
 
-function finale(sec) {
+function bottom(a, st, sec) {
+  const y = 1422;
+  const h = 448;
+  const gap = 12;
+  const w = (W - 56 - gap * 2) / 3;
+  const fade = (k) => a * smooth((sec - 0.4 - k * 0.1) / 0.5);
+
+  // A. results by bot (donut)
+  let x = 28;
+  let al = fade(0);
+  panel(x, y, w, h, "RESULTS BY BOT", al);
+  {
+    const cx = x + w / 2;
+    const cy = y + 190;
+    const r = 112;
+    const segs = [];
+    BOTS.forEach((B, k) => {
+      const s = st.bots[k];
+      segs.push([s.wins, B.look.win], [s.n - s.wins, B.look.loss]);
+    });
+    const total = segs.reduce((s, x2) => s + x2[0], 0);
+    ctx.save();
+    ctx.globalAlpha = al;
+    ctx.lineWidth = 30;
+    if (!total) {
+      ctx.strokeStyle = "rgba(120,170,230,0.12)";
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    let ang = -Math.PI / 2;
+    for (const [n, color] of segs) {
+      if (!n) continue;
+      const da = (n / total) * Math.PI * 2;
+      ctx.strokeStyle = rgba(color, 0.85);
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, ang + 0.012, ang + da - 0.012);
+      ctx.stroke();
+      ang += da;
+    }
+    ctx.restore();
+    txt(ctx, st.trades ? pctPlain((st.wins / st.trades) * 100) : "—", cx, cy + 10, { font: SANS, size: 44, weight: 700, align: "center", alpha: al });
+    txt(ctx, "WON", cx, cy + 36, { size: 12, weight: 700, color: COL.dim, spacing: 2, align: "center", alpha: al });
+    BOTS.forEach((B, k) => {
+      const s = st.bots[k];
+      const ly = y + 352 + k * 30;
+      const share = st.trades ? (s.n / st.trades) * 100 : 0;
+      ctx.save();
+      ctx.globalAlpha = al;
+      ctx.fillStyle = B.look.color;
+      ctx.fillRect(x + 16, ly - 10, 10, 10);
+      ctx.restore();
+      txt(ctx, B.look.short, x + 34, ly, { size: 13, weight: 700, color: B.look.color, alpha: al });
+      txt(ctx, `${pctPlain(share)} of trades`, x + w - 14, ly, { size: 12, weight: 700, color: COL.mid, align: "right", alpha: al });
+    });
+  }
+
+  // B. range per trade (worst ... best), and how far pump.fun coins went before the exit
+  x += w + gap;
+  al = fade(1);
+  panel(x, y, w, h, "RANGE PER TRADE", al, "worst · avg · best");
+  {
+    const rows = [];
+    BOTS.forEach((B, k) => {
+      const s = st.bots[k];
+      rows.push({ name: B.look.short, color: B.look.color, lo: s.worst, mid: s.ret, hi: s.best, kind: "range" });
+    });
+    const pump = BOTS.findIndex((B) => B.key === "pump");
+    if (pump >= 0 && st.bots[pump].avgPeak !== null) {
+      const s = st.bots[pump];
+      rows.push({ name: "PUMP PEAK → EXIT", color: LOOK.pump.color, lo: s.avgExit, hi: s.avgPeak, kind: "peak" });
+    }
+    rows.forEach((r, k) => {
+      const ry = y + 70 + k * 120;
+      txt(ctx, r.name, x + 14, ry, { size: 13, weight: 700, color: r.color, spacing: 1, alpha: al });
+      const tx0 = x + 22;
+      const tw = w - 44;
+      const ty = ry + 34;
+      const ext = Math.max(5, Math.abs(r.lo || 0), Math.abs(r.hi || 0)) * 1.1;
+      const X = (v) => tx0 + ((clamp(v, -ext, ext) + ext) / (2 * ext)) * tw;
+      ctx.save();
+      ctx.globalAlpha = al;
+      ctx.fillStyle = "rgba(120,170,230,0.14)";
+      ctx.fillRect(tx0, ty - 1, tw, 3);
+      ctx.fillStyle = "rgba(220,235,255,0.4)";
+      ctx.fillRect(X(0) - 0.5, ty - 8, 1, 17);
+      if (r.lo !== null && r.hi !== null) {
+        const g = ctx.createLinearGradient(X(r.lo), 0, X(r.hi), 0);
+        g.addColorStop(0, rgba(r.kind === "peak" ? "#ffffff" : COL.red, 0.8));
+        g.addColorStop(1, rgba(r.kind === "peak" ? r.color : COL.green, 0.8));
+        ctx.fillStyle = g;
+        ctx.fillRect(X(r.lo), ty - 1, X(r.hi) - X(r.lo), 3);
+        const dot = (v, color) => {
+          ctx.fillStyle = color;
+          ctx.beginPath();
+          ctx.arc(X(v), ty + 0.5, 7, 0, Math.PI * 2);
+          ctx.fill();
+        };
+        dot(r.lo, r.kind === "peak" ? "#ffffff" : COL.red);
+        dot(r.hi, r.kind === "peak" ? r.color : COL.green);
+        if (r.mid !== null && r.mid !== undefined) {
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(X(r.mid) - 1.5, ty - 10, 3, 21);
+        }
+      }
+      ctx.restore();
+      if (r.lo !== null && r.hi !== null) {
+        txt(ctx, pct(r.lo, 1), tx0, ty + 34, { size: 13, weight: 700, color: r.kind === "peak" ? COL.text : COL.red, alpha: al });
+        txt(ctx, pct(r.hi, 1), tx0 + tw, ty + 34, { size: 13, weight: 700, color: r.kind === "peak" ? r.color : COL.green, align: "right", alpha: al });
+        if (r.kind === "peak") txt(ctx, "avg exit → avg peak", tx0 + tw / 2, ty + 34, { size: 11, color: COL.dim, align: "center", alpha: al });
+        else if (r.mid !== null && r.mid !== undefined) txt(ctx, `avg ${pct(r.mid, 2)}`, tx0 + tw / 2, ty + 34, { size: 11, weight: 700, color: COL.mid, align: "center", alpha: al });
+      } else txt(ctx, "no trades yet", tx0, ty + 34, { size: 12, color: COL.dim, alpha: al });
+    });
+  }
+
+  // C. most traded markets (pareto)
+  x += w + gap;
+  al = fade(2);
+  panel(x, y, w, h, "MOST TRADED", al, "share of trades");
+  {
+    const counts = new Map();
+    for (let i = 0; i < st.m; i++) {
+      const e = ALL[i];
+      const k = `${e.B.key}|${e.t.label}`;
+      counts.set(k, (counts.get(k) || 0) + 1);
+    }
+    const top = [...counts.entries()].sort((a2, b2) => b2[1] - a2[1]).slice(0, 7);
+    const total = Math.max(1, st.m);
+    const max = top.length ? top[0][1] : 1;
+    const bx = x + 18;
+    const bwAll = w - 36;
+    const bw = bwAll / 7;
+    const base = y + h - 70;
+    const hmax = h - 130;
+    let cum = 0;
+    const pts = [];
+    ctx.save();
+    ctx.globalAlpha = al;
+    top.forEach(([k, n], i) => {
+      const [bot] = k.split("|");
+      const hh = (n / max) * hmax;
+      ctx.fillStyle = rgba((LOOK[bot] || LOOK.pump).color, 0.8);
+      ctx.fillRect(bx + i * bw + 3, base - hh, bw - 8, hh);
+      cum += n;
+      pts.push([bx + i * bw + bw / 2, base - (cum / total) * hmax]);
+    });
+    if (pts.length) {
+      ctx.strokeStyle = "rgba(255,255,255,0.85)";
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      pts.forEach(([px, py], i) => (i ? ctx.lineTo(px, py) : ctx.moveTo(px, py)));
+      ctx.stroke();
+      ctx.fillStyle = "#fff";
+      for (const [px, py] of pts) ctx.fillRect(px - 2.5, py - 2.5, 5, 5);
+    }
+    ctx.restore();
+    top.forEach(([k], i) => {
+      const label = k.split("|")[1].replace(/USDT$/, "").slice(0, 6);
+      txt(ctx, label, bx + i * bw + bw / 2, base + 20, { size: 10, weight: 700, color: COL.mid, align: "center", alpha: al });
+    });
+    if (pts.length) txt(ctx, `top ${top.length}: ${pctPlain((cum / total) * 100)}`, x + w - 14, base + 48, { size: 12, weight: 700, color: COL.text, align: "right", alpha: al });
+    else txt(ctx, "no trades yet", bx, base, { size: 12, color: COL.dim, alpha: al });
+  }
+}
+
+function footer(a) {
+  const src = D.demo ? "preview · sample data" : `real record · pump.fun trade logs + Bybit closed P&L · ${dateText(D.generatedAt)}`;
+  txt(ctx, src, W / 2, 1900, { size: 11, weight: 700, color: COL.dim, align: "center", alpha: a });
+}
+
+// ------------------------------------------------------------------ the end: final result over the rings
+
+function finalCard(sec) {
   const t = sec - T1;
   if (t <= 0) return;
-  const tr = D.story.totals;
-  const x0 = 56;
-  const w = W - 112;
-  const y0 = 250;
-  const hh = 1440;
-  const slide = (1 - easeOut((t - 0.35) / 0.8)) * 70;
-  glass(ctx, x0, y0 + slide, w, hh, smooth((t - 0.35) / 0.6), COL.gold, 0.9);
-  const y = y0 + slide;
-  const rv = (k) => smooth((t - 0.7 - k * 0.07) / 0.35);
-  txt(ctx, "THE RECORD", W / 2, y + 82, { font: SANS, size: 34, weight: 700, color: COL.gold, spacing: 10, align: "center", alpha: rv(0) });
-  const days = Math.max(1, Math.ceil(CLOCK.span / 86400000));
-  txt(ctx, `${dateText(CLOCK.start)}  →  ${dateText(CLOCK.end)}  ·  ${days} DAYS`, W / 2, y + 122, { size: 19, weight: 700, color: COL.mid, align: "center", alpha: rv(1) });
-  const priced = D.story.priced;
-  const totalUsd = tr.reduce((s, b) => s + (b.usd || 0), 0);
-  const count = easeOut((t - 0.8) / 1.3);
-  if (priced) {
-    txt(ctx, "TOTAL P&L · BOTH BOTS", W / 2, y + 196, { size: 17, weight: 700, color: COL.dim, spacing: 3, align: "center", alpha: rv(2) });
-    txt(ctx, usd(totalUsd * count), W / 2, y + 318, { font: SANS, size: 128, weight: 700, color: totalUsd > 0 ? COL.green : totalUsd < 0 ? COL.red : COL.text, align: "center", alpha: rv(2), glow: 26 });
-    if (tr.some((b) => b.unit === "SOL")) txt(ctx, "pump.fun counted in USD at each day's SOL price", W / 2, y + 356, { size: 15, color: COL.dim, align: "center", alpha: rv(3) });
-  } else {
-    txt(ctx, "TOTAL P&L", W / 2, y + 196, { size: 17, weight: 700, color: COL.dim, spacing: 3, align: "center", alpha: rv(2) });
-    const parts = tr.map((b) => (b.unit === "SOL" ? `${signed(b.pnl, 4)} SOL` : usd(b.pnl)));
-    txt(ctx, parts.join("   "), W / 2, y + 300, { font: SANS, size: 64, weight: 700, align: "center", alpha: rv(2) });
-  }
-  ctx.save();
-  ctx.globalAlpha = rv(3);
-  ctx.fillStyle = "rgba(160,190,230,0.2)";
-  ctx.fillRect(x0 + 40, y + 392, w - 80, 1);
-  ctx.restore();
-
-  const cols = tr.length;
-  const cw = (w - 80 - (cols - 1) * 44) / cols;
-  // Bybit came first, so it reads first (left)
-  const ordered = [...tr].sort((a, b) => (a.first || 0) - (b.first || 0));
-  ordered.forEach((b, i) => {
+  const a = smooth((t - 0.2) / 0.6);
+  const tr = [...D.story.totals].sort((x2, y2) => (x2.first || 0) - (y2.first || 0));
+  const bw = 640;
+  const bh = 150 + tr.length * 70 + (D.story.overallRet !== null && tr.length > 1 ? 70 : 0);
+  const bx = RING_CX - bw / 2;
+  const by = RING_CY - bh / 2 + (1 - easeOut((t - 0.2) / 0.7)) * 30;
+  panel(bx, by, bw, bh, "FINAL RESULT", a, `${dateText(CLOCK.start)} → ${dateText(CLOCK.end)}`, COL.gold, 0.9);
+  const cols = [bx + 390, bx + 500, bx + bw - 24];
+  txt(ctx, "RETURN/TRADE", cols[0], by + 66, { size: 11, weight: 700, color: COL.dim, align: "right", alpha: a });
+  txt(ctx, "WON", cols[1], by + 66, { size: 11, weight: 700, color: COL.dim, align: "right", alpha: a });
+  txt(ctx, "TRADES", cols[2], by + 66, { size: 11, weight: 700, color: COL.dim, align: "right", alpha: a });
+  let y = by + 116;
+  tr.forEach((b, i) => {
     const look = LOOK[b.key] || LOOK.pump;
-    const cx = x0 + 40 + i * (cw + 44);
-    let cy = y + 450;
-    let k = 4 + i;
-    txt(ctx, look.name, cx, cy, { font: SANS, size: 30, weight: 700, color: look.color, spacing: 2, alpha: rv(k++) });
-    cy += 54;
-    const row = (label, value, color = COL.text) => {
-      const al = rv(k++);
-      txt(ctx, label, cx, cy, { size: 16, weight: 700, color: COL.dim, alpha: al });
-      txt(ctx, value, cx + cw, cy, { size: 22, weight: 700, color, align: "right", alpha: al });
-      cy += 44;
-    };
-    const bars = (title, steps, colorOf) => {
-      cy += 10;
-      const al = rv(k++);
-      txt(ctx, title, cx, cy, { size: 14, weight: 700, color: COL.dim, spacing: 1, alpha: al });
-      cy += 16;
-      const top = Math.log10(Math.max(...steps.map((s2) => s2[1]), 1) + 1);
-      for (const [name, n] of steps) {
-        const bw = (cw - 190) * (Math.log10(n + 1) / top) * easeOut((t - 1.2) / 1);
-        ctx.save();
-        ctx.globalAlpha = al;
-        ctx.fillStyle = rgba(colorOf(name), 0.78);
-        ctx.fillRect(cx, cy + 6, Math.max(2, bw), 14);
-        ctx.restore();
-        txt(ctx, `${name} ${num(n)}`, cx + cw, cy + 19, { size: 15, weight: 700, color: COL.mid, align: "right", alpha: al });
-        cy += 30;
-      }
-      cy += 26;
-    };
-    const money = (v) => (b.unit === "SOL" ? `${signed(v, 4)} SOL` : usd(v));
-    row("NET P&L", money(b.pnl), b.pnl > 0 ? COL.green : b.pnl < 0 ? COL.red : COL.text);
-    if (b.unit === "SOL" && b.usd !== null) row("IN DOLLARS", `≈ ${usd(b.usd)}`, COL.mid);
-    row("TRADES", num(b.trades));
-    row("WIN RATE", b.trades ? `${((b.wins / b.trades) * 100).toFixed(1)}%` : "—");
-    if (b.fees > 0) row("FEES PAID", usd(b.fees), COL.gold);
-    row("BEST TRADE", money(b.best), COL.green);
-    row("WORST TRADE", money(b.worst), COL.red);
-    if (b.key === "bybit") {
-      row("SYMBOLS TRADED", num(b.symbols));
-      if (b.logs) {
-        if (b.logs.checks) row("MARKET CHECKS", num(b.logs.checks));
-        if (b.logs.feeRejects) row("SKIPPED, FEES TOO HIGH", num(b.logs.feeRejects));
-        const strat = Object.entries(b.logs.byStrategy || {}).sort((p1, p2) => p2[1] - p1[1]);
-        if (strat.length) bars("ENTRIES BY STRATEGY", strat, () => look.color);
-      }
-    } else {
-      // how picky the bot was: watched -> tried -> bought -> won
-      const steps = [];
-      if (b.watched) steps.push(["watched", b.watched]);
-      steps.push(["tried to buy", b.attempts], ["bought", b.trades], ["won", b.wins]);
-      bars("FROM COIN TO PROFIT", steps, (name) => (name === "won" ? COL.green : look.color));
-      if (b.failedBuys) row("BUYS THAT DIDN'T FILL", num(b.failedBuys), COL.mid);
-    }
+    const ra = a * smooth((t - 0.5 - i * 0.15) / 0.4);
+    txt(ctx, look.name, bx + 24, y, { font: SANS, size: 21, weight: 700, color: look.color, spacing: 1, alpha: ra });
+    txt(ctx, pct(b.ret, 2), cols[0], y, { font: SANS, size: 28, weight: 700, color: b.ret === null ? COL.dim : signColor(b.ret), align: "right", alpha: ra });
+    txt(ctx, b.trades ? pctPlain((b.wins / b.trades) * 100) : "—", cols[1], y, { font: SANS, size: 28, weight: 700, align: "right", alpha: ra });
+    txt(ctx, num(b.trades), cols[2], y, { font: SANS, size: 28, weight: 700, color: COL.mid, align: "right", alpha: ra });
+    y += 70;
   });
-  const ta = smooth((t - 2.2) / 0.6);
-  txt(ctx, "REAL MONEY · REAL TRADES · NOTHING STAGED", W / 2, y + hh - 70, { font: SANS, size: 24, weight: 700, spacing: 4, align: "center", alpha: ta });
-  emblem(ctx, W / 2 - 92, y + hh - 32, 9, ta);
-  txt(ctx, D.brand || "BUBAVERSE", W / 2 - 70, y + hh - 25, { font: SANS, size: 18, weight: 700, spacing: 4, color: COL.mid, alpha: ta });
+  if (D.story.overallRet !== null && tr.length > 1) {
+    const ra = a * smooth((t - 0.9) / 0.4);
+    ctx.save();
+    ctx.globalAlpha = ra;
+    ctx.fillStyle = "rgba(160,190,230,0.25)";
+    ctx.fillRect(bx + 24, y - 44, bw - 48, 1);
+    ctx.restore();
+    const wins = tr.reduce((s, b) => s + b.wins, 0);
+    const n = tr.reduce((s, b) => s + b.trades, 0);
+    txt(ctx, "BOTH BOTS", bx + 24, y, { font: SANS, size: 22, weight: 700, color: COL.gold, spacing: 1, alpha: ra });
+    txt(ctx, pct(D.story.overallRet, 2), cols[0], y, { font: SANS, size: 28, weight: 700, color: signColor(D.story.overallRet), align: "right", alpha: ra });
+    txt(ctx, n ? pctPlain((wins / n) * 100) : "—", cols[1], y, { font: SANS, size: 28, weight: 700, align: "right", alpha: ra });
+    txt(ctx, num(n), cols[2], y, { font: SANS, size: 28, weight: 700, color: COL.mid, align: "right", alpha: ra });
+  }
 }
 
 // ------------------------------------------------------------------ film look
@@ -1196,17 +1437,17 @@ function makeGrain() {
       img.data[i] = v;
       img.data[i + 1] = v;
       img.data[i + 2] = v;
-      img.data[i + 3] = 14;
+      img.data[i + 3] = 10;
     }
     g.putImageData(img, 0, 0);
     GRAIN.push(ctx.createPattern(c, "repeat"));
   }
 }
 
-function filmLook(sec, frame) {
-  const v = ctx.createRadialGradient(W / 2, H / 2, 420, W / 2, H / 2, 1250);
+function filmLook(frame) {
+  const v = ctx.createRadialGradient(W / 2, H / 2, 520, W / 2, H / 2, 1300);
   v.addColorStop(0, "rgba(0,0,0,0)");
-  v.addColorStop(1, "rgba(0,0,0,0.55)");
+  v.addColorStop(1, "rgba(0,0,0,0.45)");
   ctx.fillStyle = v;
   ctx.fillRect(0, 0, W, H);
   ctx.save();
@@ -1214,78 +1455,54 @@ function filmLook(sec, frame) {
   ctx.translate((frame * 37) % 256, (frame * 91) % 256);
   ctx.fillRect(-256, -256, W + 512, H + 512);
   ctx.restore();
-  // letterbox: in for the opening and the record, out for the replay
-  const lb = sec < T0 ? 150 * (1 - smooth((sec - 4.4) / 0.7)) : 96 * smooth((sec - T1) / 0.9);
-  if (lb > 0.5) {
-    ctx.fillStyle = "#000";
-    ctx.fillRect(0, 0, W, lb);
-    ctx.fillRect(0, H - lb, W, lb);
-  }
 }
 
-function background(sec) {
+function background() {
   ctx.fillStyle = COL.bg;
   ctx.fillRect(0, 0, W, H);
-  // two soft colour clouds, one per bot
-  const a = ctx.createRadialGradient(200, 520, 0, 200, 520, 900);
-  a.addColorStop(0, rgba(LOOK.bybit.color, 0.07));
+  const a = ctx.createRadialGradient(RING_CX, 620, 0, RING_CX, 620, 800);
+  a.addColorStop(0, rgba(LOOK.bybit.color, 0.05));
   a.addColorStop(1, "rgba(0,0,0,0)");
   ctx.fillStyle = a;
   ctx.fillRect(0, 0, W, H);
-  const b = ctx.createRadialGradient(880, 1150, 0, 880, 1150, 900);
-  b.addColorStop(0, rgba(LOOK.pump.color, 0.07));
+  const b = ctx.createRadialGradient(RING_CX, 1080, 0, RING_CX, 1080, 800);
+  b.addColorStop(0, rgba(LOOK.pump.color, 0.05));
   b.addColorStop(1, "rgba(0,0,0,0)");
   ctx.fillStyle = b;
   ctx.fillRect(0, 0, W, H);
-  ctx.strokeStyle = "rgba(90, 140, 200, 0.035)";
+  ctx.strokeStyle = "rgba(90, 140, 200, 0.03)";
   ctx.lineWidth = 1;
   ctx.beginPath();
-  const off = (sec * 6) % 60;
-  for (let x = -60 + off; x <= W; x += 60) {
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, H);
+  for (let x = 0; x <= W; x += 40) {
+    ctx.moveTo(x + 0.5, 0);
+    ctx.lineTo(x + 0.5, H);
   }
-  for (let y = 0; y <= H; y += 60) {
-    ctx.moveTo(0, y);
-    ctx.lineTo(W, y);
+  for (let y = 0; y <= H; y += 40) {
+    ctx.moveTo(0, y + 0.5);
+    ctx.lineTo(W, y + 0.5);
   }
   ctx.stroke();
-}
-
-function demoMark(sec) {
-  ctx.save();
-  ctx.translate(W / 2, 1000);
-  ctx.rotate(-0.42);
-  txt(ctx, "PREVIEW · SAMPLE DATA", 0, 0, { font: SANS, size: 70, weight: 700, color: LOOK.bybit.color, align: "center", alpha: 0.09 + 0.02 * Math.sin(sec * 3) });
-  ctx.restore();
 }
 
 // ------------------------------------------------------------------ frame
 
 function drawFrame(sec, frame = Math.round(sec * FPS)) {
   const p = progressAt(sec);
-  background(sec);
-  const sceneAlpha = sec < T_COLD ? 0 : sec < T0 ? smooth((sec - T_COLD) / 1.2) : 1 - 0.68 * smooth((sec - T1) / 0.9);
-  const cam = drawScene(sec, p, sceneAlpha);
-  if (sec < T_COLD + 0.1) coldOpen(sec);
-  titleCard(sec);
-  const hud = smooth((sec - 4.6) / 0.6) * (1 - smooth((sec - T1) / 0.6));
-  if (hud > 0.002) {
-    const st = stateAt(p);
-    topBar(hud, sec);
-    dateBlock(hud, p);
-    ringTags(hud, st, cam);
-    totalBlock(hud, st);
-    chart(hud, Math.max(0, p));
-    ticker(hud, p);
-    footer(hud);
-    cards(sec, cam);
-    intermission(sec);
-  }
-  finale(sec);
-  if (sec > T1) footer(smooth((sec - T1 - 2) / 0.6));
-  if (D.demo) demoMark(sec);
-  filmLook(sec, frame);
+  background();
+  const a = smooth(sec / 0.8); // the dashboard fades in from black
+  const cam = drawScene(sec, p, a);
+  const st = stateAt(p);
+  const final = sec >= T1;
+  header(a, sec, p, final);
+  ringFrame(a, sec, st, cam);
+  side(a, st, p, sec);
+  stream(a, p);
+  bottom(a, st, sec);
+  footer(a);
+  cards(sec, cam);
+  intermission(sec);
+  finalCard(sec);
+  filmLook(frame);
 }
 
 // ------------------------------------------------------------------ record / play
@@ -1332,10 +1549,10 @@ async function record() {
     frame.close();
     while (enc.encodeQueueSize > 3) await yieldNow();
     if (i % 10 === 0) {
-      const pct = (i / frames) * 100;
-      statusEl.textContent = `making the film… ${pct.toFixed(0)}%  (keep this tab open)`;
-      barEl.style.width = `${pct}%`;
-      if (i % 60 === 0) fetch("/progress", { method: "POST", body: String(Math.round(pct)) }).catch(() => {});
+      const done = (i / frames) * 100;
+      statusEl.textContent = `making the film… ${done.toFixed(0)}%  (keep this tab open)`;
+      barEl.style.width = `${done}%`;
+      if (i % 60 === 0) fetch("/progress", { method: "POST", body: String(Math.round(done)) }).catch(() => {});
       await yieldNow();
     }
   }
