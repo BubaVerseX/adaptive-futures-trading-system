@@ -121,6 +121,7 @@ function serve(payload, args) {
         const allowed = [
           "render.html",
           "render.js",
+          "scene.js",
           "vendor/mp4-muxer.js",
           "vendor/fonts/space-grotesk-latin-500-normal.woff2",
           "vendor/fonts/space-grotesk-latin-700-normal.woff2",

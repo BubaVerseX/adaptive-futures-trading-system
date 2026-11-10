@@ -9,16 +9,16 @@
  *   /?t=12.5     draw one frame at 12.5 s             (stills / checks)
  *   /?play=1     play it live in the page
  *
- * Layout: header and clock on top; the two linked rings (one per bot) in the main
- * window with instrument panels down the right side; a P&L stream and three panels
- * along the bottom. Results are shown in percent only, never in dollars or SOL.
- * The replay runs from the first trade to today and slows down on real highlights.
+ * Layout: header and clock on top; THE CHAIN in the main window (a real 3D scene,
+ * see scene.js: every chapter of the story forges one link, woven from its trades)
+ * with instrument panels down the right side; a P&L stream and three panels along
+ * the bottom. Results are shown in percent only, never in dollars or SOL. The
+ * replay runs from the first trade to today and slows down on real highlights.
  */
 
 const W = 1080;
 const H = 1920;
 const FPS = 30;
-const N = 64; // points per ring line
 const SANS = "'Space Grotesk', 'Helvetica Neue', Arial, sans-serif";
 const MONO = "'JetBrains Mono', Menlo, 'DejaVu Sans Mono', monospace";
 const COL = {
@@ -59,22 +59,12 @@ const mk = (w, h) => {
   c.height = h;
   return c;
 };
-const sceneCv = mk(W, H);
-const sctx = sceneCv.getContext("2d");
-const bloomA = mk(W / 4, H / 4);
-const bctxA = bloomA.getContext("2d");
-const bloomB = mk(W / 12, H / 12);
-const bctxB = bloomB.getContext("2d");
 
 // ------------------------------------------------------------------ helpers
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const smooth = (x) => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
 const easeOut = (x) => 1 - Math.pow(1 - clamp(x, 0, 1), 3);
-const hash = (seed, k) => {
-  const x = Math.sin(seed * 9301.17 * (k + 1) + k * 49.297) * 43758.5453;
-  return x - Math.floor(x);
-};
 function upperBound(arr, v) {
   let lo = 0;
   let hi = arr.length;
@@ -230,46 +220,16 @@ function buildClock() {
   return { start, end, span, pOf, msOf };
 }
 
-function prepBot(bot, index, count) {
+function prepBot(bot, index) {
   const B = { ...bot, look: LOOK[bot.key] || LOOK.pump, index };
   const L = B.lines;
   B.pAppear = Float64Array.from(L.map((l) => CLOCK.pOf(l.t)));
   B.pClose = Float64Array.from(B.trades.map((t) => CLOCK.pOf(t.close)));
   B.pOpen = Float64Array.from(B.trades.map((t, i) => (t.open ? Math.min(CLOCK.pOf(t.open), B.pClose[i]) : B.pClose[i])));
-  B.geom = new Float32Array(L.length * N * 3);
-  B.group = new Uint8Array(L.length);
-  L.forEach((l, i) => {
-    const s = l.seed;
-    const u0 = hash(s, 1) * Math.PI * 2;
-    const spanU = Math.PI * (0.55 + 1.15 * hash(s, 2));
-    const wind = (hash(s, 3) < 0.5 ? -1 : 1) * (1.6 + 5.5 * hash(s, 6));
-    const v0 = hash(s, 4) * Math.PI * 2;
-    const rr = 0.42 * (0.5 + 0.55 * hash(s, 5)) + 0.06 * (l.w || 0);
-    for (let j = 0; j < N; j++) {
-      const u = u0 + (spanU * j) / (N - 1);
-      const v = v0 + wind * (u - u0);
-      const o = (i * N + j) * 3;
-      B.geom[o] = (1 + rr * Math.cos(v)) * Math.cos(u);
-      B.geom[o + 1] = (1 + rr * Math.cos(v)) * Math.sin(u);
-      B.geom[o + 2] = rr * Math.sin(v);
-    }
-    const hue = hash(s, 7);
-    const w = l.w || 0;
-    B.group[i] = (hue < 0.8 ? 0 : hue < 0.92 ? 1 : 2) * 3 + (w < 0.15 ? 0 : w < 0.5 ? 1 : 2);
-  });
-  B.scr = new Float32Array(L.length * N * 2);
-  B.depth = new Uint8Array(L.length);
   B.tradeOfLine = new Int32Array(L.length).fill(-1);
   B.trades.forEach((t, i) => {
     if (t.line >= 0 && t.line < L.length) B.tradeOfLine[t.line] = i;
   });
-  B.mode = count === 1 ? "solo" : bot.key === "bybit" ? "top" : "bottom";
-  B.spin = bot.key === "bybit" ? 0.2 : -0.17;
-  B.dust = [];
-  for (let k = 0; k < 70; k++) {
-    const s = index * 1000 + k;
-    B.dust.push([hash(s, 11) * Math.PI * 2, hash(s, 12) * Math.PI * 2, 0.3 + 0.75 * hash(s, 13), hash(s, 14)]);
-  }
   // P&L shape in units of this bot's average stake (no money shown, only the shape)
   const stake = B.trades.reduce((s, t) => s + (t.stake || 0), 0);
   const avgStake = B.trades.length && stake > 0 ? stake / B.trades.length : 1;
@@ -286,7 +246,7 @@ function prep() {
   T1 = DUR - 4;
   R = T1 - T0;
   CLOCK = buildClock();
-  BOTS = D.bots.map((b, i) => prepBot(b, i, D.bots.length));
+  BOTS = D.bots.map((b, i) => prepBot(b, i));
   ALL = [];
   BOTS.forEach((B) => B.trades.forEach((t, i) => ALL.push({ B, i, p: B.pClose[i], t })));
   ALL.sort((a, b) => a.p - b.p);
@@ -302,7 +262,9 @@ function prep() {
   ALL.shape = Float64Array.from(ALL.map((x) => (run += x.t.pnl / avgStake.get(x.B))));
   ALL.min = Math.min(0, ...ALL.shape);
   ALL.max = Math.max(0, ...ALL.shape);
+  buildChapters();
   PLAN = planStory();
+  buildScene();
 }
 
 // ------------------------------------------------------------------ story plan: highlights + slow motion
@@ -466,270 +428,169 @@ function stateAt(p) {
   };
 }
 
-// ------------------------------------------------------------------ the scene: rings in 3D
+// ------------------------------------------------------------------ the scene: the chain (WebGL, see scene.js)
+
+let SCENE;
+let CHS; // the chapters as stretches of the replay: { p0, p1, s0, s1, bots, color, ticks }
+let MOVES; // camera moves from one link to the next: [fromSec, toSec]
+const GL_Y = 296; // where the 3D picture sits in the frame
+const GL_H = 1050;
+const CLOSE_DIST = 5.75; // camera distance while a link is being forged
+const hex3 = (hex) => {
+  const n = parseInt(hex.slice(1), 16);
+  return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
+};
+// light colours: more saturated than the labels, because light adds up towards white
+const SCENE_COLORS = {
+  bybit: { base: [1.0, 0.55, 0.18], tint1: [1.0, 0.72, 0.3], tint2: [1.0, 0.4, 0.25], win: [1.0, 0.84, 0.36], loss: [1.0, 0.14, 0.2] },
+  pump: { base: [0.24, 0.6, 1.0], tint1: [0.2, 1.0, 0.78], tint2: [0.62, 0.45, 1.0], win: [0.22, 1.0, 0.62], loss: [1.0, 0.16, 0.46] },
+};
+
+function buildChapters() {
+  CHS = D.story.chapters.map((c) => {
+    const p0 = CLOCK.pOf(c.from);
+    const p1 = CLOCK.pOf(c.to);
+    const color = c.bots.length === 1 ? hex3((LOOK[c.bots[0]] || LOOK.pump).color) : hex3(COL.gold);
+    // a tick on the ring for every day of the chapter (every few days when it is long)
+    const ticks = [];
+    const step = Math.max(1, Math.ceil((c.to - c.from) / 86400000 / 60));
+    const d = new Date(c.from);
+    d.setHours(0, 0, 0, 0);
+    for (let t = d.getTime() + 86400000, i = 0; t < c.to; t += 86400000, i++) {
+      if (i % step === 0) ticks.push((CLOCK.pOf(t) - p0) / Math.max(1e-9, p1 - p0));
+    }
+    return { ...c, p0, p1, color, ticks };
+  });
+  if (!CHS.length) CHS = [{ from: CLOCK.start, to: CLOCK.end, p0: 0, p1: 1, bots: BOTS.map((b) => b.key), color: hex3(COL.gold), ticks: [] }];
+}
+
+function buildScene() {
+  for (const c of CHS) {
+    c.s0 = PLAN.map.secOf(c.p0);
+    c.s1 = PLAN.map.secOf(c.p1);
+  }
+  MOVES = [];
+  for (let k = 1; k < CHS.length; k++) {
+    const m0 = CHS[k - 1].s1 - 0.1;
+    MOVES.push([m0, Math.max(m0 + 1.5, CHS[k].s0 + 0.3)]);
+  }
+  SCENE = BotScene.create({ width: W, height: GL_H });
+  SCENE.build({
+    chapters: CHS,
+    bots: BOTS.map((B) => ({
+      colors: SCENE_COLORS[B.key] || SCENE_COLORS.pump,
+      lines: B.lines,
+      pAppear: B.pAppear,
+      tradeOfLine: B.tradeOfLine,
+      trades: B.trades,
+      pOpen: B.pOpen,
+      pClose: B.pClose,
+    })),
+  });
+}
+
+// which link is being forged, and how far around it the forge has come
+function headAt(p) {
+  let k = 0;
+  for (let i = 0; i < CHS.length; i++) if (p >= CHS[i].p0) k = i;
+  const c = CHS[k];
+  return { k, f: clamp((p - c.p0) / Math.max(1e-9, c.p1 - c.p0), 0, 1) };
+}
+
+function anchorOf(h) {
+  if (h.trade !== undefined) return SCENE.tradeAnchor(h.B.index, h.trade);
+  const t = h.B.tradeOfLine[h.line];
+  return t >= 0 ? SCENE.tradeAnchor(h.B.index, t) : SCENE.lineAnchor(h.B.index, h.line);
+}
 
 function envelope(h, sec) {
   if (h.kind === "gap") return 0;
   return smooth((sec - (h.s - 0.3)) / 0.45) * (1 - smooth((sec - (h.s + 1.35)) / 0.55));
 }
 
-function baseCamera(sec) {
-  return {
-    theta: 0.82 + 0.3 * Math.sin(sec * 0.21),
-    pitch: 0.2 + 0.06 * Math.sin(sec * 0.15 + 1),
-    scale: BOTS.length === 1 ? 210 : 168,
-    cx: RING_CX,
-    cy: RING_CY,
-    sec,
-  };
-}
+const FINAL_ROW = 58;
+const finalCardHeight = () => 100 + D.story.totals.length * FINAL_ROW + (D.story.overallRet !== null && D.story.totals.length > 1 ? FINAL_ROW + 6 : 0);
 
-function camera(sec) {
-  const cam = baseCamera(sec);
-  let zoom = 0.86 + 0.14 * easeOut(sec / 1.2);
-  let sx = 0;
-  let sy = 0;
+function cameraAt(sec, p) {
+  const K = CHS.length;
+  const GAP = BotScene.LINK_GAP;
+  let kf = 0;
+  for (const [m0, m1] of MOVES) kf += smooth((sec - m0) / (m1 - m0));
+  const fin = smooth((sec - T1 + 0.3) / 1.8); // 0 during the replay, 1 at the end
+  const head = headAt(Math.max(0, p));
+  const hp = SCENE.forgePoint(head.k, head.f);
+  // look at the link being forged, leaning a little towards the forge point
+  const lean = 0.16 * (1 - fin);
+  let tx = hp[0] * lean;
+  let ty = -kf * GAP + (hp[1] + kf * GAP) * lean;
+  let tz = hp[2] * lean;
+  let dist = CLOSE_DIST * (1.22 - 0.22 * easeOut(sec / 1.5));
+  // the end: step back until the whole chain fits above the result card
+  const room = RING.h - finalCardHeight() - 110;
+  const chainH = (K - 1) * GAP + 3.02;
+  const fitDist = Math.max(CLOSE_DIST, (SCENE.pxPerUnit(1) * chainH) / room);
+  const up = (RING_CY - (RING.y + 62 + room / 2)) / SCENE.pxPerUnit(fitDist); // world units the chain moves up
+  dist += (fitDist - dist) * fin;
+  ty += (-((K - 1) * GAP) / 2 - up - ty) * fin;
+  tx *= 1 - fin;
+  tz *= 1 - fin;
+  // real highlights pull the camera in
+  let zoom = 1;
   for (const h of PLAN.sel) {
     const e = envelope(h, sec);
     if (e <= 0) continue;
-    const a = projectPoint(h.B, h.line, N >> 1, cam);
-    zoom += 0.14 * e;
-    sx += (a.x - cam.cx) * 0.25 * e;
-    sy += (a.y - cam.cy) * 0.25 * e;
+    const a = anchorOf(h);
+    zoom -= 0.14 * e;
+    tx += (a[0] - tx) * 0.3 * e;
+    ty += (a[1] - ty) * 0.3 * e;
+    tz += (a[2] - tz) * 0.3 * e;
   }
-  cam.scale *= zoom;
-  cam.cx -= sx;
-  cam.cy -= sy;
-  return cam;
-}
-
-function makeProjector(B, cam) {
-  const phi = cam.sec * B.spin;
-  const cf = Math.cos(phi);
-  const sf = Math.sin(phi);
-  const ct = Math.cos(cam.theta);
-  const st = Math.sin(cam.theta);
-  const cp = Math.cos(cam.pitch);
-  const sp = Math.sin(cam.pitch);
-  const Dz = 7;
-  const mode = B.mode;
-  return (x, y, z, out) => {
-    const x1 = x * cf - y * sf;
-    const y1 = x * sf + y * cf;
-    let wx;
-    let wy;
-    let wz;
-    if (mode === "top") {
-      wx = x1;
-      wy = y1 + 0.62;
-      wz = z;
-    } else if (mode === "bottom") {
-      wx = z;
-      wy = y1 - 0.62;
-      wz = x1;
-    } else {
-      wx = x1;
-      wy = y1;
-      wz = z;
-    }
-    const X = wx * ct + wz * st;
-    const Z = -wx * st + wz * ct;
-    const Y2 = wy * cp - Z * sp;
-    const Z2 = wy * sp + Z * cp;
-    const k = (cam.scale * Dz) / (Dz - Z2);
-    out[0] = cam.cx + X * k;
-    out[1] = cam.cy - Y2 * k;
-    out[2] = Z2;
-    return out;
-  };
-}
-
-const tmp = [0, 0, 0];
-function projectPoint(B, line, j, cam) {
-  const proj = makeProjector(B, cam);
-  const o = (line * N + j) * 3;
-  proj(B.geom[o], B.geom[o + 1], B.geom[o + 2], tmp);
-  return { x: tmp[0], y: tmp[1] };
-}
-
-function strokeLine(c, s, i, from = 0, to = N) {
-  const o = i * N * 2;
-  c.moveTo(s[o + from * 2], s[o + from * 2 + 1]);
-  for (let j = from + 1; j < to; j++) c.lineTo(s[o + j * 2], s[o + j * 2 + 1]);
-}
-
-const LINE_TINTS = [null, [90, 255, 215], [200, 160, 255]];
-
-function drawRing(c, B, cam, sec, p, ignite) {
-  const proj = makeProjector(B, cam);
-  const look = B.look;
-  c.save();
-  c.globalCompositeOperation = "lighter";
-
-  // scaffold: faint wireframe so the ring is there before its first line
-  c.strokeStyle = rgba(look.color, 0.04 + 0.08 * ignite);
-  c.lineWidth = 1;
-  c.beginPath();
-  for (let k = 0; k < 9; k++) {
-    const v = (k / 9) * Math.PI * 2;
-    for (let j = 0; j <= 96; j++) {
-      const u = (j / 96) * Math.PI * 2;
-      proj((1 + 0.42 * Math.cos(v)) * Math.cos(u), (1 + 0.42 * Math.cos(v)) * Math.sin(u), 0.42 * Math.sin(v), tmp);
-      if (j === 0) c.moveTo(tmp[0], tmp[1]);
-      else c.lineTo(tmp[0], tmp[1]);
-    }
-  }
-  c.stroke();
-
-  for (const [u, v, r, ph] of B.dust) {
-    const rr = 0.42 * r;
-    proj((1 + rr * Math.cos(v)) * Math.cos(u), (1 + rr * Math.cos(v)) * Math.sin(u), rr * Math.sin(v), tmp);
-    const tw = 0.35 + 0.65 * Math.abs(Math.sin(sec * (1.3 + ph * 2) + ph * 10));
-    c.fillStyle = rgba(look.color, (0.2 + 0.45 * ignite) * tw);
-    c.fillRect(tmp[0] - 1.1, tmp[1] - 1.1, 2.2, 2.2);
-  }
-
-  const vis = upperBound(B.pAppear, p);
-  const s = B.scr;
-  const g = B.geom;
-  for (let i = 0; i < vis; i++) {
-    for (let j = 0; j < N; j++) {
-      const o = (i * N + j) * 3;
-      proj(g[o], g[o + 1], g[o + 2], tmp);
-      s[(i * N + j) * 2] = tmp[0];
-      s[(i * N + j) * 2 + 1] = tmp[1];
-      if (j === N >> 1) B.depth[i] = tmp[2] < -0.45 ? 0 : tmp[2] < 0.45 ? 1 : 2;
-    }
-  }
-
-  const baseAlpha = clamp(0.95 / Math.sqrt(Math.max(1, vis)), 0.009, 0.24);
-  const GROW = 0.5;
-  const newFrom = upperBound(B.pAppear, p - GROW / R);
-  const DEPTH = [0.5, 0.85, 1.25];
-  c.lineWidth = 0.9;
-  for (let gid = 0; gid < 9; gid++) {
-    const tint = LINE_TINTS[Math.floor(gid / 3)] || look.base;
-    for (let d = 0; d < 3; d++) {
-      const a = baseAlpha * [0.7, 1.1, 1.6][gid % 3] * DEPTH[d];
-      c.strokeStyle = `rgba(${tint[0]},${tint[1]},${tint[2]},${a})`;
-      c.beginPath();
-      let n = 0;
-      for (let i = 0; i < newFrom; i++) {
-        if (B.group[i] !== gid || B.depth[i] !== d || B.tradeOfLine[i] >= 0) continue;
-        strokeLine(c, s, i);
-        if (++n % 70 === 0) {
-          c.stroke();
-          c.beginPath();
-        }
-      }
-      if (n) c.stroke();
-    }
-  }
-  for (let i = newFrom; i < vis; i++) {
-    if (B.tradeOfLine[i] >= 0) continue;
-    const age = (p - B.pAppear[i]) * R;
-    c.strokeStyle = `rgba(225, 242, 255, ${0.35 * (1 - age / GROW) + baseAlpha})`;
-    c.lineWidth = 1.1;
-    c.beginPath();
-    strokeLine(c, s, i, 0, Math.max(2, Math.floor(N * clamp(age / GROW, 0, 1))));
-    c.stroke();
-  }
-
-  // trades: gold while held, then a flash and the win / loss colour
-  const settled = { win: [], loss: [] };
-  const fresh = [];
-  for (let t = 0; t < B.trades.length; t++) {
-    const line = B.trades[t].line;
-    if (B.pOpen[t] > p || line >= vis) continue;
-    if (B.pClose[t] > p) {
-      fresh.push({ line, kind: "open" });
-      continue;
-    }
-    const age = (p - B.pClose[t]) * R;
-    const win = B.trades[t].pnl > 0;
-    if (age < 0.9) fresh.push({ line, kind: win ? "win" : "loss", age });
-    else settled[win ? "win" : "loss"].push(line);
-  }
-  // In a busy stretch dozens of trades close each second: only the newest few flash.
-  const opens = fresh.filter((f) => f.kind === "open");
-  const closes = fresh.filter((f) => f.kind !== "open").sort((a, b) => a.age - b.age);
-  for (const f of closes.slice(6)) settled[f.kind].push(f.line);
-  fresh.length = 0;
-  fresh.push(...opens.slice(0, 6), ...closes.slice(0, 6));
-  const nSettled = settled.win.length + settled.loss.length;
-  const tradeAlpha = clamp(2.6 / Math.sqrt(Math.max(1, nSettled)), 0.07, 0.5);
-  for (const kind of ["win", "loss"]) {
-    c.strokeStyle = rgba(look[kind], tradeAlpha * (kind === "loss" ? 0.9 : 1));
-    c.lineWidth = 1.05;
-    c.beginPath();
-    settled[kind].forEach((line, k) => {
-      strokeLine(c, s, line);
-      if ((k + 1) % 60 === 0) {
-        c.stroke();
-        c.beginPath();
-      }
-    });
-    c.stroke();
-  }
-  for (const f of fresh) {
-    const color = f.kind === "open" ? COL.gold : look[f.kind];
-    const flash = f.kind === "open" ? 0.55 + 0.35 * Math.sin(sec * 9) : Math.exp(-f.age / 0.35);
-    c.strokeStyle = rgba(color, 0.1 + 0.2 * flash);
-    c.lineWidth = 5;
-    c.beginPath();
-    strokeLine(c, s, f.line);
-    c.stroke();
-    c.strokeStyle = f.kind === "open" ? rgba(color, 0.9) : `rgba(255,255,255,${clamp(0.3 + 0.7 * flash, 0, 1)})`;
-    c.lineWidth = 1.2 + 1.2 * flash;
-    c.beginPath();
-    strokeLine(c, s, f.line);
-    c.stroke();
-    if (f.kind !== "open") {
-      const j = Math.min(N - 1, Math.floor((f.age / 0.9) * N));
-      const o = f.line * N * 2 + j * 2;
-      const rg = c.createRadialGradient(s[o], s[o + 1], 0, s[o], s[o + 1], 18);
-      rg.addColorStop(0, "rgba(255,255,255,0.95)");
-      rg.addColorStop(0.3, rgba(color, 0.7));
-      rg.addColorStop(1, rgba(color, 0));
-      c.fillStyle = rg;
-      c.fillRect(s[o] - 18, s[o + 1] - 18, 36, 36);
-    }
-  }
-  c.restore();
+  return { target: [tx, ty, tz], yaw: 0.78 + 0.34 * Math.sin(sec * 0.2 + 0.4), pitch: 0.1 + 0.07 * Math.sin(sec * 0.15 + 1), dist: dist * zoom };
 }
 
 function drawScene(sec, p, alpha) {
-  const cam = camera(sec);
-  if (alpha <= 0.002) return cam;
-  sctx.setTransform(1, 0, 0, 1, 0, 0);
-  sctx.clearRect(0, 0, W, H);
-  sctx.save();
-  sctx.beginPath();
-  sctx.rect(RING.x + 1, RING.y + 1, RING.w - 2, RING.h - 2);
-  sctx.clip();
-  const g = sctx.createRadialGradient(cam.cx, cam.cy, 20, cam.cx, cam.cy, 520);
-  g.addColorStop(0, "rgba(60, 120, 220, 0.10)");
-  g.addColorStop(1, "rgba(0,0,0,0)");
-  sctx.fillStyle = g;
-  sctx.fillRect(RING.x, RING.y, RING.w, RING.h);
-  const ignite = smooth(sec / 1.2);
-  for (const B of BOTS) drawRing(sctx, B, cam, sec, p, ignite);
-  sctx.restore();
+  const cam = cameraAt(sec, p);
+  const head = headAt(Math.max(0, p));
+  const hoops = [];
+  CHS.forEach((c, k) => {
+    if (k !== head.k) return;
+    const gain = smooth((sec - c.s0 + 0.25) / 0.35) * (1 - smooth((sec - c.s1) / 0.5));
+    hoops.push({ k, f: head.f, color: c.color, gain });
+  });
+  const linkGain = CHS.map((c, k) => (k === 0 ? smooth(sec / 1.0) : smooth((sec - (MOVES[k - 1][0] - 0.1)) / 0.9)));
+  // a link flares the moment it is finished
+  const linkBoost = CHS.map((c) => (sec >= c.s1 ? 1.5 * Math.exp(-(sec - c.s1) / 0.5) : 0));
+  linkBoost.forEach((b, k) => (linkGain[k] *= 1 + 2 * b));
+  let hot = null;
+  for (const h of PLAN.sel) {
+    const e = envelope(h, sec);
+    if (e > 0 && h.trade !== undefined) hot = { bi: h.B.index, close: h.B.pClose[h.trade], gain: e };
+  }
+  SCENE.render({
+    p,
+    sec,
+    R,
+    cam,
+    ox: (RING_CX - W / 2) / (W / 2),
+    oy: -(RING_CY - (GL_Y + GL_H / 2)) / (GL_H / 2),
+    hoops,
+    linkGain,
+    hot,
+    gain: clamp(CLOSE_DIST / cam.dist, 0.3, 1.15),
+    linkBoost,
+  });
   ctx.save();
-  ctx.globalAlpha = alpha;
-  ctx.drawImage(sceneCv, 0, 0);
-  bctxA.clearRect(0, 0, bloomA.width, bloomA.height);
-  bctxA.drawImage(sceneCv, 0, 0, bloomA.width, bloomA.height);
-  bctxB.clearRect(0, 0, bloomB.width, bloomB.height);
-  bctxB.drawImage(bloomA, 0, 0, bloomB.width, bloomB.height);
   ctx.globalCompositeOperation = "lighter";
-  ctx.imageSmoothingQuality = "high";
-  ctx.globalAlpha = 0.3 * alpha;
-  ctx.drawImage(bloomA, 0, 0, W, H);
-  ctx.globalAlpha = 0.22 * alpha;
-  ctx.drawImage(bloomB, 0, 0, W, H);
+  ctx.globalAlpha = alpha;
+  ctx.drawImage(SCENE.canvas, 0, GL_Y);
   ctx.restore();
   return cam;
+}
+
+// world point -> pixel in the frame (after drawScene)
+function toScreen(w) {
+  const s = SCENE.project(w[0], w[1], w[2]);
+  return { x: s.x, y: s.y + GL_Y };
 }
 
 // ------------------------------------------------------------------ header
@@ -816,7 +677,7 @@ function dateBlock(a, p) {
   const chap = chapterAt(ms);
   const color = chap && chap.ch.bots.length === 1 ? (LOOK[chap.ch.bots[0]] || LOOK.pump).color : COL.gold;
   txt(ctx, timeText(ms), W - 28, 208, { font: MONO, size: 38, weight: 700, color, align: "right", alpha: a });
-  const label = chap ? `CHAPTER ${chap.n} · ${chap.ch.bots.map((k) => (LOOK[k] || LOOK.pump).name).join(" + ")}` : "PAUSE · NO TRADING";
+  const label = chap ? `LINK ${pad2(chap.n)} · ${chap.ch.bots.map((k) => (LOOK[k] || LOOK.pump).name).join(" + ")}` : "PAUSE · NO TRADING";
   txt(ctx, label, 28, 246, { font: SANS, size: 19, weight: 700, color: chap ? color : COL.mid, spacing: 3, alpha: a });
   const day = Math.floor((ms - CLOCK.start) / 86400000) + 1;
   const days = Math.max(1, Math.ceil(CLOCK.span / 86400000));
@@ -857,18 +718,15 @@ function dateBlock(a, p) {
   ctx.restore();
 }
 
-// ------------------------------------------------------------------ main window (rings)
+// ------------------------------------------------------------------ main window (the chain)
 
-function ringFrame(a, sec, st, cam) {
-  // frame + labels around the rings, like an instrument
+function chainFrame(a, sec, p, cam) {
+  // corner brackets: the 3D picture floats free, the panels sit over its glow
   ctx.save();
   ctx.globalAlpha = a;
-  ctx.strokeStyle = COL.edge;
-  ctx.lineWidth = 1;
-  ctx.strokeRect(RING.x + 0.5, RING.y + 0.5, RING.w - 1, RING.h - 1);
   ctx.strokeStyle = COL.edgeHi;
   ctx.lineWidth = 2;
-  const k = 14;
+  const k = 16;
   const { x, y, w, h } = RING;
   ctx.beginPath();
   ctx.moveTo(x, y + k); ctx.lineTo(x, y); ctx.lineTo(x + k, y);
@@ -877,36 +735,64 @@ function ringFrame(a, sec, st, cam) {
   ctx.moveTo(x + w - k, y + h); ctx.lineTo(x + w, y + h); ctx.lineTo(x + w, y + h - k);
   ctx.stroke();
   ctx.restore();
-  const lines = st.bots.reduce((s, b) => s + b.lines, 0);
-  txt(ctx, `CORE // ${BOTS.length} ENGINES · ${num(lines)} LINES`, RING.x + 14, RING.y + 24, { size: 12, weight: 700, color: COL.mid, spacing: 1, alpha: a });
-  const deg = ((cam.theta * 180) / Math.PI).toFixed(1);
-  txt(ctx, `orbit ${deg}° · tilt ${((cam.pitch * 180) / Math.PI).toFixed(1)}°`, RING.x + RING.w - 14, RING.y + 24, { size: 12, color: COL.dim, align: "right", alpha: a });
-  // which ring is which
-  BOTS.forEach((B) => {
-    const top = B.mode !== "bottom";
-    const tx = top ? RING.x + RING.w - 14 : RING.x + 14;
-    const ty = top ? RING.y + 56 : RING.y + RING.h - 44;
-    const live = B.status === "LIVE";
-    txt(ctx, B.look.name, tx, ty, { font: SANS, size: 18, weight: 700, color: B.look.color, spacing: 2, align: top ? "right" : "left", alpha: a });
-    txt(ctx, live ? "● LIVE" : "■ STOPPED", tx, ty + 18, { size: 11, weight: 700, color: live ? COL.green : COL.dim, align: top ? "right" : "left", alpha: a });
-  });
-  const legend = BOTS.length === 2 ? "1 line = 1 trade (bybit) · 1 coin watched (pump.fun)" : `1 line = 1 ${BOTS[0].lineWord}`;
-  txt(ctx, legend, RING.x + RING.w - 14, RING.y + RING.h - 14, { size: 11, color: COL.dim, align: "right", alpha: a });
+
+  // chain map: one small ring per link, its arc showing how much of it is forged
+  const head = headAt(Math.max(0, p));
+  const from = Math.max(0, Math.min(head.k - 1, CHS.length - 2));
+  let cx = RING.x + 30;
+  const cy = RING.y + 36;
+  for (let i = from; i < Math.min(CHS.length, from + 2); i++) {
+    const c = CHS[i];
+    const done = p < 0 ? 0 : i < head.k ? 1 : i === head.k ? head.f : 0;
+    const names = c.bots.map((key) => (LOOK[key] || LOOK.pump).name).join(" + ");
+    const color = c.bots.length === 1 ? (LOOK[c.bots[0]] || LOOK.pump).color : COL.gold;
+    const on = i === head.k && sec >= T0 && sec < T1;
+    ctx.save();
+    ctx.globalAlpha = a * (done > 0 || on ? 1 : 0.45);
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = "rgba(120,170,230,0.2)";
+    ctx.beginPath();
+    ctx.arc(cx, cy, 13, 0, Math.PI * 2);
+    ctx.stroke();
+    if (done > 0) {
+      ctx.strokeStyle = color;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 13, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * done);
+      ctx.stroke();
+    }
+    ctx.restore();
+    const al = a * (done > 0 || on ? 1 : 0.45);
+    txt(ctx, `LINK ${pad2(i + 1)}`, cx + 24, cy - 3, { size: 11, weight: 700, color: COL.dim, spacing: 1.5, alpha: al });
+    const state = done >= 1 ? "forged" : on ? `forging ${Math.round(done * 100)}%` : "next";
+    const tw = txt(ctx, names, cx + 24, cy + 15, { font: SANS, size: 17, weight: 700, color, spacing: 1.5, alpha: al });
+    txt(ctx, state, cx + 24 + tw + 10, cy + 15, { size: 11, weight: 700, color: on ? COL.text : COL.dim, alpha: al });
+    cx += 24 + tw + 10 + 90;
+    if (i < Math.min(CHS.length, from + 2) - 1) {
+      ctx.save();
+      ctx.globalAlpha = a * 0.5;
+      ctx.fillStyle = COL.dim;
+      ctx.fillRect(cx - 12, cy, 26, 1);
+      ctx.restore();
+      cx += 34;
+    }
+  }
+  txt(ctx, "1 thread = 1 trade · 1 coin watched      outward = win · inward = loss", RING.x + 16, RING.y + RING.h - 16, { size: 11, color: COL.dim, alpha: a });
+  txt(ctx, `orbit ${((cam.yaw * 180) / Math.PI).toFixed(1)}°`, RING.x + RING.w - 16, RING.y + RING.h - 16, { size: 11, color: COL.dim, align: "right", alpha: a });
 }
 
-function cards(sec, cam) {
+function cards(sec) {
   for (const h of PLAN.sel) {
     if (h.kind === "gap") continue;
     const [a0, a1] = h.win;
     if (sec < a0 || sec > a1) continue;
     const inA = easeOut((sec - a0) / 0.3);
     const a = inA * (1 - smooth((sec - (a1 - 0.35)) / 0.35));
-    const anchor = projectPoint(h.B, h.line, N >> 1, cam);
+    const anchor = toScreen(anchorOf(h));
     const cw = 300;
     const chh = 128;
     const left = anchor.x > RING_CX;
     const cx = left ? RING.x + 16 : RING.x + RING.w - 16 - cw;
-    const cy = clamp(anchor.y - chh / 2, RING.y + 70, RING.y + RING.h - chh - 60);
+    const cy = clamp(anchor.y - chh / 2, RING.y + 80, RING.y + RING.h - chh - 60);
     const color = h.kind === "best" || h.kind === "streak" ? COL.green : h.kind === "worst" ? COL.red : h.kind === "stop" ? COL.mid : h.B.look.color;
     ctx.save();
     ctx.globalAlpha = a;
@@ -920,12 +806,11 @@ function cards(sec, cam) {
     ctx.lineTo(sx + (anchor.x - sx) * k, sy + (anchor.y - sy) * k);
     ctx.stroke();
     ctx.beginPath();
-    ctx.arc(anchor.x, anchor.y, 5 + 3 * Math.sin(sec * 8), 0, Math.PI * 2);
-    ctx.strokeStyle = color;
+    ctx.arc(anchor.x, anchor.y, 6 + 3 * Math.sin(sec * 8), 0, Math.PI * 2);
     ctx.stroke();
     ctx.restore();
     const slide = (1 - inA) * (left ? -24 : 24);
-    panel(cx + slide, cy, cw, chh, h.kind === "start" ? `CHAPTER ${h.chapter}` : h.kind === "stop" ? "END OF RUN" : "HIGHLIGHT", a, "", color, 0.9);
+    panel(cx + slide, cy, cw, chh, h.kind === "start" ? `LINK ${pad2(h.chapter)}` : h.kind === "stop" ? "END OF RUN" : "HIGHLIGHT", a, "", color, 0.9);
     txt(ctx, h.title, cx + slide + 14, cy + 48, { font: SANS, size: 19, weight: 700, color, spacing: 1, alpha: a });
     txt(ctx, h.value, cx + slide + 14, cy + 90, { font: SANS, size: 34, weight: 700, color: COL.text, alpha: a });
     txt(ctx, h.sub, cx + slide + 14, cy + 114, { size: 13, weight: 700, color: COL.mid, alpha: a });
@@ -940,7 +825,7 @@ function intermission(sec) {
     if (sec < a0 || sec > a1) continue;
     const f = (sec - a0) / (a1 - a0);
     const a = smooth((sec - a0) / 0.3) * (1 - smooth((sec - (a1 - 0.3)) / 0.3));
-    const bw = 520;
+    const bw = 600;
     const bh = 170;
     const bx = RING_CX - bw / 2;
     const by = RING_CY - bh / 2;
@@ -954,7 +839,7 @@ function intermission(sec) {
     const b1 = before >= 0 ? beat(f, -1, 0.3) : 0;
     if (b1 > 0.002) {
       const c = chs[before];
-      txt(ctx, `END OF CHAPTER ${before + 1}`, RING_CX, by + 46, { size: 13, weight: 700, color: COL.dim, spacing: 2, align: "center", alpha: b1 });
+      txt(ctx, `LINK ${pad2(before + 1)} FORGED`, RING_CX, by + 46, { size: 13, weight: 700, color: COL.dim, spacing: 2, align: "center", alpha: b1 });
       txt(ctx, names(c), RING_CX, by + 98, { font: SANS, size: 40, weight: 700, color: colorOf(c), spacing: 3, align: "center", alpha: b1 });
       const stop = D.story.highlights.find((x) => x.kind === "stop" && Math.abs(x.t - h.gap.from) < 1000);
       if (stop) txt(ctx, `stopped · ${stop.value} · ${stop.sub}`, RING_CX, by + 136, { size: 14, weight: 700, color: COL.mid, align: "center", alpha: b1 });
@@ -962,13 +847,13 @@ function intermission(sec) {
     const b2 = beat(f, 0.3, 0.68);
     if (b2 > 0.002) {
       txt(ctx, "PAUSE", RING_CX, by + 46, { size: 13, weight: 700, color: COL.dim, spacing: 2, align: "center", alpha: b2 });
-      txt(ctx, `${h.value} WITHOUT TRADING`, RING_CX, by + 98, { font: SANS, size: 38, weight: 700, color: COL.gold, spacing: 2, align: "center", alpha: b2 });
+      txt(ctx, `${h.value} WITHOUT TRADING`, RING_CX, by + 98, { font: SANS, size: 36, weight: 700, color: COL.gold, spacing: 2, align: "center", alpha: b2 });
       txt(ctx, `${dateText(h.gap.from)}  →  ${dateText(h.gap.to)}`, RING_CX, by + 136, { size: 14, weight: 700, color: COL.mid, align: "center", alpha: b2 });
     }
     const b3 = after >= 0 ? beat(f, 0.68, 2) : 0;
     if (b3 > 0.002) {
       const c = chs[after];
-      txt(ctx, `CHAPTER ${after + 1}`, RING_CX, by + 46, { size: 13, weight: 700, color: COL.dim, spacing: 2, align: "center", alpha: b3 });
+      txt(ctx, `LINK ${pad2(after + 1)}`, RING_CX, by + 46, { size: 13, weight: 700, color: COL.dim, spacing: 2, align: "center", alpha: b3 });
       txt(ctx, names(c), RING_CX, by + 98, { font: SANS, size: 40, weight: 700, color: colorOf(c), spacing: 3, align: "center", alpha: b3 });
       txt(ctx, `from ${dateText(c.from)}`, RING_CX, by + 136, { size: 14, weight: 700, color: COL.mid, align: "center", alpha: b3 });
     }
@@ -1379,7 +1264,7 @@ function footer(a) {
   txt(ctx, src, W / 2, 1900, { size: 11, weight: 700, color: COL.dim, align: "center", alpha: a });
 }
 
-// ------------------------------------------------------------------ the end: final result over the rings
+// ------------------------------------------------------------------ the end: final result under the chain
 
 function finalCard(sec) {
   const t = sec - T1;
@@ -1387,15 +1272,15 @@ function finalCard(sec) {
   const a = smooth((t - 0.2) / 0.6);
   const tr = [...D.story.totals].sort((x2, y2) => (x2.first || 0) - (y2.first || 0));
   const bw = 640;
-  const bh = 150 + tr.length * 70 + (D.story.overallRet !== null && tr.length > 1 ? 70 : 0);
+  const bh = finalCardHeight();
   const bx = RING_CX - bw / 2;
-  const by = RING_CY - bh / 2 + (1 - easeOut((t - 0.2) / 0.7)) * 30;
+  const by = RING.y + RING.h - bh - 44 + (1 - easeOut((t - 0.2) / 0.7)) * 30;
   panel(bx, by, bw, bh, "FINAL RESULT", a, `${dateText(CLOCK.start)} → ${dateText(CLOCK.end)}`, COL.gold, 0.9);
   const cols = [bx + 390, bx + 500, bx + bw - 24];
-  txt(ctx, "RETURN/TRADE", cols[0], by + 66, { size: 11, weight: 700, color: COL.dim, align: "right", alpha: a });
-  txt(ctx, "WON", cols[1], by + 66, { size: 11, weight: 700, color: COL.dim, align: "right", alpha: a });
-  txt(ctx, "TRADES", cols[2], by + 66, { size: 11, weight: 700, color: COL.dim, align: "right", alpha: a });
-  let y = by + 116;
+  txt(ctx, "RETURN/TRADE", cols[0], by + 58, { size: 11, weight: 700, color: COL.dim, align: "right", alpha: a });
+  txt(ctx, "WON", cols[1], by + 58, { size: 11, weight: 700, color: COL.dim, align: "right", alpha: a });
+  txt(ctx, "TRADES", cols[2], by + 58, { size: 11, weight: 700, color: COL.dim, align: "right", alpha: a });
+  let y = by + 102;
   tr.forEach((b, i) => {
     const look = LOOK[b.key] || LOOK.pump;
     const ra = a * smooth((t - 0.5 - i * 0.15) / 0.4);
@@ -1403,14 +1288,15 @@ function finalCard(sec) {
     txt(ctx, pct(b.ret, 2), cols[0], y, { font: SANS, size: 28, weight: 700, color: b.ret === null ? COL.dim : signColor(b.ret), align: "right", alpha: ra });
     txt(ctx, b.trades ? pctPlain((b.wins / b.trades) * 100) : "—", cols[1], y, { font: SANS, size: 28, weight: 700, align: "right", alpha: ra });
     txt(ctx, num(b.trades), cols[2], y, { font: SANS, size: 28, weight: 700, color: COL.mid, align: "right", alpha: ra });
-    y += 70;
+    y += FINAL_ROW;
   });
   if (D.story.overallRet !== null && tr.length > 1) {
     const ra = a * smooth((t - 0.9) / 0.4);
     ctx.save();
     ctx.globalAlpha = ra;
     ctx.fillStyle = "rgba(160,190,230,0.25)";
-    ctx.fillRect(bx + 24, y - 44, bw - 48, 1);
+    y += 6;
+    ctx.fillRect(bx + 24, y - 40, bw - 48, 1);
     ctx.restore();
     const wins = tr.reduce((s, b) => s + b.wins, 0);
     const n = tr.reduce((s, b) => s + b.trades, 0);
@@ -1494,12 +1380,12 @@ function drawFrame(sec, frame = Math.round(sec * FPS)) {
   const st = stateAt(p);
   const final = sec >= T1;
   header(a, sec, p, final);
-  ringFrame(a, sec, st, cam);
+  chainFrame(a, sec, p, cam);
   side(a, st, p, sec);
   stream(a, p);
   bottom(a, st, sec);
   footer(a);
-  cards(sec, cam);
+  cards(sec);
   intermission(sec);
   finalCard(sec);
   filmLook(frame);
